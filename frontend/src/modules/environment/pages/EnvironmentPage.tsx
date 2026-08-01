@@ -6,6 +6,7 @@ import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
+import { ImportEnvironmentModal, type ImportEnvironmentModalData } from '../components/ImportEnvironmentModal';
 import { Globe, Plus, Server, Cloud, Upload, Key, Lock, Clock, MoreVertical, ExternalLink, Copy, Edit, Trash2 } from 'lucide-react';
 
 // Styles
@@ -28,6 +29,7 @@ interface Environment {
 export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
   const [search, setSearch] = React.useState('');
   const [filter, setFilter] = React.useState<string>('All');
+  const [importOpen, setImportOpen] = React.useState(false);
 
   const environments: Environment[] = [
     {
@@ -114,7 +116,7 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
             <p className='mt-1 text-sm text-text-secondary'>Manage reusable execution environments for this project.</p>
           </div>
           <div className='flex items-center gap-2'>
-            <Button variant='outline'>
+            <Button variant='outline' onClick={() => setImportOpen(true)}>
               <Upload className='mr-2 h-4 w-4' />
               Import Environment
             </Button>
@@ -142,16 +144,16 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
           <h1 className='text-2xl font-bold text-text'>Environments</h1>
           <p className='mt-1 text-sm text-text-secondary'>Manage reusable execution environments for this project.</p>
         </div>
-        <div className='flex items-center gap-2'>
-          <Button variant='outline'>
-            <Upload className='mr-2 h-4 w-4' />
-            Import Environment
-          </Button>
-          <Button>
-            <Plus className='mr-2 h-4 w-4' />
-            Create Environment
-          </Button>
-        </div>
+          <div className='flex items-center gap-2'>
+            <Button variant='outline' onClick={() => setImportOpen(true)}>
+              <Upload className='mr-2 h-4 w-4' />
+              Import Environment
+            </Button>
+            <Button>
+              <Plus className='mr-2 h-4 w-4' />
+              Create Environment
+            </Button>
+          </div>
       </div>
 
       {/* Summary Cards */}
@@ -282,6 +284,15 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
           </Card>
         ))}
       </div>
+
+      <ImportEnvironmentModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImport={(data: ImportEnvironmentModalData) => {
+          console.log('Import environment:', data);
+          setImportOpen(false);
+        }}
+      />
     </div>
   );
 };

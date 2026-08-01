@@ -1,6 +1,10 @@
 // External libraries
 import React from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+
+// Assets
+import logoLight from '../assets/images/logo-light.svg';
+import logoDark from '../assets/images/logo-dark.svg';
 import {
   LayoutDashboard,
   Code2,
@@ -50,6 +54,7 @@ export const Sidebar: React.FC = () => {
   const navigationItems = showProjectsOnly
     ? [
         { to: '/projects', label: 'Projects', icon: FolderKanban },
+        { to: '/settings', label: 'Settings', icon: Settings },
       ]
     : baseNavigationItems;
 
@@ -70,9 +75,11 @@ export const Sidebar: React.FC = () => {
       <div className='flex h-16 items-center border-b border-border px-6'>
         <button
           onClick={handleLogoClick}
-          className='text-left text-lg font-bold text-text hover:text-primary transition-colors'
+          className='transition-opacity hover:opacity-80'
+          aria-label='TestForge home'
         >
-          TestForge
+          <img src={logoLight} alt='TestForge' className='block h-8 w-auto dark:hidden' />
+          <img src={logoDark} alt='TestForge' className='hidden h-8 w-auto dark:block' />
         </button>
       </div>
       <nav className="flex-1 space-y-1 p-4">

@@ -109,10 +109,6 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
           <p className='mt-1 text-sm text-text-secondary'>Provide Acceptance Criteria and let AI generate comprehensive test cases.</p>
         </div>
         <div className='flex items-center gap-3'>
-          <Button variant='outline'>
-            <Upload className='mr-2 h-4 w-4' />
-            Import from Jira / File
-          </Button>
           <Button>
             <Sparkles className='mr-2 h-4 w-4' />
             Generate Test Cases
@@ -127,8 +123,9 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
           <CardHeader>
             <div className='flex items-center justify-between'>
               <CardTitle className='text-base'>Acceptance Criteria</CardTitle>
-              <Button variant='ghost' size='sm'>
-                <Upload className='h-4 w-4' />
+              <Button variant='outline' size='sm'>
+                <Upload className='mr-2 h-4 w-4' />
+                Import from Jira / File
               </Button>
             </div>
           </CardHeader>

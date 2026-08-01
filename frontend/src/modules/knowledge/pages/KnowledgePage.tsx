@@ -16,6 +16,7 @@ import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
+import { AddArticleModal, type AddArticleModalData } from '../components/AddArticleModal';
 import { BookOpen, Plus, FileText, Tag, Search as SearchIcon } from 'lucide-react';
 
 // Styles
@@ -35,8 +36,8 @@ interface KnowledgeArticle {
 export const KnowledgePage: React.FC<KnowledgePageProps> = () => {
   const [search, setSearch] = React.useState('');
   const [selectedCategory, setSelectedCategory] = React.useState<string>('all');
-
-  const articles: KnowledgeArticle[] = [
+  const [addOpen, setAddOpen] = React.useState(false);
+  const [articles, setArticles] = React.useState<KnowledgeArticle[]>([
     {
       id: '1',
       title: 'Getting Started with API Testing',
@@ -73,7 +74,21 @@ export const KnowledgePage: React.FC<KnowledgePageProps> = () => {
       lastUpdated: '2024-01-13T10:00:00Z',
       views: 543,
     },
-  ];
+  ]);
+
+  const handleAddArticle = (data: AddArticleModalData) => {
+    const newArticle: KnowledgeArticle = {
+      id: Date.now().toString(),
+      title: data.title,
+      category: data.category,
+      tags: data.tags,
+      author: 'Admin',
+      lastUpdated: new Date().toISOString(),
+      views: 0,
+    };
+    setArticles((prev) => [newArticle, ...prev]);
+    setAddOpen(false);
+  };
 
   const categories = ['all', ...new Set(articles.map((article) => article.category))];
 
@@ -108,9 +123,9 @@ export const KnowledgePage: React.FC<KnowledgePageProps> = () => {
             <p className='mt-1 text-sm text-text-secondary'>Documentation and guides for your team</p>
           </div>
           <div className='flex items-center gap-2'>
-            <Button>
+            <Button onClick={() => setAddOpen(true)}>
               <Plus className='mr-2 h-4 w-4' />
-              Create Article
+              Add Article
             </Button>
           </div>
         </div>
@@ -118,7 +133,7 @@ export const KnowledgePage: React.FC<KnowledgePageProps> = () => {
           icon={<BookOpen className='h-12 w-12' />}
           title='No articles found'
           description={search ? 'Try adjusting your search criteria.' : 'Create your first article to share knowledge.'}
-          action={search ? undefined : { label: 'Create Article', onClick: () => console.log('Create clicked') }}
+          action={search ? undefined : { label: 'Add Article', onClick: () => setAddOpen(true) }}
         />
       </div>
     );
@@ -132,9 +147,9 @@ export const KnowledgePage: React.FC<KnowledgePageProps> = () => {
           <p className='mt-1 text-sm text-text-secondary'>Documentation and guides for your team</p>
         </div>
         <div className='flex items-center gap-2'>
-          <Button>
+          <Button onClick={() => setAddOpen(true)}>
             <Plus className='mr-2 h-4 w-4' />
-            Create Article
+            Add Article
           </Button>
         </div>
       </div>
@@ -221,6 +236,12 @@ export const KnowledgePage: React.FC<KnowledgePageProps> = () => {
           </Card>
         ))}
       </div>
+
+      <AddArticleModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onCreate={handleAddArticle}
+      />
     </div>
   );
 };

@@ -1,5 +1,5 @@
 // External libraries
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 // Shared types
 import type { Service, ServiceFormData } from '../types';
@@ -7,8 +7,34 @@ import type { Service, ServiceFormData } from '../types';
 // Mock data
 import { initialServices } from '../mock';
 
+const SERVICES_STORAGE_KEY = 'testforge_services';
+
+const loadServices = (): Service[] => {
+  try {
+    const stored = localStorage.getItem(SERVICES_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored) as Service[];
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch {
+    // ignore parse errors and fall back to initial data
+  }
+  return initialServices;
+};
+
 export const useService = (projectId?: string) => {
-  const [services, setServices] = useState<Service[]>(initialServices);
+  const [services, setServices] = useState<Service[]>(loadServices);
+
+  // Persist services to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem(SERVICES_STORAGE_KEY, JSON.stringify(services));
+    } catch {
+      // ignore storage errors
+    }
+  }, [services]);
 
   const create = useCallback((data: ServiceFormData) => {
     const now = new Date().toISOString();

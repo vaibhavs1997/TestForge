@@ -1,0 +1,102 @@
+// ApiOperationRepository - File-based repository implementation
+import * as fs from 'fs';
+import * as path from 'path';
+import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
+
+const DATA_ROOT = path.join(process.cwd(), 'data', 'apis');
+
+export class ApiOperationRepository {
+  private getProjectDir(projectId: string): string {
+    return path.join(DATA_ROOT, projectId);
+  }
+
+  private getOperationsFilePath(projectId: string): string {
+    return path.join(this.getProjectDir(projectId), 'operations.json');
+  }
+
+  private ensureProjectDir(projectId: string): void {
+    const dir = this.getProjectDir(projectId);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  }
+
+  async create(operation: ApiOperationEntity): Promise<ApiOperationEntity> {
+    this.ensureProjectDir(operation.serviceId);
+    const filePath = this.getOperationsFilePath(operation.serviceId);
+    const operations = await this.readOperations(operation.serviceId);
+    operations.push(operation);
+    fs.writeFileSync(filePath, JSON.stringify(operations, null, 2));
+    return operation;
+  }
+
+  async update(id: string, data: Partial<ApiOperationEntity>): Promise<ApiOperationEntity> {
+    const projectIds = this.listProjectIds();
+    for (const projectId of projectIds) {
+      const operations = await this.readOperations(projectId);
+      const index = operations.findIndex(o => o.id === id);
+      if (index !== -1) {
+        const updated = { ...operations[index], ...data, updatedAt: Date.now() };
+        operations[index] = updated;
+        const filePath = this.getOperationsFilePath(projectId);
+        fs.writeFileSync(filePath, JSON.stringify(operations, null, 2));
+        return updated;
+      }
+    }
+    throw new Error(`Operation with id ${id} not found`);
+  }
+
+  async delete(id: string): Promise<void> {
+    const projectIds = this.listProjectIds();
+    for (const projectId of projectIds) {
+      const operations = await this.readOperations(projectId);
+      const filtered = operations.filter(o => o.id !== id);
+      if (filtered.length !== operations.length) {
+        const filePath = this.getOperationsFilePath(projectId);
+        fs.writeFileSync(filePath, JSON.stringify(filtered, null, 2));
+        return;
+      }
+    }
+  }
+
+  async findById(id: string): Promise<ApiOperationEntity | null> {
+    const projectIds = this.listProjectIds();
+    for (const projectId of projectIds) {
+      const operations = await this.readOperations(projectId);
+      const operation = operations.find(o => o.id === id);
+      if (operation) return operation;
+    }
+    return null;
+  }
+
+  async findByService(serviceId: string): Promise<ApiOperationEntity[]> {
+    return this.readOperations(serviceId);
+  }
+
+  async list(): Promise<ApiOperationEntity[]> {
+    const projectIds = this.listProjectIds();
+    const allOperations: ApiOperationEntity[] = [];
+    for (const projectId of projectIds) {
+      const operations = await this.readOperations(projectId);
+      allOperations.push(...operations);
+    }
+    return allOperations;
+  }
+
+  private listProjectIds(): string[] {
+    if (!fs.existsSync(DATA_ROOT)) return [];
+    return fs.readdirSync(DATA_ROOT).filter(name => {
+      const fullPath = path.join(DATA_ROOT, name);
+      return fs.statSync(fullPath).isDirectory();
+    });
+  }
+
+  private readOperations(serviceId: string): ApiOperationEntity[] {
+    const filePath = this.getOperationsFilePath(serviceId);
+    if (!fs.existsSync(filePath)) return [];
+    const data = fs.readFileSync(filePath, 'utf-8');
+    return JSON.parse(data);
+  }
+}
+
+export default ApiOperationRepository;

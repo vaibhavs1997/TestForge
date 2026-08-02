@@ -5,15 +5,16 @@ import { PageHeader } from '../../../components/layout/PageHeader';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
-import { Card } from '../../../components/ui/Card';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '../../../components/ui/Card';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
 import { Toast } from '../../../components/shared/Toast';
 import { Select } from '../../../components/forms/Select';
 import { ServiceDialog } from '../components/ServiceDialog';
 import { ImportApiModal, type ImportApiModalData } from '../components/ImportApiModal';
 import { AddApiModal, type AddApiModalData } from '../components/AddApiModal';
-import { useService } from '../hooks/useService';
-import type { Service, ServiceFormData } from '../types';
+import { useService, useApiOperations, useImportApiContract } from '../hooks/useService';
+import { environmentService } from '../../environment/services/environmentService';
+import type { Service, ServiceFormData, Operation, OperationStatus, ImportSummary, DetectedEnvironment } from '../types';
 import { ChevronRight, Plus, Import, MoreVertical, Play, Edit, Trash2, FolderOpen } from 'lucide-react';
 
 type SortField = 'name' | 'protocol' | 'version' | 'status' | 'updatedDate';
@@ -34,32 +35,50 @@ const statusOptions = [
   { value: 'Inactive', label: 'Inactive' },
 ];
 
-interface Operation {
-  id: string;
-  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS' | 'HEAD';
-  path: string;
-  status: 'active' | 'inactive';
-  description: string;
-  tags: string[];
-  apiName?: string;
-  authentication?: string;
-  serviceName?: string;
-  version?: string;
-  isCustom?: boolean;
+// Local Operation interface for UI use — mirrors what ServiceListPage expects.
+interface OperationLocal extends Operation {
+  serviceName: string;
+  apiName: string;
+  isCustom: boolean;
 }
 
 interface ServiceWithOperations extends Service {
-  operations: Operation[];
+  operations: OperationLocal[];
 }
+
+/** Convert a raw operation from the hook into the local shape the UI expects. */
+const toOperationLocal = (op: Operation, serviceName: string): OperationLocal => ({
+  id: op.id,
+  serviceId: op.serviceId,
+  serviceName,
+  apiName: op.apiName || op.name || '',
+  name: op.name,
+  method: op.method,
+  path: op.path,
+  description: op.description,
+  status: (op.status || 'active') as OperationStatus,
+  authentication: op.authentication,
+  authenticationType: op.authenticationType,
+  tags: op.tags || [],
+  version: op.version,
+  isCustom: true,
+  createdAt: op.createdAt,
+  updatedAt: op.updatedAt,
+});
 
 export const ServiceListPage = ({ projectId: propProjectId, projectName }: { projectId?: string; projectName?: string }) => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const projectId = propProjectId ?? routeProjectId ?? '1';
-  const { services, create, update, remove } = useService(projectId);
+  const { services, create, createAsync, update, remove } = useService(projectId);
+  const { importContractAsync, isImporting } = useImportApiContract(projectId);
+
+  // Fetch all operations for every service in this project
+  const serviceIds = React.useMemo(() => services.map((s) => s.id), [services]);
+  const { operations: rawOperations, createOperationAsync } = useApiOperations(projectId, serviceIds);
 
   const [search, setSearch] = React.useState('');
   const [selectedService, setSelectedService] = React.useState<ServiceWithOperations | null>(null);
-  const [selectedOperation, setSelectedOperation] = React.useState<Operation | null>(null);
+  const [selectedOperation, setSelectedOperation] = React.useState<OperationLocal | null>(null);
   const [activeTab, setActiveTab] = React.useState('overview');
   const [protocol, setProtocol] = React.useState('');
   const [createOpen, setCreateOpen] = React.useState(false);
@@ -70,76 +89,35 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [importOpen, setImportOpen] = React.useState(false);
   const [toastOpen, setToastOpen] = React.useState(false);
-  const [customOperations, setCustomOperations] = React.useState<Operation[]>([]);
   const [expandedServices, setExpandedServices] = React.useState<Set<string>>(new Set());
 
-  // Default mock operations for existing services
-  const defaultOperations: Operation[] = React.useMemo(() => {
-    return [
-      {
-        id: 'default-op-1',
-        method: 'POST',
-        path: '/auth/login',
-        status: 'active' as const,
-        description: 'Authenticate user with email and password',
-        tags: ['Authentication', 'Auth'],
-      },
-      {
-        id: 'default-op-2',
-        method: 'POST',
-        path: '/auth/logout',
-        status: 'active' as const,
-        description: 'Logout user and invalidate session',
-        tags: ['Authentication'],
-      },
-      {
-        id: 'default-op-3',
-        method: 'POST',
-        path: '/auth/refresh',
-        status: 'active' as const,
-        description: 'Refresh access token',
-        tags: ['Authentication'],
-      },
-      {
-        id: 'default-op-4',
-        method: 'POST',
-        path: '/auth/register',
-        status: 'active' as const,
-        description: 'Register new user account',
-        tags: ['Authentication'],
-      },
-      {
-        id: 'default-op-5',
-        method: 'GET',
-        path: '/auth/me',
-        status: 'active' as const,
-        description: 'Get current user profile',
-        tags: ['Authentication'],
-      },
-      {
-        id: 'default-op-6',
-        method: 'POST',
-        path: '/auth/forgot-password',
-        status: 'inactive' as const,
-        description: 'Request password reset',
-        tags: ['Authentication'],
-      },
-    ];
-  }, []);
+  // Import contract state
+  const [uploadProgress, setUploadProgress] = React.useState(0);
+  const [progressToastOpen, setProgressToastOpen] = React.useState(false);
+  const [progressMessage, setProgressMessage] = React.useState('');
+  const [summaryToastOpen, setSummaryToastOpen] = React.useState(false);
+  const [summaryMessage, setSummaryMessage] = React.useState('');
+  const [errorToastOpen, setErrorToastOpen] = React.useState(false);
+  const [errorMessage, setErrorMessage] = React.useState('');
+  
+  // Environment detection state
+  const [envConfirmOpen, setEnvConfirmOpen] = React.useState(false);
+  const [detectedEnvironments, setDetectedEnvironments] = React.useState<DetectedEnvironment[]>([]);
+  const [selectedEnvIds, setSelectedEnvIds] = React.useState<Set<string>>(new Set());
+  const [isCreatingEnvironments, setIsCreatingEnvironments] = React.useState(false);
 
-  // Build services with operations, merging default and custom operations
+  // Build services with operations, merging fetched operations per service
   const servicesWithOperations: ServiceWithOperations[] = React.useMemo(() => {
-    return services.map(service => {
-      // Get custom operations for this service
-      const serviceCustomOps = customOperations.filter(op => op.serviceName === service.name);
-      // Use custom operations if any exist for this service, otherwise use defaults
-      const ops = serviceCustomOps.length > 0 ? serviceCustomOps : defaultOperations;
+    return services.map((service) => {
+      const serviceOps = rawOperations
+        .filter((op) => op.serviceId === service.id)
+        .map((op) => toOperationLocal(op, service.name));
       return {
         ...service,
-        operations: ops,
+        operations: serviceOps,
       };
     });
-  }, [services, customOperations, defaultOperations]);
+  }, [services, rawOperations]);
 
   // Auto-select and expand first service if none selected
   React.useEffect(() => {
@@ -153,7 +131,6 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
   }, [servicesWithOperations, selectedService]);
 
   const handleServiceClick = (service: ServiceWithOperations) => {
-    // Toggle expand/collapse
     setExpandedServices((prev) => {
       const next = new Set(prev);
       if (next.has(service.id)) {
@@ -170,7 +147,7 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
     setActiveTab('overview');
   };
 
-  const handleOperationClick = (operation: Operation) => {
+  const handleOperationClick = (operation: OperationLocal) => {
     setSelectedOperation(operation);
     setActiveTab('overview');
   };
@@ -182,7 +159,7 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
 
   const handleUpdate = (data: ServiceFormData) => {
     if (editService) {
-      update(editService.id, data);
+      update({ id: editService.id, ...data });
       setEditOpen(false);
     }
   };
@@ -195,93 +172,133 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
   };
 
   const handleImportApi = (data: ImportApiModalData) => {
-    const sourceLabel = data.source === 'file' ? data.fileName : data.url;
-    create({
-      projectId,
-      name: sourceLabel ? sourceLabel.split('/').pop()?.split('.')[0] ?? 'Imported API' : 'Imported API',
-      description: `Imported from ${data.source === 'file' ? 'file' : 'URL'} (${data.format})`,
-      protocol: data.format === 'wsdl' ? 'SOAP' : data.format === 'graphql' ? 'GraphQL' : 'REST',
-      baseUrl: data.source === 'url' ? data.url ?? '' : '',
-      version: 'v1',
-      status: 'Active',
-    });
+    if (data.source === 'file' && data.file) {
+      const file = data.file;
+      setUploadProgress(0);
+      setProgressMessage('Starting upload…');
+      setProgressToastOpen(true);
+
+      importContractAsync({
+        file,
+        onUploadProgress: (e: any) => {
+          if (e.total && e.total > 0) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            setUploadProgress(percent);
+            setProgressMessage(`Uploading… ${percent}%`);
+          }
+        },
+      })
+        .then((summary: ImportSummary) => {
+          setProgressToastOpen(false);
+          setUploadProgress(0);
+
+          const lines: string[] = [];
+          lines.push(`✔ ${summary.servicesImported} Services Imported`);
+          lines.push(`✔ ${summary.operationsImported} Operations Imported`);
+          if (summary.duplicatesSkipped > 0) {
+            lines.push(`⚠ ${summary.duplicatesSkipped} Duplicate Operations Skipped`);
+          }
+          if (summary.warnings && summary.warnings.length > 0) {
+            summary.warnings.forEach((w) => lines.push(`⚠ ${w}`));
+          }
+          
+          // Check for detected environments
+          if (summary.detectedEnvironments && summary.detectedEnvironments.length > 0) {
+            setDetectedEnvironments(summary.detectedEnvironments);
+            setSelectedEnvIds(new Set(summary.detectedEnvironments.map(e => `${e.name}-${e.baseUrl}`)));
+            setEnvConfirmOpen(true);
+          } else {
+            setSummaryMessage(lines.join('\n'));
+            setSummaryToastOpen(true);
+          }
+        })
+        .catch((error: any) => {
+          setProgressToastOpen(false);
+          setUploadProgress(0);
+          const msg =
+            error?.response?.data?.message ||
+            error?.message ||
+            'Import failed. Please try again.';
+          setErrorMessage(msg);
+          setErrorToastOpen(true);
+        });
+    }
     setImportOpen(false);
+  };
+
+  const handleCreateSelectedEnvironments = async () => {
+    setIsCreatingEnvironments(true);
+    try {
+      const selected = detectedEnvironments.filter(e => selectedEnvIds.has(`${e.name}-${e.baseUrl}`));
+      await Promise.all(
+        selected.map(env =>
+          environmentService.createEnvironment(projectId, {
+            name: env.name,
+            baseUrl: env.baseUrl,
+            description: env.description,
+          })
+        )
+      );
+      setEnvConfirmOpen(false);
+      setSummaryMessage(`✔ ${selected.length} environments created successfully.`);
+      setSummaryToastOpen(true);
+    } catch (error: any) {
+      setErrorMessage(error?.message || 'Failed to create environments');
+      setErrorToastOpen(true);
+    } finally {
+      setIsCreatingEnvironments(false);
+    }
+  };
+
+  const handleSkipEnvironments = () => {
+    setEnvConfirmOpen(false);
+    setSummaryMessage('Import completed successfully.');
+    setSummaryToastOpen(true);
   };
 
   // Collect all existing APIs for duplicate checking
   const existingApis = React.useMemo(() => {
-    return servicesWithOperations.flatMap(s => s.operations.map(op => ({
-      method: op.method,
-      endpointPath: op.path,
-    })));
+    return servicesWithOperations.flatMap((s) =>
+      s.operations.map((op) => ({
+        method: op.method,
+        endpointPath: op.path,
+      })),
+    );
   }, [servicesWithOperations]);
 
   const existingServiceNames = React.useMemo(() => {
-    return services.map(s => s.name);
+    return services.map((s) => s.name);
   }, [services]);
 
-  const handleAddApi = (data: AddApiModalData) => {
-    // Check if the service already exists
-    let existingService = services.find(s => s.name.toLowerCase() === data.serviceName.toLowerCase());
+  const handleAddApi = async (data: AddApiModalData) => {
+    let service = services.find((s: Service) => s.name.toLowerCase() === data.serviceName.toLowerCase());
 
-    if (!existingService) {
-      // Create a new service
-      const now = new Date().toISOString();
-      existingService = {
-        id: crypto.randomUUID(),
+    if (!service) {
+      service = await createAsync({
         projectId,
         name: data.serviceName,
-        description: '',
-        protocol: 'REST',
-        baseUrl: '',
-        version: 'v1',
-        status: 'Active',
-        createdDate: now,
-        updatedDate: now,
-      };
-      create({
-        projectId,
-        name: data.serviceName,
-        description: '',
-        protocol: 'REST',
-        baseUrl: '',
-        version: 'v1',
-        status: 'Active',
+        description: data.apiName,
+        version: data.version,
       });
     }
 
-    // Create the new operation
-    const newOperation: Operation = {
-      id: crypto.randomUUID(),
+    await createOperationAsync({
+      serviceId: service!.id,
+      name: data.apiName,
       method: data.method,
       path: data.endpointPath,
-      status: 'active',
       description: data.description || 'No description provided',
-      tags: data.tags,
-      apiName: data.apiName,
-      authentication: data.authentication,
-      serviceName: data.serviceName,
-      version: data.version,
-      isCustom: true,
-    };
+      authenticationType: data.authentication,
+      status: 'Active',
+    });
 
-    // Add to custom operations
-    setCustomOperations((prev) => [...prev, newOperation]);
-
-    // Auto-select the newly created API
-    // Build the service with operations to select
-    const serviceOps = [...customOperations.filter(op => op.serviceName === data.serviceName), newOperation];
-    const newServiceWithOps: ServiceWithOperations = {
-      ...(existingService as Service),
-      operations: serviceOps.length > 0 ? serviceOps : defaultOperations,
-    };
-    setSelectedService(newServiceWithOps);
-    // Expand the newly created service's tree
-    setExpandedServices((prev) => new Set(prev).add(newServiceWithOps.id));
-    setSelectedOperation(newOperation);
+    const updatedService = servicesWithOperations.find((s) => s.id === service!.id);
+    if (updatedService) {
+      setSelectedService(updatedService);
+      setExpandedServices((prev) => new Set(prev).add(updatedService.id));
+    }
     setActiveTab('overview');
 
-    // Close modal and show success toast
     setAddApiOpen(false);
     setToastOpen(true);
   };
@@ -484,8 +501,8 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
                     <div>
                       <h3 className='text-sm font-semibold text-text mb-2'>Tags</h3>
                       <div className='flex gap-2'>
-                        {selectedOperation.tags.length > 0 ? (
-                          selectedOperation.tags.map((tag) => (
+                        {(selectedOperation.tags || []).length > 0 ? (
+                          (selectedOperation.tags || []).map((tag) => (
                             <Badge key={tag} variant='outline'>{tag}</Badge>
                           ))
                         ) : (
@@ -518,7 +535,7 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
                       </div>
                       <div>
                         <h3 className='text-sm font-semibold text-text mb-1'>Base URL</h3>
-                        <code className='text-sm text-text-secondary'>{selectedService?.baseUrl}</code>
+                        <code className='text-sm text-text-secondary'>{selectedService?.baseUrl || '—'}</code>
                       </div>
                       <div>
                         <h3 className='text-sm font-semibold text-text mb-1'>Authentication</h3>
@@ -630,6 +647,8 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
         open={importOpen}
         onClose={() => setImportOpen(false)}
         onImport={handleImportApi}
+        isImporting={isImporting}
+        uploadProgress={uploadProgress}
       />
 
       <AddApiModal
@@ -644,6 +663,97 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
         message='API created successfully.'
         open={toastOpen}
         onClose={() => setToastOpen(false)}
+      />
+
+      {/* Environment Detection Confirmation Dialog */}
+      {envConfirmOpen && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
+          <Card className='mx-4 w-full max-w-2xl'>
+            <CardHeader>
+              <CardTitle>Detected Environments</CardTitle>
+            </CardHeader>
+            <CardContent className='space-y-4'>
+              <p className='text-sm text-text-secondary'>
+                The imported API specification contains server definitions. Select the environments you would like to create.
+              </p>
+              <div className='max-h-96 overflow-y-auto rounded-lg border border-border'>
+                <table className='w-full text-sm'>
+                  <thead className='border-b border-border bg-surface'>
+                    <tr>
+                      <th className='px-4 py-2 text-left'>Select</th>
+                      <th className='px-4 py-2 text-left'>Environment Name</th>
+                      <th className='px-4 py-2 text-left'>Base URL</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detectedEnvironments.map((env, idx) => {
+                      const envKey = `${env.name}-${env.baseUrl}`;
+                      const isSelected = selectedEnvIds.has(envKey);
+                      return (
+                        <tr key={idx} className='border-b border-border last:border-b-0 hover:bg-surface/50'>
+                          <td className='px-4 py-3'>
+                            <input
+                              type='checkbox'
+                              checked={isSelected}
+                              onChange={(e) => {
+                                setSelectedEnvIds(prev => {
+                                  const next = new Set(prev);
+                                  if (e.target.checked) {
+                                    next.add(envKey);
+                                  } else {
+                                    next.delete(envKey);
+                                  }
+                                  return next;
+                                });
+                              }}
+                              className='h-4 w-4 rounded border-border'
+                            />
+                          </td>
+                          <td className='px-4 py-3 font-medium'>{env.name}</td>
+                          <td className='px-4 py-3 font-mono text-xs'>{env.baseUrl}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+            <CardFooter className='justify-end gap-2'>
+              <Button variant='outline' onClick={handleSkipEnvironments} disabled={isCreatingEnvironments}>
+                Skip
+              </Button>
+              <Button onClick={handleCreateSelectedEnvironments} disabled={isCreatingEnvironments || selectedEnvIds.size === 0}>
+                Create Selected ({selectedEnvIds.size})
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      )}
+
+      {/* Upload progress toast */}
+      <Toast
+        message={progressMessage || 'Uploading…'}
+        open={progressToastOpen}
+        onClose={() => setProgressToastOpen(false)}
+        duration={0}
+        type='info'
+      />
+
+      {/* Import summary toast */}
+      <Toast
+        message={summaryMessage}
+        open={summaryToastOpen}
+        onClose={() => setSummaryToastOpen(false)}
+        duration={10000}
+        type='success'
+      />
+
+      {/* Error toast */}
+      <Toast
+        message={errorMessage}
+        open={errorToastOpen}
+        onClose={() => setErrorToastOpen(false)}
+        type='error'
       />
     </div>
   );

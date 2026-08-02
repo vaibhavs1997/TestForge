@@ -1,3 +1,2 @@
-// Barrel export file
-// Add exports here as modules are implemented
-export {};
+// Barrel export for API module hooks
+export { useServices, useService, useApiOperations, useImportApiContract } from './useService';

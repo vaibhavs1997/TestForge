@@ -46,12 +46,16 @@ TestForge/
 - React Router (routing)
 - TanStack Query (data fetching/caching)
 - Lucide React (icons)
+- Zustand (state management)
 
 ### Backend
 - Express.js + TypeScript
+- Clean Architecture (Domain → Application → Infrastructure → Interfaces)
+- File-based persistence (JSON)
 
 ## Engineering Standards
 
+### Frontend
 - **Architecture**: Feature/module-based architecture with barrel exports
 - **Module Independence**: Modules are independent and self-contained
 - **Composition over Inheritance**: Prefer composition patterns
@@ -60,8 +64,18 @@ TestForge/
 - **Barrel Exports**: Every folder exports through `index.ts`
 - **Import Order**: External → Constants → Types → Hooks → Services → Components → Styles
 
+### Backend
+- **Clean Architecture**: Domain → Application → Infrastructure → Interfaces
+- **Domain Layer**: Entities and repository interfaces
+- **Application Layer**: Use cases containing business logic
+- **Infrastructure Layer**: Repository implementations (file-based)
+- **Interface Layer**: Controllers and Express routes
+- **Dependency Injection**: Use cases receive repositories via constructor
+- **Single Responsibility**: Each class has one reason to change
+
 ## Module Structure
 
+### Frontend Modules
 Each feature module follows a consistent structure:
 
 ```
@@ -77,8 +91,34 @@ modules/{feature}/
 └── index.ts        # Barrel export
 ```
 
+### Backend Modules
+Each backend feature follows Clean Architecture:
+
+```
+backend/src/
+├── domain/{feature}/
+│   ├── {Feature}Entity.ts           # Domain entity
+│   ├── {Feature}Repository.ts       # Repository interface
+│   └── index.ts                     # Barrel export
+├── application/{feature}/
+│   ├── Create{Feature}.ts           # Use case
+│   ├── Update{Feature}.ts           # Use case
+│   ├── Delete{Feature}.ts           # Use case
+│   ├── Get{Feature}.ts              # Use case
+│   ├── List{Feature}s.ts            # Use case
+│   └── index.ts                     # Barrel export
+├── infrastructure/{feature}/
+│   ├── {Feature}Repository.ts       # Repository implementation
+│   └── index.ts                     # Barrel export
+└── interfaces/{feature}/
+    ├── {Feature}Controller.ts       # Controller
+    ├── {Feature}Routes.ts           # Express routes
+    └── index.ts                     # Barrel export
+```
+
 ## Naming Conventions
 
+### Frontend
 | Category      | Convention  | Example              |
 |---------------|-------------|----------------------|
 | Pages         | PascalCase + Page suffix | `ServiceListPage.tsx` |
@@ -89,6 +129,15 @@ modules/{feature}/
 | Types         | PascalCase  | `Service.ts`        |
 | Enums         | PascalCase  | `HttpMethod.ts`     |
 | Utilities     | lowercase  | `cn.ts`             |
+
+### Backend
+| Category      | Convention  | Example              |
+|---------------|-------------|----------------------|
+| Entities      | PascalCase + Entity suffix | `ApiServiceEntity.ts` |
+| Repositories  | PascalCase + Repository suffix | `ApiServiceRepository.ts` |
+| Use Cases     | PascalCase + verb prefix | `CreateApiService.ts` |
+| Controllers   | PascalCase + Controller suffix | `ApiController.ts` |
+| Routes        | PascalCase + Routes suffix | `ApiRoutes.ts` |
 
 ## Getting Started
 
@@ -108,11 +157,38 @@ npm run dev:frontend
 # Run backend dev server
 npm run dev:backend
 
-# Run tests
-npm test
-
 # Build for production
 npm run build
+```
+
+## API Endpoints
+
+### API Management
+- `GET /api/projects/:projectId/services` - List services
+- `POST /api/projects/:projectId/services` - Create service
+- `GET /api/projects/:projectId/services/:serviceId` - Get service
+- `PATCH /api/projects/:projectId/services/:serviceId` - Update service
+- `DELETE /api/projects/:projectId/services/:serviceId` - Delete service
+- `GET /api/projects/:projectId/services/:serviceId/apis` - List operations
+- `POST /api/projects/:projectId/services/:serviceId/apis` - Create operation
+- `GET /api/projects/:projectId/services/:serviceId/apis/:apiId` - Get operation
+- `PATCH /api/projects/:projectId/services/:serviceId/apis/:apiId` - Update operation
+- `DELETE /api/projects/:projectId/services/:serviceId/apis/:apiId` - Delete operation
+
+### Response Format
+```json
+// Success
+{
+  "success": true,
+  "data": { ... }
+}
+
+// Failure
+{
+  "success": false,
+  "message": "Error message",
+  "details": null
+}
 ```
 
 ## Design System
@@ -149,3 +225,39 @@ npm test
 # Lint code
 npm run lint
 ```
+
+## Architecture Deep Dive
+
+### Backend Clean Architecture
+
+The backend follows Clean Architecture with four layers:
+
+1. **Domain Layer**: Contains business entities and repository interfaces
+   - No dependencies on other layers
+   - Pure TypeScript classes and interfaces
+   
+2. **Application Layer**: Contains use cases (business logic)
+   - Depends only on Domain layer
+   - Orchestrates business workflows
+   - Validates business rules
+   
+3. **Infrastructure Layer**: Contains repository implementations
+   - Implements Domain repository interfaces
+   - Handles data persistence (file-based JSON)
+   - Independent of Express/framework
+   
+4. **Interface Layer**: Contains controllers and routes
+   - Express controllers and route definitions
+   - Handles HTTP request/response
+   - Calls Application layer use cases
+   - Maps domain errors to HTTP status codes
+
+### Data Flow
+```
+HTTP Request → Route → Controller → Use Case → Repository → File System
+```
+
+### Persistence Strategy
+- File-based JSON storage per project
+- Location: `data/apis/{projectId}/services.json` and `operations.json`
+- Similar to existing project persistence pattern

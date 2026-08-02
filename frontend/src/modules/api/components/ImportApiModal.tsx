@@ -8,6 +8,7 @@ import { Select } from '../../../components/forms/Select';
 
 export interface ImportApiModalData {
   source: 'file' | 'url';
+  file?: File;
   fileName?: string;
   url?: string;
   format: string;
@@ -17,6 +18,8 @@ export interface ImportApiModalProps {
   open: boolean;
   onClose: () => void;
   onImport: (data: ImportApiModalData) => void;
+  isImporting?: boolean;
+  uploadProgress?: number;
 }
 
 const formatOptions = [
@@ -27,9 +30,10 @@ const formatOptions = [
   { value: 'graphql', label: 'GraphQL Schema' },
 ];
 
-export const ImportApiModal = ({ open, onClose, onImport }: ImportApiModalProps) => {
+export const ImportApiModal = ({ open, onClose, onImport, isImporting, uploadProgress }: ImportApiModalProps) => {
   const [source, setSource] = React.useState<'file' | 'url'>('file');
   const [fileName, setFileName] = React.useState('');
+  const [file, setFile] = React.useState<File | null>(null);
   const [url, setUrl] = React.useState('');
   const [format, setFormat] = React.useState('openapi');
   const [error, setError] = React.useState<string | undefined>(undefined);
@@ -39,6 +43,7 @@ export const ImportApiModal = ({ open, onClose, onImport }: ImportApiModalProps)
     if (open) {
       setSource('file');
       setFileName('');
+      setFile(null);
       setUrl('');
       setFormat('openapi');
       setError(undefined);
@@ -48,9 +53,10 @@ export const ImportApiModal = ({ open, onClose, onImport }: ImportApiModalProps)
   if (!open) return null;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setFileName(file.name);
+    const f = e.target.files?.[0];
+    if (f) {
+      setFileName(f.name);
+      setFile(f);
       setError(undefined);
     }
   };
@@ -70,6 +76,7 @@ export const ImportApiModal = ({ open, onClose, onImport }: ImportApiModalProps)
 
     onImport({
       source,
+      file: source === 'file' ? file ?? undefined : undefined,
       fileName: source === 'file' ? fileName : undefined,
       url: source === 'url' ? url.trim() : undefined,
       format,
@@ -92,6 +99,7 @@ export const ImportApiModal = ({ open, onClose, onImport }: ImportApiModalProps)
               onClick={onClose}
               aria-label='Close'
               type='button'
+              disabled={isImporting}
             >
               <X className='h-4 w-4' />
             </Button>
@@ -108,6 +116,7 @@ export const ImportApiModal = ({ open, onClose, onImport }: ImportApiModalProps)
                   variant={source === 'file' ? 'default' : 'outline'}
                   size='sm'
                   onClick={() => { setSource('file'); setError(undefined); }}
+                  disabled={isImporting}
                 >
                   <Upload className='mr-2 h-4 w-4' />
                   Upload File
@@ -117,6 +126,7 @@ export const ImportApiModal = ({ open, onClose, onImport }: ImportApiModalProps)
                   variant={source === 'url' ? 'default' : 'outline'}
                   size='sm'
                   onClick={() => { setSource('url'); setError(undefined); }}
+                  disabled={isImporting}
                 >
                   <Link2 className='mr-2 h-4 w-4' />
                   Sync from URL
@@ -148,6 +158,7 @@ export const ImportApiModal = ({ open, onClose, onImport }: ImportApiModalProps)
                     className='hidden'
                     accept='.json,.yaml,.yml,.xml,.wsdl,.graphql'
                     onChange={handleFileChange}
+                    disabled={isImporting}
                   />
                 </div>
               </div>
@@ -160,6 +171,7 @@ export const ImportApiModal = ({ open, onClose, onImport }: ImportApiModalProps)
                 value={url}
                 onChange={(e) => { setUrl(e.target.value); setError(undefined); }}
                 placeholder='https://company.com/openapi.yaml'
+                disabled={isImporting}
               />
             )}
 
@@ -169,17 +181,34 @@ export const ImportApiModal = ({ open, onClose, onImport }: ImportApiModalProps)
               value={format}
               onChange={(e) => setFormat(e.target.value)}
               options={formatOptions}
+              disabled={isImporting}
             />
+
+            {/* Upload progress */}
+            {isImporting && uploadProgress !== undefined && uploadProgress >= 0 && (
+              <div className='space-y-2'>
+                <div className='flex justify-between text-sm'>
+                  <span>Uploading…</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <div className='h-2 w-full rounded-full bg-surface'>
+                  <div
+                    className='h-2 rounded-full bg-primary transition-all duration-200'
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
 
             {error && (
               <p className='text-sm text-error' role='alert'>{error}</p>
             )}
           </CardContent>
           <CardFooter className='justify-end gap-2'>
-            <Button type='button' variant='outline' onClick={onClose}>
+            <Button type='button' variant='outline' onClick={onClose} disabled={isImporting}>
               Cancel
             </Button>
-            <Button type='submit'>
+            <Button type='submit' disabled={isImporting}>
               {source === 'file' ? 'Import' : 'Sync'}
             </Button>
           </CardFooter>

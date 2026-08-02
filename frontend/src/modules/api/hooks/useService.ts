@@ -1,82 +1,209 @@
-// External libraries
-import { useState, useCallback, useEffect } from 'react';
+// TanStack Query hooks for API services and operations.
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiService } from '../services/apiService';
+import type { ServiceFormData, OperationFormData, Operation, ImportSummary } from '../types';
+import type { AxiosProgressEvent } from 'axios';
 
-// Shared types
-import type { Service, ServiceFormData } from '../types';
+// ─── Services ────────────────────────────────────────────────
 
-// Mock data
-import { initialServices } from '../mock';
+export const useServices = (projectId?: string) => {
+  const queryClient = useQueryClient();
+  const queryKey = ['services', projectId];
 
-const SERVICES_STORAGE_KEY = 'testforge_services';
+  const { data: services = [], isLoading, isError, error } = useQuery({
+    queryKey,
+    queryFn: () => (projectId ? apiService.listServices(projectId) : Promise.resolve([])),
+    enabled: !!projectId,
+  });
 
-const loadServices = (): Service[] => {
-  try {
-    const stored = localStorage.getItem(SERVICES_STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored) as Service[];
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch {
-    // ignore parse errors and fall back to initial data
-  }
-  return initialServices;
+  const createMutation = useMutation({
+    mutationFn: (data: ServiceFormData) =>
+      apiService.createService(data.projectId, {
+        name: data.name,
+        description: data.description,
+        version: data.version,
+        tags: data.tags,
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, ...data }: { id: string } & ServiceFormData) =>
+      apiService.updateService(data.projectId, id, {
+        name: data.name,
+        description: data.description,
+        version: data.version,
+        tags: data.tags,
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiService.deleteService(projectId || '', id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+  });
+
+  return {
+    services,
+    isLoading,
+    isError,
+    error,
+    create: createMutation.mutate,
+    createAsync: createMutation.mutateAsync,
+    isCreating: createMutation.isPending,
+    update: updateMutation.mutate,
+    updateAsync: updateMutation.mutateAsync,
+    isUpdating: updateMutation.isPending,
+    remove: deleteMutation.mutate,
+    removeAsync: deleteMutation.mutateAsync,
+    isDeleting: deleteMutation.isPending,
+  };
 };
 
 export const useService = (projectId?: string) => {
-  const [services, setServices] = useState<Service[]>(loadServices);
+  const services = useServices(projectId);
+  return {
+    services: services.services,
+    allServices: services.services,
+    isLoading: services.isLoading,
+    isError: services.isError,
+    create: services.create,
+    createAsync: services.createAsync,
+    update: services.update,
+    updateAsync: services.updateAsync,
+    remove: services.remove,
+    removeAsync: services.removeAsync,
+  };
+};
 
-  // Persist services to localStorage whenever they change
-  useEffect(() => {
-    try {
-      localStorage.setItem(SERVICES_STORAGE_KEY, JSON.stringify(services));
-    } catch {
-      // ignore storage errors
-    }
-  }, [services]);
+// ─── Operations ──────────────────────────────────────────────
 
-  const create = useCallback((data: ServiceFormData) => {
-    const now = new Date().toISOString();
-    const service: Service = {
-      id: crypto.randomUUID(),
-      projectId: data.projectId,
-      name: data.name,
-      description: data.description,
-      protocol: data.protocol,
-      baseUrl: data.baseUrl,
-      version: data.version,
-      status: data.status,
-      createdDate: now,
-      updatedDate: now,
-    };
-    setServices((prev) => [service, ...prev]);
-    return service;
-  }, []);
+/** Map a backend ApiOperationDto to the front-end `Operation` interface. */
+const mapOperation = (raw: any, serviceName?: string): Operation => ({
+  id: raw.id,
+  serviceId: raw.serviceId,
+  serviceName,
+  apiName: raw.name,
+  name: raw.name,
+  method: raw.method,
+  path: raw.path,
+  description: raw.description,
+  // Backend stores "Active" / "Inactive"; the front-end grid expects lowercase.
+  status: (raw.status || 'active').toLowerCase() as Operation['status'],
+  authenticationType: raw.authenticationType,
+  authentication: raw.authenticationType,
+  tags: raw.tags || [],
+  createdAt: raw.createdAt,
+  updatedAt: raw.updatedAt,
+});
 
-  const update = useCallback((id: string, data: ServiceFormData) => {
-    const now = new Date().toISOString();
-    setServices((prev) =>
-      prev.map((s) =>
-        s.id === id ? { ...s, ...data, updatedDate: now } : s
-      )
-    );
-  }, []);
+export const useApiOperations = (projectId?: string, serviceIds?: string[]) => {
+  const queryClient = useQueryClient();
+  const servicesQueryKey = ['services', projectId];
+  const queryKey = ['operations', projectId];
 
-  const remove = useCallback((id: string) => {
-    setServices((prev) => prev.filter((s) => s.id !== id));
-  }, []);
+  const { data: operations = [], isLoading, isError, error } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      if (!projectId || !serviceIds || serviceIds.length === 0) return [];
+      // Fetch operations for every service in parallel, then flatten + map.
+      const results = await Promise.all(
+        serviceIds.map(async (sid) => {
+          const service = await apiService.getService(projectId, sid).catch(() => null);
+          const ops = await apiService.listOperations(projectId, sid).catch(() => []);
+          return ops.map((op: any) => mapOperation(op, service?.name));
+        }),
+      );
+      return results.flat();
+    },
+    enabled: !!(projectId && serviceIds && serviceIds.length > 0),
+    staleTime: 30_000,
+  });
 
-  const filtered = projectId
-    ? services.filter((s) => s.projectId === projectId)
-    : services;
+  const createMutation = useMutation({
+    mutationFn: (payload: { serviceId: string } & OperationFormData) =>
+      apiService.createOperation(projectId || '', payload.serviceId, {
+        name: payload.name,
+        method: payload.method,
+        path: payload.path,
+        description: payload.description,
+        authenticationType: payload.authenticationType,
+        status: payload.status,
+      }),
+    // Invalidate both queries so the list and any selected service refresh.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: servicesQueryKey });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ apiId, serviceId, ...data }: { apiId: string; serviceId: string } & OperationFormData) =>
+      apiService.updateOperation(projectId || '', serviceId, apiId, {
+        name: data.name,
+        method: data.method,
+        path: data.path,
+        description: data.description,
+        authenticationType: data.authenticationType,
+        status: data.status,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: ({ apiId, serviceId }: { apiId: string; serviceId: string }) =>
+      apiService.deleteOperation(projectId || '', serviceId, apiId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+    },
+  });
 
   return {
-    services: filtered,
-    allServices: services,
-    create,
-    update,
-    remove,
+    operations,
+    isLoading,
+    isError,
+    error,
+    createOperation: createMutation.mutate,
+    createOperationAsync: createMutation.mutateAsync,
+    isCreating: createMutation.isPending,
+    updateOperation: updateMutation.mutate,
+    updateOperationAsync: updateMutation.mutateAsync,
+    isUpdating: updateMutation.isPending,
+    deleteOperation: deleteMutation.mutate,
+    deleteOperationAsync: deleteMutation.mutateAsync,
+    isDeleting: deleteMutation.isPending,
+  };
+};
+
+// ─── Import Contract ─────────────────────────────────────────
+
+export const useImportApiContract = (projectId?: string) => {
+  const queryClient = useQueryClient();
+  const servicesQueryKey = ['services', projectId];
+  const operationsQueryKey = ['operations', projectId];
+
+  const importMutation = useMutation({
+    mutationFn: ({
+      file,
+      onUploadProgress,
+    }: {
+      file: File;
+      onUploadProgress?: (progressEvent: AxiosProgressEvent) => void;
+    }) =>
+      apiService.importContract(projectId || '', file, onUploadProgress),
+    onSuccess: () => {
+      // Refresh services tree and operations after a successful import.
+      queryClient.invalidateQueries({ queryKey: servicesQueryKey });
+      queryClient.invalidateQueries({ queryKey: operationsQueryKey });
+    },
+  });
+
+  return {
+    importContract: importMutation.mutate,
+    importContractAsync: importMutation.mutateAsync,
+    isImporting: importMutation.isPending,
   };
 };
 

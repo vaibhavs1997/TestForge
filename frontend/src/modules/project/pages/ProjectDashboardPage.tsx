@@ -237,10 +237,9 @@ export const ProjectDashboardPage: React.FC<ProjectDashboardPageProps> = ({ proj
         ))}
       </div>
 
-      {/* Recent Activity and Quick Actions */}
-      <div className='mb-8 grid grid-cols-1 gap-6 lg:grid-cols-3'>
-        {/* Recent Activity */}
-        <Card className='lg:col-span-2'>
+      {/* Recent Activity */}
+      <div className='mb-8'>
+        <Card>
           <CardHeader>
             <div className='flex items-center justify-between'>
               <CardTitle>Recent Activity</CardTitle>
@@ -262,30 +261,6 @@ export const ProjectDashboardPage: React.FC<ProjectDashboardPageProps> = ({ proj
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Quick Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className='grid grid-cols-2 gap-4'>
-              {quickActions.map((action, index) => (
-                <button
-                  key={index}
-                  onClick={action.onClick}
-                  className='flex flex-col items-start gap-2 rounded-lg border border-border p-4 text-left transition-colors hover:bg-accent/50'
-                >
-                  <div className='text-primary'>{action.icon}</div>
-                  <div>
-                    <p className='text-sm font-medium text-text'>{action.title}</p>
-                    <p className='text-xs text-text-secondary'>{action.description}</p>
-                  </div>
-                </button>
               ))}
             </div>
           </CardContent>

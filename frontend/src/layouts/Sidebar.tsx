@@ -16,6 +16,7 @@ import {
   Settings,
   FolderKanban,
   FileText,
+  Database,
 } from 'lucide-react';
 import { projectStore } from '../store/projectStore';
 
@@ -46,6 +47,7 @@ export const Sidebar: React.FC = () => {
     { to: '/knowledge', label: 'Knowledge', icon: BookOpen },
     { to: '/requirements', label: 'Requirements', icon: FileText },
     { to: '/suites', label: 'Suites', icon: TestTube },
+    { to: '/test-data', label: 'Test Data', icon: Database },
     { to: '/executions', label: 'Executions', icon: PlayCircle },
     { to: '/reports', label: 'Reports', icon: BarChart3 },
     { to: '/settings', label: 'Settings', icon: Settings },

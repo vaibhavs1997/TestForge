@@ -13,6 +13,7 @@ import { SuiteRoutes } from '../modules/suite';
 import { ExecutionRoutes } from '../modules/execution';
 import { ReportRoutes } from '../modules/report';
 import { SettingsRoutes } from '../modules/settings';
+import { TestDataRoutes } from '../modules/test-data';
 
 const PlaceholderPage = ({ title }: { title: string }) => (
   <div className='flex h-full flex-col items-center justify-center'>
@@ -36,6 +37,7 @@ export const AppRoutes = () => (
       <Route path='/executions/*' element={<ExecutionRoutes />} />
       <Route path='/reports/*' element={<ReportRoutes />} />
       <Route path='/settings' element={<SettingsRoutes />} />
+      <Route path='/test-data/*' element={<TestDataRoutes />} />
       <Route path='/showcase' element={<ShowcasePage />} />
     </Route>
   </Routes>

@@ -261,3 +261,24 @@ HTTP Request → Route → Controller → Use Case → Repository → File Syste
 - File-based JSON storage per project
 - Location: `data/apis/{projectId}/services.json` and `operations.json`
 - Similar to existing project persistence pattern
+
+## Deployment Workflow
+
+TestForge follows a **dev → prod** branching model with versioned releases:
+
+| Branch | Purpose | Access |
+|--------|---------|--------|
+| `master` | Development (latest features) | PRs merge here, auto-tested |
+| `main` | Production (stable releases) | Manual promotion only with tags |
+
+### Release Process
+
+1. **Create a feature branch** and submit a PR to `master`
+2. **PR is tested** automatically (lint, typecheck, build)
+3. **PR is merged** to `master` after approval
+4. **When ready to release**, go to **GitHub Actions → Release to Production**
+5. **Enter version** in format `v1.0.0` (e.g., `v1.0.0`, `v1.1.2`)
+6. **Workflow creates a tag** and promotes code to `main` with release notes
+7. **Production deployment** is triggered from `main`
+
+**Protection:** Direct commits and PRs to `main` are blocked. All production code flows through versioned tags.

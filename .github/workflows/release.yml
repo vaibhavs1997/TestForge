@@ -1,0 +1,75 @@
+name: Release to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        type: string
+      commit:
+        description: 'Commit SHA from master to release (leave empty for HEAD)'
+        required: false
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Validate version format
+        run: |
+          if [[ ! "${{ github.event.inputs.version }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Version must match format: v1.0.0"
+            exit 1
+          fi
+          echo "✓ Version format valid: ${{ github.event.inputs.version }}"
+      
+      - name: Setup Git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+      
+      - name: Determine commit
+        id: commit
+        run: |
+          if [ -z "${{ github.event.inputs.commit }}" ]; then
+            COMMIT=$(git rev-parse origin/master)
+          else
+            COMMIT=${{ github.event.inputs.commit }}
+          fi
+          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+          echo "Release commit: $COMMIT"
+      
+      - name: Create release tag
+        run: |
+          git fetch origin master
+          git tag -a ${{ github.event.inputs.version }} ${{ steps.commit.outputs.commit }} \
+            -m "Release ${{ github.event.inputs.version }}"
+          git push origin ${{ github.event.inputs.version }}
+          echo "✓ Tag created: ${{ github.event.inputs.version }}"
+      
+      - name: Prepare main branch
+        run: |
+          git fetch origin main
+          git checkout -b release/${{ github.event.inputs.version }} origin/main
+          git merge --ff-only ${{ steps.commit.outputs.commit }}
+          echo "✓ Main ready to merge from ${{ steps.commit.outputs.commit }}"
+      
+      - name: Push to main
+        run: |
+          git push origin release/${{ github.event.inputs.version }}:main
+          echo "✓ Code deployed to main (${{ steps.commit.outputs.commit }})"
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          generate_release_notes: true
+          target_commitish: main

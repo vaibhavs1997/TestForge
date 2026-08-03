@@ -21,9 +21,13 @@ import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRep
 import { TestStrategyRepository } from '../../infrastructure/requirements/TestStrategyRepository';
 import { TestDesignRepository } from '../../infrastructure/requirements/TestDesignRepository';
 import { ExecutionPlanRepository } from '../../infrastructure/requirements/ExecutionPlanRepository';
+import { VersionService } from '../../application/versioning/VersionService';
+import { InMemoryVersionRepository } from '../../infrastructure/versioning/VersionRepository';
 
 // Initialize repositories
-const requirementRepository = new RequirementRepository();
+const versionRepository = new InMemoryVersionRepository();
+const versionService = new VersionService(versionRepository);
+const requirementRepository = new RequirementRepository(versionService);
 const analysisRepository = new AnalysisRepository();
 const knowledgeFlowRepository = new KnowledgeFlowRepository();
 const datasetRepository = new DatasetRepository();

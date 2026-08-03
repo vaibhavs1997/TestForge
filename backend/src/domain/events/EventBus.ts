@@ -12,7 +12,9 @@ export type ModuleName =
   | 'design'
   | 'execution'
   | 'pipeline'
-  | 'recommendation';
+  | 'recommendation'
+  | 'scheduler'
+  | 'report';
 
 export type EventType = 
   | 'IMPORTED'
@@ -21,7 +23,9 @@ export type EventType =
   | 'APPROVED'
   | 'REJECTED'
   | 'GENERATED'
-  | 'INVALIDATED';
+  | 'INVALIDATED'
+  | 'COMPLETED'
+  | 'FAILED';
 
 export interface DomainEvent {
   type: EventType;

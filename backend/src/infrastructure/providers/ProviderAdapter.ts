@@ -19,6 +19,12 @@ export interface ProviderAdapter {
   testConnection(config: Record<string, any>, credentials: Record<string, any>): Promise<ProviderTestResult>;
   validateConfiguration(config: Record<string, any>, credentials: Record<string, any>): string[];
   getCapabilities(): string[];
+  sendNotification(params: {
+    channel: string;
+    recipients: string[];
+    subject: string;
+    body: string;
+  }): Promise<ProviderOperationResult>;
 }
 
 export default ProviderAdapter;

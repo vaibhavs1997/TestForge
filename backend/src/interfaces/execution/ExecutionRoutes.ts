@@ -13,6 +13,7 @@ import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowR
 import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
 import { AssertionRepository } from '../../infrastructure/assertion/AssertionRepository';
 import { ExecutionProfileRepository } from '../../infrastructure/execution/ExecutionProfileRepository';
+import { EventBus } from '../../domain/events/EventBus';
 
 // Initialize repositories
 const executionRunRepository = new ExecutionRunRepository();
@@ -28,6 +29,7 @@ const assertionRepository = new AssertionRepository();
 const executionProfileRepository = new ExecutionProfileRepository();
 
 // Initialize use case
+const eventBus = new EventBus();
 const executePlan = new ExecutePlan(
   executionRunRepository,
   executionPlanRepository,
@@ -39,7 +41,8 @@ const executePlan = new ExecutePlan(
   datasetRowRepository,
   testDesignRepository,
   assertionRepository,
-  executionProfileRepository
+  executionProfileRepository,
+  eventBus
 );
 
 // Initialize controller

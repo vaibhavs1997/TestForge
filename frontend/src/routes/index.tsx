@@ -17,6 +17,10 @@ import { SettingsRoutes } from '../modules/settings';
 import { TestDataRoutes } from '../modules/test-data';
 import { RecommendationRoutes } from '../modules/recommendation/routes';
 import { PipelineRoutes } from '../modules/pipeline';
+import { SchedulerRoutes } from '../modules/scheduler';
+import { NotificationRoutes } from '../modules/notification';
+import { VersioningRoutes } from '../modules/versioning';
+import { AuditRoutes } from '../modules/audit';
 
 const PlaceholderPage = ({ title }: { title: string }) => (
   <div className='flex h-full flex-col items-center justify-center'>
@@ -44,6 +48,10 @@ export const AppRoutes = () => (
       <Route path='/test-data/*' element={<TestDataRoutes />} />
       <Route path='/recommendations/*' element={<RecommendationRoutes />} />
       <Route path='/pipeline/*' element={<PipelineRoutes />} />
+      <Route path='/scheduler/*' element={<SchedulerRoutes />} />
+      <Route path='/notifications/*' element={<NotificationRoutes />} />
+      <Route path='/versions/*' element={<VersioningRoutes />} />
+      <Route path='/audit/*' element={<AuditRoutes />} />
       <Route path='/showcase' element={<ShowcasePage />} />
     </Route>
   </Routes>

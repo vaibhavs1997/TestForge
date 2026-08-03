@@ -14,6 +14,7 @@ import { ExecutionPlanRepository } from '../../infrastructure/requirements/Execu
 import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository';
 import { DatasetRepository } from '../../infrastructure/test-data/DatasetRepository';
 import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
+import { EventBus } from '../../domain/events/EventBus';
 
 // Initialize repositories
 const reportRepository = new ReportRepository();
@@ -41,11 +42,13 @@ const recommendationEngine = new RecommendationEngine(
 );
 
 // Initialize use cases
+const eventBus = new EventBus();
 const generateReport = new GenerateReport(
   reportRepository,
   executionRunRepository,
   environmentRepository,
-  recommendationEngine
+  recommendationEngine,
+  eventBus
 );
 
 const manageReports = new ManageReports(reportRepository);

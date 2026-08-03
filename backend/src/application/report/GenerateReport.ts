@@ -6,6 +6,7 @@ import { ReportRepository } from '../../domain/report/ReportRepository';
 import { ExecutionRunRepository } from '../../domain/execution/ExecutionRunRepository';
 import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository';
 import { RecommendationEngine } from '../recommendation/RecommendationEngine';
+import { EventBus } from '../../domain/events/EventBus';
 
 const REPORT_VERSION = '1.0.0';
 
@@ -26,7 +27,8 @@ export class GenerateReport {
     private readonly reportRepository: ReportRepository,
     private readonly executionRunRepository: ExecutionRunRepository,
     private readonly environmentRepository: EnvironmentRepository,
-    private readonly recommendationEngine: RecommendationEngine
+    private readonly recommendationEngine: RecommendationEngine,
+    private readonly eventBus?: EventBus
   ) {}
 
   async generate(executionRunId: string, suiteId?: string | null): Promise<ReportEntity> {
@@ -141,7 +143,21 @@ export class GenerateReport {
     );
 
     // 11. Persist report
-    return this.reportRepository.create(report);
+    const createdReport = await this.reportRepository.create(report);
+
+    // Publish event for NotificationService
+    if (this.eventBus) {
+      await this.eventBus.publish({
+        type: 'GENERATED',
+        module: 'recommendation',
+        entityId: createdReport.id,
+        projectId: createdReport.projectId,
+        timestamp: Date.now(),
+        payload: { reportId: createdReport.id },
+      });
+    }
+
+    return createdReport;
   }
 
   private extractValidationResults(stepResults: any[]): any[] {

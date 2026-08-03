@@ -23,6 +23,7 @@ import { IExecutionProfileRepository } from '../../domain/execution/ExecutionPro
 import { ExecutionProfileEntity } from '../../domain/execution/ExecutionProfileEntity';
 import { ProviderRepository } from '../../domain/providers/ProviderRepository';
 import { ProviderResolutionService } from '../../infrastructure/providers/ProviderResolutionService';
+import { EventBus } from '../../domain/events/EventBus';
 
 export class ExecutePlan {
   private loadedProfile: ExecutionProfileEntity | null = null;
@@ -38,7 +39,8 @@ export class ExecutePlan {
     private readonly datasetRowRepository: DatasetRowRepository,
     private readonly testDesignRepository: TestDesignRepository,
     private readonly assertionRepository: AssertionRepository,
-    private readonly executionProfileRepository?: IExecutionProfileRepository
+    private readonly executionProfileRepository?: IExecutionProfileRepository,
+    private readonly eventBus?: EventBus
   ) {
     // Initialize resolution service
     this.testDataResolutionService = new TestDataResolutionService(
@@ -306,7 +308,22 @@ export class ExecutePlan {
       profileMetadata
     );
 
-    return this.executionRunRepository.update(persistedRun.id, updatedRun);
+    const result = await this.executionRunRepository.update(persistedRun.id, updatedRun);
+
+    // Publish event for NotificationService
+    if (this.eventBus) {
+      const eventType = finalStatus === 'Completed' ? 'COMPLETED' : 'FAILED';
+      await this.eventBus.publish({
+        type: eventType,
+        module: 'execution',
+        entityId: result.id,
+        projectId: result.projectId,
+        timestamp: Date.now(),
+        payload: { status: finalStatus },
+      });
+    }
+
+    return result;
   }
 
   private async executeStep(plan: any, context: ExecutionContext, resolvedValues: Record<string, ResolvedValue> = {}): Promise<ExecutionStepResult> {

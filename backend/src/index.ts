@@ -22,6 +22,22 @@ import { assertionRoutes } from './interfaces/assertion/AssertionRoutes';
 import { importRoutes } from './interfaces/test-data/importRoutes';
 import { relationshipRoutes } from './interfaces/test-data/relationshipRoutes';
 import { providerRoutes } from './interfaces/providers/ProviderRoutes';
+import { scheduleRoutes } from './interfaces/scheduler/ScheduleRoutes';
+import { NotificationController } from './interfaces/notification/NotificationController';
+import { createNotificationRoutes } from './interfaces/notification/NotificationRoutes';
+import { NotificationService } from './application/notification/NotificationService';
+import { InMemoryNotificationRepository } from './infrastructure/notification/NotificationRepository';
+import { ProviderResolutionService } from './infrastructure/providers/ProviderResolutionService';
+import ProviderRepository from './infrastructure/providers/ProviderRepository';
+import { EventBus } from './domain/events/EventBus';
+import { VersionController } from './interfaces/versioning/VersionController';
+import { createVersionRoutes } from './interfaces/versioning/VersionRoutes';
+import { VersionService } from './application/versioning/VersionService';
+import { InMemoryVersionRepository } from './infrastructure/versioning/VersionRepository';
+import { AuditLogController } from './interfaces/audit/AuditLogController';
+import { createAuditLogRoutes } from './interfaces/audit/AuditLogRoutes';
+import { AuditLogService } from './application/audit/AuditLogService';
+import { InMemoryAuditLogRepository } from './infrastructure/audit/AuditLogRepository';
 
 // Shared constants
 
@@ -63,6 +79,28 @@ app.use('/api', assertionRoutes);
 app.use('/api', importRoutes);
 app.use('/api', relationshipRoutes);
 app.use('/api', providerRoutes);
+app.use('/api', scheduleRoutes);
+
+// Initialize Notification module
+const notificationRepository = new InMemoryNotificationRepository();
+const providerRepository = new ProviderRepository();
+const providerResolutionService = new ProviderResolutionService(providerRepository);
+const eventBus = new EventBus();
+const notificationService = new NotificationService(notificationRepository, providerResolutionService, eventBus);
+const notificationController = new NotificationController(notificationService);
+app.use('/api', createNotificationRoutes(notificationController));
+
+// Initialize Versioning module
+const versionRepository = new InMemoryVersionRepository();
+const versionService = new VersionService(versionRepository);
+const versionController = new VersionController(versionService);
+app.use('/api', createVersionRoutes(versionController));
+
+// Initialize Audit Log module
+const auditLogRepository = new InMemoryAuditLogRepository();
+const auditLogService = new AuditLogService(auditLogRepository, eventBus);
+const auditLogController = new AuditLogController(auditLogService);
+app.use('/api', createAuditLogRoutes(auditLogController));
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);

@@ -1,6 +1,6 @@
 // TwilioAdapter - Placeholder adapter for Twilio SMS testing
 // Do NOT call external services yet. Architecture preparation only.
-import { ProviderAdapter, ProviderTestResult } from '../ProviderAdapter';
+import { ProviderAdapter, ProviderTestResult, ProviderOperationResult } from '../ProviderAdapter';
 
 export class TwilioAdapter implements ProviderAdapter {
   readonly type = 'Twilio';
@@ -16,6 +16,15 @@ export class TwilioAdapter implements ProviderAdapter {
 
   getCapabilities(): string[] {
     return ['send-sms', 'fetch-messages', 'verify-delivery'];
+  }
+
+  async sendNotification(params: {
+    channel: string;
+    recipients: string[];
+    subject: string;
+    body: string;
+  }): Promise<ProviderOperationResult> {
+    return { success: true, data: { queued: true } };
   }
 }
 

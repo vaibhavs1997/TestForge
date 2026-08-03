@@ -1,6 +1,6 @@
 // StripeSandboxAdapter - Placeholder adapter for Stripe Sandbox payments
 // Do NOT call external services yet. Architecture preparation only.
-import { ProviderAdapter, ProviderTestResult } from '../ProviderAdapter';
+import { ProviderAdapter, ProviderTestResult, ProviderOperationResult } from '../ProviderAdapter';
 
 export class StripeSandboxAdapter implements ProviderAdapter {
   readonly type = 'StripeSandbox';
@@ -16,6 +16,15 @@ export class StripeSandboxAdapter implements ProviderAdapter {
 
   getCapabilities(): string[] {
     return ['create-payment', 'fetch-payment', 'refund-payment'];
+  }
+
+  async sendNotification(params: {
+    channel: string;
+    recipients: string[];
+    subject: string;
+    body: string;
+  }): Promise<ProviderOperationResult> {
+    return { success: true, data: { queued: true } };
   }
 }
 

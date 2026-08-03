@@ -1,6 +1,6 @@
 // TempMailAdapter - Placeholder adapter for temporary email
 // Do NOT call external services yet. Architecture preparation only.
-import { ProviderAdapter, ProviderTestResult } from '../ProviderAdapter';
+import { ProviderAdapter, ProviderTestResult, ProviderOperationResult } from '../ProviderAdapter';
 
 export class TempMailAdapter implements ProviderAdapter {
   readonly type = 'TempMail';
@@ -15,7 +15,16 @@ export class TempMailAdapter implements ProviderAdapter {
   }
 
   getCapabilities(): string[] {
-    return ['create-inbox', 'generate-email', 'fetch-email'];
+    return ['create-email', 'fetch-inbox'];
+  }
+
+  async sendNotification(params: {
+    channel: string;
+    recipients: string[];
+    subject: string;
+    body: string;
+  }): Promise<ProviderOperationResult> {
+    return { success: true, data: { queued: true } };
   }
 }
 

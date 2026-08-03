@@ -2,10 +2,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { KnowledgeFlowEntity } from '../../domain/knowledge/KnowledgeFlowEntity';
+import { VersionService } from '../../application/versioning/VersionService';
 
 const DATA_ROOT = path.join(process.cwd(), 'data', 'knowledge');
 
 export class KnowledgeFlowRepository {
+  constructor(private readonly versionService?: VersionService) {}
   private getProjectDir(projectId: string): string {
     return path.join(DATA_ROOT, projectId);
   }

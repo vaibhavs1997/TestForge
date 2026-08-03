@@ -20,6 +20,10 @@ import {
   FlaskConical,
   GitBranch,
   Workflow,
+  CalendarClock,
+  Bell,
+  History,
+  ScrollText,
 } from 'lucide-react';
 import { projectStore } from '../store/projectStore';
 
@@ -38,6 +42,10 @@ const PROJECT_TAB_ITEMS: { key: string; label: string; icon: React.ComponentType
   { key: 'suites', label: 'Suites', icon: FlaskConical },
   { key: 'analysis', label: 'Analysis', icon: GitBranch },
   { key: 'pipeline', label: 'Pipeline', icon: Workflow },
+  { key: 'scheduler', label: 'Scheduler', icon: CalendarClock },
+  { key: 'notifications', label: 'Notifications', icon: Bell },
+  { key: 'versions', label: 'Versions', icon: History },
+  { key: 'audit', label: 'Audit Log', icon: ScrollText },
 ];
 
 export const Sidebar: React.FC = () => {

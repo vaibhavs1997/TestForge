@@ -1,6 +1,6 @@
 // MailtrapAdapter - Placeholder adapter for Mailtrap email testing
 // Do NOT call external services yet. Architecture preparation only.
-import { ProviderAdapter, ProviderTestResult } from '../ProviderAdapter';
+import { ProviderAdapter, ProviderTestResult, ProviderOperationResult } from '../ProviderAdapter';
 
 export class MailtrapAdapter implements ProviderAdapter {
   readonly type = 'Mailtrap';
@@ -28,6 +28,15 @@ export class MailtrapAdapter implements ProviderAdapter {
 
   getCapabilities(): string[] {
     return ['send-email', 'fetch-inbox', 'verify-delivery'];
+  }
+
+  async sendNotification(params: {
+    channel: string;
+    recipients: string[];
+    subject: string;
+    body: string;
+  }): Promise<ProviderOperationResult> {
+    return { success: true, data: { queued: true } };
   }
 }
 

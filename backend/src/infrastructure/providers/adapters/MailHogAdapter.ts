@@ -1,6 +1,6 @@
 // MailHogAdapter - Placeholder adapter for local MailHog email testing
 // Do NOT call external services yet. Architecture preparation only.
-import { ProviderAdapter, ProviderTestResult } from '../ProviderAdapter';
+import { ProviderAdapter, ProviderTestResult, ProviderOperationResult } from '../ProviderAdapter';
 
 export class MailHogAdapter implements ProviderAdapter {
   readonly type = 'MailHog';
@@ -16,6 +16,15 @@ export class MailHogAdapter implements ProviderAdapter {
 
   getCapabilities(): string[] {
     return ['fetch-inbox', 'search-email'];
+  }
+
+  async sendNotification(params: {
+    channel: string;
+    recipients: string[];
+    subject: string;
+    body: string;
+  }): Promise<ProviderOperationResult> {
+    return { success: true, data: { queued: true } };
   }
 }
 

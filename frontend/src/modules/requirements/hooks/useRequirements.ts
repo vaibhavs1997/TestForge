@@ -1,7 +1,7 @@
 // TanStack Query hooks for Requirement Workspace
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { requirementService } from '../services/requirementService';
-import type { Requirement, ApprovalStatus, ValidationReport, TestStrategy, TestDesign } from '../types';
+import type { Requirement, ApprovalStatus, ValidationReport, TestStrategy, TestDesign, ExecutionPlan } from '../types';
 
 export const useRequirements = (projectId?: string) => {
   const queryClient = useQueryClient();
@@ -55,6 +55,11 @@ export const useRequirements = (projectId?: string) => {
       requirementService.generateTestDesigns(projectId, requirementId),
   });
 
+  const planExecutionMutation = useMutation({
+    mutationFn: ({ projectId, requirementId }: { projectId: string; requirementId: string }) =>
+      requirementService.planExecution(projectId, requirementId),
+  });
+
   const suggested = requirements.filter(r => r.approvalStatus === 'Suggested');
   const approved = requirements.filter(r => r.approvalStatus === 'Approved');
   const archived = requirements.filter(r => r.approvalStatus === 'Archived' || r.approvalStatus === 'Rejected');
@@ -91,6 +96,10 @@ export const useRequirements = (projectId?: string) => {
     generateTestDesignsAsync: generateTestDesignsMutation.mutateAsync,
     isGeneratingDesigns: generateTestDesignsMutation.isPending,
     testDesigns: generateTestDesignsMutation.data,
+    planExecution: planExecutionMutation.mutate,
+    planExecutionAsync: planExecutionMutation.mutateAsync,
+    isPlanningExecution: planExecutionMutation.isPending,
+    executionPlans: planExecutionMutation.data,
   };
 };
 

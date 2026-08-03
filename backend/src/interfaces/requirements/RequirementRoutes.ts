@@ -12,6 +12,7 @@ import { GenerateFromAnalysis } from '../../application/requirements/GenerateFro
 import { ValidateRequirementReadiness } from '../../application/requirements/ValidateRequirementReadiness';
 import { PlanTestStrategy } from '../../application/requirements/PlanTestStrategy';
 import { GenerateTestDesigns } from '../../application/requirements/GenerateTestDesigns';
+import { PlanExecution } from '../../application/requirements/PlanExecution';
 import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository';
 import { DatasetRepository } from '../../infrastructure/test-data/DatasetRepository';
 import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository';
@@ -19,6 +20,7 @@ import { ApiServiceRepository } from '../../infrastructure/api/ApiServiceReposit
 import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
 import { TestStrategyRepository } from '../../infrastructure/requirements/TestStrategyRepository';
 import { TestDesignRepository } from '../../infrastructure/requirements/TestDesignRepository';
+import { ExecutionPlanRepository } from '../../infrastructure/requirements/ExecutionPlanRepository';
 
 // Initialize repositories
 const requirementRepository = new RequirementRepository();
@@ -30,6 +32,7 @@ const apiServiceRepository = new ApiServiceRepository();
 const apiOperationRepository = new ApiOperationRepository();
 const testStrategyRepository = new TestStrategyRepository();
 const testDesignRepository = new TestDesignRepository();
+const executionPlanRepository = new ExecutionPlanRepository();
 
 // Initialize use cases
 const createRequirement = new CreateRequirement(requirementRepository);
@@ -67,6 +70,14 @@ const generateTestDesigns = new GenerateTestDesigns(
   apiOperationRepository
 );
 
+const planExecution = new PlanExecution(
+  requirementRepository,
+  testDesignRepository,
+  executionPlanRepository,
+  knowledgeFlowRepository,
+  apiOperationRepository
+);
+
 // Initialize controller
 const requirementController = new RequirementController(
   createRequirement,
@@ -77,7 +88,8 @@ const requirementController = new RequirementController(
   generateFromAnalysis,
   validateRequirementReadiness,
   planTestStrategy,
-  generateTestDesigns
+  generateTestDesigns,
+  planExecution
 );
 
 const router = Router();
@@ -92,6 +104,7 @@ router.post('/projects/:projectId/requirements/from-analysis/:analysisId', (req,
 router.get('/projects/:projectId/requirements/:requirementId/validate', (req, res) => requirementController.validateReadiness(req, res));
 router.post('/projects/:projectId/requirements/:requirementId/strategy', (req, res) => requirementController.planTestStrategy(req, res));
 router.post('/projects/:projectId/requirements/:requirementId/designs', (req, res) => requirementController.generateTestDesigns(req, res));
+router.post('/projects/:projectId/requirements/:requirementId/execution-plans', (req, res) => requirementController.planExecution(req, res));
 
 export { router as requirementRoutes };
 export default router;

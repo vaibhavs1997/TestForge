@@ -1,28 +1,36 @@
-// External libraries
-import { useState, useCallback } from 'react';
+// TanStack Query hooks for Execution module
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { executionService } from '../services';
+import type { ExecutionRun, ExecutionRunCreatePayload } from '../types';
 
-// Shared constants
+export const useExecution = (projectId?: string) => {
+  const queryClient = useQueryClient();
+  const queryKey = ['executions', projectId];
 
-// Shared types
+  const { data: runs = [], isLoading, isError, error } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      if (!projectId) return [];
+      return executionService.listExecutions(projectId);
+    },
+    enabled: !!projectId,
+    refetchInterval: 2000, // Poll every 2 seconds for running executions
+  });
 
-// Hooks
-
-// Services
-
-// Components
-
-// Styles
-
-export const useExecution = () => {
-  const [state, setState] = useState(null);
-
-  const handleAction = useCallback(() => {
-    // Implementation
-  }, []);
+  const startMutation = useMutation({
+    mutationFn: ({ projectId, executionPlanId, failureMode }: ExecutionRunCreatePayload & { projectId: string }) =>
+      executionService.startExecution(projectId, executionPlanId, failureMode),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+  });
 
   return {
-    state,
-    handleAction,
+    runs,
+    isLoading,
+    isError,
+    error,
+    startExecution: startMutation.mutate,
+    startExecutionAsync: startMutation.mutateAsync,
+    isStarting: startMutation.isPending,
   };
 };
 

@@ -1,213 +1,91 @@
 // External libraries
 import React from 'react';
+import { useParams } from 'react-router-dom';
 import { PageHeader } from '../../../components/layout/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
-import { Play, Square, Clock, CheckCircle, XCircle, AlertCircle, Copy, Download, RefreshCw, Eye, MoreVertical, ChevronDown } from 'lucide-react';
+import { Play, Square, Clock, CheckCircle, XCircle, AlertCircle, Copy, Download, RefreshCw, Eye, MoreVertical, ChevronDown, Shield } from 'lucide-react';
 
-// Styles
+// Hooks
+import { useExecution } from '../hooks';
+
+// Types
+import type { ExecutionRun, StepStatus } from '../types';
 
 export interface ExecutionPageProps {}
 
-interface TestExecution {
-  id: string;
-  suiteName: string;
-  environment: string;
-  status: 'passed' | 'failed' | 'running' | 'blocked';
-  totalTests: number;
-  passed: number;
-  failed: number;
-  skipped: number;
-  startedAt: string;
-  duration: string;
-  triggeredBy: string;
-}
+const getStatusBadge = (status: ExecutionRun['status']) => {
+  const variants: Record<ExecutionRun['status'], 'success' | 'destructive' | 'warning' | 'secondary'> = {
+    'Completed': 'success',
+    'Failed': 'destructive',
+    'Running': 'warning',
+    'Pending': 'secondary',
+    'Cancelled': 'secondary',
+  };
+  return <Badge variant={variants[status]}>{status}</Badge>;
+};
 
-interface ExecutionDetails {
-  id: string;
-  suiteName: string;
-  environment: string;
-  startedAt: string;
-  triggeredBy: string;
-  totalTests: number;
-  passed: number;
-  failed: number;
-  skipped: number;
-}
+const getStepStatusIcon = (status: StepStatus) => {
+  switch (status) {
+    case 'Running':
+      return <Play className='h-4 w-4 text-blue-600 animate-pulse' />;
+    case 'Passed':
+      return <CheckCircle className='h-4 w-4 text-green-600' />;
+    case 'Failed':
+      return <XCircle className='h-4 w-4 text-red-600' />;
+    case 'Skipped':
+      return <AlertCircle className='h-4 w-4 text-gray-600' />;
+    default:
+      return <Clock className='h-4 w-4 text-gray-400' />;
+  }
+};
 
 export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
+  const { projectId: routeProjectId } = useParams<{ projectId: string }>();
+  const projectId = routeProjectId || '1';
+
+  const { runs, isLoading, isError, error, startExecution, isStarting } = useExecution(projectId);
+
   const [search, setSearch] = React.useState('');
   const [filter, setFilter] = React.useState<string>('all');
-  const [selectedExecution, setSelectedExecution] = React.useState<ExecutionDetails | null>(null);
-
-  const executions: TestExecution[] = [
-    {
-      id: 'EXE-128',
-      suiteName: 'User Authentication Suite',
-      environment: 'DEV',
-      status: 'passed',
-      totalTests: 24,
-      passed: 22,
-      failed: 2,
-      skipped: 0,
-      startedAt: 'May 18, 2024 10:30 AM',
-      duration: '2m 45s',
-      triggeredBy: 'Admin',
-    },
-    {
-      id: 'EXE-127',
-      suiteName: 'Payment Processing Suite',
-      environment: 'TEST',
-      status: 'failed',
-      totalTests: 42,
-      passed: 30,
-      failed: 12,
-      skipped: 0,
-      startedAt: 'May 18, 2024 09:15 AM',
-      duration: '5m 12s',
-      triggeredBy: 'Admin',
-    },
-    {
-      id: 'EXE-126',
-      suiteName: 'Account Management Suite',
-      environment: 'DEV',
-      status: 'passed',
-      totalTests: 36,
-      passed: 36,
-      failed: 0,
-      skipped: 0,
-      startedAt: 'May 18, 2024 08:40 AM',
-      duration: '3m 22s',
-      triggeredBy: 'Scheduler',
-    },
-    {
-      id: 'EXE-125',
-      suiteName: 'Regression Suite - v2.3',
-      environment: 'STAGE',
-      status: 'running',
-      totalTests: 112,
-      passed: 78,
-      failed: 0,
-      skipped: 0,
-      startedAt: 'May 18, 2024 07:30 PM',
-      duration: 'Running',
-      triggeredBy: 'Admin',
-    },
-    {
-      id: 'EXE-124',
-      suiteName: 'Fund Transfer Suite',
-      environment: 'TEST',
-      status: 'failed',
-      totalTests: 28,
-      passed: 18,
-      failed: 10,
-      skipped: 0,
-      startedAt: 'May 18, 2024 05:20 PM',
-      duration: '4m 05s',
-      triggeredBy: 'Admin',
-    },
-    {
-      id: 'EXE-123',
-      suiteName: 'Smoke Test Suite',
-      environment: 'PROD',
-      status: 'passed',
-      totalTests: 16,
-      passed: 16,
-      failed: 0,
-      skipped: 0,
-      startedAt: 'May 18, 2024 03:10 PM',
-      duration: '1m 18s',
-      triggeredBy: 'Scheduler',
-    },
-    {
-      id: 'EXE-122',
-      suiteName: 'User Authentication Suite',
-      environment: 'PROD',
-      status: 'blocked',
-      totalTests: 24,
-      passed: 0,
-      failed: 0,
-      skipped: 24,
-      startedAt: 'May 18, 2024 02:00 PM',
-      duration: '0m 00s',
-      triggeredBy: 'Admin',
-    },
-    {
-      id: 'EXE-121',
-      suiteName: 'Payment Processing Suite',
-      environment: 'DEV',
-      status: 'passed',
-      totalTests: 42,
-      passed: 41,
-      failed: 1,
-      skipped: 0,
-      startedAt: 'May 18, 2024 11:30 AM',
-      duration: '4m 55s',
-      triggeredBy: 'Admin',
-    },
-  ];
-
-  const executionDetails: ExecutionDetails = {
-    id: 'EXE-128',
-    suiteName: 'User Authentication Suite',
-    environment: 'DEV (https://dev.api.company.com)',
-    startedAt: 'May 18, 2024 10:30 AM',
-    triggeredBy: 'Admin',
-    totalTests: 24,
-    passed: 22,
-    failed: 2,
-    skipped: 0,
-  };
+  const [selectedRun, setSelectedRun] = React.useState<ExecutionRun | null>(null);
+  const [activeTab, setActiveTab] = React.useState<'details' | 'validation'>('details');
+  const [validationFilter, setValidationFilter] = React.useState<string>('all');
 
   React.useEffect(() => {
-    if (executions.length > 0 && !selectedExecution) {
-      setSelectedExecution(executionDetails);
+    if (runs.length > 0 && !selectedRun) {
+      setSelectedRun(runs[0]);
     }
-  }, []);
+  }, [runs, selectedRun]);
 
-  const filteredExecutions = React.useMemo(() => {
+  const filteredRuns = React.useMemo(() => {
     const term = search.trim().toLowerCase();
-    return executions.filter((execution) => {
+    return runs.filter((run) => {
       const matchesSearch =
         !term ||
-        execution.id.toLowerCase().includes(term) ||
-        execution.suiteName.toLowerCase().includes(term) ||
-        execution.environment.toLowerCase().includes(term);
-      const matchesFilter = filter === 'all' || execution.status === filter;
+        run.id.toLowerCase().includes(term) ||
+        run.executionPlanId.toLowerCase().includes(term) ||
+        run.requirementId.toLowerCase().includes(term);
+      const matchesFilter = filter === 'all' || run.status === filter;
       return matchesSearch && matchesFilter;
     });
-  }, [search, filter, executions]);
+  }, [search, filter, runs]);
 
-  const getStatusBadge = (status: TestExecution['status']) => {
-    const variants: Record<TestExecution['status'], 'success' | 'destructive' | 'warning' | 'secondary'> = {
-      'passed': 'success',
-      'failed': 'destructive',
-      'running': 'warning',
-      'blocked': 'secondary',
-    };
-    return <Badge variant={variants[status]}>{status}</Badge>;
-  };
-
-  const getStatusIcon = (status: TestExecution['status']) => {
-    switch (status) {
-      case 'running':
-        return <Play className='h-4 w-4 text-blue-600 animate-pulse' />;
-      case 'passed':
-        return <CheckCircle className='h-4 w-4 text-green-600' />;
-      case 'failed':
-        return <XCircle className='h-4 w-4 text-red-600' />;
-      case 'blocked':
-        return <AlertCircle className='h-4 w-4 text-gray-600' />;
+  const handleStartExecution = async (executionPlanId: string) => {
+    try {
+      await startExecution({ projectId, executionPlanId });
+    } catch (err) {
+      console.error('Failed to start execution:', err);
     }
   };
 
-  const totalPassed = executions.filter(e => e.status === 'passed').length;
-  const totalFailed = executions.filter(e => e.status === 'failed').length;
-  const totalRunning = executions.filter(e => e.status === 'running').length;
-  const totalBlocked = executions.filter(e => e.status === 'blocked').length;
+  const totalPassed = runs.filter(e => e.summary.passed).length;
+  const totalFailed = runs.filter(e => e.summary.failed).length;
+  const totalRunning = runs.filter(e => e.status === 'Running').length;
+  const totalPending = runs.filter(e => e.status === 'Pending').length;
 
   return (
     <div className='mx-auto max-w-7xl px-4 py-8'>
@@ -215,7 +93,7 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
       <div className='mb-6 flex items-center justify-between'>
         <div>
           <h1 className='text-2xl font-bold text-text'>Executions</h1>
-          <p className='mt-1 text-sm text-text-secondary'>View and monitor all test suite executions.</p>
+          <p className='mt-1 text-sm text-text-secondary'>View and monitor all test executions.</p>
         </div>
         <div className='flex items-center gap-3'>
           <Button variant='outline'>
@@ -236,8 +114,8 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
             <div className='flex items-center justify-between'>
               <div>
                 <p className='text-sm font-medium text-text-secondary'>Total Executions</p>
-                <p className='text-2xl font-bold text-text'>128</p>
-                <p className='text-xs text-text-secondary mt-1'>+18 this week</p>
+                <p className='text-2xl font-bold text-text'>{runs.length}</p>
+                <p className='text-xs text-text-secondary mt-1'>+{runs.length} this week</p>
               </div>
               <div className='h-12 w-12 rounded-lg bg-blue-100 dark:bg-blue-900 flex items-center justify-center'>
                 <Play className='h-6 w-6 text-blue-600' />
@@ -250,8 +128,8 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
             <div className='flex items-center justify-between'>
               <div>
                 <p className='text-sm font-medium text-text-secondary'>Passed</p>
-                <p className='text-2xl font-bold text-text'>94</p>
-                <p className='text-xs text-text-secondary mt-1'>73.4%</p>
+                <p className='text-2xl font-bold text-text'>{totalPassed}</p>
+                <p className='text-xs text-text-secondary mt-1'>{runs.length > 0 ? Math.round((totalPassed / runs.length) * 100) : 0}%</p>
               </div>
               <div className='h-12 w-12 rounded-lg bg-green-100 dark:bg-green-900 flex items-center justify-center'>
                 <CheckCircle className='h-6 w-6 text-green-600' />
@@ -264,8 +142,8 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
             <div className='flex items-center justify-between'>
               <div>
                 <p className='text-sm font-medium text-text-secondary'>Failed</p>
-                <p className='text-2xl font-bold text-text'>26</p>
-                <p className='text-xs text-text-secondary mt-1'>20.3%</p>
+                <p className='text-2xl font-bold text-text'>{totalFailed}</p>
+                <p className='text-xs text-text-secondary mt-1'>{runs.length > 0 ? Math.round((totalFailed / runs.length) * 100) : 0}%</p>
               </div>
               <div className='h-12 w-12 rounded-lg bg-red-100 dark:bg-red-900 flex items-center justify-center'>
                 <XCircle className='h-6 w-6 text-red-600' />
@@ -278,8 +156,8 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
             <div className='flex items-center justify-between'>
               <div>
                 <p className='text-sm font-medium text-text-secondary'>Running</p>
-                <p className='text-2xl font-bold text-text'>8</p>
-                <p className='text-xs text-text-secondary mt-1'>6.3%</p>
+                <p className='text-2xl font-bold text-text'>{totalRunning}</p>
+                <p className='text-xs text-text-secondary mt-1'>{runs.length > 0 ? Math.round((totalRunning / runs.length) * 100) : 0}%</p>
               </div>
               <div className='h-12 w-12 rounded-lg bg-yellow-100 dark:bg-yellow-900 flex items-center justify-center'>
                 <AlertCircle className='h-6 w-6 text-yellow-600' />
@@ -291,12 +169,12 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
           <CardContent className='pt-6'>
             <div className='flex items-center justify-between'>
               <div>
-                <p className='text-sm font-medium text-text-secondary'>Blocked</p>
-                <p className='text-2xl font-bold text-text'>0</p>
-                <p className='text-xs text-text-secondary mt-1'>0.0%</p>
+                <p className='text-sm font-medium text-text-secondary'>Pending</p>
+                <p className='text-2xl font-bold text-text'>{totalPending}</p>
+                <p className='text-xs text-text-secondary mt-1'>{runs.length > 0 ? Math.round((totalPending / runs.length) * 100) : 0}%</p>
               </div>
               <div className='h-12 w-12 rounded-lg bg-gray-100 dark:bg-gray-900 flex items-center justify-center'>
-                <Square className='h-6 w-6 text-gray-600' />
+                <Clock className='h-6 w-6 text-gray-600' />
               </div>
             </div>
           </CardContent>
@@ -307,24 +185,17 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
       <div className='mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
         <div className='flex items-center gap-2'>
           <SearchBar value={search} onChange={setSearch} placeholder='Search executions...' className='sm:w-80' />
-          <select className='rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text'>
-            <option>All Status</option>
-            <option>Passed</option>
-            <option>Failed</option>
-            <option>Running</option>
-            <option>Blocked</option>
-          </select>
-          <select className='rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text'>
-            <option>All Suites</option>
-            <option>Authentication Suite</option>
-            <option>Payment Suite</option>
-          </select>
-          <select className='rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text'>
-            <option>All Environments</option>
-            <option>DEV</option>
-            <option>TEST</option>
-            <option>STAGE</option>
-            <option>PROD</option>
+          <select 
+            className='rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text'
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          >
+            <option value='all'>All Status</option>
+            <option value='Completed'>Completed</option>
+            <option value='Failed'>Failed</option>
+            <option value='Running'>Running</option>
+            <option value='Pending'>Pending</option>
+            <option value='Cancelled'>Cancelled</option>
           </select>
           <input 
             type='text' 
@@ -342,74 +213,74 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
         {/* Left Panel - Executions Table */}
         <Card className='lg:col-span-2'>
           <CardContent className='p-0'>
-            <div className='overflow-x-auto'>
-              <table className='w-full'>
-                <thead className='border-b border-border'>
-                  <tr className='text-left text-xs text-text-secondary'>
-                    <th className='px-4 py-3 font-medium'>Execution ID</th>
-                    <th className='px-4 py-3 font-medium'>Suite Name</th>
-                    <th className='px-4 py-3 font-medium'>Environment</th>
-                    <th className='px-4 py-3 font-medium'>Status</th>
-                    <th className='px-4 py-3 font-medium'>Total Tests</th>
-                    <th className='px-4 py-3 font-medium'>Passed</th>
-                    <th className='px-4 py-3 font-medium'>Failed</th>
-                    <th className='px-4 py-3 font-medium'>Started At</th>
-                    <th className='px-4 py-3 font-medium'>Duration</th>
-                    <th className='px-4 py-3 font-medium'>Triggered By</th>
-                    <th className='px-4 py-3 font-medium'></th>
-                  </tr>
-                </thead>
-                <tbody className='divide-y divide-border'>
-                  {filteredExecutions.map((execution) => (
-                    <tr 
-                      key={execution.id} 
-                      className={`hover:bg-surface transition-colors cursor-pointer ${
-                        selectedExecution?.id === execution.id ? 'bg-surface' : ''
-                      }`}
-                      onClick={() => setSelectedExecution({
-                        id: execution.id,
-                        suiteName: execution.suiteName,
-                        environment: execution.environment,
-                        startedAt: execution.startedAt,
-                        triggeredBy: execution.triggeredBy,
-                        totalTests: execution.totalTests,
-                        passed: execution.passed,
-                        failed: execution.failed,
-                        skipped: execution.skipped,
-                      })}
-                    >
-                      <td className='px-4 py-3'>
-                        <div className='flex items-center gap-2'>
-                          {getStatusIcon(execution.status)}
-                          <span className='text-xs font-mono text-text'>{execution.id}</span>
-                        </div>
-                      </td>
-                      <td className='px-4 py-3 text-sm text-text'>{execution.suiteName}</td>
-                      <td className='px-4 py-3'>
-                        <Badge variant='outline' className='text-xs'>{execution.environment}</Badge>
-                      </td>
-                      <td className='px-4 py-3'>{getStatusBadge(execution.status)}</td>
-                      <td className='px-4 py-3 text-sm text-text'>{execution.totalTests}</td>
-                      <td className='px-4 py-3 text-sm text-green-600'>{execution.passed}</td>
-                      <td className='px-4 py-3 text-sm text-red-600'>{execution.failed}</td>
-                      <td className='px-4 py-3 text-xs text-text-secondary'>{execution.startedAt}</td>
-                      <td className='px-4 py-3 text-xs text-text-secondary'>{execution.duration}</td>
-                      <td className='px-4 py-3 text-xs text-text-secondary'>{execution.triggeredBy}</td>
-                      <td className='px-4 py-3'>
-                        <Button variant='ghost' size='sm' className='h-8 w-8 p-0'>
-                          <MoreVertical className='h-4 w-4' />
-                        </Button>
-                      </td>
+            {isLoading ? (
+              <div className='flex items-center justify-center py-8'>
+                <p className='text-sm text-text-secondary'>Loading executions...</p>
+              </div>
+            ) : isError ? (
+              <div className='flex items-center justify-center py-8'>
+                <p className='text-sm text-error'>Error: {error?.message || 'Unknown error'}</p>
+              </div>
+            ) : filteredRuns.length === 0 ? (
+              <EmptyState
+                icon={<Play className='h-8 w-8' />}
+                title='No executions found'
+                description='Start an execution to see it here.'
+              />
+            ) : (
+              <div className='overflow-x-auto'>
+                <table className='w-full'>
+                  <thead className='border-b border-border'>
+                    <tr className='text-left text-xs text-text-secondary'>
+                      <th className='px-4 py-3 font-medium'>Execution ID</th>
+                      <th className='px-4 py-3 font-medium'>Requirement</th>
+                      <th className='px-4 py-3 font-medium'>Status</th>
+                      <th className='px-4 py-3 font-medium'>Steps</th>
+                      <th className='px-4 py-3 font-medium'>Passed</th>
+                      <th className='px-4 py-3 font-medium'>Failed</th>
+                      <th className='px-4 py-3 font-medium'>Started At</th>
+                      <th className='px-4 py-3 font-medium'></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className='divide-y divide-border'>
+                    {filteredRuns.map((run) => (
+                      <tr 
+                        key={run.id} 
+                        className={`hover:bg-surface transition-colors cursor-pointer ${
+                          selectedRun?.id === run.id ? 'bg-surface' : ''
+                        }`}
+                        onClick={() => setSelectedRun(run)}
+                      >
+                        <td className='px-4 py-3'>
+                          <div className='flex items-center gap-2'>
+                            {getStatusBadge(run.status)}
+                            <span className='text-xs font-mono text-text'>{run.id.slice(0, 8)}</span>
+                          </div>
+                        </td>
+                        <td className='px-4 py-3 text-sm text-text'>{run.requirementId.slice(0, 8)}</td>
+                        <td className='px-4 py-3 text-sm text-text'>{run.executionPlanId.slice(0, 8)}</td>
+                        <td className='px-4 py-3 text-sm text-text'>{run.summary.totalSteps}</td>
+                        <td className='px-4 py-3 text-sm text-green-600'>{run.summary.passed}</td>
+                        <td className='px-4 py-3 text-sm text-red-600'>{run.summary.failed}</td>
+                        <td className='px-4 py-3 text-xs text-text-secondary'>
+                          {new Date(run.createdAt).toLocaleString()}
+                        </td>
+                        <td className='px-4 py-3'>
+                          <Button variant='ghost' size='sm' className='h-8 w-8 p-0'>
+                            <MoreVertical className='h-4 w-4' />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </CardContent>
         </Card>
 
         {/* Right Panel - Execution Details */}
-        {selectedExecution && (
+        {selectedRun && (
           <Card className='lg:col-span-1'>
             <CardHeader>
               <div className='flex items-center justify-between'>
@@ -418,55 +289,198 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
                   <Copy className='h-4 w-4' />
                 </Button>
               </div>
+              {/* Tabs */}
+              <div className='flex gap-2 mt-4'>
+                <Button
+                  variant={activeTab === 'details' ? 'default' : 'outline'}
+                  size='sm'
+                  onClick={() => setActiveTab('details')}
+                >
+                  Details
+                </Button>
+                <Button
+                  variant={activeTab === 'validation' ? 'default' : 'outline'}
+                  size='sm'
+                  onClick={() => setActiveTab('validation')}
+                  className='gap-2'
+                >
+                  <Shield className='h-4 w-4' />
+                  Validation
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className='space-y-4'>
-              {/* Execution ID */}
-              <div>
-                <h3 className='text-lg font-semibold text-text flex items-center gap-2'>
-                  {selectedExecution.id}
-                  {getStatusIcon(selectedExecution.id === 'EXE-125' ? 'running' : selectedExecution.id === 'EXE-128' ? 'passed' : 'failed')}
-                </h3>
-              </div>
+              {activeTab === 'details' && (
+                <>
+                  {/* Execution ID */}
+                  <div>
+                    <h3 className='text-lg font-semibold text-text flex items-center gap-2'>
+                      {selectedRun.id.slice(0, 8)}
+                      {getStatusBadge(selectedRun.status)}
+                    </h3>
+                  </div>
 
-              {/* Execution Info */}
-              <div className='space-y-2'>
-                <div className='flex items-center justify-between text-sm'>
-                  <span className='text-text-secondary'>Suite Name</span>
-                  <span className='font-medium text-text'>{selectedExecution.suiteName}</span>
-                </div>
-                <div className='flex items-center justify-between text-sm'>
-                  <span className='text-text-secondary'>Environment</span>
-                  <span className='font-medium text-text'>{selectedExecution.environment}</span>
-                </div>
-                <div className='flex items-center justify-between text-sm'>
-                  <span className='text-text-secondary'>Started At</span>
-                  <span className='font-medium text-text'>{selectedExecution.startedAt}</span>
-                </div>
-                <div className='flex items-center justify-between text-sm'>
-                  <span className='text-text-secondary'>Triggered By</span>
-                  <span className='font-medium text-text'>{selectedExecution.triggeredBy}</span>
-                </div>
-              </div>
+                  {/* Execution Info */}
+                  <div className='space-y-2'>
+                    <div className='flex items-center justify-between text-sm'>
+                      <span className='text-text-secondary'>Execution Plan</span>
+                      <span className='font-medium text-text'>{selectedRun.executionPlanId.slice(0, 8)}</span>
+                    </div>
+                    <div className='flex items-center justify-between text-sm'>
+                      <span className='text-text-secondary'>Requirement</span>
+                      <span className='font-medium text-text'>{selectedRun.requirementId.slice(0, 8)}</span>
+                    </div>
+                    <div className='flex items-center justify-between text-sm'>
+                      <span className='text-text-secondary'>Started At</span>
+                      <span className='font-medium text-text'>{new Date(selectedRun.createdAt).toLocaleString()}</span>
+                    </div>
+                    <div className='flex items-center justify-between text-sm'>
+                      <span className='text-text-secondary'>Failure Mode</span>
+                      <span className='font-medium text-text'>{selectedRun.failureMode}</span>
+                    </div>
+                  </div>
 
-              {/* Stats */}
-              <div className='space-y-2'>
-                <div className='flex items-center justify-between text-sm'>
-                  <span className='text-text-secondary'>Total Tests</span>
-                  <span className='font-medium text-text'>{selectedExecution.totalTests}</span>
+                  {/* Stats */}
+                  <div className='space-y-2'>
+                    <div className='flex items-center justify-between text-sm'>
+                      <span className='text-text-secondary'>Total Steps</span>
+                      <span className='font-medium text-text'>{selectedRun.summary.totalSteps}</span>
+                    </div>
+                    <div className='flex items-center justify-between text-sm'>
+                      <span className='text-text-secondary'>Passed</span>
+                      <span className='font-medium text-green-600'>{selectedRun.summary.passed}</span>
+                    </div>
+                    <div className='flex items-center justify-between text-sm'>
+                      <span className='text-text-secondary'>Failed</span>
+                      <span className='font-medium text-red-600'>{selectedRun.summary.failed}</span>
+                    </div>
+                    <div className='flex items-center justify-between text-sm'>
+                      <span className='text-text-secondary'>Skipped</span>
+                      <span className='font-medium text-text'>{selectedRun.summary.skipped}</span>
+                    </div>
+                    <div className='flex items-center justify-between text-sm'>
+                      <span className='text-text-secondary'>Duration</span>
+                      <span className='font-medium text-text'>{selectedRun.summary.duration}ms</span>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {activeTab === 'validation' && (
+                <>
+                  {/* Validation Stats */}
+                  <div className='space-y-2'>
+                    <h4 className='text-sm font-semibold text-text'>Validation Summary</h4>
+                    <div className='flex items-center justify-between text-sm'>
+                      <span className='text-text-secondary'>Passed</span>
+                      <span className='font-medium text-green-600'>{selectedRun.summary.validationPassed}</span>
+                    </div>
+                    <div className='flex items-center justify-between text-sm'>
+                      <span className='text-text-secondary'>Failed</span>
+                      <span className='font-medium text-red-600'>{selectedRun.summary.validationFailed}</span>
+                    </div>
+                    <div className='flex items-center justify-between text-sm'>
+                      <span className='text-text-secondary'>Warnings</span>
+                      <span className='font-medium text-yellow-600'>{selectedRun.summary.validationWarnings}</span>
+                    </div>
+                  </div>
+
+                  {/* Validation Filter */}
+                  <div className='flex items-center gap-2 mb-3'>
+                    <select
+                      className='rounded-lg border border-border bg-background px-2 py-1 text-xs text-text'
+                      value={validationFilter}
+                      onChange={(e) => setValidationFilter(e.target.value)}
+                    >
+                      <option value='all'>All Validations</option>
+                      <option value='Passed'>Passed</option>
+                      <option value='Failed'>Failed</option>
+                      <option value='Warning'>Warnings</option>
+                    </select>
+                  </div>
+
+                  {/* Validation Results by Step */}
+                  {selectedRun.stepResults.length > 0 && (
+                    <div>
+                      <h4 className='text-sm font-semibold text-text mb-3'>Validation Results</h4>
+                      <div className='space-y-3 max-h-96 overflow-y-auto'>
+                        {selectedRun.stepResults.map((step, idx) => {
+                          const filteredValidations = step.validations?.filter((v: any) => 
+                            validationFilter === 'all' || v.status === validationFilter
+                          ) || [];
+                          
+                          if (filteredValidations.length === 0) return null;
+                          
+                          return (
+                            <div key={step.stepId} className='border border-border rounded-lg p-3'>
+                              <div className='flex items-center justify-between mb-2'>
+                                <span className='text-xs font-medium text-text'>Step {step.executionOrder}</span>
+                                {getStepStatusIcon(step.status)}
+                              </div>
+                              <div className='space-y-2'>
+                                {filteredValidations.map((validation, vIdx) => (
+                                  <div key={vIdx} className='flex items-start gap-2 text-xs'>
+                                    {validation.status === 'Passed' && <CheckCircle className='h-3 w-3 text-green-600 mt-0.5' />}
+                                    {validation.status === 'Failed' && <XCircle className='h-3 w-3 text-red-600 mt-0.5' />}
+                                    {validation.status === 'Warning' && <AlertCircle className='h-3 w-3 text-yellow-600 mt-0.5' />}
+                                    <div className='flex-1 min-w-0'>
+                                      <div className='flex items-center justify-between'>
+                                        <span className='font-medium text-text'>{validation.rule.name}</span>
+                                        <span className='text-text-secondary'>{validation.duration}ms</span>
+                                      </div>
+                                      <p className='text-text-secondary mt-0.5'>
+                                        Expected: {JSON.stringify(validation.expected)}
+                                      </p>
+                                      <p className='text-text-secondary'>
+                                        Actual: {JSON.stringify(validation.actual)}
+                                      </p>
+                                      {validation.error && (
+                                        <p className='text-red-600 mt-1'>{validation.error}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Execution Timeline */}
+              {selectedRun.stepResults.length > 0 && activeTab === 'details' && (
+                <div>
+                  <h4 className='text-sm font-semibold text-text mb-3'>Execution Timeline</h4>
+                  <div className='space-y-3'>
+                    {[...selectedRun.stepResults]
+                      .sort((a, b) => a.executionOrder - b.executionOrder)
+                      .map((step, idx) => (
+                        <div key={step.stepId} className='flex items-start gap-3'>
+                          <div className='flex-shrink-0 mt-1'>
+                            {getStepStatusIcon(step.status)}
+                          </div>
+                          <div className='flex-1 min-w-0'>
+                            <div className='flex items-center gap-2'>
+                              <span className='text-xs font-medium text-text'>Step {step.executionOrder}</span>
+                              <span className='text-xs text-text-secondary'>{step.request.method} {step.request.url}</span>
+                            </div>
+                            {step.error && (
+                              <p className='text-xs text-red-600 mt-1'>{step.error}</p>
+                            )}
+                            {step.response && (
+                              <p className='text-xs text-text-secondary mt-1'>
+                                Status: {step.response.status} • {step.response.duration}ms
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
                 </div>
-                <div className='flex items-center justify-between text-sm'>
-                  <span className='text-text-secondary'>Passed</span>
-                  <span className='font-medium text-green-600'>{selectedExecution.passed}</span>
-                </div>
-                <div className='flex items-center justify-between text-sm'>
-                  <span className='text-text-secondary'>Failed</span>
-                  <span className='font-medium text-red-600'>{selectedExecution.failed}</span>
-                </div>
-                <div className='flex items-center justify-between text-sm'>
-                  <span className='text-text-secondary'>Skipped</span>
-                  <span className='font-medium text-text'>{selectedExecution.skipped}</span>
-                </div>
-              </div>
+              )}
 
               {/* Execution Summary */}
               <div>
@@ -490,13 +504,15 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
                         stroke='currentColor'
                         strokeWidth='8'
                         fill='none'
-                        strokeDasharray={`${(selectedExecution.passed / selectedExecution.totalTests) * 251.2} 251.2`}
+                        strokeDasharray={`${(selectedRun.summary.passed / Math.max(selectedRun.summary.totalSteps, 1)) * 251.2} 251.2`}
                         className='text-green-600'
                       />
                     </svg>
                     <div className='absolute inset-0 flex items-center justify-center'>
                       <div className='text-center'>
-                        <div className='text-2xl font-bold text-text'>{Math.round((selectedExecution.passed / selectedExecution.totalTests) * 100)}%</div>
+                        <div className='text-2xl font-bold text-text'>
+                          {Math.round((selectedRun.summary.passed / Math.max(selectedRun.summary.totalSteps, 1)) * 100)}%
+                        </div>
                         <div className='text-xs text-text-secondary'>Passed</div>
                       </div>
                     </div>
@@ -525,19 +541,6 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
             </CardContent>
           </Card>
         )}
-      </div>
-
-      {/* Pagination */}
-      <div className='mt-4 flex items-center justify-between'>
-        <span className='text-sm text-text-secondary'>Showing 1 to 8 of 128 executions</span>
-        <div className='flex gap-1'>
-          <Button variant='outline' size='sm' className='h-8 w-8 p-0' disabled>‹</Button>
-          <Button variant='default' size='sm' className='h-8 w-8 p-0'>1</Button>
-          <Button variant='outline' size='sm' className='h-8 w-8 p-0'>2</Button>
-          <Button variant='outline' size='sm' className='h-8 w-8 p-0'>3</Button>
-          <Button variant='outline' size='sm' className='h-8 w-8 p-0'>4</Button>
-          <Button variant='outline' size='sm' className='h-8 w-8 p-0'>›</Button>
-        </div>
       </div>
     </div>
   );

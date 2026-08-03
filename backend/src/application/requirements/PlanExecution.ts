@@ -1,0 +1,171 @@
+// PlanExecution - Deterministic Execution Planner
+// Converts Test Designs into executable execution plans.
+// Does NOT execute APIs. It prepares execution.
+// Reuses Test Design, Knowledge Flows, Runtime Variables, Population Strategies, API Operations.
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
+import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository';
+import { ExecutionPlanRepository } from '../../domain/requirements/ExecutionPlanRepository';
+import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository';
+import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
+import { ExecutionPlanEntity, RequestTemplate, ExecutionPlanStatus } from '../../domain/requirements/ExecutionPlanEntity';
+import { TestDesignEntity } from '../../domain/requirements/TestDesignEntity';
+
+export class PlanExecution {
+  constructor(
+    private readonly requirementRepository: RequirementRepository,
+    private readonly testDesignRepository: TestDesignRepository,
+    private readonly executionPlanRepository: ExecutionPlanRepository,
+    private readonly knowledgeFlowRepository: KnowledgeFlowRepository,
+    private readonly apiOperationRepository: ApiOperationRepository
+  ) {}
+
+  async execute(requirementId: string): Promise<ExecutionPlanEntity[]> {
+    const requirement = await this.requirementRepository.findById(requirementId);
+    if (!requirement) {
+      throw new Error(`Requirement with id ${requirementId} not found`);
+    }
+
+    // Get all test designs for this requirement
+    const designs = await this.testDesignRepository.findByRequirement(requirementId);
+    if (!designs || designs.length === 0) {
+      throw new Error('No test designs found for this requirement');
+    }
+
+    // Get related knowledge flows to determine execution order
+    const flows = await this.knowledgeFlowRepository.findByProject(requirement.projectId);
+    const relatedFlows = flows.filter(flow => 
+      requirement.relatedFlows.includes(flow.id)
+    );
+
+    // Get API operations for request templates
+    const operations: Map<string, any> = new Map();
+    for (const design of designs) {
+      if (design.operationId) {
+        const op = await this.apiOperationRepository.findById(design.operationId);
+        if (op) {
+          operations.set(design.operationId, op);
+        }
+      }
+    }
+
+    // Sort designs by priority (High first, then Medium, then Low)
+    const priorityOrder = { 'High': 0, 'Medium': 1, 'Low': 2 };
+    const sortedDesigns = [...designs].sort((a, b) => {
+      return priorityOrder[a.priority as keyof typeof priorityOrder] - priorityOrder[b.priority as keyof typeof priorityOrder];
+    });
+
+    // Generate execution plans with resolved dependencies and order
+    const plans: ExecutionPlanEntity[] = [];
+    const now = Date.now();
+
+    for (let i = 0; i < sortedDesigns.length; i++) {
+      const design = sortedDesigns[i];
+      
+      // Resolve prerequisites - designs that must execute before this one
+      const prerequisiteDesignIds = this.resolvePrerequisites(design, sortedDesigns, i);
+
+      // Build request template from API operation
+      const operation = operations.get(design.operationId);
+      const requestTemplate: RequestTemplate = {
+        method: operation?.method || 'GET',
+        path: operation?.path || '/',
+        headers: design.requestOverrides?.headers,
+        queryParams: design.requestOverrides?.queryParams,
+        body: design.requestOverrides?.body,
+      };
+
+      // Determine execution order based on flow steps
+      const executionOrder = this.resolveExecutionOrder(design, relatedFlows, i);
+
+      const plan = new ExecutionPlanEntity(
+        crypto.randomUUID(),
+        requirement.projectId,
+        requirementId,
+        design.id,
+        executionOrder,
+        prerequisiteDesignIds,
+        design.operationId,
+        design.environmentId,
+        design.datasetId,
+        design.runtimeBindings,
+        requestTemplate,
+        design.assertions,
+        design.cleanup,
+        'Ready',
+        now,
+        now
+      );
+
+      plans.push(plan);
+    }
+
+    // Sort plans by execution order
+    plans.sort((a, b) => a.executionOrder - b.executionOrder);
+
+    // Persist plans
+    const persistedPlans: ExecutionPlanEntity[] = [];
+    for (const plan of plans) {
+      const persisted = await this.executionPlanRepository.create(plan);
+      persistedPlans.push(persisted);
+    }
+
+    return persistedPlans;
+  }
+
+  private resolvePrerequisites(design: TestDesignEntity, allDesigns: TestDesignEntity[], currentIndex: number): string[] {
+    const prerequisites: string[] = [];
+    
+    // Designs with runtime bindings that source from 'response' need prerequisites
+    for (const binding of design.runtimeBindings) {
+      if (binding.source === 'response') {
+        // Find designs that produce this variable
+        for (let j = 0; j < currentIndex; j++) {
+          const prevDesign = allDesigns[j];
+          // If previous design has assertions that check for this variable
+          if (prevDesign.assertions.some(a => a.path?.includes(binding.variable))) {
+            if (!prerequisites.includes(prevDesign.id)) {
+              prerequisites.push(prevDesign.id);
+            }
+          }
+        }
+      }
+    }
+
+    // Security and Authentication designs should come before Positive designs
+    if (design.assertions.some(a => a.expected === 200)) {
+      for (let j = 0; j < currentIndex; j++) {
+        const prevDesign = allDesigns[j];
+        if (prevDesign.assertions.some(a => a.expected === 401 || a.expected === 200) && 
+            !prerequisites.includes(prevDesign.id)) {
+          // Only add if it's a security/auth design
+          if (prevDesign.runtimeBindings.some(b => b.variable === 'accessToken')) {
+            prerequisites.push(prevDesign.id);
+          }
+        }
+      }
+    }
+
+    return prerequisites;
+  }
+
+  private resolveExecutionOrder(design: TestDesignEntity, flows: any[], fallbackIndex: number): number {
+    // If we have related flows, try to match design to flow steps
+    for (const flow of flows) {
+      if (flow.steps) {
+        for (let i = 0; i < flow.steps.length; i++) {
+          const step = flow.steps[i];
+          // Match by operation ID or title
+          if (step.linkedApiOperation === design.operationId ||
+              step.title?.toLowerCase().includes(design.strategyItemId?.toLowerCase() || '')) {
+            return i + 1;
+          }
+        }
+      }
+    }
+
+    // Fallback to priority-based ordering
+    return fallbackIndex + 1;
+  }
+}
+
+export default PlanExecution;

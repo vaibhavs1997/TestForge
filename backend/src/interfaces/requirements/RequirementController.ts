@@ -9,6 +9,7 @@ import { GenerateFromAnalysis } from '../../application/requirements/GenerateFro
 import { ValidateRequirementReadiness } from '../../application/requirements/ValidateRequirementReadiness';
 import { PlanTestStrategy } from '../../application/requirements/PlanTestStrategy';
 import { GenerateTestDesigns } from '../../application/requirements/GenerateTestDesigns';
+import { PlanExecution } from '../../application/requirements/PlanExecution';
 
 export class RequirementController {
   constructor(
@@ -20,7 +21,8 @@ export class RequirementController {
     private readonly generateFromAnalysisUseCase: GenerateFromAnalysis,
     private readonly validateRequirementReadinessUseCase: ValidateRequirementReadiness,
     private readonly planTestStrategyUseCase: PlanTestStrategy,
-    private readonly generateTestDesignsUseCase: GenerateTestDesigns
+    private readonly generateTestDesignsUseCase: GenerateTestDesigns,
+    private readonly planExecutionUseCase: PlanExecution
   ) {}
 
   async listRequirements(req: Request, res: Response): Promise<void> {
@@ -172,6 +174,20 @@ export class RequirementController {
       res.status(201).json({ success: true, data: designs });
     } catch (error: any) {
       if (error.message.includes('not found') || error.message.includes('Test strategy not found')) {
+        res.status(400).json({ success: false, message: error.message, details: null });
+      } else {
+        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      }
+    }
+  }
+
+  async planExecution(req: Request, res: Response): Promise<void> {
+    try {
+      const { requirementId } = req.params;
+      const plans = await this.planExecutionUseCase.execute(requirementId);
+      res.status(201).json({ success: true, data: plans });
+    } catch (error: any) {
+      if (error.message.includes('not found') || error.message.includes('No test designs')) {
         res.status(400).json({ success: false, message: error.message, details: null });
       } else {
         res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });

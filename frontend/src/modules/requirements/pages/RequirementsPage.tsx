@@ -1,7 +1,7 @@
 // Requirement Workspace page - displays Suggested, Approved, Archived sections
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Plus, Eye, CheckCircle, XCircle, Archive, Sparkles, RefreshCw, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Edit2, Trash2, ToggleLeft, ToggleRight, Copy, FlaskConical } from 'lucide-react';
+import { Plus, Eye, CheckCircle, XCircle, Archive, Sparkles, RefreshCw, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Edit2, Trash2, ToggleLeft, ToggleRight, Copy, FlaskConical, ArrowUp, ArrowDown, GitBranch, Clock } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { Badge } from '../../../components/ui/Badge';
@@ -10,7 +10,7 @@ import { Toast } from '../../../components/shared/Toast';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
 import { useRequirements } from '../hooks';
 import { useAnalysis } from '../../analysis/hooks';
-import type { Requirement, ApprovalStatus, ValidationCategory, TestStrategy, StrategyCategorySection, StrategyItem, TestDesign, Assertion, RuntimeBinding } from '../types';
+import type { Requirement, ApprovalStatus, ValidationCategory, TestStrategy, StrategyCategorySection, StrategyItem, TestDesign, Assertion, RuntimeBinding, ExecutionPlan, CleanupStep } from '../types';
 
 export interface RequirementsPageProps {}
 
@@ -52,6 +52,17 @@ const getPriorityBadgeVariant = (priority: string) => {
   }
 };
 
+const getExecutionStatusBadgeVariant = (status: string) => {
+  switch (status) {
+    case 'Ready':
+      return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
+    case 'Disabled':
+      return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+    default:
+      return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300';
+  }
+};
+
 const STRATEGY_CATEGORIES: StrategyCategorySection['category'][] = [
   'Positive',
   'Negative',
@@ -71,7 +82,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const projectId = routeProjectId || '1';
 
-  const { suggested, approved, archived, isLoading, isError, error, generateFromAnalysisAsync, isGenerating, update, remove, validateReadinessAsync, isValidating, validationResult, planTestStrategyAsync, isPlanningStrategy, testStrategy, generateTestDesignsAsync, isGeneratingDesigns, testDesigns } = useRequirements(projectId);
+  const { suggested, approved, archived, isLoading, isError, error, generateFromAnalysisAsync, isGenerating, update, remove, validateReadinessAsync, isValidating, validationResult, planTestStrategyAsync, isPlanningStrategy, testStrategy, generateTestDesignsAsync, isGeneratingDesigns, testDesigns, planExecutionAsync, isPlanningExecution, executionPlans } = useRequirements(projectId);
   const { analysisCards, runAnalysisAsync, isAnalyzing } = useAnalysis(projectId);
 
   const [toastOpen, setToastOpen] = useState(false);
@@ -82,7 +93,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [requirementToReview, setRequirementToReview] = useState<Requirement | undefined>(undefined);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
-  const [strategyTab, setStrategyTab] = useState<'review' | 'strategy' | 'design'>('review');
+  const [strategyTab, setStrategyTab] = useState<'review' | 'strategy' | 'design' | 'execution'>('review');
 
   const handleGenerateFromAnalysis = async (analysisId: string) => {
     try {
@@ -169,6 +180,19 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
       setToastType('success');
     } catch (err: any) {
       setToastMessage(err?.response?.data?.message || err?.message || 'Failed to generate test designs');
+      setToastType('error');
+    } finally {
+      setToastOpen(true);
+    }
+  };
+
+  const handlePlanExecution = async (requirement: Requirement) => {
+    try {
+      await planExecutionAsync({ projectId, requirementId: requirement.id });
+      setToastMessage('Execution plans generated successfully');
+      setToastType('success');
+    } catch (err: any) {
+      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to generate execution plans');
       setToastType('error');
     } finally {
       setToastOpen(true);
@@ -319,6 +343,127 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
     );
   };
 
+  const renderExecutionTimeline = (plans: ExecutionPlan[]) => {
+    const sortedPlans = [...plans].sort((a, b) => a.executionOrder - b.executionOrder);
+    
+    return (
+      <div className='relative'>
+        {/* Vertical line */}
+        <div className='absolute left-6 top-0 bottom-0 w-0.5 bg-border' />
+        
+        {sortedPlans.map((plan, idx) => (
+          <div key={plan.id} className='relative flex gap-4 mb-6 last:mb-0'>
+            {/* Step number circle */}
+            <div className='flex-shrink-0 w-12 h-12 rounded-full bg-primary text-white flex items-center justify-center font-semibold text-sm z-10'>
+              {plan.executionOrder}
+            </div>
+            
+            {/* Plan card */}
+            <div className='flex-1 border border-border rounded-lg p-4 bg-white dark:bg-gray-900'>
+              <div className='flex items-start justify-between mb-3'>
+                <div className='flex-1'>
+                  <div className='flex items-center gap-2 mb-2'>
+                    <GitBranch className='h-4 w-4 text-primary' />
+                    <h5 className='text-sm font-semibold text-text'>
+                      {plan.requestTemplate.method} {plan.requestTemplate.path}
+                    </h5>
+                    <Badge variant='outline' className={getExecutionStatusBadgeVariant(plan.status)}>
+                      {plan.status}
+                    </Badge>
+                  </div>
+                  
+                  {/* Details grid */}
+                  <div className='grid grid-cols-2 gap-2 text-xs mb-3'>
+                    <div>
+                      <span className='font-medium text-text-secondary'>Environment:</span>
+                      <p className='text-text'>{plan.environmentId || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className='font-medium text-text-secondary'>Dataset:</span>
+                      <p className='text-text'>{plan.datasetId || 'N/A'}</p>
+                    </div>
+                  </div>
+
+                  {/* Prerequisites */}
+                  {plan.prerequisiteDesignIds.length > 0 && (
+                    <div className='mb-2'>
+                      <span className='text-xs font-medium text-text-secondary'>Prerequisites:</span>
+                      <div className='flex flex-wrap gap-1 mt-1'>
+                        {plan.prerequisiteDesignIds.map((preId, idx2) => (
+                          <Badge key={idx2} variant='outline' className='text-xs'>
+                            Step {sortedPlans.findIndex(p => p.testDesignId === preId) + 1}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Runtime Variables */}
+                  {plan.runtimeBindings.length > 0 && (
+                    <div className='mb-2'>
+                      <span className='text-xs font-medium text-text-secondary'>Runtime Variables:</span>
+                      <ul className='mt-1 space-y-0.5'>
+                        {plan.runtimeBindings.map((binding: RuntimeBinding, idx2: number) => (
+                          <li key={idx2} className='text-xs text-text-secondary'>
+                            • {binding.variable} ({binding.source}) {binding.path || ''}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Assertions */}
+                  {plan.assertions.length > 0 && (
+                    <div className='mb-2'>
+                      <span className='text-xs font-medium text-text-secondary'>Assertions:</span>
+                      <ul className='mt-1 space-y-0.5'>
+                        {plan.assertions.map((assertion: Assertion, idx2: number) => (
+                          <li key={idx2} className='text-xs text-text-secondary'>
+                            • {assertion.type} {assertion.operator} {assertion.path} → {String(assertion.expected)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Cleanup */}
+                  {plan.cleanupSteps.length > 0 && (
+                    <div className='mb-2'>
+                      <span className='text-xs font-medium text-text-secondary'>Cleanup:</span>
+                      <ul className='mt-1 space-y-0.5'>
+                        {plan.cleanupSteps.map((cleanup: CleanupStep, idx2: number) => (
+                          <li key={idx2} className='text-xs text-text-secondary'>
+                            • {cleanup.type}: {cleanup.action} {cleanup.target}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+
+                {/* Action buttons */}
+                <div className='ml-2 flex flex-col gap-1'>
+                  <Button variant='ghost' size='sm' disabled={idx === 0}>
+                    <ArrowUp className='h-4 w-4' />
+                  </Button>
+                  <Button variant='ghost' size='sm' disabled={idx === sortedPlans.length - 1}>
+                    <ArrowDown className='h-4 w-4' />
+                  </Button>
+                  <Button variant='ghost' size='sm'>
+                    {plan.status === 'Ready' ? <ToggleRight className='h-4 w-4 text-green-600' /> : <ToggleLeft className='h-4 w-4 text-gray-400' />}
+                  </Button>
+                  <Button variant='ghost' size='sm'>
+                    <Edit2 className='h-4 w-4' />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   if (isLoading) {
     return (
       <div className='mx-auto max-w-7xl px-6 py-8'>
@@ -448,6 +593,12 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
                 onClick={() => setStrategyTab('design')}
               >
                 Test Design
+              </button>
+              <button
+                className={`px-4 py-2 text-sm font-medium ${strategyTab === 'execution' ? 'border-b-2 border-primary text-primary' : 'text-text-secondary'}`}
+                onClick={() => setStrategyTab('execution')}
+              >
+                Execution Plan
               </button>
             </div>
 
@@ -599,6 +750,30 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
                     <p className='text-sm text-text-secondary mb-4'>No test designs generated yet.</p>
                     <Button onClick={() => handleGenerateDesigns(requirementToReview)} disabled={isGeneratingDesigns}>
                       {isGeneratingDesigns ? 'Generating...' : 'Generate Test Designs'}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Execution Plan Tab */}
+            {strategyTab === 'execution' && (
+              <div>
+                {executionPlans && executionPlans.length > 0 ? (
+                  <div>
+                    <div className='flex items-center justify-between mb-4'>
+                      <div className='flex items-center gap-2'>
+                        <Clock className='h-5 w-5 text-primary' />
+                        <h4 className='font-semibold text-text'>Execution Timeline ({executionPlans.length} steps)</h4>
+                      </div>
+                    </div>
+                    {renderExecutionTimeline(executionPlans)}
+                  </div>
+                ) : (
+                  <div className='text-center py-8'>
+                    <p className='text-sm text-text-secondary mb-4'>No execution plans generated yet.</p>
+                    <Button onClick={() => handlePlanExecution(requirementToReview)} disabled={isPlanningExecution}>
+                      {isPlanningExecution ? 'Planning...' : 'Plan Execution'}
                     </Button>
                   </div>
                 )}

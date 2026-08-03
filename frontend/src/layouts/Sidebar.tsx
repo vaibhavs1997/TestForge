@@ -24,6 +24,10 @@ import {
   Bell,
   History,
   ScrollText,
+  Puzzle,
+  Boxes,
+  Send,
+  Bot,
 } from 'lucide-react';
 import { projectStore } from '../store/projectStore';
 
@@ -46,6 +50,9 @@ const PROJECT_TAB_ITEMS: { key: string; label: string; icon: React.ComponentType
   { key: 'notifications', label: 'Notifications', icon: Bell },
   { key: 'versions', label: 'Versions', icon: History },
   { key: 'audit', label: 'Audit Log', icon: ScrollText },
+  { key: 'context', label: 'Context', icon: Boxes },
+  { key: 'prompts', label: 'Prompts', icon: Send },
+  { key: 'ai-providers', label: 'AI Providers', icon: Bot },
 ];
 
 export const Sidebar: React.FC = () => {
@@ -55,6 +62,7 @@ export const Sidebar: React.FC = () => {
   // Project-centric primary navigation
   const primaryNavigationItems = [
     { to: '/projects', label: 'Projects', icon: FolderKanban },
+    { to: '/plugins', label: 'Plugins', icon: Puzzle },
     { to: '/settings', label: 'Settings', icon: Settings },
   ];
 

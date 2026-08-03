@@ -21,6 +21,8 @@ import { SchedulerRoutes } from '../modules/scheduler';
 import { NotificationRoutes } from '../modules/notification';
 import { VersioningRoutes } from '../modules/versioning';
 import { AuditRoutes } from '../modules/audit';
+import { PluginRoutes } from '../modules/plugin';
+import { AIProviderRoutes } from '../modules/ai-provider';
 
 const PlaceholderPage = ({ title }: { title: string }) => (
   <div className='flex h-full flex-col items-center justify-center'>
@@ -52,6 +54,8 @@ export const AppRoutes = () => (
       <Route path='/notifications/*' element={<NotificationRoutes />} />
       <Route path='/versions/*' element={<VersioningRoutes />} />
       <Route path='/audit/*' element={<AuditRoutes />} />
+      <Route path='/plugins/*' element={<PluginRoutes />} />
+      <Route path='/ai-providers/*' element={<AIProviderRoutes />} />
       <Route path='/showcase' element={<ShowcasePage />} />
     </Route>
   </Routes>

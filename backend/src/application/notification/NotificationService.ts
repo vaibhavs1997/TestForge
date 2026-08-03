@@ -6,6 +6,7 @@ import { NotificationEntity, NotificationEventType } from '../../domain/notifica
 import { NotificationRepository } from '../../domain/notification/NotificationRepository';
 import { ProviderResolutionService } from '../../infrastructure/providers/ProviderResolutionService';
 import { ProviderEntity } from '../../domain/providers/ProviderEntity';
+import { PluginRegistry } from '../plugin/PluginRegistry';
 
 export interface CreateNotificationInput {
   projectId: string;
@@ -32,7 +33,8 @@ export class NotificationService {
   constructor(
     private readonly notificationRepository: NotificationRepository,
     private readonly providerResolutionService: ProviderResolutionService,
-    private readonly eventBus: EventBus
+    private readonly eventBus: EventBus,
+    private readonly pluginRegistry?: PluginRegistry
   ) {
     this.setupEventSubscriptions();
   }
@@ -85,7 +87,7 @@ export class NotificationService {
   }
 
   private async sendNotification(notification: NotificationEntity, context: Record<string, any>): Promise<void> {
-    const { provider, adapter } = await this.providerResolutionService.resolveById(notification.providerId);
+    const { provider, adapter, pluginId } = await this.providerResolutionService.resolveById(notification.providerId);
     if (!provider || !adapter) {
       throw new Error(`Provider ${notification.providerId} not found or not available`);
     }
@@ -93,9 +95,18 @@ export class NotificationService {
     const subject = this.renderTemplate(notification.subjectTemplate, context);
     const body = this.renderTemplate(notification.bodyTemplate, context);
 
-    // Send via provider adapter
+    // Resolve notification channel through Plugin Registry if available
+    let channelPlugin = null;
+    if (this.pluginRegistry) {
+      const channelPlugins = await this.pluginRegistry.resolveByCategoryAndCapability('Notification', 'send');
+      if (channelPlugins.length > 0) {
+        channelPlugin = channelPlugins[0];
+      }
+    }
+
+    // Send via provider adapter (reuses existing adapter, does not change execution behavior)
     await adapter.sendNotification({
-      channel: 'Email', // This would be determined by the provider category
+      channel: channelPlugin?.name || 'Email',
       recipients: notification.recipients,
       subject,
       body,

@@ -38,6 +38,15 @@ import { AuditLogController } from './interfaces/audit/AuditLogController';
 import { createAuditLogRoutes } from './interfaces/audit/AuditLogRoutes';
 import { AuditLogService } from './application/audit/AuditLogService';
 import { InMemoryAuditLogRepository } from './infrastructure/audit/AuditLogRepository';
+import { PluginController } from './interfaces/plugin/PluginController';
+import { createPluginRoutes } from './interfaces/plugin/PluginRoutes';
+import { PluginService } from './application/plugin/PluginService';
+import { PluginRegistry } from './application/plugin/PluginRegistry';
+import { PluginLoader } from './application/plugin/PluginLoader';
+import { InMemoryPluginRepository } from './infrastructure/plugin/PluginRepository';
+import { projectContextRoutes } from './interfaces/context/ProjectContextRoutes';
+import { promptRoutes } from './interfaces/prompt/PromptRoutes';
+import { aiProviderRoutes } from './interfaces/ai-provider/AIProviderRoutes';
 
 // Shared constants
 
@@ -80,13 +89,27 @@ app.use('/api', importRoutes);
 app.use('/api', relationshipRoutes);
 app.use('/api', providerRoutes);
 app.use('/api', scheduleRoutes);
+app.use('/api', projectContextRoutes);
+app.use('/api', promptRoutes);
+app.use('/api', aiProviderRoutes);
 
-// Initialize Notification module
+// Initialize Plugin module (must be before Notification to allow provider resolution)
+const pluginRepository = new InMemoryPluginRepository();
+const pluginRegistry = new PluginRegistry(pluginRepository);
+const pluginLoader = new PluginLoader(pluginRegistry);
+const pluginService = new PluginService(pluginRepository, pluginRegistry);
+const pluginController = new PluginController(pluginService);
+app.use('/api', createPluginRoutes(pluginController));
+
+// Load built-in plugins on startup
+pluginLoader.loadBuiltInPlugins().catch(err => console.error('Failed to load plugins:', err));
+
+// Initialize Notification module (uses Plugin Registry for provider resolution)
 const notificationRepository = new InMemoryNotificationRepository();
 const providerRepository = new ProviderRepository();
-const providerResolutionService = new ProviderResolutionService(providerRepository);
+const providerResolutionService = new ProviderResolutionService(providerRepository, pluginRegistry);
 const eventBus = new EventBus();
-const notificationService = new NotificationService(notificationRepository, providerResolutionService, eventBus);
+const notificationService = new NotificationService(notificationRepository, providerResolutionService, eventBus, pluginRegistry);
 const notificationController = new NotificationController(notificationService);
 app.use('/api', createNotificationRoutes(notificationController));
 

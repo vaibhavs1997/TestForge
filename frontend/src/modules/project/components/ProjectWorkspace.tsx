@@ -16,6 +16,9 @@ import { SchedulerRoutes } from '../../scheduler';
 import { NotificationRoutes } from '../../notification';
 import { VersioningRoutes } from '../../versioning';
 import { AuditRoutes } from '../../audit';
+import { ContextRoutes } from '../../context';
+import { PromptRoutes } from '../../prompt';
+import { AIProviderRoutes } from '../../ai-provider';
 
 interface ProjectWorkspaceProps {
   projectId: string;
@@ -39,6 +42,9 @@ const TAB_KEYS = [
   'notifications',
   'versions',
   'audit',
+  'context',
+  'prompts',
+  'ai-providers',
 ] as const;
 
 export const ProjectWorkspace: React.FC<ProjectWorkspaceProps> = ({ projectId, projectName }) => {
@@ -83,6 +89,12 @@ export const ProjectWorkspace: React.FC<ProjectWorkspaceProps> = ({ projectId, p
         return <VersioningRoutes />;
       case 'audit':
         return <AuditRoutes />;
+      case 'context':
+        return <ContextRoutes />;
+      case 'prompts':
+        return <PromptRoutes />;
+      case 'ai-providers':
+        return <AIProviderRoutes />;
       default:
         return <ProjectOverviewTab projectId={projectId} projectName={projectName} />;
     }

@@ -1,246 +1,434 @@
-// External libraries
+// Knowledge Hub page - foundation for the AI Knowledge Hub
 import React from 'react';
-
-// Shared constants
-
-// Shared types
-
-// Hooks
-
-// Services
-
-// Components
-import { PageHeader } from '../../../components/layout/PageHeader';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/Card';
+import { useParams, useNavigate } from 'react-router-dom';
+import {
+  ArrowRightLeft,
+  Scale,
+  Share2,
+  Variable,
+  FileText,
+  Plus,
+  Edit,
+  Trash2,
+  ChevronDown,
+  ChevronRight,
+  BookOpen,
+  Workflow,
+  Sparkles,
+} from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
+import { Card } from '../../../components/ui/Card';
 import { Badge } from '../../../components/ui/Badge';
-import { SearchBar } from '../../../components/shared/SearchBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
+import { SearchBar } from '../../../components/shared/SearchBar';
+import { Toast } from '../../../components/shared/Toast';
+import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
+import { FlowDialog } from '../components/FlowDialog';
 import { AddArticleModal, type AddArticleModalData } from '../components/AddArticleModal';
-import { BookOpen, Plus, FileText, Tag, Search as SearchIcon } from 'lucide-react';
-
-// Styles
+import { useKnowledgeFlows } from '../hooks';
+import type { KnowledgeSection, KnowledgeFlow, KnowledgeFlowFormData } from '../types';
 
 export interface KnowledgePageProps {}
 
-interface KnowledgeArticle {
-  id: string;
-  title: string;
-  category: string;
-  tags: string[];
-  author: string;
-  lastUpdated: string;
-  views: number;
-}
+const SECTION_ICONS = {
+  flows: ArrowRightLeft,
+  rules: Scale,
+  dependencies: Share2,
+  variables: Variable,
+  documentation: FileText,
+};
+
+const SECTION_DESCRIPTIONS: Record<KnowledgeSection, string> = {
+  flows: 'Model how the project behaves as ordered sequences of steps.',
+  rules: 'Capture business rules that govern system behavior.',
+  dependencies: 'Describe how components and tokens depend on each other.',
+  variables: 'Track runtime variables such as tokens, IDs, and credentials.',
+  documentation: 'Free-form notes and documentation for your team.',
+};
+
+const sectionItems: { id: KnowledgeSection; label: string }[] = [
+  { id: 'flows', label: 'Business Flows' },
+  { id: 'rules', label: 'Business Rules' },
+  { id: 'dependencies', label: 'Dependencies' },
+  { id: 'variables', label: 'Runtime Variables' },
+  { id: 'documentation', label: 'Documentation' },
+];
+
+const getStatusBadgeVariant = (status: string) => {
+  switch (status) {
+    case 'Confirmed':
+      return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
+    case 'Deprecated':
+      return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
+    default:
+      return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300';
+  }
+};
 
 export const KnowledgePage: React.FC<KnowledgePageProps> = () => {
+  const { projectId: routeProjectId } = useParams<{ projectId: string }>();
+  const projectId = routeProjectId || '1';
+  const navigate = useNavigate();
+
+  const { flows, isLoading, isError, error, createAsync, updateAsync, removeAsync } = useKnowledgeFlows(projectId);
+
+  const [activeSection, setActiveSection] = React.useState<KnowledgeSection>('flows');
   const [search, setSearch] = React.useState('');
-  const [selectedCategory, setSelectedCategory] = React.useState<string>('all');
-  const [addOpen, setAddOpen] = React.useState(false);
-  const [articles, setArticles] = React.useState<KnowledgeArticle[]>([
-    {
-      id: '1',
-      title: 'Getting Started with API Testing',
-      category: 'Tutorials',
-      tags: ['beginner', 'api', 'testing'],
-      author: 'John Smith',
-      lastUpdated: '2024-01-15T10:30:00Z',
-      views: 1234,
-    },
-    {
-      id: '2',
-      title: 'Best Practices for Test Automation',
-      category: 'Guides',
-      tags: ['automation', 'best-practices'],
-      author: 'Jane Doe',
-      lastUpdated: '2024-01-14T16:20:00Z',
-      views: 987,
-    },
-    {
-      id: '3',
-      title: 'Understanding Test Suites',
-      category: 'Tutorials',
-      tags: ['suites', 'organization'],
-      author: 'Mike Johnson',
-      lastUpdated: '2024-01-14T14:10:00Z',
-      views: 756,
-    },
-    {
-      id: '4',
-      title: 'Performance Testing Guidelines',
-      category: 'Guides',
-      tags: ['performance', 'load-testing'],
-      author: 'Sarah Williams',
-      lastUpdated: '2024-01-13T10:00:00Z',
-      views: 543,
-    },
-  ]);
+  const [expandedFlowIds, setExpandedFlowIds] = React.useState<Set<string>>(new Set());
+  const [flowDialogOpen, setFlowDialogOpen] = React.useState(false);
+  const [selectedFlow, setSelectedFlow] = React.useState<KnowledgeFlow | undefined>(undefined);
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [flowToDelete, setFlowToDelete] = React.useState<KnowledgeFlow | undefined>(undefined);
+  const [articleModalOpen, setArticleModalOpen] = React.useState(false);
+  const [toastOpen, setToastOpen] = React.useState(false);
+  const [toastMessage, setToastMessage] = React.useState('');
+  const [toastType, setToastType] = React.useState<'success' | 'error'>('success');
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  const filteredFlows = React.useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return flows;
+    return flows.filter((flow) => {
+      const matchesName = flow.name.toLowerCase().includes(term);
+      const matchesDesc = flow.description.toLowerCase().includes(term);
+      const matchesTag = flow.tags.some((tag) => tag.toLowerCase().includes(term));
+      const matchesStep = flow.steps.some((step) => step.title.toLowerCase().includes(term));
+      return matchesName || matchesDesc || matchesTag || matchesStep;
+    });
+  }, [flows, search]);
+
+  const toggleFlowExpanded = (flowId: string) => {
+    setExpandedFlowIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(flowId)) {
+        next.delete(flowId);
+      } else {
+        next.add(flowId);
+      }
+      return next;
+    });
+  };
+
+  const handleFlowSubmit = async (data: KnowledgeFlowFormData) => {
+    setIsSubmitting(true);
+    try {
+      if (data.id) {
+        await updateAsync({
+          flowId: data.id,
+          name: data.name,
+          description: data.description,
+          tags: data.tags,
+          status: data.status,
+          steps: data.steps,
+        });
+        setToastMessage('Business Flow updated successfully');
+      } else {
+        await createAsync({
+          name: data.name,
+          description: data.description,
+          tags: data.tags,
+          status: data.status,
+          steps: data.steps,
+        });
+        setToastMessage('Business Flow created successfully');
+      }
+      setToastType('success');
+      setFlowDialogOpen(false);
+    } catch (err: any) {
+      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to save Business Flow');
+      setToastType('error');
+    } finally {
+      setIsSubmitting(false);
+      setToastOpen(true);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!flowToDelete) return;
+    try {
+      await removeAsync(flowToDelete.id);
+      setToastMessage('Business Flow deleted successfully');
+      setToastType('success');
+    } catch (err: any) {
+      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to delete Business Flow');
+      setToastType('error');
+    } finally {
+      setDeleteOpen(false);
+      setToastOpen(true);
+    }
+  };
 
   const handleAddArticle = (data: AddArticleModalData) => {
-    const newArticle: KnowledgeArticle = {
-      id: Date.now().toString(),
-      title: data.title,
-      category: data.category,
-      tags: data.tags,
-      author: 'Admin',
-      lastUpdated: new Date().toISOString(),
-      views: 0,
-    };
-    setArticles((prev) => [newArticle, ...prev]);
-    setAddOpen(false);
+    setToastMessage(`Article "${data.title}" created successfully.`);
+    setToastType('success');
+    setArticleModalOpen(false);
+    setToastOpen(true);
   };
 
-  const categories = ['all', ...new Set(articles.map((article) => article.category))];
-
-  const filteredArticles = React.useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return articles.filter((article) => {
-      const matchesSearch =
-        !term ||
-        article.title.toLowerCase().includes(term) ||
-        article.tags.some((tag) => tag.toLowerCase().includes(term)) ||
-        article.author.toLowerCase().includes(term);
-      const matchesCategory = selectedCategory === 'all' || article.category === selectedCategory;
-      return matchesSearch && matchesCategory;
-    });
-  }, [search, selectedCategory]);
-
-  const getCategoryBadge = (category: string) => {
-    const variants: Record<string, 'default' | 'secondary' | 'outline'> = {
-      Tutorials: 'default',
-      Guides: 'secondary',
-      Documentation: 'outline',
-    };
-    return <Badge variant={variants[category] || 'default'}>{category}</Badge>;
-  };
-
-  if (filteredArticles.length === 0) {
+  const renderPlaceholder = () => {
+    const Icon = SECTION_ICONS[activeSection];
     return (
-      <div className='mx-auto max-w-7xl px-4 py-8'>
-        <div className='mb-6 flex items-center justify-between'>
-          <div>
-            <h1 className='text-2xl font-bold text-text'>Knowledge Base</h1>
-            <p className='mt-1 text-sm text-text-secondary'>Documentation and guides for your team</p>
-          </div>
-          <div className='flex items-center gap-2'>
-            <Button onClick={() => setAddOpen(true)}>
-              <Plus className='mr-2 h-4 w-4' />
-              Add Article
-            </Button>
-          </div>
+      <div className='flex flex-col items-center justify-center px-6 py-20 text-center'>
+        <div className='mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-primary/10'>
+          <Icon className='h-10 w-10 text-primary' />
         </div>
-        <EmptyState
-          icon={<BookOpen className='h-12 w-12' />}
-          title='No articles found'
-          description={search ? 'Try adjusting your search criteria.' : 'Create your first article to share knowledge.'}
-          action={search ? undefined : { label: 'Add Article', onClick: () => setAddOpen(true) }}
-        />
+        <h2 className='text-lg font-semibold text-text'>{sectionItems.find((s) => s.id === activeSection)?.label}</h2>
+        <p className='mt-2 max-w-md text-sm text-text-secondary'>{SECTION_DESCRIPTIONS[activeSection]}</p>
+        <div className='mt-6 inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-xs text-text-secondary'>
+          <BookOpen className='h-4 w-4' />
+          This section is coming soon
+        </div>
       </div>
     );
-  }
+  };
 
-  return (
-    <div className='mx-auto max-w-7xl px-4 py-8'>
-      <div className='mb-6 flex items-center justify-between'>
-        <div>
-          <h1 className='text-2xl font-bold text-text'>Knowledge Base</h1>
-          <p className='mt-1 text-sm text-text-secondary'>Documentation and guides for your team</p>
+  const renderFlows = () => {
+    if (isLoading) {
+      return (
+        <div className='flex items-center justify-center py-16'>
+          <p className='text-sm text-text-secondary'>Loading business flows...</p>
         </div>
-        <div className='flex items-center gap-2'>
-          <Button onClick={() => setAddOpen(true)}>
-            <Plus className='mr-2 h-4 w-4' />
-            Add Article
-          </Button>
+      );
+    }
+
+    if (isError) {
+      return (
+        <div className='flex items-center justify-center py-16'>
+          <p className='text-sm text-error'>Error loading flows: {error?.message || 'Unknown error'}</p>
         </div>
-      </div>
+      );
+    }
 
-      {/* Summary Cards */}
-      <div className='mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3'>
-        <Card>
-          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium text-text-secondary'>Total Articles</CardTitle>
-            <FileText className='h-4 w-4 text-blue-600' />
-          </CardHeader>
-          <CardContent>
-            <div className='text-2xl font-bold text-text'>{articles.length}</div>
-            <p className='text-xs text-text-secondary'>Published content</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium text-text-secondary'>Categories</CardTitle>
-            <Tag className='h-4 w-4 text-green-600' />
-          </CardHeader>
-          <CardContent>
-            <div className='text-2xl font-bold text-text'>{categories.length - 1}</div>
-            <p className='text-xs text-text-secondary'>Organized topics</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium text-text-secondary'>Total Views</CardTitle>
-            <SearchIcon className='h-4 w-4 text-purple-600' />
-          </CardHeader>
-          <CardContent>
-            <div className='text-2xl font-bold text-text'>3,520</div>
-            <p className='text-xs text-text-secondary'>All time</p>
-          </CardContent>
-        </Card>
-      </div>
+    if (filteredFlows.length === 0) {
+      return (
+        <EmptyState
+          icon={<Workflow className='h-12 w-12' />}
+          title={search ? 'No flows found' : 'No business flows yet'}
+          description={search ? 'Try adjusting your search criteria.' : 'Create your first business flow to model how the project behaves.'}
+          action={search ? undefined : { label: 'Create Business Flow', onClick: () => { setSelectedFlow(undefined); setFlowDialogOpen(true); } }}
+        />
+      );
+    }
 
-      {/* Search */}
-      <div className='mb-4'>
-        <SearchBar value={search} onChange={setSearch} placeholder='Search articles...' className='sm:w-80' />
-      </div>
-
-      {/* Articles */}
-      <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
-        {filteredArticles.map((article) => (
-          <Card key={article.id} className='transition-shadow hover:shadow-md'>
-            <CardHeader>
-              <div className='flex items-start justify-between'>
-                <CardTitle className='line-clamp-2'>{article.title}</CardTitle>
-              </div>
-              <CardDescription className='flex items-center gap-2'>
-                {getCategoryBadge(article.category)}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className='space-y-2'>
-                <div className='flex flex-wrap gap-1'>
-                  {article.tags.map((tag) => (
-                    <Badge key={tag} variant='secondary' className='text-xs'>
-                      {tag}
+    return (
+      <div className='space-y-4'>
+        {filteredFlows.map((flow) => (
+          <Card key={flow.id} className='overflow-hidden'>
+            <div className='flex items-center justify-between p-4'>
+              <button
+                className='flex flex-1 items-center gap-3 text-left'
+                onClick={() => toggleFlowExpanded(flow.id)}
+              >
+                {expandedFlowIds.has(flow.id) ? (
+                  <ChevronDown className='h-4 w-4 flex-shrink-0 text-text-secondary' />
+                ) : (
+                  <ChevronRight className='h-4 w-4 flex-shrink-0 text-text-secondary' />
+                )}
+                <div className='min-w-0 flex-1'>
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <h3 className='text-sm font-semibold text-text'>{flow.name}</h3>
+                    <Badge className={getStatusBadgeVariant(flow.status)} variant='outline'>
+                      {flow.status}
                     </Badge>
-                  ))}
+                  </div>
+                  <p className='mt-1 line-clamp-1 text-sm text-text-secondary'>{flow.description || 'No description'}</p>
+                  <div className='mt-1 flex flex-wrap items-center gap-2'>
+                    <span className='text-xs text-text-secondary'>{flow.steps.length} steps</span>
+                    {flow.tags.map((tag) => (
+                      <Badge key={tag} variant='secondary' className='text-xs'>
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
-                <div className='flex items-center justify-between text-sm'>
-                  <span className='text-text-secondary'>Author</span>
-                  <span className='font-medium text-text'>{article.author}</span>
-                </div>
-                <div className='flex items-center justify-between text-sm'>
-                  <span className='text-text-secondary'>Views</span>
-                  <span className='font-medium text-text'>{article.views.toLocaleString()}</span>
-                </div>
-                <div className='flex items-center justify-between text-sm'>
-                  <span className='text-text-secondary'>Updated</span>
-                  <span className='font-medium text-text'>{new Date(article.lastUpdated).toLocaleDateString()}</span>
-                </div>
-              </div>
-              <div className='mt-4'>
-                <Button variant='outline' size='sm' className='w-full'>
-                  Read Article
+              </button>
+              <div className='ml-2 flex flex-shrink-0 items-center gap-1'>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  onClick={() => { setSelectedFlow(flow); setFlowDialogOpen(true); }}
+                  aria-label='Edit flow'
+                >
+                  <Edit className='h-4 w-4' />
+                </Button>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  onClick={() => { setFlowToDelete(flow); setDeleteOpen(true); }}
+                  aria-label='Delete flow'
+                >
+                  <Trash2 className='h-4 w-4 text-error' />
                 </Button>
               </div>
-            </CardContent>
+            </div>
+
+            {expandedFlowIds.has(flow.id) && (
+              <div className='border-t border-border bg-surface/30 px-4 py-4'>
+                <h4 className='mb-3 text-xs font-semibold uppercase tracking-wide text-text-secondary'>Flow Steps</h4>
+                <div className='space-y-3'>
+                  {flow.steps.length === 0 ? (
+                    <p className='text-sm text-text-secondary'>No steps defined for this flow.</p>
+                  ) : (
+                    flow.steps.map((step, idx) => (
+                      <div key={step.id} className='flex items-start gap-3'>
+                        <span className='mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white'>
+                          {idx + 1}
+                        </span>
+                        <div className='min-w-0 flex-1'>
+                          <div className='flex flex-wrap items-center gap-2'>
+                            <span className='text-sm font-medium text-text'>{step.title}</span>
+                            {step.linkedApiOperationId && (
+                              <Badge variant='outline' className='text-xs'>
+                                Linked API
+                              </Badge>
+                            )}
+                          </div>
+                          {step.description && (
+                            <p className='mt-0.5 text-sm text-text-secondary'>{step.description}</p>
+                          )}
+                          {step.expectedResult && (
+                            <p className='mt-0.5 text-xs text-text-secondary'>
+                              <span className='font-medium text-text'>Expected: </span>
+                              {step.expectedResult}
+                            </p>
+                          )}
+                        </div>
+                        {idx < flow.steps.length - 1 && (
+                          <div className='flex flex-col items-center px-2 pt-1'>
+                            <div className='h-4 w-px bg-border' />
+                            <div className='text-text-secondary'>↓</div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </Card>
         ))}
       </div>
+    );
+  };
+
+  return (
+    <div className='flex min-h-screen'>
+      {/* Persistent Left Navigation */}
+      <aside className='w-64 flex-shrink-0 border-r border-border bg-surface'>
+        <div className='border-b border-border p-4'>
+          <h2 className='text-sm font-semibold text-text'>Knowledge Hub</h2>
+          <p className='mt-1 text-xs text-text-secondary'>Foundation for AI Knowledge</p>
+        </div>
+        <nav className='space-y-1 p-3'>
+          {sectionItems.map((item) => {
+            const Icon = SECTION_ICONS[item.id];
+            const isActive = activeSection === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveSection(item.id)}
+                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-primary text-white'
+                    : 'text-text-secondary hover:bg-surface hover:text-text'
+                }`}
+              >
+                <Icon className='h-4 w-4' />
+                {item.label}
+                {item.id === 'flows' && (
+                  <span className='ml-auto rounded-full bg-white/20 px-2 py-0.5 text-xs'>
+                    {flows.length}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
+
+      {/* Main Content */}
+      <div className='min-w-0 flex-1'>
+        <div className='mx-auto max-w-7xl px-6 py-8'>
+          {/* Page Header */}
+          <div className='mb-6 flex flex-wrap items-center justify-between gap-3'>
+            <div>
+              <h1 className='text-2xl font-bold text-text'>
+                {sectionItems.find((s) => s.id === activeSection)?.label}
+              </h1>
+              <p className='mt-1 text-sm text-text-secondary'>{SECTION_DESCRIPTIONS[activeSection]}</p>
+            </div>
+            <div className='flex items-center gap-2'>
+              <Button variant='outline' onClick={() => navigate('/analysis')}>
+                <Sparkles className='mr-2 h-4 w-4' />
+                Analyze Project
+              </Button>
+              {activeSection === 'flows' && (
+                <Button onClick={() => { setSelectedFlow(undefined); setFlowDialogOpen(true); }}>
+                  <Plus className='mr-2 h-4 w-4' />
+                  Create Business Flow
+                </Button>
+              )}
+              {activeSection === 'documentation' && (
+                <Button onClick={() => setArticleModalOpen(true)}>
+                  <Plus className='mr-2 h-4 w-4' />
+                  Add Article
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Search (only for active flows section) */}
+          {activeSection === 'flows' && (
+            <div className='mb-6'>
+              <SearchBar value={search} onChange={setSearch} placeholder='Search flows, steps, or tags...' className='sm:w-96' />
+            </div>
+          )}
+
+          {/* Section Content */}
+          {activeSection === 'flows' ? renderFlows() : renderPlaceholder()}
+        </div>
+      </div>
+
+      {/* Dialogs */}
+      <FlowDialog
+        open={flowDialogOpen}
+        onClose={() => setFlowDialogOpen(false)}
+        onSubmit={handleFlowSubmit}
+        flow={selectedFlow ? {
+          id: selectedFlow.id,
+          projectId: selectedFlow.projectId,
+          name: selectedFlow.name,
+          description: selectedFlow.description,
+          tags: selectedFlow.tags,
+          status: selectedFlow.status,
+          steps: selectedFlow.steps,
+        } : undefined}
+        projectId={projectId}
+        isSubmitting={isSubmitting}
+      />
 
       <AddArticleModal
-        open={addOpen}
-        onClose={() => setAddOpen(false)}
+        open={articleModalOpen}
+        onClose={() => setArticleModalOpen(false)}
         onCreate={handleAddArticle}
+      />
+
+      <ConfirmDialog
+        open={deleteOpen}
+        title='Delete Business Flow'
+        message={`Deleting "${flowToDelete?.name}" cannot be undone.`}
+        confirmLabel='Delete'
+        cancelLabel='Cancel'
+        variant='destructive'
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteOpen(false)}
+      />
+
+      <Toast
+        message={toastMessage}
+        open={toastOpen}
+        onClose={() => setToastOpen(false)}
+        type={toastType}
       />
     </div>
   );

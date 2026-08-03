@@ -7,7 +7,8 @@ import { DashboardPage } from '../modules/dashboard/pages/DashboardPage';
 import { ApiRoutes } from '../modules/api';
 import { ImportCenterPage } from '../modules/import/pages/ImportCenterPage';
 import { EnvironmentRoutes } from '../modules/environment';
-import { KnowledgePage } from '../modules/knowledge/pages/KnowledgePage';
+import { KnowledgeRoutes } from '../modules/knowledge';
+import { AnalysisRoutes } from '../modules/analysis';
 import { RequirementsRoutes } from '../modules/requirements';
 import { SuiteRoutes } from '../modules/suite';
 import { ExecutionRoutes } from '../modules/execution';
@@ -31,7 +32,8 @@ export const AppRoutes = () => (
       <Route path='/apis/*' element={<ApiRoutes />} />
       <Route path='/import' element={<ImportCenterPage />} />
       <Route path='/environments/*' element={<EnvironmentRoutes />} />
-      <Route path='/knowledge' element={<KnowledgePage />} />
+      <Route path='/knowledge/*' element={<KnowledgeRoutes />} />
+      <Route path='/analysis/*' element={<AnalysisRoutes />} />
       <Route path='/requirements/*' element={<RequirementsRoutes />} />
       <Route path='/suites/*' element={<SuiteRoutes />} />
       <Route path='/executions/*' element={<ExecutionRoutes />} />

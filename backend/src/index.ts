@@ -8,6 +8,9 @@ import { datasetRoutes } from './interfaces/test-data/routes';
 import { mappingRoutes } from './interfaces/test-data/mappingRoutes';
 import { columnRoutes } from './interfaces/test-data/columnRoutes';
 import { profileRoutes } from './interfaces/test-data/profileRoutes';
+import { knowledgeRoutes } from './interfaces/knowledge/KnowledgeRoutes';
+import { analysisRoutes } from './interfaces/analysis/AnalysisRoutes';
+import { requirementRoutes } from './interfaces/requirements/RequirementRoutes';
 
 // Shared constants
 
@@ -35,6 +38,9 @@ app.use('/api', datasetRoutes);
 app.use('/api', mappingRoutes);
 app.use('/api', columnRoutes);
 app.use('/api', profileRoutes);
+app.use('/api', knowledgeRoutes);
+app.use('/api', analysisRoutes);
+app.use('/api', requirementRoutes);
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);

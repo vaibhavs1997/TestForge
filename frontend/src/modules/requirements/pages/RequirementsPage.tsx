@@ -3,14 +3,16 @@ import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Plus, Eye, CheckCircle, XCircle, Archive, Sparkles, RefreshCw, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Edit2, Trash2, ToggleLeft, ToggleRight, Copy, FlaskConical, ArrowUp, ArrowDown, GitBranch, Clock } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/Card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../components/ui/Card';
 import { Badge } from '../../../components/ui/Badge';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { Toast } from '../../../components/shared/Toast';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
 import { useRequirements } from '../hooks';
 import { useAnalysis } from '../../analysis/hooks';
-import type { Requirement, ApprovalStatus, ValidationCategory, TestStrategy, StrategyCategorySection, StrategyItem, TestDesign, Assertion, RuntimeBinding, ExecutionPlan, CleanupStep } from '../types';
+import { useAssertions } from '../../assertion/hooks/useAssertions';
+import type { Requirement, ApprovalStatus, ValidationCategory, TestStrategy, StrategyCategorySection, StrategyItem, TestDesign, Assertion, RuntimeBinding, ExecutionPlan, CleanupStep, AssertionReference } from '../types';
+import type { Assertion as ReusableAssertion } from '../../assertion/types';
 
 export interface RequirementsPageProps {}
 
@@ -84,6 +86,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
 
   const { suggested, approved, archived, isLoading, isError, error, generateFromAnalysisAsync, isGenerating, update, remove, validateReadinessAsync, isValidating, validationResult, planTestStrategyAsync, isPlanningStrategy, testStrategy, generateTestDesignsAsync, isGeneratingDesigns, testDesigns, planExecutionAsync, isPlanningExecution, executionPlans } = useRequirements(projectId);
   const { analysisCards, runAnalysisAsync, isAnalyzing } = useAnalysis(projectId);
+  const { assertions: reusableAssertions } = useAssertions(projectId);
 
   const [toastOpen, setToastOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -94,6 +97,11 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
   const [requirementToReview, setRequirementToReview] = useState<Requirement | undefined>(undefined);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [strategyTab, setStrategyTab] = useState<'review' | 'strategy' | 'design' | 'execution'>('review');
+  const [attachAssertionOpen, setAttachAssertionOpen] = useState(false);
+  const [selectedDesignId, setSelectedDesignId] = useState<string | null>(null);
+  const [selectedAssertionIds, setSelectedAssertionIds] = useState<Set<string>>(new Set());
+  const [assertionFilterCategory, setAssertionFilterCategory] = useState<string>('all');
+  const [assertionFilterSeverity, setAssertionFilterSeverity] = useState<string>('all');
 
   const handleGenerateFromAnalysis = async (analysisId: string) => {
     try {
@@ -718,18 +726,56 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
                             <p className='text-text'>{design.datasetRowReference || 'N/A'}</p>
                           </div>
                         </div>
-                        {design.assertions.length > 0 && (
-                          <div className='mt-3'>
-                            <span className='text-xs font-medium text-text-secondary'>Assertions:</span>
-                            <ul className='mt-1 space-y-1'>
-                              {design.assertions.map((assertion: Assertion, idx: number) => (
-                                <li key={idx} className='text-xs text-text-secondary'>
-                                  • {assertion.type} {assertion.operator} {assertion.path} → {String(assertion.expected)}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
+                         {/* Reusable Assertions */}
+                         {design.assertionIds && design.assertionIds.length > 0 && (
+                           <div className='mt-3'>
+                             <span className='text-xs font-medium text-text-secondary'>Reusable Assertions:</span>
+                             <ul className='mt-1 space-y-1'>
+                               {design.assertionIds.map((ref: AssertionReference, idx: number) => {
+                                 const reusableAssertion = reusableAssertions.find(a => a.id === ref.assertionId);
+                                 if (!reusableAssertion) {
+                                   return (
+                                     <li key={idx} className='text-xs text-red-600'>
+                                       • Missing Assertion (ID: {ref.assertionId.slice(0, 8)})
+                                     </li>
+                                   );
+                                 }
+                                 return (
+                                   <li key={idx} className='text-xs text-text-secondary flex items-center justify-between'>
+                                     <span>
+                                       • {reusableAssertion.name} ({reusableAssertion.type})
+                                     </span>
+                                     <button
+                                       onClick={(e) => {
+                                         e.stopPropagation();
+                                         // TODO: Detach assertion
+                                       }}
+                                       className='text-red-600 hover:text-red-700 ml-2'
+                                     >
+                                       ×
+                                     </button>
+                                   </li>
+                                 );
+                               })}
+                             </ul>
+                           </div>
+                         )}
+
+                         {/* Attach Assertion Button */}
+                         <div className='mt-3'>
+                           <Button
+                             size='sm'
+                             variant='outline'
+                             onClick={() => {
+                               setSelectedDesignId(design.id);
+                               setSelectedAssertionIds(new Set(design.assertionIds?.map(a => a.assertionId) || []));
+                               setAttachAssertionOpen(true);
+                             }}
+                           >
+                             <Plus className='h-3 w-3 mr-1' />
+                             Attach Assertion
+                           </Button>
+                         </div>
                         {design.runtimeBindings.length > 0 && (
                           <div className='mt-3'>
                             <span className='text-xs font-medium text-text-secondary'>Runtime Variables:</span>
@@ -809,6 +855,138 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Assertion Picker Modal */}
+      {attachAssertionOpen && selectedDesignId && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
+          <Card className='w-full max-w-2xl'>
+            <CardHeader>
+              <CardTitle>Attach Assertions</CardTitle>
+              <CardDescription>Select assertions from the library to attach to this test design.</CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-4'>
+              {/* Filters */}
+              <div className='flex items-center gap-2'>
+                <input
+                  type='text'
+                  placeholder='Search assertions...'
+                  className='flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-text'
+                />
+                <select
+                  className='rounded-lg border border-border bg-background px-3 py-2 text-sm text-text'
+                  value={assertionFilterCategory}
+                  onChange={(e) => setAssertionFilterCategory(e.target.value)}
+                >
+                  <option value='all'>All Categories</option>
+                  <option value='Functional'>Functional</option>
+                  <option value='Performance'>Performance</option>
+                  <option value='Security'>Security</option>
+                  <option value='Data'>Data</option>
+                  <option value='Business'>Business</option>
+                  <option value='Custom'>Custom</option>
+                </select>
+                <select
+                  className='rounded-lg border border-border bg-background px-3 py-2 text-sm text-text'
+                  value={assertionFilterSeverity}
+                  onChange={(e) => setAssertionFilterSeverity(e.target.value)}
+                >
+                  <option value='all'>All Severities</option>
+                  <option value='Critical'>Critical</option>
+                  <option value='Major'>Major</option>
+                  <option value='Minor'>Minor</option>
+                  <option value='Info'>Info</option>
+                </select>
+              </div>
+
+              {/* Assertions List */}
+              <div className='max-h-96 overflow-y-auto border border-border rounded-lg'>
+                {reusableAssertions.length === 0 ? (
+                  <div className='p-4 text-center text-text-secondary text-sm'>No assertions available.</div>
+                ) : (
+                  <div className='divide-y divide-border'>
+                    {reusableAssertions
+                      .filter((assertion: ReusableAssertion) => {
+                        const matchesCategory = assertionFilterCategory === 'all' || assertion.category === assertionFilterCategory;
+                        const matchesSeverity = assertionFilterSeverity === 'all' || assertion.severity === assertionFilterSeverity;
+                        return matchesCategory && matchesSeverity;
+                      })
+                      .map((assertion: ReusableAssertion) => {
+                        const isSelected = selectedAssertionIds.has(assertion.id);
+                        const isDuplicate = selectedAssertionIds.has(assertion.id);
+                        return (
+                          <div
+                            key={assertion.id}
+                            className={`p-3 flex items-start gap-3 cursor-pointer hover:bg-surface ${
+                              isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                            }`}
+                            onClick={() => {
+                              const newSelected = new Set(selectedAssertionIds);
+                              if (isSelected) {
+                                newSelected.delete(assertion.id);
+                              } else {
+                                newSelected.add(assertion.id);
+                              }
+                              setSelectedAssertionIds(newSelected);
+                            }}
+                          >
+                            <input
+                              type='checkbox'
+                              checked={isSelected}
+                              onChange={() => {
+                                const newSelected = new Set(selectedAssertionIds);
+                                if (isSelected) {
+                                  newSelected.delete(assertion.id);
+                                } else {
+                                  newSelected.add(assertion.id);
+                                }
+                                setSelectedAssertionIds(newSelected);
+                              }}
+                              className='mt-1 h-4 w-4 rounded border-border'
+                            />
+                            <div className='flex-1 min-w-0'>
+                              <div className='flex items-center gap-2 mb-1'>
+                                <span className='text-sm font-medium text-text'>{assertion.name}</span>
+                                <Badge variant='outline' className='text-xs'>{assertion.type}</Badge>
+                                <Badge variant={assertion.severity === 'Critical' ? 'destructive' : 'secondary'} className='text-xs'>
+                                  {assertion.severity}
+                                </Badge>
+                                {assertion.enabled ? (
+                                  <Badge variant='success' className='text-xs'>Enabled</Badge>
+                                ) : (
+                                  <Badge variant='secondary' className='text-xs'>Disabled</Badge>
+                                )}
+                              </div>
+                              <p className='text-xs text-text-secondary'>{assertion.description}</p>
+                              <div className='flex gap-1 mt-1'>
+                                {assertion.tags.map((tag) => (
+                                  <Badge key={tag} variant='outline' className='text-xs'>{tag}</Badge>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+
+              <div className='flex justify-end gap-2 pt-2'>
+                <Button variant='outline' onClick={() => setAttachAssertionOpen(false)}>Cancel</Button>
+                <Button
+                  onClick={() => {
+                    // TODO: Save attached assertions
+                    setAttachAssertionOpen(false);
+                    setSelectedDesignId(null);
+                    setSelectedAssertionIds(new Set());
+                  }}
+                >
+                  Attach Selected ({selectedAssertionIds.size})
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 

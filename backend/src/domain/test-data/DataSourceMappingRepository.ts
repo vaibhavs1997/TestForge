@@ -5,6 +5,7 @@ export interface DataSourceMappingRepository {
   findById(id: string): Promise<any>;
   findByProject(projectId: string): Promise<any[]>;
   findByOperation(operationId: string): Promise<any[]>;
+  findByProjectAndOperation(projectId: string, serviceId: string, operationId: string): Promise<any[]>;
   existsByField(operationId: string, fieldPath: string): Promise<boolean>;
   list(): Promise<any[]>;
 }

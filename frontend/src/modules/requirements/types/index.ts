@@ -122,6 +122,11 @@ export interface Assertion {
   expected: any;
 }
 
+export interface AssertionReference {
+  assertionId: string;
+  enabled: boolean;
+}
+
 export interface CleanupStep {
   type: 'api' | 'dataset' | 'environment';
   action: string;
@@ -145,6 +150,7 @@ export interface TestDesign {
   status: DesignStatus;
   createdAt: number;
   updatedAt: number;
+  assertionIds: AssertionReference[];
 }
 
 export type ExecutionPlanStatus = 'Pending' | 'Ready' | 'Disabled';

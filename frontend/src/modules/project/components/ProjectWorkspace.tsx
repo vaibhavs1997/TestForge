@@ -9,6 +9,9 @@ import { ProjectExecutionTab } from './ProjectExecutionTab';
 import { ProjectReportsTab } from './ProjectReportsTab';
 import { ProjectOverviewTab } from './ProjectOverviewTab';
 import { RecommendationsPage } from '../../recommendation/pages/RecommendationsPage';
+import { SuiteRoutes } from '../../suite';
+import { AnalysisRoutes } from '../../analysis';
+import { PipelineRoutes } from '../../pipeline';
 
 interface ProjectWorkspaceProps {
   projectId: string;
@@ -25,6 +28,9 @@ const TAB_KEYS = [
   'execution',
   'reports',
   'recommendations',
+  'suites',
+  'analysis',
+  'pipeline',
 ] as const;
 
 export const ProjectWorkspace: React.FC<ProjectWorkspaceProps> = ({ projectId, projectName }) => {
@@ -55,6 +61,12 @@ export const ProjectWorkspace: React.FC<ProjectWorkspaceProps> = ({ projectId, p
         return <ProjectReportsTab projectId={projectId} />;
       case 'recommendations':
         return <RecommendationsPage />;
+      case 'suites':
+        return <SuiteRoutes />;
+      case 'analysis':
+        return <AnalysisRoutes />;
+      case 'pipeline':
+        return <PipelineRoutes />;
       default:
         return <ProjectOverviewTab projectId={projectId} projectName={projectName} />;
     }

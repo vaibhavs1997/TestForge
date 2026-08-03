@@ -13,10 +13,15 @@ import { knowledgeRoutes } from './interfaces/knowledge/KnowledgeRoutes';
 import { analysisRoutes } from './interfaces/analysis/AnalysisRoutes';
 import { requirementRoutes } from './interfaces/requirements/RequirementRoutes';
 import { executionRoutes } from './interfaces/execution/ExecutionRoutes';
+import { executionProfileRoutes } from './interfaces/execution/executionProfileRoutes';
 import { recommendationRoutes } from './interfaces/recommendation/RecommendationRoutes';
 import { pipelineRoutes } from './interfaces/pipeline/PipelineRoutes';
 import { testSuiteRoutes } from './interfaces/suite/TestSuiteRoutes';
 import { reportRoutes } from './interfaces/report/ReportRoutes';
+import { assertionRoutes } from './interfaces/assertion/AssertionRoutes';
+import { importRoutes } from './interfaces/test-data/importRoutes';
+import { relationshipRoutes } from './interfaces/test-data/relationshipRoutes';
+import { providerRoutes } from './interfaces/providers/ProviderRoutes';
 
 // Shared constants
 
@@ -49,10 +54,15 @@ app.use('/api', knowledgeRoutes);
 app.use('/api', analysisRoutes);
 app.use('/api', requirementRoutes);
 app.use('/api', executionRoutes);
+app.use('/api', executionProfileRoutes);
 app.use('/api', recommendationRoutes);
 app.use('/api', pipelineRoutes);
 app.use('/api', testSuiteRoutes);
 app.use('/api', reportRoutes);
+app.use('/api', assertionRoutes);
+app.use('/api', importRoutes);
+app.use('/api', relationshipRoutes);
+app.use('/api', providerRoutes);
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);

@@ -10,7 +10,6 @@ import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
 import {
   Database,
   Plus,
-  Upload,
   Edit,
   Trash2,
   Copy,
@@ -31,8 +30,12 @@ import {
 import { DatasetDialog, type DatasetDialogData } from '../components/DatasetDialog';
 import { ColumnProfileDialog, type ColumnProfileData } from '../components/ColumnProfileDialog';
 import { DataTabContent } from '../components/DataTabContent';
+import { RelationshipDialog } from '../components/RelationshipDialog';
+import { ProvidersSection } from '../components/ProvidersSection';
 import type { ColumnSuggestion } from '../services/columnService';
-import { Check, X as XIcon, ArrowUp, ArrowDown, Plus as PlusIcon } from 'lucide-react';
+import { rowService } from '../services/rowService';
+import { relationshipService } from '../services/relationshipService';
+import { Check, X as XIcon, ArrowUp, ArrowDown, Plus as PlusIcon, Upload, FileSpreadsheet, FileJson } from 'lucide-react';
 
 // Types
 interface Dataset {
@@ -147,6 +150,21 @@ export const TestDataLibraryPage = () => {
   const [showSuggestions, setShowSuggestions] = React.useState(false);
   const [rejectedSuggestions, setRejectedSuggestions] = React.useState<Set<string>>(new Set());
   const [selectedSuggestionIds, setSelectedSuggestionIds] = React.useState<Set<string>>(new Set());
+  const [importWizardOpen, setImportWizardOpen] = React.useState(false);
+  const [importStep, setImportStep] = React.useState(1);
+  const [importFile, setImportFile] = React.useState<File | null>(null);
+  const [importPreview, setImportPreview] = React.useState<Record<string, any>[]>([]);
+  const [importColumns, setImportColumns] = React.useState<string[]>([]);
+  const [columnMapping, setColumnMapping] = React.useState<Record<string, string>>({});
+  const [importOptions, setImportOptions] = React.useState({
+    mode: 'append' as 'append' | 'replace' | 'skipDuplicates',
+    onError: 'stop' as 'stop' | 'continue',
+    skipEmptyRows: true,
+  });
+  const [importResult, setImportResult] = React.useState<any>(null);
+  const [isImporting, setIsImporting] = React.useState(false);
+  const [relationshipDialogOpen, setRelationshipDialogOpen] = React.useState(false);
+  const [relationships, setRelationships] = React.useState<any[]>([]);
 
   // Mock CRUD operations
   const [datasets, setDatasets] = React.useState<Dataset[]>(MOCK_DATASETS);
@@ -232,13 +250,98 @@ export const TestDataLibraryPage = () => {
     return <Badge variant={variants[category] || 'outline'}>{category}</Badge>;
   };
 
+  const resetImportWizard = () => {
+    setImportStep(1);
+    setImportFile(null);
+    setImportPreview([]);
+    setImportColumns([]);
+    setColumnMapping({});
+    setImportOptions({
+      mode: 'append',
+      onError: 'stop',
+      skipEmptyRows: true,
+    });
+    setImportResult(null);
+    setIsImporting(false);
+  };
+
+  const handleFileSelect = (file: File | null) => {
+    setImportFile(file);
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        if (file.name.endsWith('.json')) {
+          try {
+            const json = JSON.parse(content);
+            if (Array.isArray(json) && json.length > 0) {
+              const columns = Object.keys(json[0]);
+              setImportColumns(columns);
+              setImportPreview(json);
+              setColumnMapping(columns.reduce((acc, col) => ({ ...acc, [col]: col }), {}));
+            }
+          } catch (err) {
+            setToastMessage('Invalid JSON file');
+            setToastOpen(true);
+          }
+        } else if (file.name.endsWith('.csv')) {
+          const lines = content.split(/\r?\n/).filter(line => line.trim());
+          if (lines.length > 0) {
+            const columns = lines[0].split(',').map(c => c.trim());
+            setImportColumns(columns);
+            const data: Record<string, any>[] = [];
+            for (let i = 1; i < Math.min(lines.length, 21); i++) {
+              const values = lines[i].split(',');
+              const row: Record<string, any> = {};
+              columns.forEach((col, idx) => {
+                row[col] = values[idx]?.trim() || '';
+              });
+              data.push(row);
+            }
+            setImportPreview(data);
+            setColumnMapping(columns.reduce((acc, col) => ({ ...acc, [col]: col }), {}));
+          }
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const handleNextStep = async () => {
+    if (importStep === 5) {
+      // Execute import
+      setIsImporting(true);
+      try {
+        const result = await rowService.importData(
+          selectedDataset?.projectId || '1',
+          selectedDataset?.id || '1',
+          importFile!,
+          importOptions
+        );
+        setImportResult(result);
+      } catch (error) {
+        setToastMessage('Import failed');
+        setToastOpen(true);
+      } finally {
+        setIsImporting(false);
+      }
+    }
+    setImportStep(importStep + 1);
+  };
+
+  const canProceed = () => {
+    if (importStep === 1) return importFile !== null;
+    if (importStep === 5) return true;
+    return true;
+  };
+
   // Navigation Items
   const navItems = [
-    { id: 'datasets' as NavSection, label: 'Datasets', icon: Database, active: true },
-    { id: 'datasources' as NavSection, label: 'Data Sources', icon: Globe, active: false },
-    { id: 'generators' as NavSection, label: 'Generators', icon: Zap, active: false },
-    { id: 'providers' as NavSection, label: 'Providers', icon: Sparkles, active: false },
-    { id: 'relationships' as NavSection, label: 'Relationships', icon: Network, active: false },
+    { id: 'datasets' as NavSection, label: 'Datasets', icon: Database, active: activeNav === 'datasets' },
+    { id: 'datasources' as NavSection, label: 'Data Sources', icon: Globe, active: activeNav === 'datasources' },
+    { id: 'generators' as NavSection, label: 'Generators', icon: Zap, active: activeNav === 'generators' },
+    { id: 'providers' as NavSection, label: 'Providers', icon: Sparkles, active: activeNav === 'providers' },
+    { id: 'relationships' as NavSection, label: 'Relationships', icon: Network, active: activeNav === 'relationships' },
   ];
 
   return (
@@ -274,22 +377,37 @@ export const TestDataLibraryPage = () => {
       {/* Main Content */}
       <div className='flex-1 overflow-auto'>
         <div className='mx-auto max-w-7xl px-4 py-8'>
+          {/* Relationships Section */}
+          {activeNav === 'relationships' && (
+            <RelationshipsSection
+              datasets={datasets}
+              projectId='1'
+              setToastMessage={setToastMessage}
+              setToastOpen={setToastOpen}
+            />
+          )}
+
+          {/* Providers Section */}
+          {activeNav === 'providers' && (
+            <ProvidersSection
+              projectId='1'
+              setToastMessage={setToastMessage}
+              setToastOpen={setToastOpen}
+            />
+          )}
+
           {/* Coming Soon Sections */}
-          {activeNav !== 'datasets' && (
+          {activeNav !== 'datasets' && activeNav !== 'relationships' && activeNav !== 'providers' && (
             <div className='flex flex-col items-center justify-center py-20'>
               <div className='mb-4 rounded-full bg-primary/10 p-6'>
                 {activeNav === 'datasources' && <Globe className='h-12 w-12 text-primary' />}
                 {activeNav === 'generators' && <Zap className='h-12 w-12 text-primary' />}
-                {activeNav === 'providers' && <Sparkles className='h-12 w-12 text-primary' />}
-                {activeNav === 'relationships' && <Network className='h-12 w-12 text-primary' />}
               </div>
               <h3 className='mb-2 text-2xl font-bold text-text'>Coming Soon</h3>
               <p className='mb-6 max-w-md text-center text-sm text-text-secondary'>
                 {activeNav === 'datasources' &&
                   'Manage where execution data comes from. Configure datasets, environment variables, runtime responses, and AI-generated data sources.'}
                 {activeNav === 'generators' && 'Reusable value generators for creating realistic test data on the fly.'}
-                {activeNav === 'providers' && 'External providers like Temporary Email, SMS, Payment Sandbox, and more.'}
-                {activeNav === 'relationships' && 'Define relationships between datasets for complex test scenarios.'}
               </p>
               <Badge variant='outline' className='text-xs'>
                 Available in next release
@@ -309,7 +427,7 @@ export const TestDataLibraryPage = () => {
                   </p>
                 </div>
                 <div className='flex items-center gap-2'>
-                  <Button variant='outline' onClick={() => setEditOpen(true)}>
+                  <Button variant='outline' onClick={() => setImportWizardOpen(true)}>
                     <Upload className='mr-2 h-4 w-4' />
                     Import Dataset
                   </Button>
@@ -652,14 +770,237 @@ export const TestDataLibraryPage = () => {
                 </div>
               )}
 
-              {/* Dataset Dialog */}
-              <DatasetDialog
-                open={editOpen}
-                onClose={() => setEditOpen(false)}
-                onSubmit={selectedDataset ? handleUpdate : handleCreate}
-                dataset={selectedDataset || undefined}
-                isSubmitting={isSubmitting}
-              />
+              {/* Import Wizard Modal */}
+              {importWizardOpen && (
+                <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
+                  <Card className='w-full max-w-3xl max-h-[90vh] overflow-hidden'>
+                    <CardHeader>
+                      <div className='flex items-center justify-between'>
+                        <div>
+                          <CardTitle>Import Dataset</CardTitle>
+                          <p className='text-xs text-text-secondary mt-1'>
+                            Step {importStep} of 5: {importStep === 1 ? 'Upload File' : importStep === 2 ? 'Preview Data' : importStep === 3 ? 'Column Mapping' : importStep === 4 ? 'Import Options' : 'Import Summary'}
+                          </p>
+                        </div>
+                        <Button variant='ghost' size='sm' onClick={() => { setImportWizardOpen(false); resetImportWizard(); }}>
+                          ✕
+                        </Button>
+                      </div>
+                      {/* Progress Bar */}
+                      <div className='mt-4 flex items-center gap-2'>
+                        {[1, 2, 3, 4, 5].map((step) => (
+                          <div key={step} className='flex items-center gap-2 flex-1'>
+                            <div className={`h-2 flex-1 rounded ${step <= importStep ? 'bg-primary' : 'bg-gray-200'}`} />
+                            {step < 5 && <ChevronRight className='h-4 w-4 text-text-secondary' />}
+                          </div>
+                        ))}
+                      </div>
+                    </CardHeader>
+                    <CardContent className='overflow-y-auto max-h-[60vh]'>
+                      {/* Step 1: Upload File */}
+                      {importStep === 1 && (
+                        <div className='space-y-4'>
+                          <div className='border-2 border-dashed border-border rounded-lg p-8 text-center'>
+                            <Upload className='h-12 w-12 mx-auto mb-4 text-text-secondary' />
+                            <h3 className='text-sm font-medium text-text mb-2'>Upload File</h3>
+                            <p className='text-xs text-text-secondary mb-4'>Supports CSV and JSON formats</p>
+                            <input
+                              type='file'
+                              accept='.csv,.json'
+                              onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
+                              className='block mx-auto'
+                            />
+                            {importFile && (
+                              <div className='mt-4 flex items-center justify-center gap-2'>
+                                {importFile.name.endsWith('.csv') ? <FileSpreadsheet className='h-5 w-5' /> : <FileJson className='h-5 w-5' />}
+                                <span className='text-sm font-medium'>{importFile.name}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Step 2: Preview Data */}
+                      {importStep === 2 && (
+                        <div className='space-y-4'>
+                          <h3 className='text-sm font-medium text-text'>Preview (First 20 rows)</h3>
+                          <div className='overflow-x-auto border border-border rounded-lg'>
+                            <table className='w-full text-xs'>
+                              <thead className='bg-surface'>
+                                <tr>
+                                  {importColumns.map((col) => (
+                                    <th key={col} className='px-3 py-2 text-left font-medium'>{col}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody className='divide-y divide-border'>
+                                {importPreview.slice(0, 20).map((row, idx) => (
+                                  <tr key={idx}>
+                                    {importColumns.map((col) => (
+                                      <td key={col} className='px-3 py-2'>{row[col]?.toString() || ''}</td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Step 3: Column Mapping */}
+                      {importStep === 3 && (
+                        <div className='space-y-4'>
+                          <h3 className='text-sm font-medium text-text'>Map Columns</h3>
+                          <div className='space-y-2'>
+                            {importColumns.map((col) => (
+                              <div key={col} className='flex items-center gap-3 p-3 border border-border rounded-lg'>
+                                <span className='text-sm font-medium flex-1'>{col}</span>
+                                <ChevronRight className='h-4 w-4 text-text-secondary' />
+                                <input
+                                  type='text'
+                                  value={columnMapping[col] || col}
+                                  onChange={(e) => setColumnMapping({ ...columnMapping, [col]: e.target.value })}
+                                  className='flex-1 rounded-lg border border-border px-3 py-1.5 text-sm'
+                                  placeholder='Target column name'
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Step 4: Import Options */}
+                      {importStep === 4 && (
+                        <div className='space-y-4'>
+                          <h3 className='text-sm font-medium text-text'>Import Options</h3>
+                          <div className='space-y-3'>
+                            <div>
+                              <label className='text-xs font-medium text-text-secondary mb-1 block'>Import Mode</label>
+                              <select
+                                value={importOptions.mode}
+                                onChange={(e) => setImportOptions({ ...importOptions, mode: e.target.value as any })}
+                                className='w-full rounded-lg border border-border px-3 py-2 text-sm'
+                              >
+                                <option value='append'>Append rows</option>
+                                <option value='replace'>Replace all rows</option>
+                                <option value='skipDuplicates'>Skip duplicates</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className='text-xs font-medium text-text-secondary mb-1 block'>On Error</label>
+                              <select
+                                value={importOptions.onError}
+                                onChange={(e) => setImportOptions({ ...importOptions, onError: e.target.value as any })}
+                                className='w-full rounded-lg border border-border px-3 py-2 text-sm'
+                              >
+                                <option value='stop'>Stop on first error</option>
+                                <option value='continue'>Continue on errors</option>
+                              </select>
+                            </div>
+                            <div className='flex items-center gap-2'>
+                              <input
+                                type='checkbox'
+                                id='skipEmpty'
+                                checked={importOptions.skipEmptyRows}
+                                onChange={(e) => setImportOptions({ ...importOptions, skipEmptyRows: e.target.checked })}
+                                className='h-4 w-4 rounded border-border'
+                              />
+                              <label htmlFor='skipEmpty' className='text-sm text-text'>Skip empty rows</label>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Step 5: Import Summary */}
+                      {importStep === 5 && (
+                        <div className='space-y-4'>
+                          <h3 className='text-sm font-medium text-text'>Import Summary</h3>
+                          {importResult ? (
+                            <div className='space-y-3'>
+                              <div className='grid grid-cols-2 gap-3'>
+                                <Card>
+                                  <CardContent className='pt-4'>
+                                    <p className='text-xs text-text-secondary'>Rows Imported</p>
+                                    <p className='text-2xl font-bold text-green-600'>{importResult.rowsImported}</p>
+                                  </CardContent>
+                                </Card>
+                                <Card>
+                                  <CardContent className='pt-4'>
+                                    <p className='text-xs text-text-secondary'>Rows Failed</p>
+                                    <p className='text-2xl font-bold text-red-600'>{importResult.rowsFailed}</p>
+                                  </CardContent>
+                                </Card>
+                                <Card>
+                                  <CardContent className='pt-4'>
+                                    <p className='text-xs text-text-secondary'>Rows Skipped</p>
+                                    <p className='text-2xl font-bold text-yellow-600'>{importResult.rowsSkipped}</p>
+                                  </CardContent>
+                                </Card>
+                                <Card>
+                                  <CardContent className='pt-4'>
+                                    <p className='text-xs text-text-secondary'>Duplicates</p>
+                                    <p className='text-2xl font-bold text-text'>{importResult.duplicatesSkipped}</p>
+                                  </CardContent>
+                                </Card>
+                              </div>
+                              {importResult.warnings.length > 0 && (
+                                <Card className='border-yellow-200 bg-yellow-50'>
+                                  <CardContent className='pt-4'>
+                                    <p className='text-xs font-medium text-yellow-800 mb-2'>Warnings</p>
+                                    <ul className='space-y-1'>
+                                      {importResult.warnings.map((w: string, idx: number) => (
+                                        <li key={idx} className='text-xs text-yellow-700'>• {w}</li>
+                                      ))}
+                                    </ul>
+                                  </CardContent>
+                                </Card>
+                              )}
+                              {importResult.errors.length > 0 && (
+                                <Card className='border-red-200 bg-red-50'>
+                                  <CardContent className='pt-4'>
+                                    <p className='text-xs font-medium text-red-800 mb-2'>Errors</p>
+                                    <ul className='space-y-1'>
+                                      {importResult.errors.map((e: string, idx: number) => (
+                                        <li key={idx} className='text-xs text-red-700'>• {e}</li>
+                                      ))}
+                                    </ul>
+                                  </CardContent>
+                                </Card>
+                              )}
+                              <div className='p-3 bg-green-50 border border-green-200 rounded-lg'>
+                                <p className='text-sm font-medium text-green-800'>{importResult.message}</p>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className='text-sm text-text-secondary'>Click "Import" to start the import process.</p>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                    <CardFooter className='flex justify-between'>
+                      <Button
+                        variant='outline'
+                        onClick={() => {
+                          if (importStep === 1) {
+                            setImportWizardOpen(false);
+                            resetImportWizard();
+                          } else {
+                            setImportStep(importStep - 1);
+                          }
+                        }}
+                      >
+                        {importStep === 1 ? 'Cancel' : 'Back'}
+                      </Button>
+                      <Button
+                        onClick={handleNextStep}
+                        disabled={!canProceed()}
+                      >
+                        {importStep === 5 ? 'Finish' : 'Next'}
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                </div>
+              )}
 
               {/* Unified Column + Population Editor */}
               <ColumnProfileDialog
@@ -1103,5 +1444,141 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
 
 // ─── Data Tab Content - Spreadsheet Row Editor ──────────────────────────
 export { DataTabContent } from '../components/DataTabContent';
+
+// ─── Relationships Section ──────────────────────────────────────────────
+interface RelationshipsSectionProps {
+  datasets: Dataset[];
+  projectId: string;
+  setToastMessage: (msg: string) => void;
+  setToastOpen: (open: boolean) => void;
+}
+
+const RelationshipsSection: React.FC<RelationshipsSectionProps> = ({
+  datasets,
+  projectId,
+  setToastMessage,
+  setToastOpen,
+}) => {
+  const [relationships, setRelationships] = React.useState<any[]>([]);
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [selectedRelationship, setSelectedRelationship] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    // Load relationships on mount
+    relationshipService.listByProject(projectId).then(setRelationships).catch(() => {});
+  }, [projectId]);
+
+  const handleCreate = async (data: any) => {
+    try {
+      const newRel = await relationshipService.create(projectId, data);
+      setRelationships([...relationships, newRel]);
+      setDialogOpen(false);
+      setToastMessage('Relationship created successfully');
+      setToastOpen(true);
+    } catch (error) {
+      setToastMessage('Failed to create relationship');
+      setToastOpen(true);
+    }
+  };
+
+  const handleUpdate = async (id: string, data: any) => {
+    try {
+      const updated = await relationshipService.update(projectId, id, data);
+      setRelationships(relationships.map((r) => (r.id === id ? updated : r)));
+      setDialogOpen(false);
+      setSelectedRelationship(null);
+      setToastMessage('Relationship updated successfully');
+      setToastOpen(true);
+    } catch (error) {
+      setToastMessage('Failed to update relationship');
+      setToastOpen(true);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await relationshipService.delete(projectId, id);
+      setRelationships(relationships.filter((r) => r.id !== id));
+      setToastMessage('Relationship deleted successfully');
+      setToastOpen(true);
+    } catch (error) {
+      setToastMessage('Failed to delete relationship');
+      setToastOpen(true);
+    }
+  };
+
+  const getDatasetName = (id: string) => datasets.find((d) => d.id === id)?.name || id;
+
+  return (
+    <div className='space-y-6'>
+      <div className='flex items-center justify-between'>
+        <div>
+          <h1 className='text-2xl font-bold text-text'>Dataset Relationships</h1>
+          <p className='mt-1 text-sm text-text-secondary'>Define relationships between datasets for relational test data.</p>
+        </div>
+        <Button onClick={() => { setSelectedRelationship(null); setDialogOpen(true); }}>
+          <Plus className='mr-2 h-4 w-4' />
+          Create Relationship
+        </Button>
+      </div>
+
+      {/* Relationship Diagram */}
+      <Card>
+        <CardHeader>
+          <CardTitle className='text-base'>Relationship Diagram</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {relationships.length === 0 ? (
+            <div className='py-8 text-center'>
+              <Network className='mx-auto mb-4 h-12 w-12 text-text-secondary' />
+              <p className='text-sm font-medium text-text'>No relationships defined</p>
+              <p className='text-xs text-text-secondary'>Create relationships to connect your datasets.</p>
+            </div>
+          ) : (
+            <div className='space-y-3'>
+              {relationships.map((rel) => (
+                <div key={rel.id} className='flex items-center gap-4 p-3 border border-border rounded-lg'>
+                  <div className='flex-1'>
+                    <div className='flex items-center gap-2 text-sm'>
+                      <span className='font-medium'>{getDatasetName(rel.parentDatasetId)}</span>
+                      <span className='text-text-secondary'>.{rel.parentColumn}</span>
+                    </div>
+                    <div className='flex items-center gap-2 text-xs text-text-secondary mt-1'>
+                      <span>{rel.relationshipType}</span>
+                      <span>•</span>
+                      <span>{rel.cardinality}</span>
+                      {!rel.enabled && <Badge variant='secondary' className='text-xs'>Disabled</Badge>}
+                    </div>
+                    <div className='flex items-center gap-2 text-sm mt-2'>
+                      <span className='font-medium'>{getDatasetName(rel.childDatasetId)}</span>
+                      <span className='text-text-secondary'>.{rel.childColumn}</span>
+                    </div>
+                  </div>
+                  <div className='flex items-center gap-1'>
+                    <Button variant='ghost' size='sm' onClick={() => { setSelectedRelationship(rel); setDialogOpen(true); }}>
+                      <Edit className='h-4 w-4' />
+                    </Button>
+                    <Button variant='ghost' size='sm' onClick={() => handleDelete(rel.id)}>
+                      <Trash2 className='h-4 w-4' />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Relationship Dialog */}
+      <RelationshipDialog
+        open={dialogOpen}
+        onClose={() => { setDialogOpen(false); setSelectedRelationship(null); }}
+        onSubmit={selectedRelationship ? (data) => handleUpdate(selectedRelationship.id, data) : handleCreate}
+        datasets={datasets.map((d) => ({ id: d.id, name: d.name }))}
+        relationship={selectedRelationship}
+      />
+    </div>
+  );
+};
 
 export default TestDataLibraryPage;

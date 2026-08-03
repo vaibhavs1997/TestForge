@@ -18,8 +18,8 @@ export const useExecution = (projectId?: string) => {
   });
 
   const startMutation = useMutation({
-    mutationFn: ({ projectId, executionPlanId, failureMode }: ExecutionRunCreatePayload & { projectId: string }) =>
-      executionService.startExecution(projectId, executionPlanId, failureMode),
+    mutationFn: ({ projectId, executionPlanId, failureMode, executionProfileId }: ExecutionRunCreatePayload & { projectId: string }) =>
+      executionService.startExecution(projectId, executionPlanId, failureMode, executionProfileId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   });
 

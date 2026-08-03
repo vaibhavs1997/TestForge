@@ -4,27 +4,66 @@
 // Resolve Runtime Variables → Apply Request Overrides → Execute HTTP Request →
 // Validate Assertions → Capture Runtime Variables → Store Step Result → Continue.
 import axios from 'axios';
-import { ExecutionRunEntity, ExecutionContext, ExecutionStepResult, ExecutionSummary, FailureMode, RunStatus, StepStatus } from '../../domain/execution/ExecutionRunEntity';
+import { ExecutionRunEntity, ExecutionContext, ExecutionStepResult, ExecutionSummary, FailureMode, RunStatus, StepStatus, ExecutionProfileMetadata } from '../../domain/execution/ExecutionRunEntity';
 import { ExecutionRunRepository } from '../../domain/execution/ExecutionRunRepository';
 import { ExecutionPlanRepository } from '../../domain/requirements/ExecutionPlanRepository';
 import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
+import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository';
 import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository';
 import { DatasetRepository } from '../../infrastructure/test-data/DatasetRepository';
+import { DataSourceMappingRepository } from '../../infrastructure/test-data/DataSourceMappingRepository';
+import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowRepository';
 import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
 import { ValidationEngine } from '../../domain/validation/ValidationEngine';
 import { ValidationRule, StepValidationResult } from '../../domain/validation/ValidationRuleEntity';
+import { TestDataResolutionService, ResolutionContext, ResolvedValue } from '../test-data/TestDataResolutionService';
+import { AssertionRepository } from '../../infrastructure/assertion/AssertionRepository';
+import type { AssertionEntity, AssertionReference } from '../../domain/assertion/AssertionEntity';
+import { IExecutionProfileRepository } from '../../domain/execution/ExecutionProfileRepository';
+import { ExecutionProfileEntity } from '../../domain/execution/ExecutionProfileEntity';
+import { ProviderRepository } from '../../domain/providers/ProviderRepository';
+import { ProviderResolutionService } from '../../infrastructure/providers/ProviderResolutionService';
 
 export class ExecutePlan {
+  private loadedProfile: ExecutionProfileEntity | null = null;
+
   constructor(
     private readonly executionRunRepository: ExecutionRunRepository,
     private readonly executionPlanRepository: ExecutionPlanRepository,
     private readonly requirementRepository: RequirementRepository,
     private readonly environmentRepository: EnvironmentRepository,
     private readonly datasetRepository: DatasetRepository,
-    private readonly apiOperationRepository: ApiOperationRepository
-  ) {}
+    private readonly apiOperationRepository: ApiOperationRepository,
+    private readonly dataSourceMappingRepository: DataSourceMappingRepository,
+    private readonly datasetRowRepository: DatasetRowRepository,
+    private readonly testDesignRepository: TestDesignRepository,
+    private readonly assertionRepository: AssertionRepository,
+    private readonly executionProfileRepository?: IExecutionProfileRepository
+  ) {
+    // Initialize resolution service
+    this.testDataResolutionService = new TestDataResolutionService(
+      dataSourceMappingRepository,
+      datasetRowRepository,
+      datasetRepository,
+      null as any, // ColumnRepository - not critical for basic resolution
+      null as any, // RuntimeVariableRepository - not critical for basic resolution
+      environmentRepository
+    );
+  }
 
-  async execute(executionPlanId: string, failureMode: FailureMode = 'StopOnFailure'): Promise<ExecutionRunEntity> {
+  private readonly testDataResolutionService: TestDataResolutionService;
+
+  async execute(executionPlanId: string, failureMode: FailureMode = 'StopOnFailure', executionProfileId?: string): Promise<ExecutionRunEntity> {
+    // Load execution profile if provided
+    if (executionProfileId && this.executionProfileRepository) {
+      this.loadedProfile = await this.executionProfileRepository.findById(executionProfileId);
+      if (!this.loadedProfile) {
+        throw new Error(`Execution Profile with id ${executionProfileId} not found`);
+      }
+      // Profile overrides failure mode
+      failureMode = this.loadedProfile.failureMode as FailureMode;
+    }
+
     // Get the execution plan
     const plans = await this.executionPlanRepository.findByProject('');
     const plan = plans.find(p => p.id === executionPlanId);
@@ -39,15 +78,36 @@ export class ExecutePlan {
     return this.executePlan(plan, failureMode);
   }
 
+  private buildProfileMetadata(profile: ExecutionProfileEntity): ExecutionProfileMetadata {
+    return {
+      profileName: profile.name,
+      profileId: profile.id,
+      profileSettings: {
+        failureMode: profile.failureMode,
+        timeout: profile.timeout,
+        retryPolicy: { enabled: profile.retryPolicy.enabled, maxRetries: profile.retryPolicy.maxRetries, retryDelay: profile.retryPolicy.retryDelay },
+        assertionMode: profile.assertionMode,
+        runtimeVariableReset: profile.runtimeVariableReset,
+        datasetSelectionStrategy: profile.datasetSelectionStrategy,
+        defaultEnvironmentId: profile.defaultEnvironmentId,
+        parallelism: { enabled: profile.parallelism.enabled, maxConcurrent: profile.parallelism.maxConcurrent },
+      },
+    };
+  }
+
   private async executePlan(plan: any, failureMode: FailureMode): Promise<ExecutionRunEntity> {
     const requirement = await this.requirementRepository.findById(plan.requirementId);
     if (!requirement) {
       throw new Error(`Requirement with id ${plan.requirementId} not found`);
     }
 
-    // Resolve environment
+    // Resolve environment - use profile's default environment if plan has none
     const environments = await this.environmentRepository.findByProject(plan.projectId);
-    const environment = environments.find(e => e.id === plan.environmentId) || environments[0];
+    let environmentId = plan.environmentId;
+    if (!environmentId && this.loadedProfile) {
+      environmentId = this.loadedProfile.defaultEnvironmentId;
+    }
+    const environment = environments.find(e => e.id === environmentId) || environments[0];
     if (!environment) {
       throw new Error('No environment configured for this project');
     }
@@ -64,6 +124,28 @@ export class ExecutePlan {
           rowCount: dataset.rowCount,
         };
       }
+    }
+
+    // Initialize resolution context
+    // Apply runtime variable reset from profile
+    const runtimeVariables: Record<string, any> = this.loadedProfile?.runtimeVariableReset ? {} : {};
+    const resolutionContext: ResolutionContext = {
+      runtimeVariables,
+      environmentVariables: environment.variables || {},
+      sequentialPositions: new Map(),
+    };
+
+    // Validate test data mappings before execution
+    const validationErrors = await this.testDataResolutionService.validateMappings(
+      plan.projectId,
+      '', // serviceId - will be resolved from plan
+      plan.operationId,
+      resolutionContext
+    );
+
+    if (validationErrors.length > 0) {
+      const errorMessages = validationErrors.map(e => `${e.field}: ${e.message}`).join(', ');
+      throw new Error(`Test data validation failed: ${errorMessages}`);
     }
 
     // Initialize execution context
@@ -86,6 +168,9 @@ export class ExecutePlan {
       }
     }
 
+    const profileMetadata = this.loadedProfile ? this.buildProfileMetadata(this.loadedProfile) : null;
+    const profileId = this.loadedProfile?.id || null;
+
     const now = Date.now();
     const run = new ExecutionRunEntity(
       crypto.randomUUID(),
@@ -100,7 +185,9 @@ export class ExecutePlan {
       { totalSteps: 0, passed: 0, failed: 0, skipped: 0, duration: 0, validationPassed: 0, validationFailed: 0, validationWarnings: 0 },
       now,
       now,
-      null
+      null,
+      profileId,
+      profileMetadata
     );
 
     // Persist initial run
@@ -132,7 +219,46 @@ export class ExecutePlan {
         continue;
       }
 
-      const stepResult = await this.executeStep(currentPlan, context);
+      // Resolve test data for this step
+      const resolvedValues = await this.testDataResolutionService.resolveRequestFields(
+        currentPlan.projectId,
+        '', // serviceId
+        currentPlan.operationId,
+        resolutionContext
+      );
+
+      // Load Test Design to get attached assertions
+      const testDesign = await this.testDesignRepository.findById(currentPlan.testDesignId);
+      let assertionRefs: AssertionReference[] = [];
+      let reusableAssertions: AssertionEntity[] = [];
+      
+      if (testDesign) {
+        assertionRefs = testDesign.assertionIds || [];
+        
+        // Load reusable assertions
+        for (const ref of assertionRefs) {
+          if (ref.enabled) {
+            const assertion = await this.assertionRepository.findById(ref.assertionId);
+            if (assertion && assertion.enabled) {
+              reusableAssertions.push(assertion);
+            }
+          }
+        }
+      }
+
+      const stepResult = await this.executeStep(currentPlan, context, resolvedValues);
+      
+      // Store resolved test data in step result
+      (stepResult as any).resolvedTestData = {
+        resolvedValues,
+        datasetId: currentPlan.datasetId,
+        sequentialPositions: Array.from(resolutionContext.sequentialPositions.entries()),
+      };
+      
+      // Store assertion information
+      (stepResult as any).reusableAssertions = reusableAssertions;
+      (stepResult as any).assertionReferences = assertionRefs;
+      
       stepResults.push(stepResult);
 
       if (stepResult.status === 'Failed') {
@@ -175,13 +301,15 @@ export class ExecutePlan {
       summary,
       persistedRun.createdAt,
       Date.now(),
-      Date.now()
+      Date.now(),
+      profileId,
+      profileMetadata
     );
 
     return this.executionRunRepository.update(persistedRun.id, updatedRun);
   }
 
-  private async executeStep(plan: any, context: ExecutionContext): Promise<ExecutionStepResult> {
+  private async executeStep(plan: any, context: ExecutionContext, resolvedValues: Record<string, ResolvedValue> = {}): Promise<ExecutionStepResult> {
     const startedAt = Date.now();
     const stepResult: ExecutionStepResult = {
       stepId: plan.id,
@@ -197,50 +325,59 @@ export class ExecutePlan {
       validations: [],
     };
 
+    // Resolve runtime variables in request template
+    const requestTemplate = plan.requestTemplate || { method: 'GET', path: '/' };
+    const method = requestTemplate.method || 'GET';
+    let path = requestTemplate.path || '/';
+
+    // Substitute runtime variables in path
+    path = this.substituteVariables(path, context);
+
+    // Build URL
+    const url = `${context.baseUrl}${path}`;
+
+    // Build headers (merge environment headers with request overrides)
+    const headers: Record<string, string> = {
+      ...context.headers,
+      ...(requestTemplate.headers || {}),
+    };
+
+    // Resolve runtime variables in headers
+    for (const [key, value] of Object.entries(headers)) {
+      headers[key] = this.substituteVariables(value, context);
+    }
+
+    // Apply resolved test data values to headers
+    for (const [fieldPath, resolvedValue] of Object.entries(resolvedValues)) {
+      if (resolvedValue.value !== null && resolvedValue.value !== undefined) {
+        headers[fieldPath] = String(resolvedValue.value);
+      }
+    }
+
+    // Build body (resolve runtime variables)
+    let body = requestTemplate.body;
+    if (body) {
+      body = this.resolveObject(body, context);
+    }
+
+    // Apply dataset values to body if body is empty
+    if (!body && Object.keys(context.datasetValues).length > 0) {
+      body = context.datasetValues;
+    }
+
+    stepResult.request = { method, url, headers, body };
+
+    // Execute HTTP request
+    const requestStart = Date.now();
+    const timeout = this.loadedProfile?.timeout || 30000;
+
     try {
-      // Resolve runtime variables in request template
-      const requestTemplate = plan.requestTemplate || { method: 'GET', path: '/' };
-      const method = requestTemplate.method || 'GET';
-      let path = requestTemplate.path || '/';
-
-      // Substitute runtime variables in path
-      path = this.substituteVariables(path, context);
-
-      // Build URL
-      const url = `${context.baseUrl}${path}`;
-
-      // Build headers (merge environment headers with request overrides)
-      const headers: Record<string, string> = {
-        ...context.headers,
-        ...(requestTemplate.headers || {}),
-      };
-
-      // Resolve runtime variables in headers
-      for (const [key, value] of Object.entries(headers)) {
-        headers[key] = this.substituteVariables(value, context);
-      }
-
-      // Build body (resolve runtime variables)
-      let body = requestTemplate.body;
-      if (body) {
-        body = this.resolveObject(body, context);
-      }
-
-      // Apply dataset values to body if body is empty
-      if (!body && Object.keys(context.datasetValues).length > 0) {
-        body = context.datasetValues;
-      }
-
-      stepResult.request = { method, url, headers, body };
-
-      // Execute HTTP request
-      const requestStart = Date.now();
       const response = await axios({
         method: method.toLowerCase(),
         url,
         headers,
         data: body,
-        timeout: 30000,
+        timeout,
         validateStatus: () => true, // Don't throw on any status code
       });
       const duration = Date.now() - requestStart;
@@ -310,9 +447,48 @@ export class ExecutePlan {
       stepResult.completedAt = Date.now();
 
     } catch (error: any) {
-      stepResult.status = 'Failed';
-      stepResult.error = error.message || 'Unknown error';
-      stepResult.completedAt = Date.now();
+      // Apply retry policy from profile
+      if (this.loadedProfile?.retryPolicy.enabled && this.loadedProfile.retryPolicy.maxRetries > 0) {
+        let retryCount = 0;
+        const maxRetries = this.loadedProfile.retryPolicy.maxRetries;
+        const retryDelay = this.loadedProfile.retryPolicy.retryDelay;
+
+        while (retryCount < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          retryCount++;
+          try {
+            const retryResponse = await axios({
+              method: method.toLowerCase(),
+              url,
+              headers,
+              data: body,
+              timeout: this.loadedProfile.timeout,
+              validateStatus: () => true,
+            });
+            stepResult.response = {
+              status: retryResponse.status,
+              statusText: retryResponse.statusText,
+              headers: retryResponse.headers as Record<string, string>,
+              body: retryResponse.data,
+              duration: Date.now() - requestStart,
+            };
+            stepResult.status = 'Passed';
+            stepResult.error = null;
+            stepResult.completedAt = Date.now();
+            break;
+          } catch (retryError: any) {
+            if (retryCount >= maxRetries) {
+              stepResult.status = 'Failed';
+              stepResult.error = `Failed after ${maxRetries} retries: ${retryError.message || 'Unknown error'}`;
+              stepResult.completedAt = Date.now();
+            }
+          }
+        }
+      } else {
+        stepResult.status = 'Failed';
+        stepResult.error = error.message || 'Unknown error';
+        stepResult.completedAt = Date.now();
+      }
     }
 
     return stepResult;

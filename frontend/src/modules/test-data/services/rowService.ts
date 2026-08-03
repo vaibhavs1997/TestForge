@@ -1,6 +1,7 @@
 // Row service functions for Dataset Row management
 import axios from 'axios';
 import type { DatasetRow, CreateRowInput } from '../types';
+import type { ImportResult, ImportTemplate, ColumnMapping } from '../types/import';
 
 const API_BASE = '/api';
 
@@ -29,6 +30,42 @@ export const rowService = {
 
   deleteRow: async (projectId: string, rowId: string): Promise<void> => {
     await axios.delete(`${API_BASE}/projects/${projectId}/test-data/rows/${rowId}`);
+  },
+
+  importData: async (
+    projectId: string,
+    datasetId: string,
+    file: File,
+    options: {
+      mode: 'append' | 'replace' | 'skipDuplicates';
+      onError: 'stop' | 'continue';
+      skipEmptyRows: boolean;
+    }
+  ): Promise<ImportResult> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('mode', options.mode);
+    formData.append('onError', options.onError);
+    formData.append('skipEmptyRows', String(options.skipEmptyRows));
+
+    const { data } = await axios.post(
+      `${API_BASE}/projects/${projectId}/test-data/datasets/${datasetId}/import`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+
+    return data.data;
+  },
+
+  getImportTemplate: async (projectId: string, datasetId: string): Promise<ImportTemplate> => {
+    const { data } = await axios.get(
+      `${API_BASE}/projects/${projectId}/test-data/datasets/${datasetId}/import/template`
+    );
+    return data.data;
   },
 };
 

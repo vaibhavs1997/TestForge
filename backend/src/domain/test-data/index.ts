@@ -7,3 +7,5 @@ export { PopulationProfileEntity } from './PopulationProfileEntity';
 export { PopulationProfileRepository } from './PopulationProfileRepository';
 export { DataSourceMappingEntity } from './DataSourceMappingEntity';
 export { DataSourceMappingRepository } from './DataSourceMappingRepository';
+export { DatasetRowEntity } from './DatasetRowEntity';
+export { IDatasetRowRepository } from './DatasetRowRepository';

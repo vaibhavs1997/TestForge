@@ -1,6 +1,10 @@
-// Barrel export file for knowledge application
-export { CreateKnowledgeFlow } from './CreateKnowledgeFlow';
-export { UpdateKnowledgeFlow } from './UpdateKnowledgeFlow';
-export { DeleteKnowledgeFlow } from './DeleteKnowledgeFlow';
-export { GetKnowledgeFlow } from './GetKnowledgeFlow';
-export { ListKnowledgeFlows } from './ListKnowledgeFlows';
+// Barrel export file for knowledge application module
+export * from './CreateKnowledgeFlow';
+export * from './UpdateKnowledgeFlow';
+export * from './DeleteKnowledgeFlow';
+export * from './GetKnowledgeFlow';
+export * from './ListKnowledgeFlows';
+export * from './ManageBusinessRules';
+export * from './ManageRuntimeVariables';
+export * from './ManageDependencies';
+export * from './ManageDocumentation';

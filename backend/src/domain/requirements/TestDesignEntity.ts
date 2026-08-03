@@ -24,6 +24,11 @@ export interface Assertion {
   expected: any;
 }
 
+export interface AssertionReference {
+  assertionId: string;
+  enabled: boolean;
+}
+
 export interface CleanupStep {
   type: 'api' | 'dataset' | 'environment';
   action: string;
@@ -47,7 +52,8 @@ export class TestDesignEntity {
     public readonly priority: DesignPriority,
     public readonly status: DesignStatus,
     public readonly createdAt: number,
-    public readonly updatedAt: number
+    public readonly updatedAt: number,
+    public readonly assertionIds: AssertionReference[] = []
   ) {}
 }
 

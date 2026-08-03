@@ -7,7 +7,10 @@ import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
-import { Play, Square, Clock, CheckCircle, XCircle, AlertCircle, Copy, Download, RefreshCw, Eye, MoreVertical, ChevronDown, Shield } from 'lucide-react';
+import { Play, Square, Clock, CheckCircle, XCircle, AlertCircle, Copy, Download, RefreshCw, Eye, MoreVertical, ChevronDown, Shield, Database, Settings } from 'lucide-react';
+import { profileService } from '../services/profileService';
+import type { ExecutionProfile } from '../types/profile';
+import { useNavigate } from 'react-router-dom';
 
 // Hooks
 import { useExecution } from '../hooks';
@@ -52,8 +55,47 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
   const [search, setSearch] = React.useState('');
   const [filter, setFilter] = React.useState<string>('all');
   const [selectedRun, setSelectedRun] = React.useState<ExecutionRun | null>(null);
-  const [activeTab, setActiveTab] = React.useState<'details' | 'validation'>('details');
+  const [activeTab, setActiveTab] = React.useState<'details' | 'validation' | 'testdata'>('details');
   const [validationFilter, setValidationFilter] = React.useState<string>('all');
+  const [profiles, setProfiles] = React.useState<ExecutionProfile[]>([]);
+  const [selectedProfileId, setSelectedProfileId] = React.useState<string>('');
+  const navigate = useNavigate();
+
+  // Load profiles
+  React.useEffect(() => {
+    profileService.listByProject(projectId).then(setProfiles).catch(() => {
+      // Use mock data if API fails
+      setProfiles([
+        {
+          id: '1',
+          projectId: '1',
+          name: 'Default Profile',
+          description: 'Standard execution profile',
+          defaultEnvironmentId: '1',
+          failureMode: 'StopOnFailure',
+          retryPolicy: { enabled: false, maxRetries: 3, retryDelay: 1000 },
+          timeout: 30000,
+          parallelism: { enabled: false, maxConcurrent: 1 },
+          assertionMode: 'all',
+          runtimeVariableReset: true,
+          datasetSelectionStrategy: 'first',
+          tags: ['default'],
+          enabled: true,
+          isDefault: true,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+      ]);
+    });
+  }, [projectId]);
+
+  // Set default profile
+  React.useEffect(() => {
+    if (profiles.length > 0 && !selectedProfileId) {
+      const defaultProfile = profiles.find(p => p.isDefault);
+      setSelectedProfileId(defaultProfile?.id || profiles[0].id);
+    }
+  }, [profiles, selectedProfileId]);
 
   React.useEffect(() => {
     if (runs.length > 0 && !selectedRun) {
@@ -76,11 +118,16 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
 
   const handleStartExecution = async (executionPlanId: string) => {
     try {
-      await startExecution({ projectId, executionPlanId });
+      await startExecution({ projectId, executionPlanId, executionProfileId: selectedProfileId });
     } catch (err) {
       console.error('Failed to start execution:', err);
     }
   };
+
+  // Get the currently selected profile object for summary display
+  const selectedProfile = React.useMemo(() => {
+    return profiles.find(p => p.id === selectedProfileId) || null;
+  }, [profiles, selectedProfileId]);
 
   const totalPassed = runs.filter(e => e.summary.passed).length;
   const totalFailed = runs.filter(e => e.summary.failed).length;
@@ -96,16 +143,84 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
           <p className='mt-1 text-sm text-text-secondary'>View and monitor all test executions.</p>
         </div>
         <div className='flex items-center gap-3'>
-          <Button variant='outline'>
-            <Clock className='mr-2 h-4 w-4' />
-            Schedule Execution
+          <Button variant='outline' onClick={() => navigate('profiles')}>
+            <Settings className='mr-2 h-4 w-4' />
+            Manage Profiles
           </Button>
-          <Button>
+          <select
+            value={selectedProfileId}
+            onChange={(e) => setSelectedProfileId(e.target.value)}
+            className='rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text'
+          >
+            {profiles.filter(p => p.enabled).map((profile) => (
+              <option key={profile.id} value={profile.id}>
+                {profile.name}{profile.isDefault ? ' (Default)' : ''}
+              </option>
+            ))}
+          </select>
+          <Button
+            onClick={() => selectedProfileId && handleStartExecution(selectedProfileId)}
+            disabled={!selectedProfileId || isStarting}
+          >
             <Play className='mr-2 h-4 w-4' />
             Start Execution
           </Button>
         </div>
       </div>
+
+      {/* Profile Summary */}
+      {selectedProfile && (
+        <Card className='mb-6'>
+          <CardHeader>
+            <CardTitle className='text-base'>Execution Profile: {selectedProfile.name}</CardTitle>
+            <CardDescription>{selectedProfile.description || 'No description'}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className='grid grid-cols-2 gap-4 sm:grid-cols-4'>
+              <div>
+                <p className='text-xs text-text-secondary'>Failure Mode</p>
+                <p className='text-sm font-medium text-text'>{selectedProfile.failureMode}</p>
+              </div>
+              <div>
+                <p className='text-xs text-text-secondary'>Timeout</p>
+                <p className='text-sm font-medium text-text'>{selectedProfile.timeout}ms</p>
+              </div>
+              <div>
+                <p className='text-xs text-text-secondary'>Retry</p>
+                <p className='text-sm font-medium text-text'>
+                  {selectedProfile.retryPolicy.enabled
+                    ? `${selectedProfile.retryPolicy.maxRetries}x / ${selectedProfile.retryPolicy.retryDelay}ms`
+                    : 'Disabled'}
+                </p>
+              </div>
+              <div>
+                <p className='text-xs text-text-secondary'>Assertion Mode</p>
+                <p className='text-sm font-medium text-text'>{selectedProfile.assertionMode}</p>
+              </div>
+              <div>
+                <p className='text-xs text-text-secondary'>Dataset Strategy</p>
+                <p className='text-sm font-medium text-text'>{selectedProfile.datasetSelectionStrategy}</p>
+              </div>
+              <div>
+                <p className='text-xs text-text-secondary'>Runtime Reset</p>
+                <p className='text-sm font-medium text-text'>{selectedProfile.runtimeVariableReset ? 'Yes' : 'No'}</p>
+              </div>
+              <div>
+                <p className='text-xs text-text-secondary'>Environment</p>
+                <p className='text-sm font-medium text-text'>{selectedProfile.defaultEnvironmentId || 'N/A'}</p>
+              </div>
+              <div>
+                <p className='text-xs text-text-secondary'>Parallelism</p>
+                <p className='text-sm font-medium text-text'>
+                  {selectedProfile.parallelism.enabled
+                    ? `${selectedProfile.parallelism.maxConcurrent} concurrent`
+                    : 'Disabled'}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Summary Cards */}
       <div className='mb-8 grid grid-cols-1 gap-4 sm:grid-cols-5'>
@@ -299,6 +414,15 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
                   Details
                 </Button>
                 <Button
+                  variant={activeTab === 'testdata' ? 'default' : 'outline'}
+                  size='sm'
+                  onClick={() => setActiveTab('testdata')}
+                  className='gap-2'
+                >
+                  <Database className='h-4 w-4' />
+                  Resolved Test Data
+                </Button>
+                <Button
                   variant={activeTab === 'validation' ? 'default' : 'outline'}
                   size='sm'
                   onClick={() => setActiveTab('validation')}
@@ -366,89 +490,215 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
                 </>
               )}
 
-              {activeTab === 'validation' && (
+              {activeTab === 'testdata' && (
                 <>
-                  {/* Validation Stats */}
-                  <div className='space-y-2'>
-                    <h4 className='text-sm font-semibold text-text'>Validation Summary</h4>
-                    <div className='flex items-center justify-between text-sm'>
-                      <span className='text-text-secondary'>Passed</span>
-                      <span className='font-medium text-green-600'>{selectedRun.summary.validationPassed}</span>
-                    </div>
-                    <div className='flex items-center justify-between text-sm'>
-                      <span className='text-text-secondary'>Failed</span>
-                      <span className='font-medium text-red-600'>{selectedRun.summary.validationFailed}</span>
-                    </div>
-                    <div className='flex items-center justify-between text-sm'>
-                      <span className='text-text-secondary'>Warnings</span>
-                      <span className='font-medium text-yellow-600'>{selectedRun.summary.validationWarnings}</span>
-                    </div>
-                  </div>
-
-                  {/* Validation Filter */}
-                  <div className='flex items-center gap-2 mb-3'>
-                    <select
-                      className='rounded-lg border border-border bg-background px-2 py-1 text-xs text-text'
-                      value={validationFilter}
-                      onChange={(e) => setValidationFilter(e.target.value)}
-                    >
-                      <option value='all'>All Validations</option>
-                      <option value='Passed'>Passed</option>
-                      <option value='Failed'>Failed</option>
-                      <option value='Warning'>Warnings</option>
-                    </select>
-                  </div>
-
-                  {/* Validation Results by Step */}
-                  {selectedRun.stepResults.length > 0 && (
-                    <div>
-                      <h4 className='text-sm font-semibold text-text mb-3'>Validation Results</h4>
+                  {/* Resolved Test Data Section */}
+                  <div className='space-y-3'>
+                    <h4 className='text-sm font-semibold text-text'>Resolved Test Data</h4>
+                    {selectedRun.stepResults.length === 0 || !selectedRun.stepResults.some(s => s.resolvedTestData) ? (
+                      <p className='text-xs text-text-secondary'>No test data resolved for this execution.</p>
+                    ) : (
                       <div className='space-y-3 max-h-96 overflow-y-auto'>
-                        {selectedRun.stepResults.map((step, idx) => {
-                          const filteredValidations = step.validations?.filter((v: any) => 
-                            validationFilter === 'all' || v.status === validationFilter
-                          ) || [];
-                          
-                          if (filteredValidations.length === 0) return null;
-                          
-                          return (
-                            <div key={step.stepId} className='border border-border rounded-lg p-3'>
-                              <div className='flex items-center justify-between mb-2'>
-                                <span className='text-xs font-medium text-text'>Step {step.executionOrder}</span>
-                                {getStepStatusIcon(step.status)}
-                              </div>
-                              <div className='space-y-2'>
-                                {filteredValidations.map((validation, vIdx) => (
-                                  <div key={vIdx} className='flex items-start gap-2 text-xs'>
-                                    {validation.status === 'Passed' && <CheckCircle className='h-3 w-3 text-green-600 mt-0.5' />}
-                                    {validation.status === 'Failed' && <XCircle className='h-3 w-3 text-red-600 mt-0.5' />}
-                                    {validation.status === 'Warning' && <AlertCircle className='h-3 w-3 text-yellow-600 mt-0.5' />}
-                                    <div className='flex-1 min-w-0'>
-                                      <div className='flex items-center justify-between'>
-                                        <span className='font-medium text-text'>{validation.rule.name}</span>
-                                        <span className='text-text-secondary'>{validation.duration}ms</span>
+                        {selectedRun.stepResults
+                          .filter(step => step.resolvedTestData)
+                          .map((step, idx) => {
+                            const testData = step.resolvedTestData!;
+                            const resolvedEntries = Object.entries(testData.resolvedValues);
+                            
+                            return (
+                              <div key={step.stepId} className='border border-border rounded-lg p-3'>
+                                <div className='flex items-center justify-between mb-2'>
+                                  <span className='text-xs font-medium text-text'>Step {step.executionOrder}</span>
+                                  {testData.datasetId && (
+                                    <span className='text-xs text-text-secondary font-mono'>
+                                      Dataset: {testData.datasetId.slice(0, 8)}
+                                    </span>
+                                  )}
+                                </div>
+                                
+                                {resolvedEntries.length > 0 ? (
+                                  <div className='space-y-2'>
+                                    {resolvedEntries.map(([fieldPath, resolvedValue]) => (
+                                      <div key={fieldPath} className='flex items-start gap-2 text-xs'>
+                                        <div className='flex-1 min-w-0'>
+                                          <div className='flex items-center justify-between'>
+                                            <span className='font-medium text-text'>{fieldPath}</span>
+                                            <span className='text-xs px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'>
+                                              {resolvedValue.sourceType}
+                                            </span>
+                                          </div>
+                                          <p className='text-text-secondary mt-0.5 font-mono'>
+                                            Value: {JSON.stringify(resolvedValue.value)}
+                                          </p>
+                                          {resolvedValue.rowId && (
+                                            <p className='text-text-secondary'>
+                                              Row ID: {resolvedValue.rowId}
+                                            </p>
+                                          )}
+                                          {resolvedValue.columnName && (
+                                            <p className='text-text-secondary'>
+                                              Column: {resolvedValue.columnName}
+                                            </p>
+                                          )}
+                                          {resolvedValue.variableName && (
+                                            <p className='text-text-secondary'>
+                                              Variable: {resolvedValue.variableName}
+                                            </p>
+                                          )}
+                                          {resolvedValue.envVariableName && (
+                                            <p className='text-text-secondary'>
+                                              Env Variable: {resolvedValue.envVariableName}
+                                            </p>
+                                          )}
+                                        </div>
                                       </div>
-                                      <p className='text-text-secondary mt-0.5'>
-                                        Expected: {JSON.stringify(validation.expected)}
-                                      </p>
-                                      <p className='text-text-secondary'>
-                                        Actual: {JSON.stringify(validation.actual)}
-                                      </p>
-                                      {validation.error && (
-                                        <p className='text-red-600 mt-1'>{validation.error}</p>
-                                      )}
-                                    </div>
+                                    ))}
                                   </div>
-                                ))}
+                                ) : (
+                                  <p className='text-xs text-text-secondary'>No values resolved for this step.</p>
+                                )}
+                                
+                                {testData.sequentialPositions.length > 0 && (
+                                  <div className='mt-2 pt-2 border-t border-border'>
+                                    <p className='text-xs text-text-secondary'>
+                                      Sequential Positions: {testData.sequentialPositions.map(([key, pos]) => `${key.slice(0, 20)}...: ${pos}`).join(', ')}
+                                    </p>
+                                  </div>
+                                )}
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </>
               )}
+
+               {activeTab === 'validation' && (
+                 <>
+                   {/* Validation Stats */}
+                   <div className='space-y-2'>
+                     <h4 className='text-sm font-semibold text-text'>Validation Summary</h4>
+                     <div className='flex items-center justify-between text-sm'>
+                       <span className='text-text-secondary'>Passed</span>
+                       <span className='font-medium text-green-600'>{selectedRun.summary.validationPassed}</span>
+                     </div>
+                     <div className='flex items-center justify-between text-sm'>
+                       <span className='text-text-secondary'>Failed</span>
+                       <span className='font-medium text-red-600'>{selectedRun.summary.validationFailed}</span>
+                     </div>
+                     <div className='flex items-center justify-between text-sm'>
+                       <span className='text-text-secondary'>Warnings</span>
+                       <span className='font-medium text-yellow-600'>{selectedRun.summary.validationWarnings}</span>
+                     </div>
+                   </div>
+
+                   {/* Generated Assertions */}
+                   {selectedRun.stepResults.some(step => step.assertions && step.assertions.length > 0) && (
+                     <div className='space-y-2'>
+                       <h4 className='text-sm font-semibold text-text'>Generated Assertions</h4>
+                       <div className='space-y-2 max-h-48 overflow-y-auto'>
+                         {selectedRun.stepResults.map((step, idx) => {
+                           if (!step.assertions || step.assertions.length === 0) return null;
+                           return (
+                             <div key={step.stepId} className='border border-border rounded-lg p-2'>
+                               <span className='text-xs font-medium text-text-secondary'>Step {step.executionOrder}</span>
+                               <div className='mt-1 space-y-1'>
+                                 {step.assertions.map((assertion: any, aIdx: number) => (
+                                   <div key={aIdx} className='text-xs text-text-secondary'>
+                                     • {assertion.type} {assertion.operator} {assertion.path}
+                                     <span className={`ml-2 ${assertion.passed ? 'text-green-600' : 'text-red-600'}`}>
+                                       {assertion.passed ? '✓' : '✗'}
+                                     </span>
+                                   </div>
+                                 ))}
+                               </div>
+                             </div>
+                           );
+                         })}
+                       </div>
+                     </div>
+                   )}
+
+                   {/* Reusable Assertions */}
+                   {selectedRun.stepResults.some(step => step.reusableAssertions && step.reusableAssertions.length > 0) && (
+                     <div className='space-y-2'>
+                       <h4 className='text-sm font-semibold text-text'>Reusable Assertions</h4>
+                       <div className='space-y-2 max-h-48 overflow-y-auto'>
+                         {selectedRun.stepResults.map((step, idx) => {
+                           const reusableAssertions = step.reusableAssertions || [];
+                           if (reusableAssertions.length === 0) return null;
+                           
+                           return (
+                             <div key={step.stepId} className='border border-border rounded-lg p-2'>
+                               <span className='text-xs font-medium text-text-secondary'>Step {step.executionOrder}</span>
+                               <div className='mt-1 space-y-1'>
+                                 {reusableAssertions.map((assertion: any, aIdx: number) => (
+                                   <div key={assertion.id || aIdx} className='text-xs text-text-secondary'>
+                                     • {assertion.name} ({assertion.type})
+                                     <span className={`ml-2 ${assertion.enabled ? 'text-green-600' : 'text-gray-400'}`}>
+                                       [{assertion.enabled ? 'Enabled' : 'Disabled'}]
+                                     </span>
+                                   </div>
+                                 ))}
+                               </div>
+                             </div>
+                           );
+                         })}
+                       </div>
+                     </div>
+                   )}
+
+                   {/* Validation Results by Step */}
+                   {selectedRun.stepResults.length > 0 && (
+                     <div>
+                       <h4 className='text-sm font-semibold text-text mb-3'>Validation Results</h4>
+                       <div className='space-y-3 max-h-96 overflow-y-auto'>
+                         {selectedRun.stepResults.map((step, idx) => {
+                           const filteredValidations = step.validations?.filter((v: any) => 
+                             validationFilter === 'all' || v.status === validationFilter
+                           ) || [];
+                           
+                           if (filteredValidations.length === 0) return null;
+                           
+                           return (
+                             <div key={step.stepId} className='border border-border rounded-lg p-3'>
+                               <div className='flex items-center justify-between mb-2'>
+                                 <span className='text-xs font-medium text-text'>Step {step.executionOrder}</span>
+                                 {getStepStatusIcon(step.status)}
+                               </div>
+                               <div className='space-y-2'>
+                                 {filteredValidations.map((validation, vIdx) => (
+                                   <div key={vIdx} className='flex items-start gap-2 text-xs'>
+                                     {validation.status === 'Passed' && <CheckCircle className='h-3 w-3 text-green-600 mt-0.5' />}
+                                     {validation.status === 'Failed' && <XCircle className='h-3 w-3 text-red-600 mt-0.5' />}
+                                     {validation.status === 'Warning' && <AlertCircle className='h-3 w-3 text-yellow-600 mt-0.5' />}
+                                     <div className='flex-1 min-w-0'>
+                                       <div className='flex items-center justify-between'>
+                                         <span className='font-medium text-text'>{validation.rule.name}</span>
+                                         <span className='text-text-secondary'>{validation.duration}ms</span>
+                                       </div>
+                                       <p className='text-text-secondary mt-0.5'>
+                                         Expected: {JSON.stringify(validation.expected)}
+                                       </p>
+                                       <p className='text-text-secondary'>
+                                         Actual: {JSON.stringify(validation.actual)}
+                                       </p>
+                                       {validation.error && (
+                                         <p className='text-red-600 mt-1'>{validation.error}</p>
+                                       )}
+                                     </div>
+                                   </div>
+                                 ))}
+                               </div>
+                             </div>
+                           );
+                         })}
+                       </div>
+                     </div>
+                   )}
+                 </>
+               )}
 
               {/* Execution Timeline */}
               {selectedRun.stepResults.length > 0 && activeTab === 'details' && (

@@ -17,6 +17,9 @@ import {
   Play,
   BarChart3,
   Sparkles,
+  FlaskConical,
+  GitBranch,
+  Workflow,
 } from 'lucide-react';
 import { projectStore } from '../store/projectStore';
 
@@ -32,6 +35,9 @@ const PROJECT_TAB_ITEMS: { key: string; label: string; icon: React.ComponentType
   { key: 'execution', label: 'Execution', icon: Play },
   { key: 'reports', label: 'Reports', icon: BarChart3 },
   { key: 'recommendations', label: 'Recommendations', icon: Sparkles },
+  { key: 'suites', label: 'Suites', icon: FlaskConical },
+  { key: 'analysis', label: 'Analysis', icon: GitBranch },
+  { key: 'pipeline', label: 'Pipeline', icon: Workflow },
 ];
 
 export const Sidebar: React.FC = () => {

@@ -68,7 +68,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
   const projectId = selectedProjectId || '1';
 
   const { data: report, isLoading, isError, error } = useReport(projectId, reportId);
-  const [activeTab, setActiveTab] = React.useState<'overview' | 'execution' | 'validation' | 'recommendations' | 'timeline'>('overview');
+  const [activeTab, setActiveTab] = React.useState<'overview' | 'execution' | 'validation' | 'recommendations' | 'timeline' | 'assertions'>('overview');
 
   const formatDuration = (ms: number) => {
     if (!ms) return '—';
@@ -149,6 +149,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
           { key: 'validation', label: 'Validation', icon: Shield },
           { key: 'recommendations', label: 'Recommendations', icon: AlertTriangle },
           { key: 'timeline', label: 'Timeline', icon: Clock },
+          { key: 'assertions', label: 'Reusable Assertions', icon: Shield },
         ] as const).map((tab) => {
           const Icon = tab.icon;
           return (
@@ -632,6 +633,62 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
                 </div>
               ) : (
                 <span className='text-sm text-text-secondary'>No timeline data available.</span>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === 'assertions' && (
+        <div className='space-y-6'>
+          {/* Reusable Assertions Summary */}
+          <Card>
+            <CardHeader>
+              <CardTitle className='text-base flex items-center gap-2'>
+                <Shield className='h-4 w-4' />
+                Reusable Assertions
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {stepResults.length > 0 && stepResults.some((step: any) => step.reusableAssertions && step.reusableAssertions.length > 0) ? (
+                <div className='space-y-3'>
+                  {stepResults.map((step: any, idx: number) => {
+                    const reusableAssertions = step.reusableAssertions || [];
+                    if (reusableAssertions.length === 0) return null;
+                    
+                    return (
+                      <div key={step.stepId || idx} className='border border-border rounded-lg p-3'>
+                        <div className='flex items-center justify-between mb-2'>
+                          <span className='text-sm font-medium text-text'>Step {step.executionOrder}</span>
+                          {getStepStatusIcon(step.status)}
+                        </div>
+                        <div className='space-y-2'>
+                          {reusableAssertions.map((assertion: any, aIdx: number) => (
+                            <div key={assertion.id || aIdx} className='flex items-start gap-2 text-xs border border-border rounded p-2'>
+                              <div className='flex-1 min-w-0'>
+                                <div className='flex items-center justify-between mb-1'>
+                                  <span className='font-medium text-text'>{assertion.name}</span>
+                                  <div className='flex items-center gap-1'>
+                                    <Badge variant='outline' className='text-xs'>{assertion.type}</Badge>
+                                    <Badge variant={assertion.enabled ? 'success' : 'secondary'} className='text-xs'>
+                                      {assertion.enabled ? 'Enabled' : 'Disabled'}
+                                    </Badge>
+                                  </div>
+                                </div>
+                                <div className='flex items-center gap-2 text-text-secondary'>
+                                  <span>Category: {assertion.category}</span>
+                                  <span>Severity: {assertion.severity}</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <span className='text-sm text-text-secondary'>No reusable assertions were executed in this report.</span>
               )}
             </CardContent>
           </Card>

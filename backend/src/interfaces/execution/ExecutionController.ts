@@ -12,9 +12,9 @@ export class ExecutionController {
   async startExecution(req: Request, res: Response): Promise<void> {
     try {
       const { executionPlanId } = req.params;
-      const { failureMode = 'StopOnFailure' } = req.body;
+      const { failureMode = 'StopOnFailure', executionProfileId } = req.body;
       
-      const run = await this.executePlanUseCase.execute(executionPlanId, failureMode as any);
+      const run = await this.executePlanUseCase.execute(executionPlanId, failureMode as any, executionProfileId);
       res.status(201).json({ success: true, data: run });
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });

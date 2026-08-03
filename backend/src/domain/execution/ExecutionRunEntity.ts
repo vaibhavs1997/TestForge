@@ -57,6 +57,17 @@ export interface ExecutionStepResult {
     duration: number;
     error: string | null;
   }[];
+  resolvedTestData?: {
+    resolvedValues: Record<string, any>;
+    datasetId?: string;
+    sequentialPositions: [string, number][];
+  };
+  reusableAssertions?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    enabled: boolean;
+  }>;
 }
 
 export interface ExecutionSummary {
@@ -68,6 +79,21 @@ export interface ExecutionSummary {
   validationPassed: number;
   validationFailed: number;
   validationWarnings: number;
+}
+
+export interface ExecutionProfileMetadata {
+  profileName: string;
+  profileId: string;
+  profileSettings: {
+    failureMode: string;
+    timeout: number;
+    retryPolicy: { enabled: boolean; maxRetries: number; retryDelay: number };
+    assertionMode: string;
+    runtimeVariableReset: boolean;
+    datasetSelectionStrategy: string;
+    defaultEnvironmentId: string | null;
+    parallelism: { enabled: boolean; maxConcurrent: number };
+  };
 }
 
 export class ExecutionRunEntity {
@@ -84,7 +110,9 @@ export class ExecutionRunEntity {
     public summary: ExecutionSummary,
     public readonly createdAt: number,
     public updatedAt: number,
-    public completedAt: number | null
+    public completedAt: number | null,
+    public readonly executionProfileId: string | null = null,
+    public readonly executionProfile: ExecutionProfileMetadata | null = null
   ) {}
 }
 

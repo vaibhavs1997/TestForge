@@ -84,6 +84,11 @@ export class DataSourceMappingRepository {
     return allMappings;
   }
 
+  async findByProjectAndOperation(projectId: string, serviceId: string, operationId: string): Promise<DataSourceMappingEntity[]> {
+    const mappings = await this.readMappings(projectId);
+    return mappings.filter(m => m.operationId === operationId && m.serviceId === serviceId);
+  }
+
   async existsByField(operationId: string, fieldPath: string): Promise<boolean> {
     const projectIds = this.listProjectIds();
     for (const projectId of projectIds) {

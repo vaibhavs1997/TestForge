@@ -5,3 +5,5 @@ export { TestStrategyEntity, StrategyCategory, StrategyPriority, StrategyStatus,
 export { TestStrategyRepository } from './TestStrategyRepository';
 export { TestDesignEntity, DesignPriority, DesignStatus, RequestOverride, RuntimeBinding, Assertion, CleanupStep } from './TestDesignEntity';
 export { TestDesignRepository } from './TestDesignRepository';
+export { ExecutionPlanEntity, ExecutionPlanStatus, RequestTemplate } from './ExecutionPlanEntity';
+export { ExecutionPlanRepository } from './ExecutionPlanRepository';

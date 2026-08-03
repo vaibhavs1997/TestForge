@@ -283,7 +283,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
     // Log the open action in recent activity
     logActivity(`Opened project "${project.name}"`, project.name);
     setSelectedProjectId(project.id);
-    navigate(`/projects/${project.id}/dashboard`);
+    navigate(`/projects/${project.id}/overview`);
   };
 
   const handleRenameProject = (newName: string) => {

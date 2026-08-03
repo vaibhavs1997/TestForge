@@ -11,8 +11,9 @@ import { Route, Routes, useParams } from 'react-router-dom';
 // Services
 
 // Components
-import { ProjectsHomePage, ProjectDashboardPage } from './pages';
+import { ProjectsHomePage } from './pages';
 import { projectStore } from '../../store/projectStore';
+import { ProjectWorkspace } from './components/ProjectWorkspace';
 
 // Styles
 
@@ -20,12 +21,12 @@ export const ProjectRoutes: React.FC = () => {
   return (
     <Routes>
       <Route path='/' element={<ProjectsHomePage />} />
-      <Route path=':projectId/dashboard' element={<ProjectDashboardPageWrapper />} />
+      <Route path=':projectId/*' element={<ProjectWorkspaceWrapper />} />
     </Routes>
   );
 };
 
-const ProjectDashboardPageWrapper: React.FC = () => {
+const ProjectWorkspaceWrapper: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const setSelectedProjectId = projectStore((state) => state.setSelectedProjectId);
 
@@ -35,7 +36,9 @@ const ProjectDashboardPageWrapper: React.FC = () => {
     }
   }, [projectId, setSelectedProjectId]);
 
-  return <ProjectDashboardPage projectId={projectId} />;
+  if (!projectId) return <ProjectsHomePage />;
+
+  return <ProjectWorkspace projectId={projectId} />;
 };
 
 export default ProjectRoutes;

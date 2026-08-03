@@ -15,6 +15,8 @@ import { ExecutionRoutes } from '../modules/execution';
 import { ReportRoutes } from '../modules/report';
 import { SettingsRoutes } from '../modules/settings';
 import { TestDataRoutes } from '../modules/test-data';
+import { RecommendationRoutes } from '../modules/recommendation/routes';
+import { PipelineRoutes } from '../modules/pipeline';
 
 const PlaceholderPage = ({ title }: { title: string }) => (
   <div className='flex h-full flex-col items-center justify-center'>
@@ -40,6 +42,8 @@ export const AppRoutes = () => (
       <Route path='/reports/*' element={<ReportRoutes />} />
       <Route path='/settings' element={<SettingsRoutes />} />
       <Route path='/test-data/*' element={<TestDataRoutes />} />
+      <Route path='/recommendations/*' element={<RecommendationRoutes />} />
+      <Route path='/pipeline/*' element={<PipelineRoutes />} />
       <Route path='/showcase' element={<ShowcasePage />} />
     </Route>
   </Routes>

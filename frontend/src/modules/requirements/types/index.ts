@@ -146,3 +146,32 @@ export interface TestDesign {
   createdAt: number;
   updatedAt: number;
 }
+
+export type ExecutionPlanStatus = 'Pending' | 'Ready' | 'Disabled';
+
+export interface RequestTemplate {
+  method: string;
+  path: string;
+  headers?: Record<string, string>;
+  queryParams?: Record<string, string>;
+  body?: any;
+}
+
+export interface ExecutionPlan {
+  id: string;
+  projectId: string;
+  requirementId: string;
+  testDesignId: string;
+  executionOrder: number;
+  prerequisiteDesignIds: string[];
+  operationId: string;
+  environmentId: string;
+  datasetId: string;
+  runtimeBindings: RuntimeBinding[];
+  requestTemplate: RequestTemplate;
+  assertions: Assertion[];
+  cleanupSteps: CleanupStep[];
+  status: ExecutionPlanStatus;
+  createdAt: number;
+  updatedAt: number;
+}

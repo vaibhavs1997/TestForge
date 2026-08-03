@@ -1,6 +1,6 @@
 // Requirement service functions for Requirement Workspace
 import axios from 'axios';
-import type { Requirement, RequirementFormData, ValidationReport, TestStrategy, TestDesign } from '../types';
+import type { Requirement, RequirementFormData, ValidationReport, TestStrategy, TestDesign, ExecutionPlan } from '../types';
 
 const API_BASE = '/api';
 
@@ -47,6 +47,11 @@ export const requirementService = {
 
   generateTestDesigns: async (projectId: string, requirementId: string): Promise<TestDesign[]> => {
     const { data } = await axios.post(`${API_BASE}/projects/${projectId}/requirements/${requirementId}/designs`);
+    return data.data;
+  },
+
+  planExecution: async (projectId: string, requirementId: string): Promise<ExecutionPlan[]> => {
+    const { data } = await axios.post(`${API_BASE}/projects/${projectId}/requirements/${requirementId}/execution-plans`);
     return data.data;
   },
 };

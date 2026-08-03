@@ -8,3 +8,4 @@ export { GenerateFromAnalysis } from './GenerateFromAnalysis';
 export { ValidateRequirementReadiness, ValidationStatus, ValidationCategory, ValidationReport } from './ValidateRequirementReadiness';
 export { PlanTestStrategy } from './PlanTestStrategy';
 export { GenerateTestDesigns } from './GenerateTestDesigns';
+export { PlanExecution } from './PlanExecution';

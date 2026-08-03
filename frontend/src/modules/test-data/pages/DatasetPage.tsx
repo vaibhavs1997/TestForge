@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { DatasetDialog, type DatasetDialogData } from '../components/DatasetDialog';
 import { ColumnProfileDialog, type ColumnProfileData } from '../components/ColumnProfileDialog';
+import { DataTabContent } from '../components/DataTabContent';
 import type { ColumnSuggestion } from '../services/columnService';
 import { Check, X as XIcon, ArrowUp, ArrowDown, Plus as PlusIcon } from 'lucide-react';
 
@@ -616,9 +617,22 @@ export const TestDataLibraryPage = () => {
                       />
                     )}
 
-                    {/* Data Tab - Guided Workflow */}
+                    {/* Data Tab - Spreadsheet Row Editor */}
                     {activeTab === 'Data' && (
                       <DataTabContent
+                        projectId={selectedDataset.projectId}
+                        datasetId={selectedDataset.id}
+                        columns={MOCK_STRUCTURE_COLUMNS.map((col) => ({
+                          id: col.id,
+                          datasetId: col.datasetId,
+                          name: col.name,
+                          displayName: col.displayName,
+                          dataType: col.dataType,
+                          required: col.required,
+                          unique: col.unique,
+                          nullable: col.nullable,
+                          description: col.description,
+                        }))}
                         setToastMessage={setToastMessage}
                         setToastOpen={setToastOpen}
                       />
@@ -1087,89 +1101,7 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
   );
 };
 
-// ─── Data Tab Content - Guided Workflow ──────────────────────────────────
-interface DataTabContentProps {
-  setToastMessage: (v: string) => void;
-  setToastOpen: (v: boolean) => void;
-}
-
-const DataTabContent: React.FC<DataTabContentProps> = ({ setToastMessage, setToastOpen }) => {
-  return (
-    <div className='space-y-4'>
-      <div>
-        <h3 className='text-sm font-semibold text-text'>Populate Data</h3>
-        <p className='text-xs text-text-secondary'>Choose how you want to fill this dataset with data.</p>
-      </div>
-
-      <div className='grid grid-cols-1 gap-4 lg:grid-cols-3'>
-        {/* Manual Entry Card */}
-        <Card className='transition-shadow hover:shadow-lg'>
-          <CardHeader>
-            <div className='flex items-center gap-2'>
-              <Keyboard className='h-5 w-5 text-primary' />
-              <CardTitle className='text-base'>Manual Entry</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <p className='text-sm text-text-secondary'>
-              Create rows by manually entering values for each column. Best for small datasets with a few curated records.
-            </p>
-          </CardContent>
-          <CardFooter>
-            <Button
-              className='w-full'
-              onClick={() => {
-                setToastMessage('This feature will be implemented in the next step.');
-                setToastOpen(true);
-              }}
-            >
-              Configure
-            </Button>
-          </CardFooter>
-        </Card>
-
-        {/* Import Data Card */}
-        <Card className='transition-shadow hover:shadow-lg opacity-80'>
-          <CardHeader>
-            <div className='flex items-center gap-2'>
-              <FileUp className='h-5 w-5 text-text-secondary' />
-              <CardTitle className='text-base'>Import Data</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <p className='text-sm text-text-secondary'>
-              Import rows from CSV, Excel, or JSON files. Ideal for large existing datasets.
-            </p>
-          </CardContent>
-          <CardFooter>
-            <Button variant='outline' className='w-full' disabled>
-              Coming Soon
-            </Button>
-          </CardFooter>
-        </Card>
-
-        {/* Generate Data Card */}
-        <Card className='transition-shadow hover:shadow-lg opacity-80'>
-          <CardHeader>
-            <div className='flex items-center gap-2'>
-              <Wand2 className='h-5 w-5 text-text-secondary' />
-              <CardTitle className='text-base'>Generate Data</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <p className='text-sm text-text-secondary'>
-              Automatically generate realistic rows using generators, providers, and AI-powered synthesis.
-            </p>
-          </CardContent>
-          <CardFooter>
-            <Button variant='outline' className='w-full' disabled>
-              Coming Soon
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    </div>
-  );
-};
+// ─── Data Tab Content - Spreadsheet Row Editor ──────────────────────────
+export { DataTabContent } from '../components/DataTabContent';
 
 export default TestDataLibraryPage;

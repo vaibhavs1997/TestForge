@@ -20,3 +20,8 @@ export { UpdateDataSourceMapping } from './UpdateDataSourceMapping';
 export { DeleteDataSourceMapping } from './DeleteDataSourceMapping';
 export { GetDataSourceMapping } from './GetDataSourceMapping';
 export { ListDataSourceMappings } from './ListDataSourceMappings';
+export { CreateRow } from './CreateRow';
+export { UpdateRow } from './UpdateRow';
+export { DeleteRow } from './DeleteRow';
+export { GetRow } from './GetRow';
+export { ListRows } from './ListRows';

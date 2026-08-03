@@ -1,4 +1,4 @@
-// Add Article modal for creating new knowledge base articles.
+// Add Article modal for creating and editing knowledge base documentation.
 import React from 'react';
 import { X } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
@@ -7,18 +7,14 @@ import { TextInput } from '../../../components/forms/TextInput';
 import { TextArea } from '../../../components/forms/TextArea';
 import { Select } from '../../../components/forms/Select';
 import { Badge } from '../../../components/ui/Badge';
-
-export interface AddArticleModalData {
-  title: string;
-  category: string;
-  tags: string[];
-  content: string;
-}
+import type { DocumentationFormData } from '../types';
 
 export interface AddArticleModalProps {
   open: boolean;
   onClose: () => void;
-  onCreate: (data: AddArticleModalData) => void;
+  onCreate: (data: DocumentationFormData) => void;
+  initialData?: Partial<DocumentationFormData>;
+  isSubmitting?: boolean;
   existingCategories?: string[];
 }
 
@@ -26,9 +22,10 @@ const categoryOptions = [
   { value: 'Tutorials', label: 'Tutorials' },
   { value: 'Guides', label: 'Guides' },
   { value: 'Documentation', label: 'Documentation' },
+  { value: 'Notes', label: 'Notes' },
 ];
 
-export const AddArticleModal = ({ open, onClose, onCreate, existingCategories = [] }: AddArticleModalProps) => {
+export const AddArticleModal = ({ open, onClose, onCreate, initialData, isSubmitting, existingCategories = [] }: AddArticleModalProps) => {
   const [title, setTitle] = React.useState('');
   const [category, setCategory] = React.useState('Tutorials');
   const [tags, setTags] = React.useState<string[]>([]);
@@ -38,14 +35,14 @@ export const AddArticleModal = ({ open, onClose, onCreate, existingCategories = 
 
   React.useEffect(() => {
     if (open) {
-      setTitle('');
-      setCategory('Tutorials');
-      setTags([]);
+      setTitle(initialData?.title || '');
+      setCategory(initialData?.category || 'Tutorials');
+      setTags(initialData?.tags || []);
       setTagInput('');
-      setContent('');
+      setContent(initialData?.content || '');
       setError(undefined);
     }
-  }, [open]);
+  }, [open, initialData]);
 
   if (!open) return null;
 
@@ -71,14 +68,20 @@ export const AddArticleModal = ({ open, onClose, onCreate, existingCategories = 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
-      setError('Article title is required');
+      setError('Documentation title is required');
       return;
     }
     onCreate({
+      id: initialData?.id,
+      projectId: initialData?.projectId || '',
       title: title.trim(),
+      content: content.trim(),
       category,
       tags,
-      content: content.trim(),
+      linkedApiOperationIds: initialData?.linkedApiOperationIds || [],
+      linkedRequirementIds: initialData?.linkedRequirementIds || [],
+      author: initialData?.author || '',
+      version: initialData?.version || '1.0.0',
     });
   };
 
@@ -90,7 +93,7 @@ export const AddArticleModal = ({ open, onClose, onCreate, existingCategories = 
       <Card className='mx-4 flex max-h-[90vh] w-full max-w-lg flex-col' onClick={(e) => e.stopPropagation()}>
         <CardHeader className='flex-shrink-0'>
           <div className='flex items-center justify-between'>
-            <CardTitle>Add Article</CardTitle>
+            <CardTitle>{initialData?.id ? 'Edit Documentation' : 'Add Documentation'}</CardTitle>
             <Button
               variant='ghost'
               size='sm'
@@ -98,6 +101,7 @@ export const AddArticleModal = ({ open, onClose, onCreate, existingCategories = 
               onClick={onClose}
               aria-label='Close'
               type='button'
+              disabled={isSubmitting}
             >
               <X className='h-4 w-4' />
             </Button>
@@ -112,7 +116,7 @@ export const AddArticleModal = ({ open, onClose, onCreate, existingCategories = 
                 setTitle(e.target.value);
                 if (error) setError(undefined);
               }}
-              placeholder='Article title'
+              placeholder='Documentation title'
               error={error}
               required
             />
@@ -154,15 +158,17 @@ export const AddArticleModal = ({ open, onClose, onCreate, existingCategories = 
               label='Content'
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder='Write your article content...'
+              placeholder='Write your documentation content...'
               rows={5}
             />
           </CardContent>
           <CardFooter className='flex-shrink-0 justify-end gap-2'>
-            <Button type='button' variant='outline' onClick={onClose}>
+            <Button type='button' variant='outline' onClick={onClose} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type='submit'>Add Article</Button>
+            <Button type='submit' disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : initialData?.id ? 'Update Documentation' : 'Add Documentation'}
+            </Button>
           </CardFooter>
         </form>
       </Card>

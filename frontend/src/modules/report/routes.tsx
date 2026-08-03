@@ -2,23 +2,15 @@
 import React from 'react';
 import { Route, Routes } from 'react-router-dom';
 
-// Shared constants
-
-// Shared types
-
-// Hooks
-
-// Services
-
 // Components
-import { ReportPage } from './pages';
-
-// Styles
+import { ReportPage } from './pages/ReportPage';
+import { ReportDetailsPage } from './pages/ReportDetailsPage';
 
 export const ReportRoutes: React.FC = () => {
   return (
     <Routes>
       <Route path='/' element={<ReportPage />} />
+      <Route path='/:reportId' element={<ReportDetailsPage />} />
     </Routes>
   );
 };

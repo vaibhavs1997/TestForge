@@ -40,6 +40,12 @@ export const useRequirements = (projectId?: string) => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   });
 
+  const generateWithAIMutation = useMutation({
+    mutationFn: ({ projectId, providerId, previewOnly }: { projectId: string; providerId: string; previewOnly?: boolean }) =>
+      requirementService.generateWithAI(projectId, { providerId, previewOnly }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+  });
+
   const validateReadinessMutation = useMutation({
     mutationFn: ({ projectId, requirementId }: { projectId: string; requirementId: string }) =>
       requirementService.validateReadiness(projectId, requirementId),
@@ -84,6 +90,10 @@ export const useRequirements = (projectId?: string) => {
     generateFromAnalysis: generateFromAnalysisMutation.mutate,
     generateFromAnalysisAsync: generateFromAnalysisMutation.mutateAsync,
     isGenerating: generateFromAnalysisMutation.isPending,
+    generateWithAI: generateWithAIMutation.mutate,
+    generateWithAIAsync: generateWithAIMutation.mutateAsync,
+    isGeneratingWithAI: generateWithAIMutation.isPending,
+    aiGenerateResult: generateWithAIMutation.data,
     validateReadiness: validateReadinessMutation.mutate,
     validateReadinessAsync: validateReadinessMutation.mutateAsync,
     isValidating: validateReadinessMutation.isPending,

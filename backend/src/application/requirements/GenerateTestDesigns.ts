@@ -2,6 +2,7 @@
 // Converts approved Test Strategy items into executable designs.
 // Does NOT execute tests or generate reports.
 // Reuses Requirement, Strategy, API Contract, Datasets, Environment, and Knowledge.
+import { randomUUID } from 'node:crypto';
 import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
 import { RequirementEntity } from '../../domain/requirements/RequirementEntity';
 import { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository';
@@ -73,7 +74,7 @@ export class GenerateTestDesigns {
         const cleanup = this.generateCleanupSteps(section.category);
 
                 const design = new TestDesignEntity(
-                  crypto.randomUUID(),
+                  randomUUID(),
                   requirement.projectId,
                   requirementId,
                   item.id,

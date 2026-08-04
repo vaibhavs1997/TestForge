@@ -1,6 +1,7 @@
 // GenerateReport - Application Use Case for Reporting Module
 // Generates a report from a completed Execution Run.
 // Reuses existing execution and validation results. Does NOT recompute execution.
+import { randomUUID } from 'node:crypto';
 import { ReportEntity, ReportStatus, ReportSection, ReportValidationSummary, ReportRecommendationSummary, ReportEnvironment } from '../../domain/report/ReportEntity';
 import { ReportRepository } from '../../domain/report/ReportRepository';
 import { ExecutionRunRepository } from '../../domain/execution/ExecutionRunRepository';
@@ -122,7 +123,7 @@ export class GenerateReport {
     // 10. Create report entity
     const now = Date.now();
     const report = new ReportEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       run.projectId,
       run.id,
       suiteId || null,

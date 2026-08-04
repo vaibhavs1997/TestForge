@@ -2,6 +2,7 @@
 // Supports CSV, Excel, and JSON Array formats
 // Reuses existing Dataset, Column, and Dataset Row repositories
 
+import { randomUUID } from 'node:crypto';
 import { DatasetRepository } from '../../domain/test-data/DatasetRepository';
 import { ColumnRepository } from '../../domain/test-data/ColumnRepository';
 import { IDatasetRowRepository } from '../../domain/test-data/DatasetRowRepository';
@@ -165,7 +166,7 @@ export class ImportDatasetData {
 
           // Create row
           const newRow = new DatasetRowEntity(
-            crypto.randomUUID(),
+            randomUUID(),
             projectId,
             datasetId,
             mappedRow,

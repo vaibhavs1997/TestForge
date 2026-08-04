@@ -3,6 +3,7 @@
 // Reuses ProjectContextService and the Plugin/Provider/Versioning frameworks.
 // Does NOT call any LLM. Does NOT generate requirements, tests, or reports.
 
+import { randomUUID } from 'node:crypto';
 import {
   PromptTemplateEntity,
   PromptTemplateCategory,
@@ -76,7 +77,7 @@ export class PromptBuilderService {
 
     const now = Date.now();
     const prompt = new PromptEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       input.projectId,
       input.templateId,
       template.name,

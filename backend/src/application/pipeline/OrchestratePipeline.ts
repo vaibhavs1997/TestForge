@@ -1,6 +1,7 @@
 // OrchestratePipeline - Pipeline Orchestrator Service
 // Coordinates the existing deterministic workflow by invoking existing modules in sequence.
 // Does NOT replace any existing implementation.
+import { randomUUID } from 'node:crypto';
 import { PipelineRepository } from '../../domain/pipeline/PipelineRepository';
 import { PipelineEntity, PipelineStage, PipelineStatus, StageResult } from '../../domain/pipeline/PipelineEntity';
 import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
@@ -165,7 +166,7 @@ export class OrchestratePipeline {
     }));
 
     return new PipelineEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       projectId,
       this.getStageOrder()[0],
       'pending',

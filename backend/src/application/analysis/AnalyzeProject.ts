@@ -1,6 +1,7 @@
 // AnalyzeProject - Deterministic Project Analyzer
 // Reuses imported API operations, Knowledge Flows, and Dataset names to generate
 // simple analysis cards. This is NOT AI — it is a deterministic keyword-based analyzer.
+import { randomUUID } from 'node:crypto';
 import { AnalysisRepository } from '../../domain/analysis/AnalysisRepository';
 import { AnalysisEntity } from '../../domain/analysis/AnalysisEntity';
 import { ApiServiceRepository } from '../../infrastructure/api/ApiServiceRepository';
@@ -173,7 +174,7 @@ export class AnalyzeProject {
 
       const now = Date.now();
       const card = new AnalysisEntity(
-        crypto.randomUUID(),
+        randomUUID(),
         projectId,
         pattern.title,
         pattern.description,

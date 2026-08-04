@@ -1,7 +1,9 @@
 // PluginLoader - Loads built-in plugins on system startup
 // Registers existing providers and notification channels as plugins.
 
-import { PluginEntity, PluginCategory, PluginCapability } from '../../domain/plugin';
+import { randomUUID } from 'node:crypto';
+import { PluginEntity } from '../../domain/plugin';
+import type { PluginCategory, PluginCapability } from '../../domain/plugin';
 import { PluginRegistry } from './PluginRegistry';
 
 export class PluginLoader {
@@ -75,7 +77,7 @@ export class PluginLoader {
     for (const provider of providers) {
       const now = Date.now();
       const plugin = new PluginEntity(
-        crypto.randomUUID(),
+        randomUUID(),
         provider.name,
         '1.0.0',
         'TestForge',
@@ -122,7 +124,7 @@ export class PluginLoader {
     for (const channel of channels) {
       const now = Date.now();
       const plugin = new PluginEntity(
-        crypto.randomUUID(),
+        randomUUID(),
         channel.name,
         '1.0.0',
         'TestForge',
@@ -157,7 +159,7 @@ export class PluginLoader {
     for (const validator of validators) {
       const now = Date.now();
       const plugin = new PluginEntity(
-        crypto.randomUUID(),
+        randomUUID(),
         validator.name,
         '1.0.0',
         'TestForge',
@@ -198,7 +200,7 @@ export class PluginLoader {
     for (const exporter of exporters) {
       const now = Date.now();
       const plugin = new PluginEntity(
-        crypto.randomUUID(),
+        randomUUID(),
         exporter.name,
         '1.0.0',
         'TestForge',
@@ -228,7 +230,7 @@ export class PluginLoader {
     for (const manager of managers) {
       const now = Date.now();
       const plugin = new PluginEntity(
-        crypto.randomUUID(),
+        randomUUID(),
         manager.name,
         '1.0.0',
         'TestForge',
@@ -263,7 +265,7 @@ export class PluginLoader {
     for (const generator of generators) {
       const now = Date.now();
       const plugin = new PluginEntity(
-        crypto.randomUUID(),
+        randomUUID(),
         generator.name,
         '1.0.0',
         'TestForge',

@@ -1,4 +1,5 @@
 // CreateAnalysis - Application Use Case
+import { randomUUID } from 'node:crypto';
 import { AnalysisRepository } from '../../domain/analysis/AnalysisRepository';
 import { AnalysisEntity, AnalysisStatus } from '../../domain/analysis/AnalysisEntity';
 
@@ -23,7 +24,7 @@ export class CreateAnalysis {
 
     const now = Date.now();
     const analysis = new AnalysisEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       params.projectId,
       params.title.trim(),
       params.description?.trim() || '',

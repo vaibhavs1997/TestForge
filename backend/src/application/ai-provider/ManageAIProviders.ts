@@ -2,8 +2,9 @@
 // Manages provider lifecycle (CRUD, enable/disable, default, test).
 // Reuses the Plugin Framework pattern for service orchestration.
 
-import {
-  AIProviderEntity,
+import { randomUUID } from 'node:crypto';
+import { AIProviderEntity } from '../../domain/ai-provider';
+import type {
   AIProviderType,
   AIProviderRepository,
   AIProviderMessage,
@@ -61,7 +62,7 @@ export class ManageAIProviders {
 
     const now = Date.now();
     const provider = new AIProviderEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       input.projectId,
       input.name,
       input.provider,

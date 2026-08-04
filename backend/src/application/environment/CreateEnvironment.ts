@@ -1,4 +1,5 @@
 // CreateEnvironment - Application Use Case
+import { randomUUID } from 'node:crypto';
 import { EnvironmentRepository } from '../../domain/environment/EnvironmentRepository';
 import { EnvironmentEntity } from '../../domain/environment/EnvironmentEntity';
 
@@ -35,7 +36,7 @@ export class CreateEnvironment {
 
     const now = Date.now();
     const environment = new EnvironmentEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       params.projectId,
       trimmedName,
       params.baseUrl.trim(),

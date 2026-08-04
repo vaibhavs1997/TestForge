@@ -35,6 +35,31 @@ export const requirementService = {
     return data.data;
   },
 
+  generateWithAI: async (projectId: string, body: { providerId: string; previewOnly?: boolean }): Promise<any> => {
+    const { data } = await axios.post(`${API_BASE}/projects/${projectId}/requirements/generate-ai`, body);
+    return data;
+  },
+
+  generateStrategyWithAI: async (projectId: string, requirementId: string, body: { providerId: string; previewOnly?: boolean }): Promise<any> => {
+    const { data } = await axios.post(`${API_BASE}/projects/${projectId}/requirements/${requirementId}/strategy-ai`, body);
+    return data;
+  },
+
+  generateDesignWithAI: async (projectId: string, requirementId: string, body: { providerId: string; previewOnly?: boolean }): Promise<any> => {
+    const { data } = await axios.post(`${API_BASE}/projects/${projectId}/requirements/${requirementId}/designs-ai`, body);
+    return data;
+  },
+
+  generateAssertionsWithAI: async (projectId: string, testDesignId: string, body: { providerId: string; previewOnly?: boolean }): Promise<any> => {
+    const { data } = await axios.post(`${API_BASE}/projects/${projectId}/test-designs/${testDesignId}/assertions-ai`, body);
+    return data;
+  },
+
+  generateExecutionPlanWithAI: async (projectId: string, requirementId: string, body: { providerId: string; previewOnly?: boolean }): Promise<any> => {
+    const { data } = await axios.post(`${API_BASE}/projects/${projectId}/requirements/${requirementId}/execution-plans-ai`, body);
+    return data;
+  },
+
   validateReadiness: async (projectId: string, requirementId: string): Promise<ValidationReport> => {
     const { data } = await axios.get(`${API_BASE}/projects/${projectId}/requirements/${requirementId}/validate`);
     return data.data;

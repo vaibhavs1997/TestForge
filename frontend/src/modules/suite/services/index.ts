@@ -43,6 +43,11 @@ export const suiteService = {
     const { data } = await axios.put(`${API_BASE}/projects/${projectId}/suites/${suiteId}/execution-plans/reorder`, { orderedPlanIds });
     return data.data;
   },
+
+  generateSuiteWithAI: async (projectId: string, body: { providerId: string; previewOnly?: boolean }): Promise<any> => {
+    const { data } = await axios.post(`${API_BASE}/projects/${projectId}/suites/generate-ai`, body);
+    return data;
+  },
 };
 
 export default suiteService;

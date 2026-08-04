@@ -1,4 +1,5 @@
 // CreateColumn - Application Use Case
+import { randomUUID } from 'node:crypto';
 import { ColumnRepository } from '../../domain/test-data/ColumnRepository';
 import { ColumnEntity } from '../../domain/test-data/ColumnEntity';
 
@@ -30,7 +31,7 @@ export class CreateColumn {
 
     const now = Date.now();
     const column = new ColumnEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       params.datasetId,
       params.name.trim(),
       params.displayName.trim(),

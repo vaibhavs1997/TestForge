@@ -2,7 +2,7 @@
 // All adapters extend BaseAIProviderAdapter and provide deterministic placeholder responses.
 // NO external API calls are made.
 
-import { AIProviderType } from '../../../domain/ai-provider';
+import type { AIProviderType } from '../../../domain/ai-provider';
 import { BaseAIProviderAdapter } from './BaseAIProviderAdapter';
 
 export class OpenAIAdapter extends BaseAIProviderAdapter {

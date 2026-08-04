@@ -135,10 +135,11 @@ export class ApiController {
 
   async createOperation(req: Request, res: Response): Promise<void> {
     try {
-      const { serviceId } = req.params;
+      const { projectId, serviceId } = req.params;
       const { name, method, path, description, authenticationType, status } = req.body;
 
       const operation = await this.createApiOperation.execute({
+        projectId,
         serviceId,
         name,
         method,

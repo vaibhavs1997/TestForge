@@ -1,4 +1,5 @@
 // CreateApiService - Application Use Case
+import { randomUUID } from 'node:crypto';
 import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity';
 import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
 
@@ -23,7 +24,7 @@ export class CreateApiService {
 
     const now = Date.now();
     const service = new ApiServiceEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       params.projectId,
       params.name.trim(),
       params.description?.trim() || '',

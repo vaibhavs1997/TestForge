@@ -1,9 +1,13 @@
 // TestSuiteController - Controller for Test Suite Management endpoints
 import { Request, Response } from 'express';
 import { ManageTestSuites } from '../../application/suite/ManageTestSuites';
+import { GenerateTestSuiteWithAI } from '../../application/suite/GenerateTestSuiteWithAI';
 
 export class TestSuiteController {
-  constructor(private readonly manageTestSuites: ManageTestSuites) {}
+  constructor(
+    private readonly manageTestSuites: ManageTestSuites,
+    private readonly generateTestSuiteWithAI: GenerateTestSuiteWithAI
+  ) {}
 
   async listSuites(req: Request, res: Response): Promise<void> {
     try {
@@ -121,6 +125,36 @@ export class TestSuiteController {
       res.status(200).json({ success: true, data: suite });
     } catch (error: any) {
       if (error.message.includes('not found')) {
+        res.status(404).json({ success: false, message: error.message, details: null });
+      } else {
+        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      }
+    }
+  }
+
+  async generateWithAI(req: Request, res: Response): Promise<void> {
+    try {
+      const { projectId } = req.params;
+      const { providerId, previewOnly } = req.body;
+
+      if (!providerId) {
+        res.status(400).json({ success: false, message: 'providerId is required', details: null });
+        return;
+      }
+
+      const result = await this.generateTestSuiteWithAI.execute({
+        projectId,
+        providerId,
+        previewOnly: !!previewOnly,
+      });
+
+      res.status(200).json({
+        success: true,
+        data: result,
+        warnings: result.warnings,
+      });
+    } catch (error: any) {
+      if (error.message.includes('not found') || error.message.includes('could not be resolved')) {
         res.status(404).json({ success: false, message: error.message, details: null });
       } else {
         res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });

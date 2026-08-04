@@ -69,6 +69,23 @@ export class PipelineService {
 
     return response.json();
   }
+
+  async runAIPipeline(projectId: string, body: { providerId: string; autoApprove?: boolean }): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/pipeline/ai`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => null);
+      throw new Error(err?.error || 'Failed to run AI pipeline');
+    }
+
+    return response.json();
+  }
 }
 
 export default new PipelineService();

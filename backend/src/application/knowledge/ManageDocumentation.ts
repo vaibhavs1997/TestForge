@@ -1,4 +1,5 @@
 // ManageDocumentation - Application Use Case for Documentation in Knowledge Hub
+import { randomUUID } from 'node:crypto';
 import { Documentation } from '../../domain/knowledge/DocumentationEntity';
 import { DocumentationRepository } from '../../domain/knowledge/DocumentationRepository';
 
@@ -13,7 +14,7 @@ export class ManageDocumentation {
     const now = Date.now();
     const doc: Documentation = {
       ...input,
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       title: input.title.trim(),
       content: input.content?.trim() || '',
       tags: input.tags?.map(t => t.trim()).filter(t => t.length > 0) || [],

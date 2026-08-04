@@ -2,6 +2,7 @@
 // Creates the testing strategy for every Approved Requirement.
 // Determines WHAT should be tested. Does NOT generate test cases.
 // Reuses Requirement, Project Analysis, Knowledge, APIs, and Readiness Report.
+import { randomUUID } from 'node:crypto';
 import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
 import { RequirementEntity } from '../../domain/requirements/RequirementEntity';
 import { AnalysisRepository } from '../../infrastructure/analysis/AnalysisRepository';
@@ -141,7 +142,7 @@ export class PlanTestStrategy {
       const reason = pattern.reasonTemplate;
 
       const item: StrategyItem = {
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         title,
         reason,
         relatedApis: [...relatedApis],
@@ -158,7 +159,7 @@ export class PlanTestStrategy {
 
     const now = Date.now();
     const strategy = new TestStrategyEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       requirementId,
       requirement.projectId,
       sections,

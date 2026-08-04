@@ -1,8 +1,8 @@
 // PluginRegistry - Central registry for plugin resolution
 // Allows modules to resolve plugins by category and capability.
 
-import { PluginEntity, PluginCategory, PluginCapability } from '../../domain/plugin';
-import { PluginRepository } from '../../domain/plugin';
+import { PluginEntity } from '../../domain/plugin';
+import type { PluginCategory, PluginCapability, PluginRepository } from '../../domain/plugin';
 
 export class PluginRegistry {
   constructor(private readonly pluginRepository: PluginRepository) {}

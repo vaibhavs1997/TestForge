@@ -1,4 +1,5 @@
 // CreateSchedule - Application Use Case for creating a scheduled execution
+import { randomUUID } from 'node:crypto';
 import { ScheduleEntity } from '../../domain/scheduler/ScheduleEntity';
 import type { ScheduleRepository } from '../../domain/scheduler/ScheduleRepository';
 import { TestSuiteRepository } from '../../domain/suite/TestSuiteRepository';
@@ -67,7 +68,7 @@ export class CreateSchedule {
     }
 
     const schedule = new ScheduleEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       input.projectId,
       input.name.trim(),
       input.description || '',

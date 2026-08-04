@@ -75,6 +75,23 @@ export const BUILTIN_TEMPLATES: BuiltinTemplateDef[] = [
     enabled: true,
   },
   {
+    id: 'tmpl-execution-001',
+    name: 'Execution Plan Template',
+    description: 'Generates ordered execution plans from approved test designs, preserving prerequisites, runtime bindings, and environment selection.',
+    category: 'Test Design',
+    systemPrompt:
+      'You are an execution plan specialist. Create a deterministic, ordered execution plan from the approved test designs, preserving execution order, dependencies (prerequisites), runtime variable mappings, and environment selection.',
+    userPrompt:
+      'Create an execution plan for requirement {{requirement}} using approved test designs:\n\nTest Designs: {{designs}}\nTest Strategy: {{strategy}}\nProject Context: {{context}}\n\nReturn a JSON object with a "plans" array. Each plan must have: testDesignId, executionOrder, prerequisiteDesignIds, operationId, environmentId, datasetId, requestTemplate (method, path, headers, queryParams, body), runtimeBindings, assertions, cleanupSteps, status (Pending|Ready|Disabled).',
+    variables: [
+      { name: 'requirement', description: 'The target requirement', required: true, sourcePath: 'requirements' },
+      { name: 'designs', description: 'Approved test designs', required: true, sourcePath: 'testDesigns' },
+      { name: 'strategy', description: 'Approved test strategy', required: false, sourcePath: 'testStrategies' },
+      { name: 'context', description: 'Full project context', required: false, sourcePath: 'statistics' },
+    ],
+    enabled: true,
+  },
+  {
     id: 'tmpl-assert-001',
     name: 'Assertion Generation Template',
     description: 'Generates assertions for HTTP status, headers, body, and JSONPath validations.',
@@ -88,6 +105,21 @@ export const BUILTIN_TEMPLATES: BuiltinTemplateDef[] = [
       { name: 'apiOperations', description: 'API operations', required: true, sourcePath: 'apiOperations' },
       { name: 'testStrategies', description: 'Test strategies', required: false, sourcePath: 'testStrategies' },
       { name: 'assertions', description: 'Existing assertions', required: false, sourcePath: 'assertions' },
+    ],
+    enabled: true,
+  },
+  {
+    id: 'tmpl-suite-001',
+    name: 'Test Suite Template',
+    description: 'Generates reusable test suites that group execution plans deterministically by requirement, priority, and API service.',
+    category: 'Test Data Generation',
+    systemPrompt:
+      'You are a test suite specialist. Create reusable test suites that group execution plans logically, preserving execution order within each suite and assigning sensible execution policies.',
+    userPrompt:
+      'Create test suites grouping the following execution plans:\n\nExecution Plans: {{executionPlans}}\nProject Context: {{context}}\n\nReturn a JSON object with a "suites" array. Each suite must have: name, description, tags (string[]), executionPlanIds (string[] referencing execution plan ids), defaultEnvironmentId, executionPolicy (Sequential|FailFast|ContinueOnError), estimatedDuration, status (Draft|Active|Archived).',
+    variables: [
+      { name: 'executionPlans', description: 'Project execution plans', required: true, sourcePath: 'executionPlans' },
+      { name: 'context', description: 'Full project context', required: false, sourcePath: 'statistics' },
     ],
     enabled: true,
   },

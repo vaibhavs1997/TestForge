@@ -1,4 +1,5 @@
 // DatasetRowRepository - File-based repository implementation for Dataset Rows
+import { randomUUID } from 'node:crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import { DatasetRowEntity } from '../../domain/test-data/DatasetRowEntity';
@@ -28,7 +29,7 @@ export class DatasetRowRepository {
     const now = Date.now();
     const newRow: DatasetRowEntity = {
       ...row,
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       createdAt: now,
       updatedAt: now,
     };

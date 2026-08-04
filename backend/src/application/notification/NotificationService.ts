@@ -1,9 +1,11 @@
 // NotificationService - Application Service for the Notification Module
 // Subscribes to Scheduler, Execution, and Report events and sends notifications.
 
+import { randomUUID } from 'node:crypto';
 import { EventBus, EventType, ModuleName } from '../../domain/events/EventBus';
-import { NotificationEntity, NotificationEventType } from '../../domain/notification/NotificationEntity';
-import { NotificationRepository } from '../../domain/notification/NotificationRepository';
+import { NotificationEntity } from '../../domain/notification/NotificationEntity';
+import type { NotificationEventType } from '../../domain/notification/NotificationEntity';
+import type { NotificationRepository } from '../../domain/notification/NotificationRepository';
 import { ProviderResolutionService } from '../../infrastructure/providers/ProviderResolutionService';
 import { ProviderEntity } from '../../domain/providers/ProviderEntity';
 import { PluginRegistry } from '../plugin/PluginRegistry';
@@ -122,7 +124,7 @@ export class NotificationService {
   async create(input: CreateNotificationInput): Promise<NotificationEntity> {
     const now = Date.now();
     const notification = new NotificationEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       input.projectId,
       input.name,
       input.eventType,

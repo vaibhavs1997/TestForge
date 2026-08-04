@@ -1,4 +1,5 @@
 // ManageRuntimeVariables - Application Use Case for Runtime Variables in Knowledge Hub
+import { randomUUID } from 'node:crypto';
 import { RuntimeVariable } from '../../domain/knowledge/RuntimeVariableEntity';
 import { RuntimeVariableRepository } from '../../domain/knowledge/RuntimeVariableRepository';
 
@@ -18,7 +19,7 @@ export class ManageRuntimeVariables {
     const now = Date.now();
     const variable: RuntimeVariable = {
       ...input,
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       name: input.name.trim(),
       description: input.description?.trim() || '',
       tags: input.tags?.map(t => t.trim()).filter(t => t.length > 0) || [],

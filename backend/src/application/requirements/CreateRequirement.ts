@@ -1,4 +1,5 @@
 // CreateRequirement - Application Use Case
+import { randomUUID } from 'node:crypto';
 import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
 import { RequirementEntity, RequirementSource, ReviewStatus, ApprovalStatus, AcceptanceCriterion } from '../../domain/requirements/RequirementEntity';
 
@@ -26,7 +27,7 @@ export class CreateRequirement {
 
     const now = Date.now();
     const requirement = new RequirementEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       params.projectId,
       params.title.trim(),
       params.description?.trim() || '',

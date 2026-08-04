@@ -1,5 +1,5 @@
 // Barrel export file for recommendation domain
-export {
+export type {
   RecommendationCategory,
   RecommendationPriority,
   RecommendationStatus,

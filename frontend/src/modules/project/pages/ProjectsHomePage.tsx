@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { projectStore } from '../../../store/projectStore';
+import { useToast } from '../../../hooks/useToast';
 
 // Shared constants
 
@@ -145,6 +146,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
     },
   ]);
   const navigate = useNavigate();
+  const { toast, showSuccess } = useToast();
   const setSelectedProjectId = projectStore((state) => state.setSelectedProjectId);
   const selectedProjectId = projectStore((state) => state.selectedProjectId);
 
@@ -271,6 +273,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
     // Close the modal and keep the user on the projects page so they can see
     // the newly created project. They can click on it to open it.
     setCreateModalOpen(false);
+    showSuccess(`Project "${data.projectName}" created successfully`);
   };
 
   const handleOpenProject = (project: Project) => {
@@ -298,6 +301,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
     logActivity(`Renamed project "${oldName}" to "${newName}"`, newName);
     setRenameOpen(false);
     setRenameProject(undefined);
+    showSuccess(`Project renamed to "${newName}" successfully`);
   };
 
   const handleDeleteProject = () => {
@@ -308,6 +312,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
     logActivity(`Deleted project "${deletedName}"`, deletedName);
     setDeleteOpen(false);
     setDeleteProject(undefined);
+    showSuccess(`Project "${deletedName}" deleted successfully`);
   };
 
   const handleArchiveProject = () => {
@@ -322,6 +327,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
     logActivity(`Archived project "${archivedName}"`, archivedName);
     setArchiveOpen(false);
     setArchiveProject(undefined);
+    showSuccess(`Project "${archivedName}" archived successfully`);
   };
 
   return (
@@ -499,6 +505,8 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
         onConfirm={handleArchiveProject}
         onCancel={() => { setArchiveOpen(false); setArchiveProject(undefined); }}
       />
+
+      {toast}
     </div>
   );
 };

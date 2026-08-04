@@ -1,9 +1,13 @@
 // UpdateApiService - Application Use Case
 import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity';
 import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
+import { EventPublisher } from '../EventPublisher';
 
 export class UpdateApiService {
-  constructor(private readonly apiServiceRepository: ApiServiceRepository) {}
+  constructor(
+    private readonly apiServiceRepository: ApiServiceRepository,
+    private readonly eventPublisher?: EventPublisher
+  ) {}
 
   async execute(params: {
     id: string;
@@ -34,7 +38,15 @@ export class UpdateApiService {
     if (params.version !== undefined) updateData.version = params.version.trim() || 'v1';
     if (params.tags !== undefined) updateData.tags = params.tags.map(t => t.trim()).filter(t => t.length > 0);
 
-    return this.apiServiceRepository.update(params.id, updateData);
+    const updated = await this.apiServiceRepository.update(params.id, updateData);
+
+    // Publish through central EventPublisher — triggers audit, versioning,
+    // cache invalidation, recommendation refresh, and pipeline refresh.
+    if (this.eventPublisher) {
+      await this.eventPublisher.updated('api', updated.id, updated.projectId, 'ApiService', existing as any, updated as any);
+    }
+
+    return updated;
   }
 }
 

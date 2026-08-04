@@ -2,10 +2,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { TestStrategyEntity } from '../../domain/requirements/TestStrategyEntity';
+import { EventPublisher } from '../../application/EventPublisher';
 
 const DATA_ROOT = path.join(process.cwd(), 'data', 'test-strategies');
 
 export class TestStrategyRepository {
+  constructor(private readonly eventPublisher?: EventPublisher) {}
+
   private getProjectDir(projectId: string): string {
     return path.join(DATA_ROOT, projectId);
   }
@@ -27,6 +30,12 @@ export class TestStrategyRepository {
     const items = await this.readStrategies(strategy.projectId);
     items.push(strategy);
     fs.writeFileSync(filePath, JSON.stringify(items, null, 2));
+
+    // Publish CREATED event through central EventPublisher
+    if (this.eventPublisher) {
+      await this.eventPublisher.created('strategy', strategy.id, strategy.projectId, 'TestStrategy', strategy as any);
+    }
+
     return strategy;
   }
 
@@ -36,10 +45,17 @@ export class TestStrategyRepository {
       const items = await this.readStrategies(projectId);
       const index = items.findIndex(s => s.id === id);
       if (index !== -1) {
+        const oldValue = items[index];
         const updated = { ...items[index], ...data, updatedAt: Date.now() };
         items[index] = updated;
         const filePath = this.getStrategyFilePath(projectId);
         fs.writeFileSync(filePath, JSON.stringify(items, null, 2));
+
+        // Publish UPDATED event through central EventPublisher
+        if (this.eventPublisher) {
+          await this.eventPublisher.updated('strategy', updated.id, updated.projectId, 'TestStrategy', oldValue as any, updated as any);
+        }
+
         return updated;
       }
     }
@@ -50,10 +66,17 @@ export class TestStrategyRepository {
     const projectIds = this.listProjectIds();
     for (const projectId of projectIds) {
       const items = await this.readStrategies(projectId);
-      const filtered = items.filter(s => s.id !== id);
-      if (filtered.length !== items.length) {
+      const strategy = items.find(s => s.id === id);
+      if (strategy) {
+        const filtered = items.filter(s => s.id !== id);
         const filePath = this.getStrategyFilePath(projectId);
         fs.writeFileSync(filePath, JSON.stringify(filtered, null, 2));
+
+        // Publish DELETED event through central EventPublisher
+        if (this.eventPublisher) {
+          await this.eventPublisher.deleted('strategy', strategy.id, strategy.projectId, 'TestStrategy', strategy as any);
+        }
+
         return;
       }
     }

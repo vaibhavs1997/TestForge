@@ -5,6 +5,8 @@ import { Button } from '../../../components/ui/Button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { TextInput } from '../../../components/forms/TextInput';
 import { Select } from '../../../components/forms/Select';
+import { useFormValidation } from '../../../hooks/useFormValidation';
+import { isDuplicateName, FormErrors } from '../../../utils/validation';
 
 export interface DatasetDialogData {
   id?: string;
@@ -36,7 +38,7 @@ export const DatasetDialog = ({ open, onClose, onSubmit, dataset, isSubmitting }
   const [name, setName] = React.useState('');
   const [description, setDescription] = React.useState('');
   const [category, setCategory] = React.useState('Custom');
-  const [errors, setErrors] = React.useState<Record<string, string>>({});
+  const [existingNames, setExistingNames] = React.useState<string[]>([]);
 
   React.useEffect(() => {
     if (open) {
@@ -49,25 +51,27 @@ export const DatasetDialog = ({ open, onClose, onSubmit, dataset, isSubmitting }
         setDescription('');
         setCategory('Custom');
       }
-      setErrors({});
     }
   }, [open, dataset]);
 
-  const validate = (): boolean => {
-    const newErrors: Record<string, string> = {};
+  const validate = React.useCallback((): FormErrors => {
+    const newErrors: FormErrors = {};
 
     if (!name.trim()) {
       newErrors.name = 'Dataset Name is required';
+    } else if (isDuplicateName(name, existingNames, dataset?.name)) {
+      newErrors.name = 'A dataset with this name already exists';
     }
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+    return newErrors;
+  }, [name, existingNames, dataset]);
+
+  const { errors, validateForm, clearError } = useFormValidation({ validate });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!validate()) {
+    if (!validateForm()) {
       return;
     }
 
@@ -98,7 +102,7 @@ export const DatasetDialog = ({ open, onClose, onSubmit, dataset, isSubmitting }
             <TextInput
               label='Dataset Name'
               value={name}
-              onChange={(e) => { setName(e.target.value); setErrors(prev => ({ ...prev, name: '' })); }}
+              onChange={(e) => { setName(e.target.value); clearError('name'); }}
               placeholder='e.g., Customer Data, Product Catalog'
               error={errors.name}
               required

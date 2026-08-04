@@ -4,10 +4,13 @@ import { randomUUID } from 'node:crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AssertionEntity } from '../../domain/assertion/AssertionEntity';
+import { EventPublisher } from '../../application/EventPublisher';
 
 const DATA_ROOT = path.join(process.cwd(), 'data', 'assertions');
 
 export class AssertionRepository {
+  constructor(private readonly eventPublisher?: EventPublisher) {}
+
   private getProjectDir(projectId: string): string {
     return path.join(DATA_ROOT, projectId);
   }
@@ -37,6 +40,12 @@ export class AssertionRepository {
     
     assertions.push(newAssertion);
     fs.writeFileSync(filePath, JSON.stringify(assertions, null, 2));
+
+    // Publish CREATED event through central EventPublisher
+    if (this.eventPublisher) {
+      await this.eventPublisher.created('assertion', newAssertion.id, newAssertion.projectId, 'Assertion', newAssertion as any);
+    }
+
     return newAssertion;
   }
 
@@ -46,6 +55,7 @@ export class AssertionRepository {
       const assertions = await this.readAssertions(projectId);
       const index = assertions.findIndex(a => a.id === id);
       if (index !== -1) {
+        const oldValue = assertions[index];
         const updated = { 
           ...assertions[index], 
           ...data, 
@@ -54,6 +64,12 @@ export class AssertionRepository {
         assertions[index] = updated;
         const filePath = this.getAssertionsFilePath(projectId);
         fs.writeFileSync(filePath, JSON.stringify(assertions, null, 2));
+
+        // Publish UPDATED event through central EventPublisher
+        if (this.eventPublisher) {
+          await this.eventPublisher.updated('assertion', updated.id, updated.projectId, 'Assertion', oldValue as any, updated as any);
+        }
+
         return updated;
       }
     }
@@ -64,10 +80,17 @@ export class AssertionRepository {
     const projectIds = this.listProjectIds();
     for (const projectId of projectIds) {
       const assertions = await this.readAssertions(projectId);
-      const filtered = assertions.filter(a => a.id !== id);
-      if (filtered.length !== assertions.length) {
+      const assertion = assertions.find(a => a.id === id);
+      if (assertion) {
+        const filtered = assertions.filter(a => a.id !== id);
         const filePath = this.getAssertionsFilePath(projectId);
         fs.writeFileSync(filePath, JSON.stringify(filtered, null, 2));
+
+        // Publish DELETED event through central EventPublisher
+        if (this.eventPublisher) {
+          await this.eventPublisher.deleted('assertion', assertion.id, assertion.projectId, 'Assertion', assertion as any);
+        }
+
         return;
       }
     }

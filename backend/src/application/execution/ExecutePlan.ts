@@ -24,7 +24,7 @@ import { IExecutionProfileRepository } from '../../domain/execution/ExecutionPro
 import { ExecutionProfileEntity } from '../../domain/execution/ExecutionProfileEntity';
 import { ProviderRepository } from '../../domain/providers/ProviderRepository';
 import { ProviderResolutionService } from '../../infrastructure/providers/ProviderResolutionService';
-import { EventBus } from '../../domain/events/EventBus';
+import { EventPublisher } from '../EventPublisher';
 
 export class ExecutePlan {
   private loadedProfile: ExecutionProfileEntity | null = null;
@@ -41,7 +41,7 @@ export class ExecutePlan {
     private readonly testDesignRepository: TestDesignRepository,
     private readonly assertionRepository: AssertionRepository,
     private readonly executionProfileRepository?: IExecutionProfileRepository,
-    private readonly eventBus?: EventBus
+    private readonly eventPublisher?: EventPublisher
   ) {
     // Initialize resolution service
     this.testDataResolutionService = new TestDataResolutionService(
@@ -311,17 +311,10 @@ export class ExecutePlan {
 
     const result = await this.executionRunRepository.update(persistedRun.id, updatedRun);
 
-    // Publish event for NotificationService
-    if (this.eventBus) {
-      const eventType = finalStatus === 'Completed' ? 'COMPLETED' : 'FAILED';
-      await this.eventBus.publish({
-        type: eventType,
-        module: 'execution',
-        entityId: result.id,
-        projectId: result.projectId,
-        timestamp: Date.now(),
-        payload: { status: finalStatus },
-      });
+    // Publish through central EventPublisher — triggers audit, notification,
+    // cache invalidation, recommendation refresh, and pipeline refresh.
+    if (this.eventPublisher) {
+      await this.eventPublisher.executed('execution', result.id, result.projectId, 'ExecutionRun', finalStatus);
     }
 
     return result;

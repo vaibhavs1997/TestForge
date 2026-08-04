@@ -1,23 +1,19 @@
 // ImportRoutes - Route definitions for Dataset Import
 import { Router } from 'express';
 import { ImportController } from './ImportController';
-import { ImportDatasetData } from '../../application/test-data/ImportDatasetData';
-import { DatasetRepository } from '../../domain/test-data/DatasetRepository';
-import { ColumnRepository } from '../../domain/test-data/ColumnRepository';
-import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowRepository';
-import { IRelationshipRepository } from '../../domain/test-data/RelationshipRepository';
+import { container } from '../../application/ApplicationContainer';
 
-// Initialize repositories
-import { DatasetRepository as DatasetRepositoryImpl } from '../../infrastructure/test-data/DatasetRepository';
-import { ColumnRepository as ColumnRepositoryImpl } from '../../infrastructure/test-data/ColumnRepository';
-import { RelationshipRepository as RelationshipRepositoryImpl } from '../../infrastructure/test-data/RelationshipRepository';
-
-const datasetRepository = new DatasetRepositoryImpl();
-const columnRepository = new ColumnRepositoryImpl();
-const datasetRowRepository = new DatasetRowRepository();
-const relationshipRepository = new RelationshipRepositoryImpl();
+// Reuse shared repositories from the ApplicationContainer
+const {
+  datasetRepository,
+  columnRepository,
+  datasetRowRepository,
+  relationshipRepository,
+} = container;
 
 // Initialize use case
+import { ImportDatasetData } from '../../application/test-data/ImportDatasetData';
+
 const importDatasetData = new ImportDatasetData(
   datasetRepository,
   columnRepository,

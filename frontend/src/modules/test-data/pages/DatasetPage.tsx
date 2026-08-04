@@ -36,6 +36,7 @@ import type { ColumnSuggestion } from '../services/columnService';
 import { rowService } from '../services/rowService';
 import { relationshipService } from '../services/relationshipService';
 import { Check, X as XIcon, ArrowUp, ArrowDown, Plus as PlusIcon, Upload, FileSpreadsheet, FileJson } from 'lucide-react';
+import { logger } from '../../../utils/logger';
 
 // Types
 interface Dataset {
@@ -59,75 +60,6 @@ interface Dataset {
 
 type ViewMode = 'card' | 'table';
 type NavSection = 'datasets' | 'datasources' | 'generators' | 'providers' | 'relationships';
-
-// Mock Data
-const MOCK_DATASETS: Dataset[] = [
-  {
-    id: '1',
-    projectId: '1',
-    name: 'Users',
-    description: 'User accounts, profiles, and authentication data',
-    category: 'User',
-    rows: 15420,
-    columns: 24,
-    relationships: 3,
-    lastUpdated: '2 hours ago',
-    created: '2024-01-15',
-    usedBy: { requirements: 12, suites: 8, apis: 5, knowledge: 3 },
-  },
-  {
-    id: '2',
-    projectId: '1',
-    name: 'Customers',
-    description: 'Customer information and contact details',
-    category: 'Customer',
-    rows: 8930,
-    columns: 18,
-    relationships: 2,
-    lastUpdated: '5 hours ago',
-    created: '2024-01-10',
-    usedBy: { requirements: 8, suites: 5, apis: 3, knowledge: 2 },
-  },
-  {
-    id: '3',
-    projectId: '1',
-    name: 'Products',
-    description: 'Product catalog with pricing and inventory',
-    category: 'Product',
-    rows: 3420,
-    columns: 32,
-    relationships: 4,
-    lastUpdated: '1 day ago',
-    created: '2024-01-08',
-    usedBy: { requirements: 15, suites: 10, apis: 7, knowledge: 4 },
-  },
-  {
-    id: '4',
-    projectId: '1',
-    name: 'Orders',
-    description: 'Customer orders and transaction history',
-    category: 'Order',
-    rows: 45680,
-    columns: 28,
-    relationships: 5,
-    lastUpdated: '3 days ago',
-    created: '2024-01-05',
-    usedBy: { requirements: 20, suites: 12, apis: 8, knowledge: 5 },
-  },
-  {
-    id: '5',
-    projectId: '1',
-    name: 'Payments',
-    description: 'Payment methods and transaction records',
-    category: 'Payment',
-    rows: 28950,
-    columns: 22,
-    relationships: 3,
-    lastUpdated: '1 week ago',
-    created: '2024-01-01',
-    usedBy: { requirements: 10, suites: 6, apis: 4, knowledge: 2 },
-  },
-];
 
 const CATEGORY_OPTIONS = ['General', 'Customer', 'Product', 'Order', 'Payment', 'User', 'Custom'];
 
@@ -165,9 +97,32 @@ export const TestDataLibraryPage = () => {
   const [isImporting, setIsImporting] = React.useState(false);
   const [relationshipDialogOpen, setRelationshipDialogOpen] = React.useState(false);
   const [relationships, setRelationships] = React.useState<any[]>([]);
+  const [datasets, setDatasets] = React.useState<Dataset[]>([]);
+  const [isLoadingDatasets, setIsLoadingDatasets] = React.useState(true);
+  const [datasetsError, setDatasetsError] = React.useState<string | null>(null);
 
-  // Mock CRUD operations
-  const [datasets, setDatasets] = React.useState<Dataset[]>(MOCK_DATASETS);
+  // Load datasets on mount
+  React.useEffect(() => {
+    const loadDatasets = async () => {
+      try {
+        setIsLoadingDatasets(true);
+        setDatasetsError(null);
+        // TODO: Replace with real API call
+        // const data = await datasetService.listDatasets(projectId);
+        // setDatasets(data);
+        
+        // For now, show empty state - no mock data
+        setDatasets([]);
+      } catch (err) {
+        setDatasetsError(err instanceof Error ? err.message : 'Failed to load datasets');
+        logger.error('Failed to load datasets', err);
+      } finally {
+        setIsLoadingDatasets(false);
+      }
+    };
+
+    loadDatasets();
+  }, []);
 
   const filteredDatasets = React.useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -320,6 +275,7 @@ export const TestDataLibraryPage = () => {
         );
         setImportResult(result);
       } catch (error) {
+        logger.error('Dataset import failed', error);
         setToastMessage('Import failed');
         setToastOpen(true);
       } finally {
@@ -737,23 +693,13 @@ export const TestDataLibraryPage = () => {
 
                     {/* Data Tab - Spreadsheet Row Editor */}
                     {activeTab === 'Data' && (
-                      <DataTabContent
-                        projectId={selectedDataset.projectId}
-                        datasetId={selectedDataset.id}
-                        columns={MOCK_STRUCTURE_COLUMNS.map((col) => ({
-                          id: col.id,
-                          datasetId: col.datasetId,
-                          name: col.name,
-                          displayName: col.displayName,
-                          dataType: col.dataType,
-                          required: col.required,
-                          unique: col.unique,
-                          nullable: col.nullable,
-                          description: col.description,
-                        }))}
-                        setToastMessage={setToastMessage}
-                        setToastOpen={setToastOpen}
-                      />
+                      <Card>
+                        <CardContent className='flex flex-col items-center justify-center py-12'>
+                          <Database className='mb-4 h-12 w-12 text-text-secondary' />
+                          <p className='mb-2 text-sm font-medium text-text'>Data editor coming soon</p>
+                          <p className='text-xs text-text-secondary'>Connect to backend API to enable spreadsheet editing.</p>
+                        </CardContent>
+                      </Card>
                     )}
 
                     {/* Other Tabs - Empty States */}
@@ -1056,22 +1002,7 @@ interface StructureTabContentProps {
   setToastOpen: (v: boolean) => void;
 }
 
-// Mock structure columns with population strategies merged in
-const MOCK_STRUCTURE_COLUMNS: ColumnProfileData[] = [
-  { id: '1', datasetId: '1', name: 'email', displayName: 'Email', dataType: 'Email', required: true, unique: true, nullable: false, description: 'User email address', strategyType: 'Existing Dataset', strategyConfig: { datasetId: '1', column: 'email' } },
-  { id: '2', datasetId: '1', name: 'password', displayName: 'Password', dataType: 'Text', required: true, unique: false, nullable: false, description: 'User password', strategyType: 'Existing Dataset', strategyConfig: { datasetId: '1', column: 'password' } },
-  { id: '3', datasetId: '1', name: 'status', displayName: 'Status', dataType: 'Text', required: false, unique: false, nullable: true, description: 'Account status', strategyType: 'Static Value', strategyConfig: { value: 'Active' } },
-  { id: '4', datasetId: '1', name: 'createdAt', displayName: 'Created At', dataType: 'Date', required: false, unique: false, nullable: false, description: 'Account creation date', strategyType: 'Generator', strategyConfig: { generator: 'Current Date' } },
-];
-
-// Mock AI suggestions - reuse the existing ColumnSuggestion type from columnService
-const MOCK_SUGGESTIONS: ColumnSuggestion[] = [
-  { name: 'email', displayName: 'Email', dataType: 'Email', required: true, unique: true, nullable: false, description: 'User email address', usedBy: ['POST /login', 'POST /register'] },
-  { name: 'password', displayName: 'Password', dataType: 'Text', required: true, unique: false, nullable: false, description: 'User password', usedBy: ['POST /login'] },
-  { name: 'firstName', displayName: 'First Name', dataType: 'Text', required: true, unique: false, nullable: false, description: 'User first name', usedBy: ['POST /register'] },
-  { name: 'lastName', displayName: 'Last Name', dataType: 'Text', required: true, unique: false, nullable: false, description: 'User last name', usedBy: ['POST /register'] },
-  { name: 'phoneNumber', displayName: 'Phone Number', dataType: 'Phone', required: false, unique: false, nullable: true, description: 'User phone number', usedBy: ['POST /register'] },
-];
+// Mock data removed - connect to real API endpoints
 
 const STRATEGY_COLORS: Record<string, 'default' | 'secondary' | 'outline' | 'destructive'> = {
   'Manual': 'outline',
@@ -1090,8 +1021,7 @@ const getStrategyDisplay = (column: ColumnProfileData): string => {
     case 'Existing Dataset': {
       const dsId = column.strategyConfig?.datasetId || '';
       const col = column.strategyConfig?.column || '';
-      const dsName = dsId === '1' ? 'Users' : dsId === '2' ? 'Customers' : dsId === '3' ? 'Products' : dsId === '4' ? 'Orders' : dsId === '5' ? 'Payments' : dsId || '—';
-      return `${dsName}.${col}`;
+      return `${dsId}.${col}`;
     }
     case 'Generator':
       return column.strategyConfig?.generator || '—';
@@ -1123,7 +1053,33 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
   setToastMessage,
   setToastOpen,
 }) => {
-  const [columns, setColumns] = React.useState<ColumnProfileData[]>(MOCK_STRUCTURE_COLUMNS);
+  const [columns, setColumns] = React.useState<ColumnProfileData[]>([]);
+  const [isLoadingColumns, setIsLoadingColumns] = React.useState(false);
+  const [columnsError, setColumnsError] = React.useState<string | null>(null);
+
+  // Load columns on mount
+  React.useEffect(() => {
+    const loadColumns = async () => {
+      try {
+        setIsLoadingColumns(true);
+        setColumnsError(null);
+        // TODO: Replace with real API call
+        // const data = await columnService.listColumns(dataset.id);
+        // setColumns(data);
+        
+        // For now, show empty state - no mock data
+        setColumns([]);
+      } catch (err) {
+        setColumnsError(err instanceof Error ? err.message : 'Failed to load columns');
+        logger.error('Failed to load columns', err);
+      } finally {
+        setIsLoadingColumns(false);
+      }
+    };
+
+    loadColumns();
+  }, [dataset.id]);
+
 
   const filteredColumns = React.useMemo(() => {
     const term = structureSearch.trim().toLowerCase();
@@ -1164,60 +1120,21 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
     setColumns(newColumns);
   };
 
-  const activeSuggestions = MOCK_SUGGESTIONS.filter((s) => !rejectedSuggestions.has(s.name));
+  const activeSuggestions: ColumnSuggestion[] = [];
 
   const handleAcceptAllSuggestions = () => {
-    const toAdd = activeSuggestions
-      .filter((s) => !columns.some((c) => c.name.toLowerCase() === s.name.toLowerCase()))
-      .map((s) => ({
-        id: Date.now().toString() + Math.random(),
-        datasetId: dataset.id,
-        name: s.name,
-        displayName: s.displayName,
-        dataType: s.dataType,
-        required: s.required,
-        unique: s.unique,
-        nullable: s.nullable,
-        description: s.description,
-        strategyType: 'Manual' as const,
-        strategyConfig: {},
-      }));
-    if (toAdd.length > 0) {
-      setColumns([...columns, ...toAdd]);
-    }
-    setShowSuggestions(false);
-    setSelectedSuggestionIds(new Set());
-    setToastMessage(toAdd.length > 0 ? `${toAdd.length} columns added from suggestions` : 'All suggestions already added');
+    // TODO: Load suggestions from API
+    setToastMessage('No suggestions available');
     setToastOpen(true);
   };
 
   const handleAcceptSelectedSuggestions = () => {
-    const toAdd = activeSuggestions
-      .filter((s) => selectedSuggestionIds.has(s.name) && !columns.some((c) => c.name.toLowerCase() === s.name.toLowerCase()))
-      .map((s) => ({
-        id: Date.now().toString() + Math.random(),
-        datasetId: dataset.id,
-        name: s.name,
-        displayName: s.displayName,
-        dataType: s.dataType,
-        required: s.required,
-        unique: s.unique,
-        nullable: s.nullable,
-        description: s.description,
-        strategyType: 'Manual' as const,
-        strategyConfig: {},
-      }));
-    if (toAdd.length > 0) {
-      setColumns([...columns, ...toAdd]);
-    }
-    setShowSuggestions(false);
-    setSelectedSuggestionIds(new Set());
-    setToastMessage(toAdd.length > 0 ? `${toAdd.length} columns added from suggestions` : 'Select columns to add');
+    // TODO: Load suggestions from API
+    setToastMessage('No suggestions available');
     setToastOpen(true);
   };
 
   const handleSkipSuggestions = () => {
-    setRejectedSuggestions(new Set([...rejectedSuggestions, ...activeSuggestions.map((s) => s.name)]));
     setShowSuggestions(false);
     setSelectedSuggestionIds(new Set());
     setToastMessage('Suggestions skipped');
@@ -1235,7 +1152,6 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
   };
 
   const handleRejectSuggestion = (name: string) => {
-    setRejectedSuggestions(new Set([...rejectedSuggestions, name]));
     const next = new Set(selectedSuggestionIds);
     next.delete(name);
     setSelectedSuggestionIds(next);

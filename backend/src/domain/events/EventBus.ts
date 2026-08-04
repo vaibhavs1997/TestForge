@@ -1,7 +1,7 @@
 // EventBus - Platform-wide event orchestration system
 // Coordinates cache invalidation and dependent module refreshes
 
-export type ModuleName = 
+export type ModuleName =
   | 'api'
   | 'environment'
   | 'dataset'
@@ -14,9 +14,18 @@ export type ModuleName =
   | 'pipeline'
   | 'recommendation'
   | 'scheduler'
-  | 'report';
+  | 'report'
+  | 'assertion'
+  | 'suite'
+  | 'plugin'
+  | 'provider'
+  | 'ai'
+  | 'version'
+  | 'audit'
+  | 'notification'
+  | 'prompt';
 
-export type EventType = 
+export type EventType =
   | 'IMPORTED'
   | 'UPDATED'
   | 'DELETED'
@@ -25,7 +34,10 @@ export type EventType =
   | 'GENERATED'
   | 'INVALIDATED'
   | 'COMPLETED'
-  | 'FAILED';
+  | 'FAILED'
+  | 'RESTORED'
+  | 'ENABLED'
+  | 'DISABLED';
 
 export interface DomainEvent {
   type: EventType;
@@ -52,7 +64,7 @@ export class EventBus {
   async publish(event: DomainEvent): Promise<void> {
     const key = this.getKey(event.type, event.module);
     const handlers = this.handlers.get(key) || [];
-    
+
     for (const handler of handlers) {
       await handler(event);
     }

@@ -3,8 +3,16 @@ import { Router } from 'express';
 import multer from 'multer';
 import type { FileFilterCallback } from 'multer';
 import { ApiController } from './ApiController';
-import { ApiServiceRepository } from '../../infrastructure/api/ApiServiceRepository';
-import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
+import { container } from '../../application/ApplicationContainer';
+
+// Reuse shared repositories from the ApplicationContainer
+const {
+  apiServiceRepository,
+  apiOperationRepository,
+  eventPublisher,
+} = container;
+
+// Initialize use cases
 import { CreateApiService } from '../../application/api/CreateApiService';
 import { UpdateApiService } from '../../application/api/UpdateApiService';
 import { DeleteApiService } from '../../application/api/DeleteApiService';
@@ -17,14 +25,9 @@ import { GetApiOperation } from '../../application/api/GetApiOperation';
 import { ListApiOperations } from '../../application/api/ListApiOperations';
 import { ImportApiContract } from '../../application/api/ImportApiContract';
 
-// Initialize repositories
-const apiServiceRepository = new ApiServiceRepository();
-const apiOperationRepository = new ApiOperationRepository();
-
-// Initialize use cases
-const createApiService = new CreateApiService(apiServiceRepository);
-const updateApiService = new UpdateApiService(apiServiceRepository);
-const deleteApiService = new DeleteApiService(apiServiceRepository);
+const createApiService = new CreateApiService(apiServiceRepository, eventPublisher);
+const updateApiService = new UpdateApiService(apiServiceRepository, eventPublisher);
+const deleteApiService = new DeleteApiService(apiServiceRepository, eventPublisher);
 const getApiService = new GetApiService(apiServiceRepository);
 const listApiServices = new ListApiServices(apiServiceRepository);
 const createApiOperation = new CreateApiOperation(apiOperationRepository, apiServiceRepository);

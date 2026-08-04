@@ -1,11 +1,18 @@
 // AnalysisRoutes - Route definitions for AI Project Analysis
 import { Router } from 'express';
 import { AnalysisController } from './AnalysisController';
-import { AnalysisRepository } from '../../infrastructure/analysis/AnalysisRepository';
-import { ApiServiceRepository } from '../../infrastructure/api/ApiServiceRepository';
-import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
-import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository';
-import { DatasetRepository } from '../../infrastructure/test-data/DatasetRepository';
+import { container } from '../../application/ApplicationContainer';
+
+// Reuse shared repositories and use cases from the ApplicationContainer
+const {
+  analysisRepository,
+  apiServiceRepository,
+  apiOperationRepository,
+  knowledgeFlowRepository,
+  datasetRepository,
+} = container;
+
+// Initialize use cases
 import { CreateAnalysis } from '../../application/analysis/CreateAnalysis';
 import { UpdateAnalysis } from '../../application/analysis/UpdateAnalysis';
 import { DeleteAnalysis } from '../../application/analysis/DeleteAnalysis';
@@ -13,14 +20,6 @@ import { GetAnalysis } from '../../application/analysis/GetAnalysis';
 import { ListAnalysis } from '../../application/analysis/ListAnalysis';
 import { AnalyzeProject } from '../../application/analysis/AnalyzeProject';
 
-// Initialize repositories
-const analysisRepository = new AnalysisRepository();
-const apiServiceRepository = new ApiServiceRepository();
-const apiOperationRepository = new ApiOperationRepository();
-const knowledgeFlowRepository = new KnowledgeFlowRepository();
-const datasetRepository = new DatasetRepository();
-
-// Initialize use cases
 const createAnalysis = new CreateAnalysis(analysisRepository);
 const updateAnalysis = new UpdateAnalysis(analysisRepository);
 const deleteAnalysis = new DeleteAnalysis(analysisRepository);

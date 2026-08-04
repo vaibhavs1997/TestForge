@@ -5,7 +5,7 @@ import type { ScheduleRepository } from '../../domain/scheduler/ScheduleReposito
 import { TestSuiteRepository } from '../../domain/suite/TestSuiteRepository';
 import { ExecutePlan } from '../execution/ExecutePlan';
 import { CronExpression } from './CronExpression';
-import { EventBus } from '../../domain/events/EventBus';
+import { EventPublisher } from '../EventPublisher';
 
 export class SchedulerService {
   private runningSchedules: Set<string> = new Set();
@@ -15,7 +15,7 @@ export class SchedulerService {
     private readonly scheduleRepository: ScheduleRepository,
     private readonly suiteRepository: TestSuiteRepository,
     private readonly executePlan: ExecutePlan,
-    private readonly eventBus: EventBus
+    private readonly eventPublisher: EventPublisher
   ) {}
 
   /**
@@ -146,16 +146,9 @@ export class SchedulerService {
         lastStatus: overallStatus,
       });
 
-      // Publish event for NotificationService
-      const eventType = overallStatus === 'passed' ? 'COMPLETED' : 'FAILED';
-      await this.eventBus.publish({
-        type: eventType,
-        module: 'scheduler' as any,
-        entityId: schedule.id,
-        projectId: schedule.projectId,
-        timestamp: Date.now(),
-        payload: { status: overallStatus },
-      });
+      // Publish through central EventPublisher — triggers audit, notification,
+      // cache invalidation, recommendation refresh, and pipeline refresh.
+      await this.eventPublisher.executed('scheduler', schedule.id, schedule.projectId, 'Schedule', overallStatus);
     } finally {
       this.runningSchedules.delete(schedule.id);
     }

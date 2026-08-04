@@ -30,7 +30,10 @@ export type AuditModule =
   | 'Notification'
   | 'Provider'
   | 'Version'
-  | 'Analysis';
+  | 'Analysis'
+  | 'Plugin'
+  | 'AI'
+  | 'AuditLog';
 
 export interface AuditMetadata {
   [key: string]: any;

@@ -5,6 +5,8 @@ import { Button } from '../../../components/ui/Button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { TextInput } from '../../../components/forms/TextInput';
 import { Select } from '../../../components/forms/Select';
+import { useFormValidation } from '../../../hooks/useFormValidation';
+import { validateUrl, isPositiveNumber, FormErrors } from '../../../utils/validation';
 
 export interface EnvironmentDialogData {
   id?: string;
@@ -56,7 +58,6 @@ export const EnvironmentDialog = ({ open, onClose, onSubmit, environment, isSubm
   const [scope, setScope] = React.useState('');
   const [timeout, setTimeout] = React.useState(30000);
   const [variables, setVariables] = React.useState<Record<string, string>>({});
-  const [errors, setErrors] = React.useState<Record<string, string>>({});
 
   React.useEffect(() => {
     if (open) {
@@ -89,7 +90,6 @@ export const EnvironmentDialog = ({ open, onClose, onSubmit, environment, isSubm
         setTimeout(30000);
         setVariables({});
       }
-      setErrors({});
     }
   }, [open, environment]);
 
@@ -116,20 +116,19 @@ export const EnvironmentDialog = ({ open, onClose, onSubmit, environment, isSubm
     });
   };
 
-  const validate = (): boolean => {
-    const newErrors: Record<string, string> = {};
+  const validate = React.useCallback((): FormErrors => {
+    const newErrors: FormErrors = {};
 
     if (!name.trim()) {
       newErrors.name = 'Name is required';
     }
 
-    if (!baseUrl.trim()) {
-      newErrors.baseUrl = 'Base URL is required';
-    } else if (!baseUrl.match(/^https?:\/\/.+/)) {
-      newErrors.baseUrl = 'Base URL must start with http:// or https://';
+    const urlResult = validateUrl(baseUrl, 'Base URL');
+    if (!urlResult.valid) {
+      newErrors.baseUrl = urlResult.message;
     }
 
-    if (timeout <= 0) {
+    if (!isPositiveNumber(timeout)) {
       newErrors.timeout = 'Timeout must be greater than 0';
     }
 
@@ -140,14 +139,15 @@ export const EnvironmentDialog = ({ open, onClose, onSubmit, environment, isSubm
       newErrors.variables = 'Variable keys must be unique';
     }
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+    return newErrors;
+  }, [name, baseUrl, timeout, variables]);
+
+  const { errors, validateForm, clearError } = useFormValidation({ validate });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!validate()) {
+    if (!validateForm()) {
       return;
     }
 
@@ -209,7 +209,7 @@ export const EnvironmentDialog = ({ open, onClose, onSubmit, environment, isSubm
                 <TextInput
                   label='Environment Name'
                   value={name}
-                  onChange={(e) => { setName(e.target.value); setErrors(prev => ({ ...prev, name: '' })); }}
+                  onChange={(e) => { setName(e.target.value); clearError('name'); }}
                   placeholder='e.g., Development, QA, Production'
                   error={errors.name}
                   required
@@ -230,7 +230,7 @@ export const EnvironmentDialog = ({ open, onClose, onSubmit, environment, isSubm
                 <TextInput
                   label='Base URL'
                   value={baseUrl}
-                  onChange={(e) => { setBaseUrl(e.target.value); setErrors(prev => ({ ...prev, baseUrl: '' })); }}
+                  onChange={(e) => { setBaseUrl(e.target.value); clearError('baseUrl'); }}
                   placeholder='https://api.example.com'
                   error={errors.baseUrl}
                   required
@@ -240,7 +240,7 @@ export const EnvironmentDialog = ({ open, onClose, onSubmit, environment, isSubm
                     label='Timeout (ms)'
                     type='number'
                     value={String(timeout)}
-                    onChange={(e) => { setTimeout(Number(e.target.value)); setErrors(prev => ({ ...prev, timeout: '' })); }}
+                    onChange={(e) => { setTimeout(Number(e.target.value)); clearError('timeout'); }}
                     error={errors.timeout}
                   />
                   <p className='mt-1 text-xs text-text-secondary'>Timeout must be greater than 0</p>

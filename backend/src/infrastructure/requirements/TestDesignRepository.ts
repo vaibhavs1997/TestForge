@@ -2,10 +2,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { TestDesignEntity } from '../../domain/requirements/TestDesignEntity';
+import { EventPublisher } from '../../application/EventPublisher';
 
 const DATA_ROOT = path.join(process.cwd(), 'data', 'test-designs');
 
 export class TestDesignRepository {
+  constructor(private readonly eventPublisher?: EventPublisher) {}
+
   private getProjectDir(projectId: string): string {
     return path.join(DATA_ROOT, projectId);
   }
@@ -27,6 +30,12 @@ export class TestDesignRepository {
     const items = await this.readDesigns(design.projectId);
     items.push(design);
     fs.writeFileSync(filePath, JSON.stringify(items, null, 2));
+
+    // Publish CREATED event through central EventPublisher
+    if (this.eventPublisher) {
+      await this.eventPublisher.created('design', design.id, design.projectId, 'TestDesign', design as any);
+    }
+
     return design;
   }
 
@@ -36,10 +45,17 @@ export class TestDesignRepository {
       const items = await this.readDesigns(projectId);
       const index = items.findIndex(d => d.id === id);
       if (index !== -1) {
+        const oldValue = items[index];
         const updated = { ...items[index], ...data, updatedAt: Date.now() };
         items[index] = updated;
         const filePath = this.getDesignsFilePath(projectId);
         fs.writeFileSync(filePath, JSON.stringify(items, null, 2));
+
+        // Publish UPDATED event through central EventPublisher
+        if (this.eventPublisher) {
+          await this.eventPublisher.updated('design', updated.id, updated.projectId, 'TestDesign', oldValue as any, updated as any);
+        }
+
         return updated;
       }
     }
@@ -50,10 +66,17 @@ export class TestDesignRepository {
     const projectIds = this.listProjectIds();
     for (const projectId of projectIds) {
       const items = await this.readDesigns(projectId);
-      const filtered = items.filter(d => d.id !== id);
-      if (filtered.length !== items.length) {
+      const design = items.find(d => d.id === id);
+      if (design) {
+        const filtered = items.filter(d => d.id !== id);
         const filePath = this.getDesignsFilePath(projectId);
         fs.writeFileSync(filePath, JSON.stringify(filtered, null, 2));
+
+        // Publish DELETED event through central EventPublisher
+        if (this.eventPublisher) {
+          await this.eventPublisher.deleted('design', design.id, design.projectId, 'TestDesign', design as any);
+        }
+
         return;
       }
     }

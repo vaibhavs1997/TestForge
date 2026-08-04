@@ -7,10 +7,13 @@ import { Badge } from '../../../components/ui/Badge';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { Toast } from '../../../components/shared/Toast';
+import { ErrorAlert } from '../../../components/shared/ErrorAlert';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
+import { isPositiveNumber, FormErrors } from '../../../utils/validation';
 import { Settings, Plus, Edit, Trash2, Copy, Check, X, Zap } from 'lucide-react';
 import { profileService } from '../services/profileService';
 import type { ExecutionProfile, CreateProfileInput } from '../types/profile';
+import { logger } from '../../../utils/logger';
 
 export const ExecutionProfilePage: React.FC = () => {
   const [profiles, setProfiles] = React.useState<ExecutionProfile[]>([]);
@@ -21,6 +24,8 @@ export const ExecutionProfilePage: React.FC = () => {
   const [toastOpen, setToastOpen] = React.useState(false);
   const [toastMessage, setToastMessage] = React.useState('');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
   // Load profiles on mount
   React.useEffect(() => {
@@ -29,11 +34,16 @@ export const ExecutionProfilePage: React.FC = () => {
 
   const loadProfiles = async () => {
     try {
+      setIsLoading(true);
+      setError(null);
       const data = await profileService.listByProject('1');
       setProfiles(data);
-    } catch (error) {
-      // Use mock data if API fails
-      setProfiles(MOCK_PROFILES);
+    } catch (err) {
+      logger.error('Failed to load execution profiles', err);
+      setError('Failed to load profiles');
+      setProfiles([]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -68,19 +78,9 @@ export const ExecutionProfilePage: React.FC = () => {
       setProfiles([...profiles, duplicated]);
       setToastMessage('Profile duplicated successfully');
       setToastOpen(true);
-    } catch (error) {
-      // Mock duplicate
-      const duplicated: ExecutionProfile = {
-        ...profile,
-        id: Date.now().toString(),
-        name: `${profile.name} Copy`,
-        isDefault: false,
-        enabled: true,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
-      setProfiles([...profiles, duplicated]);
-      setToastMessage('Profile duplicated successfully');
+    } catch (err) {
+      logger.error('Failed to duplicate profile', err);
+      setToastMessage('Failed to duplicate profile');
       setToastOpen(true);
     }
   };
@@ -91,10 +91,9 @@ export const ExecutionProfilePage: React.FC = () => {
       setProfiles(profiles.map(p => (p.id === profile.id ? updated : p)));
       setToastMessage(`Profile ${!profile.enabled ? 'enabled' : 'disabled'}`);
       setToastOpen(true);
-    } catch (error) {
-      // Mock toggle
-      setProfiles(profiles.map(p => (p.id === profile.id ? { ...p, enabled: !p.enabled } : p)));
-      setToastMessage(`Profile ${!profile.enabled ? 'enabled' : 'disabled'}`);
+    } catch (err) {
+      logger.error('Failed to toggle profile', err);
+      setToastMessage('Failed to update profile');
       setToastOpen(true);
     }
   };
@@ -105,10 +104,9 @@ export const ExecutionProfilePage: React.FC = () => {
       setProfiles(profiles.map(p => (p.id === profile.id ? updated : { ...p, isDefault: false })));
       setToastMessage('Default profile updated');
       setToastOpen(true);
-    } catch (error) {
-      // Mock set default
-      setProfiles(profiles.map(p => (p.id === profile.id ? { ...p, isDefault: true } : { ...p, isDefault: false })));
-      setToastMessage('Default profile updated');
+    } catch (err) {
+      logger.error('Failed to set default profile', err);
+      setToastMessage('Failed to set default profile');
       setToastOpen(true);
     }
   };
@@ -126,24 +124,9 @@ export const ExecutionProfilePage: React.FC = () => {
       setDialogOpen(false);
       setToastMessage(selectedProfile ? 'Profile updated successfully' : 'Profile created successfully');
       setToastOpen(true);
-    } catch (error) {
-      // Mock save
-      if (selectedProfile) {
-        setProfiles(profiles.map(p => (p.id === selectedProfile.id ? { ...p, ...input, updatedAt: Date.now() } : p)));
-      } else {
-        const newProfile: ExecutionProfile = {
-          ...input,
-          id: Date.now().toString(),
-          projectId: '1',
-          enabled: input.enabled ?? true,
-          isDefault: input.isDefault ?? false,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        };
-        setProfiles([...profiles, newProfile]);
-      }
-      setDialogOpen(false);
-      setToastMessage(selectedProfile ? 'Profile updated successfully' : 'Profile created successfully');
+    } catch (err) {
+      logger.error('Failed to save profile', err);
+      setToastMessage('Failed to save profile');
       setToastOpen(true);
     } finally {
       setIsSubmitting(false);
@@ -155,14 +138,42 @@ export const ExecutionProfilePage: React.FC = () => {
     try {
       await profileService.delete('1', selectedProfile.id);
       setProfiles(profiles.filter(p => p.id !== selectedProfile.id));
-    } catch (error) {
-      // Mock delete
-      setProfiles(profiles.filter(p => p.id !== selectedProfile.id));
+      setToastMessage('Profile deleted successfully');
+      setToastOpen(true);
+    } catch (err) {
+      logger.error('Failed to delete profile', err);
+      setToastMessage('Failed to delete profile');
+      setToastOpen(true);
+    } finally {
+      setDeleteOpen(false);
     }
-    setDeleteOpen(false);
-    setToastMessage('Profile deleted successfully');
-    setToastOpen(true);
   };
+
+  if (isLoading) {
+    return (
+      <div className='mx-auto max-w-7xl px-4 py-8'>
+        <div className='mb-6'>
+          <h1 className='text-2xl font-bold text-text'>Execution Profiles</h1>
+          <p className='mt-1 text-sm text-text-secondary'>Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && profiles.length === 0) {
+    return (
+      <div className='mx-auto max-w-7xl px-4 py-8'>
+        <div className='mb-6'>
+          <h1 className='text-2xl font-bold text-text'>Execution Profiles</h1>
+        </div>
+        <ErrorAlert
+          title='Failed to load execution profiles'
+          message={error}
+          onRetry={loadProfiles}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className='mx-auto max-w-7xl px-4 py-8'>
@@ -336,6 +347,7 @@ const ProfileDialog: React.FC<ProfileDialogProps> = ({ open, onClose, onSubmit, 
   });
 
   const [tagInput, setTagInput] = React.useState('');
+  const [formErrors, setFormErrors] = React.useState<FormErrors>({});
 
   React.useEffect(() => {
     if (profile) {
@@ -355,10 +367,30 @@ const ProfileDialog: React.FC<ProfileDialogProps> = ({ open, onClose, onSubmit, 
         isDefault: profile.isDefault,
       });
     }
+    setFormErrors({});
   }, [profile]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const newErrors: FormErrors = {};
+    if (!formData.name.trim()) {
+      newErrors.name = 'Name is required';
+    }
+    if (!isPositiveNumber(formData.timeout)) {
+      newErrors.timeout = 'Timeout must be greater than 0';
+    }
+    if (formData.retryPolicy.enabled) {
+      if (formData.retryPolicy.maxRetries < 0) {
+        newErrors.maxRetries = 'Max retries must be 0 or greater';
+      }
+      if (formData.retryPolicy.retryDelay < 0) {
+        newErrors.retryDelay = 'Retry delay must be 0 or greater';
+      }
+    }
+    setFormErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) {
+      return;
+    }
     onSubmit(formData);
   };
 
@@ -380,7 +412,7 @@ const ProfileDialog: React.FC<ProfileDialogProps> = ({ open, onClose, onSubmit, 
       <div className='w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg border border-border bg-background p-6 shadow-lg'>
         <div className='mb-4 flex items-center justify-between'>
           <h2 className='text-lg font-semibold'>{profile ? 'Edit Profile' : 'Create Profile'}</h2>
-          <Button variant='ghost' size='sm' onClick={onClose}>✕</Button>
+          <Button variant='ghost' size='sm' onClick={onClose} aria-label="Close">✕</Button>
         </div>
 
         <form onSubmit={handleSubmit} className='space-y-4'>
@@ -390,10 +422,12 @@ const ProfileDialog: React.FC<ProfileDialogProps> = ({ open, onClose, onSubmit, 
             <input
               type='text'
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className='w-full rounded-lg border border-border px-3 py-2 text-sm'
+              onChange={(e) => { setFormData({ ...formData, name: e.target.value }); setFormErrors(prev => ({ ...prev, name: undefined })); }}
+              className={`w-full rounded-lg border px-3 py-2 text-sm ${formErrors.name ? 'border-error' : 'border-border'}`}
               required
+              aria-invalid={formErrors.name ? 'true' : undefined}
             />
+            {formErrors.name && <p className='text-sm text-error' role='alert'>{formErrors.name}</p>}
           </div>
 
           {/* Description */}
@@ -426,9 +460,11 @@ const ProfileDialog: React.FC<ProfileDialogProps> = ({ open, onClose, onSubmit, 
             <input
               type='number'
               value={formData.timeout}
-              onChange={(e) => setFormData({ ...formData, timeout: Number(e.target.value) })}
-              className='w-full rounded-lg border border-border px-3 py-2 text-sm'
+              onChange={(e) => { setFormData({ ...formData, timeout: Number(e.target.value) }); setFormErrors(prev => ({ ...prev, timeout: undefined })); }}
+              className={`w-full rounded-lg border px-3 py-2 text-sm ${formErrors.timeout ? 'border-error' : 'border-border'}`}
+              aria-invalid={formErrors.timeout ? 'true' : undefined}
             />
+            {formErrors.timeout && <p className='text-sm text-error' role='alert'>{formErrors.timeout}</p>}
           </div>
 
           {/* Assertion Mode */}
@@ -507,22 +543,6 @@ const ProfileDialog: React.FC<ProfileDialogProps> = ({ open, onClose, onSubmit, 
             )}
           </div>
 
-          {/* Parallelism (Future) */}
-          <div className='space-y-2 border border-border rounded-lg p-3 opacity-60'>
-            <div className='flex items-center gap-2'>
-              <input
-                type='checkbox'
-                id='parallelismEnabled'
-                checked={formData.parallelism.enabled}
-                onChange={(e) => setFormData({ ...formData, parallelism: { ...formData.parallelism, enabled: e.target.checked } })}
-                className='h-4 w-4 rounded border-border'
-                disabled
-              />
-              <label htmlFor='parallelismEnabled' className='text-sm font-medium'>Parallelism (Future)</label>
-              <Badge variant='outline' className='text-xs'>Coming Soon</Badge>
-            </div>
-          </div>
-
           {/* Tags */}
           <div className='space-y-2'>
             <label className='text-xs font-medium text-text-secondary'>Tags</label>
@@ -572,47 +592,5 @@ const ProfileDialog: React.FC<ProfileDialogProps> = ({ open, onClose, onSubmit, 
     </div>
   );
 };
-
-// Mock data
-const MOCK_PROFILES: ExecutionProfile[] = [
-  {
-    id: '1',
-    projectId: '1',
-    name: 'Default Profile',
-    description: 'Standard execution profile with stop-on-failure mode',
-    defaultEnvironmentId: '1',
-    failureMode: 'StopOnFailure',
-    retryPolicy: { enabled: false, maxRetries: 3, retryDelay: 1000 },
-    timeout: 30000,
-    parallelism: { enabled: false, maxConcurrent: 1 },
-    assertionMode: 'all',
-    runtimeVariableReset: true,
-    datasetSelectionStrategy: 'first',
-    tags: ['standard', 'default'],
-    enabled: true,
-    isDefault: true,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: '2',
-    projectId: '1',
-    name: 'Smoke Test',
-    description: 'Quick smoke test profile with continue-on-failure',
-    defaultEnvironmentId: '1',
-    failureMode: 'ContinueOnFailure',
-    retryPolicy: { enabled: false, maxRetries: 0, retryDelay: 0 },
-    timeout: 10000,
-    parallelism: { enabled: false, maxConcurrent: 1 },
-    assertionMode: 'failFast',
-    runtimeVariableReset: true,
-    datasetSelectionStrategy: 'random',
-    tags: ['smoke', 'quick'],
-    enabled: true,
-    isDefault: false,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-];
 
 export default ExecutionProfilePage;

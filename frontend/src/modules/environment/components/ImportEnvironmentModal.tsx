@@ -5,6 +5,7 @@ import { Button } from '../../../components/ui/Button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { TextInput } from '../../../components/forms/TextInput';
 import { Select } from '../../../components/forms/Select';
+import { isValidUrl } from '../../../utils/validation';
 
 export interface ImportEnvironmentModalData {
   source: 'file' | 'url';
@@ -61,9 +62,15 @@ export const ImportEnvironmentModal = ({ open, onClose, onImport }: ImportEnviro
       return;
     }
 
-    if (source === 'url' && !url.trim()) {
-      setError('Please enter a URL to sync from');
-      return;
+    if (source === 'url') {
+      if (!url.trim()) {
+        setError('Please enter a URL to sync from');
+        return;
+      }
+      if (!isValidUrl(url.trim())) {
+        setError('Please enter a valid URL starting with http:// or https://');
+        return;
+      }
     }
 
     onImport({

@@ -7,7 +7,7 @@ import { ReportRepository } from '../../domain/report/ReportRepository';
 import { ExecutionRunRepository } from '../../domain/execution/ExecutionRunRepository';
 import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository';
 import { RecommendationEngine } from '../recommendation/RecommendationEngine';
-import { EventBus } from '../../domain/events/EventBus';
+import { EventPublisher } from '../EventPublisher';
 
 const REPORT_VERSION = '1.0.0';
 
@@ -29,7 +29,7 @@ export class GenerateReport {
     private readonly executionRunRepository: ExecutionRunRepository,
     private readonly environmentRepository: EnvironmentRepository,
     private readonly recommendationEngine: RecommendationEngine,
-    private readonly eventBus?: EventBus
+    private readonly eventPublisher?: EventPublisher
   ) {}
 
   async generate(executionRunId: string, suiteId?: string | null): Promise<ReportEntity> {
@@ -146,16 +146,10 @@ export class GenerateReport {
     // 11. Persist report
     const createdReport = await this.reportRepository.create(report);
 
-    // Publish event for NotificationService
-    if (this.eventBus) {
-      await this.eventBus.publish({
-        type: 'GENERATED',
-        module: 'recommendation',
-        entityId: createdReport.id,
-        projectId: createdReport.projectId,
-        timestamp: Date.now(),
-        payload: { reportId: createdReport.id },
-      });
+    // Publish through central EventPublisher — triggers audit, notification,
+    // cache invalidation, recommendation refresh, and pipeline refresh.
+    if (this.eventPublisher) {
+      await this.eventPublisher.generated('report', createdReport.id, createdReport.projectId, 'Report', createdReport as any);
     }
 
     return createdReport;

@@ -1,17 +1,18 @@
 // EnvironmentRoutes - Route definitions for Environment Management
 import { Router } from 'express';
 import { EnvironmentController } from './EnvironmentController';
-import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository';
+import { container } from '../../application/ApplicationContainer';
+
+// Reuse shared repository from the ApplicationContainer
+const { environmentRepository } = container;
+
+// Initialize use cases
 import { CreateEnvironment } from '../../application/environment/CreateEnvironment';
 import { UpdateEnvironment } from '../../application/environment/UpdateEnvironment';
 import { DeleteEnvironment } from '../../application/environment/DeleteEnvironment';
 import { GetEnvironment } from '../../application/environment/GetEnvironment';
 import { ListEnvironments } from '../../application/environment/ListEnvironments';
 
-// Initialize repositories
-const environmentRepository = new EnvironmentRepository();
-
-// Initialize use cases
 const createEnvironment = new CreateEnvironment(environmentRepository);
 const updateEnvironment = new UpdateEnvironment(environmentRepository);
 const deleteEnvironment = new DeleteEnvironment(environmentRepository);

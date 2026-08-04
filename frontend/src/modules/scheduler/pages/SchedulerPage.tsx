@@ -15,6 +15,8 @@ import { useSuites } from '../../suite/hooks';
 import { useEnvironments } from '../../environment/hooks/useEnvironments';
 import { profileService } from '../../execution/services/profileService';
 import { projectStore } from '../../../store/projectStore';
+import { useFormValidation } from '../../../hooks/useFormValidation';
+import { validateCron, FormErrors } from '../../../utils/validation';
 import type { Schedule, ScheduleFormData, ScheduleStatus } from '../types';
 import type { TestSuite } from '../../suite/types';
 import type { ExecutionProfile } from '../../execution/types/profile';
@@ -74,6 +76,7 @@ export const SchedulerPage: React.FC = () => {
   const [formTimezone, setFormTimezone] = React.useState('UTC');
   const [formEnabled, setFormEnabled] = React.useState(true);
   const [formError, setFormError] = React.useState('');
+  const [formErrors, setFormErrors] = React.useState<FormErrors>({});
 
   // Load profiles
   React.useEffect(() => {
@@ -147,6 +150,7 @@ export const SchedulerPage: React.FC = () => {
     setFormTimezone('UTC');
     setFormEnabled(true);
     setFormError('');
+    setFormErrors({});
     setEditorOpen(true);
   };
 
@@ -161,24 +165,27 @@ export const SchedulerPage: React.FC = () => {
     setFormTimezone(schedule.timezone);
     setFormEnabled(schedule.enabled);
     setFormError('');
+    setFormErrors({});
     setEditorOpen(true);
   };
 
   const handleSave = () => {
+    const newErrors: FormErrors = {};
     if (!formName.trim()) {
-      setFormError('Name is required');
-      return;
+      newErrors.name = 'Name is required';
     }
     if (!formSuiteId) {
-      setFormError('Test Suite is required');
-      return;
+      newErrors.suiteId = 'Test Suite is required';
     }
     if (!formProfileId) {
-      setFormError('Execution Profile is required');
-      return;
+      newErrors.profileId = 'Execution Profile is required';
     }
-    if (!formCron.trim()) {
-      setFormError('Cron expression is required');
+    const cronResult = validateCron(formCron);
+    if (!cronResult.valid) {
+      newErrors.cron = cronResult.message;
+    }
+    setFormErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) {
       return;
     }
 
@@ -362,10 +369,12 @@ export const SchedulerPage: React.FC = () => {
                 <h3 className='text-sm font-semibold text-text mb-3'>General</h3>
                 <div className='space-y-4'>
                   <TextInput
-                    label='Name *'
+                    label='Name'
                     value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
+                    onChange={(e) => { setFormName(e.target.value); setFormErrors(prev => ({ ...prev, name: undefined })); }}
                     placeholder='Nightly Regression'
+                    error={formErrors.name}
+                    required
                   />
                   <TextArea
                     label='Description'
@@ -382,25 +391,29 @@ export const SchedulerPage: React.FC = () => {
                 <h3 className='text-sm font-semibold text-text mb-3'>Execution</h3>
                 <div className='space-y-4'>
                   <Select
-                    label='Test Suite *'
+                    label='Test Suite'
                     value={formSuiteId}
-                    onChange={(e) => setFormSuiteId(e.target.value)}
+                    onChange={(e) => { setFormSuiteId(e.target.value); setFormErrors(prev => ({ ...prev, suiteId: undefined })); }}
                     placeholder='Select a test suite'
                     options={activeSuites.map((suite: TestSuite) => ({
                       value: suite.id,
                       label: suite.name,
                     }))}
+                    error={formErrors.suiteId}
                     helperText={activeSuites.length === 0 ? 'No active test suites available. Activate a suite first.' : undefined}
+                    required
                   />
                   <Select
-                    label='Execution Profile *'
+                    label='Execution Profile'
                     value={formProfileId}
-                    onChange={(e) => setFormProfileId(e.target.value)}
+                    onChange={(e) => { setFormProfileId(e.target.value); setFormErrors(prev => ({ ...prev, profileId: undefined })); }}
                     placeholder='Select an execution profile'
                     options={profiles.map((profile) => ({
                       value: profile.id,
                       label: profile.name,
                     }))}
+                    error={formErrors.profileId}
+                    required
                   />
                   <Select
                     label='Environment Override (optional)'
@@ -425,9 +438,11 @@ export const SchedulerPage: React.FC = () => {
                     <div className='mt-1 flex gap-2'>
                       <TextInput
                         value={formCron}
-                        onChange={(e) => setFormCron(e.target.value)}
+                        onChange={(e) => { setFormCron(e.target.value); setFormErrors(prev => ({ ...prev, cron: undefined })); }}
                         placeholder='0 9 * * *'
                         className='flex-1'
+                        error={formErrors.cron}
+                        required
                       />
                       <Select
                         value=''

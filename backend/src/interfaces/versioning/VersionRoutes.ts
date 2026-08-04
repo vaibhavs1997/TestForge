@@ -1,15 +1,19 @@
-// VersionRoutes - Route definitions for Versioning Module
+// VersionRoutes - Route definitions for Versioning Framework
 import { Router } from 'express';
 import { VersionController } from './VersionController';
+import { container } from '../../application/ApplicationContainer';
+
+// Reuse shared service from the ApplicationContainer
+const { versionService } = container;
+
+// Initialize controller
+const versionController = new VersionController(versionService);
 
 export function createVersionRoutes(versionController: VersionController): Router {
   const router = Router();
 
-  router.get('/projects/:projectId/versions', versionController.listVersions.bind(versionController));
-  router.get('/projects/:projectId/versions/:entityType/:entityId', versionController.getEntityVersions.bind(versionController));
-  router.get('/versions/:versionId', versionController.getVersion.bind(versionController));
-  router.post('/projects/:projectId/versions/:versionId/restore', versionController.restoreVersion.bind(versionController));
-  router.get('/projects/:projectId/versions/compare/:versionId1/:versionId2', versionController.compareVersions.bind(versionController));
+router.get('/versions/entities/:entityType/:entityId', versionController.getEntityVersions.bind(versionController));
+router.post('/versions/:versionId/restore', versionController.restoreVersion.bind(versionController));
 
   return router;
 }

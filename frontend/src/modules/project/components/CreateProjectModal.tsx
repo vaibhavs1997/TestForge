@@ -5,6 +5,8 @@ import { Button } from '../../../components/ui/Button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { TextInput } from '../../../components/forms/TextInput';
 import { TextArea } from '../../../components/forms/TextArea';
+import { useFormValidation } from '../../../hooks/useFormValidation';
+import { isDuplicateName, isDuplicateId, isValidProjectKey, FormErrors } from '../../../utils/validation';
 
 export interface CreateProjectModalData {
   projectName: string;
@@ -28,7 +30,30 @@ export const CreateProjectModal = ({ open, onClose, onSave, existingProjects = [
   const [projectName, setProjectName] = React.useState('');
   const [projectId, setProjectId] = React.useState('');
   const [description, setDescription] = React.useState('');
-  const [errors, setErrors] = React.useState<{ projectName?: string; projectId?: string }>({});
+
+  const validate = React.useCallback((): FormErrors => {
+    const newErrors: FormErrors = {};
+    const trimmedName = projectName.trim();
+    const trimmedId = projectId.trim();
+
+    if (!trimmedName) {
+      newErrors.projectName = 'Project name is required';
+    } else if (isDuplicateName(trimmedName, existingProjects.map((p) => p.name))) {
+      newErrors.projectName = 'A project with this name already exists';
+    }
+
+    if (!trimmedId) {
+      newErrors.projectId = 'Project Key is required';
+    } else if (!isValidProjectKey(trimmedId)) {
+      newErrors.projectId = 'Project Key must start with a letter and contain only uppercase letters, numbers, and underscores (2-20 chars)';
+    } else if (isDuplicateId(trimmedId, existingProjects.map((p) => p.id))) {
+      newErrors.projectId = 'A project with this Key already exists';
+    }
+
+    return newErrors;
+  }, [projectName, projectId, existingProjects]);
+
+  const { errors, validateForm, clearError } = useFormValidation({ validate });
 
   // Reset form fields whenever the modal is opened.
   React.useEffect(() => {
@@ -36,36 +61,14 @@ export const CreateProjectModal = ({ open, onClose, onSave, existingProjects = [
       setProjectName('');
       setProjectId('');
       setDescription('');
-      setErrors({});
     }
   }, [open]);
 
   if (!open) return null;
 
-  const validate = (): boolean => {
-    const newErrors: { projectName?: string; projectId?: string } = {};
-    const trimmedName = projectName.trim();
-    const trimmedId = projectId.trim();
-
-    if (!trimmedName) {
-      newErrors.projectName = 'Project name is required';
-    } else if (existingProjects.some((p) => p.name.toLowerCase() === trimmedName.toLowerCase())) {
-      newErrors.projectName = 'A project with this name already exists';
-    }
-
-    if (!trimmedId) {
-      newErrors.projectId = 'Project Key is required';
-    } else if (existingProjects.some((p) => p.id.toLowerCase() === trimmedId.toLowerCase())) {
-      newErrors.projectId = 'A project with this Key already exists';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (validate()) {
+    if (validateForm()) {
       onSave({
         projectName: projectName.trim(),
         projectId: projectId.trim(),
@@ -78,11 +81,14 @@ export const CreateProjectModal = ({ open, onClose, onSave, existingProjects = [
     <div
       className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'
       onClick={onClose}
+      role='dialog'
+      aria-modal='true'
+      aria-labelledby='create-project-title'
     >
       <Card className='mx-4 w-full max-w-lg' onClick={(e) => e.stopPropagation()}>
         <CardHeader>
           <div className='flex items-center justify-between'>
-            <CardTitle>Create New Project</CardTitle>
+            <CardTitle id='create-project-title'>Create New Project</CardTitle>
             <Button
               variant='ghost'
               size='sm'
@@ -95,27 +101,31 @@ export const CreateProjectModal = ({ open, onClose, onSave, existingProjects = [
             </Button>
           </div>
         </CardHeader>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <CardContent className='space-y-4'>
             <TextInput
               label='Project name'
+              name='projectName'
               value={projectName}
               onChange={(e) => {
                 setProjectName(e.target.value);
-                if (errors.projectName) setErrors((prev) => ({ ...prev, projectName: undefined }));
+                clearError('projectName');
               }}
               placeholder='Enter project name'
               error={errors.projectName}
+              required
             />
             <TextInput
               label='Project Key'
+              name='projectId'
               value={projectId}
               onChange={(e) => {
                 setProjectId(e.target.value);
-                if (errors.projectId) setErrors((prev) => ({ ...prev, projectId: undefined }));
+                clearError('projectId');
               }}
               placeholder='Enter project key'
               error={errors.projectId}
+              required
             />
             <TextArea
               label='Description'

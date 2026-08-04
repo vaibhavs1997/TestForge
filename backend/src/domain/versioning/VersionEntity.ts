@@ -1,15 +1,28 @@
 // VersionEntity - Domain Entity for Versioning Framework
 // Maintains immutable version history for important entities.
 
-export type EntityType = 
+export type EntityType =
   | 'Requirement'
-  | 'Knowledge'
-  | 'Dataset'
+  | 'TestStrategy'
+  | 'TestDesign'
+  | 'ExecutionPlan'
+  | 'ExecutionProfile'
   | 'Assertion'
   | 'TestSuite'
-  | 'ExecutionProfile'
-  | 'ExecutionPlan'
-  | 'Report';
+  | 'Environment'
+  | 'Dataset'
+  | 'Column'
+  | 'Row'
+  | 'DataSourceMapping'
+  | 'PopulationProfile'
+  | 'Knowledge'
+  | 'Analysis'
+  | 'Report'
+  | 'Schedule'
+  | 'Plugin'
+  | 'Provider'
+  | 'AIProvider'
+  | 'Pipeline';
 
 export class VersionEntity {
   constructor(

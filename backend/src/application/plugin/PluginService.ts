@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { PluginEntity } from '../../domain/plugin';
 import type { PluginCategory, PluginCapability, PluginRepository } from '../../domain/plugin';
 import { PluginRegistry } from './PluginRegistry';
+import { EventPublisher } from '../EventPublisher';
 
 export interface CreatePluginInput {
   name: string;
@@ -20,7 +21,8 @@ export interface CreatePluginInput {
 export class PluginService {
   constructor(
     private readonly pluginRepository: PluginRepository,
-    private readonly pluginRegistry: PluginRegistry
+    private readonly pluginRegistry: PluginRegistry,
+    private readonly eventPublisher?: EventPublisher
   ) {}
 
   async create(input: CreatePluginInput): Promise<PluginEntity> {
@@ -38,7 +40,15 @@ export class PluginService {
       now,
       now
     );
-    return this.pluginRegistry.register(plugin);
+    const created = await this.pluginRegistry.register(plugin);
+
+    // Publish through central EventPublisher — triggers audit, versioning,
+    // cache invalidation, recommendation refresh, and pipeline refresh.
+    if (this.eventPublisher) {
+      await this.eventPublisher.created('plugin', created.id, created.projectId || '', 'Plugin', created as any);
+    }
+
+    return created;
   }
 
   async getPlugin(id: string): Promise<PluginEntity> {
@@ -70,6 +80,12 @@ export class PluginService {
     if (!plugin) {
       throw new Error(`Plugin with id ${id} not found`);
     }
+
+    // Publish ENABLED event through central EventPublisher.
+    if (this.eventPublisher) {
+      await this.eventPublisher.enabled('plugin', plugin.id, plugin.projectId || '', 'Plugin', true);
+    }
+
     return plugin;
   }
 
@@ -78,19 +94,38 @@ export class PluginService {
     if (!plugin) {
       throw new Error(`Plugin with id ${id} not found`);
     }
+
+    // Publish DISABLED event through central EventPublisher.
+    if (this.eventPublisher) {
+      await this.eventPublisher.enabled('plugin', plugin.id, plugin.projectId || '', 'Plugin', false);
+    }
+
     return plugin;
   }
 
   async updateConfiguration(id: string, configuration: Record<string, any>): Promise<PluginEntity> {
+    const existing = await this.getPlugin(id);
     const plugin = await this.pluginRegistry.updateConfiguration(id, configuration);
     if (!plugin) {
       throw new Error(`Plugin with id ${id} not found`);
     }
+
+    // Publish UPDATED event through central EventPublisher.
+    if (this.eventPublisher) {
+      await this.eventPublisher.updated('plugin', plugin.id, plugin.projectId || '', 'Plugin', existing as any, plugin as any);
+    }
+
     return plugin;
   }
 
   async deletePlugin(id: string): Promise<void> {
-    return this.pluginRegistry.unregister(id);
+    const existing = await this.getPlugin(id);
+    await this.pluginRegistry.unregister(id);
+
+    // Publish DELETED event through central EventPublisher.
+    if (this.eventPublisher) {
+      await this.eventPublisher.deleted('plugin', existing.id, existing.projectId || '', 'Plugin', existing as any);
+    }
   }
 
   async checkHealth(id: string): Promise<{ status: string; message: string }> {

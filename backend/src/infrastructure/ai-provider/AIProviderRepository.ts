@@ -1,7 +1,8 @@
 // AIProviderRepository - Infrastructure implementation for AI Provider Framework
 // Uses in-memory storage. Can be swapped for DB implementation.
 
-import { AIProviderEntity, AIProviderType, AIProviderRepository } from '../../domain/ai-provider';
+import { AIProviderEntity } from '../../domain/ai-provider';
+import type { AIProviderType, AIProviderRepository } from '../../domain/ai-provider';
 
 export class InMemoryAIProviderRepository implements AIProviderRepository {
   private providers: Map<string, AIProviderEntity> = new Map();

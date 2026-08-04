@@ -1,6 +1,7 @@
 // GenerateFromAnalysis - Application Use Case
 // Consumes Project Analysis cards and generates Requirement cards with deterministic acceptance criteria.
 // This is NOT AI — it is a deterministic generator based on category patterns.
+import { randomUUID } from 'node:crypto';
 import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
 import { RequirementEntity, RequirementSource, AcceptanceCriterion } from '../../domain/requirements/RequirementEntity';
 import { AnalysisRepository } from '../../infrastructure/analysis/AnalysisRepository';
@@ -114,12 +115,12 @@ export class GenerateFromAnalysis {
     ];
 
     const acceptanceCriteria: AcceptanceCriterion[] = criteriaTexts.map((text) => ({
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       text,
     }));
 
     const requirement = new RequirementEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       projectId,
       analysis.title,
       analysis.description,

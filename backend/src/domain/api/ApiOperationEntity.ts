@@ -3,6 +3,7 @@
 export class ApiOperationEntity {
   constructor(
     public readonly id: string,
+    public readonly projectId: string,
     public readonly serviceId: string,
     public name: string,
     public method: string,

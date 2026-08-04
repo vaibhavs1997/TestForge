@@ -1,4 +1,5 @@
 // CreateDataSourceMapping - Application Use Case
+import { randomUUID } from 'node:crypto';
 import { DataSourceMappingRepository } from '../../domain/test-data/DataSourceMappingRepository';
 import { DataSourceMappingEntity } from '../../domain/test-data/DataSourceMappingEntity';
 
@@ -33,7 +34,7 @@ export class CreateDataSourceMapping {
 
     const now = Date.now();
     const mapping = new DataSourceMappingEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       params.projectId,
       params.serviceId,
       params.operationId,

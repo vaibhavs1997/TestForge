@@ -1,6 +1,7 @@
 // AuditLogService - Application Service for Audit Log Framework
 // Subscribes to EventBus and logs important actions.
 
+import { randomUUID } from 'node:crypto';
 import { EventBus, EventType, ModuleName, DomainEvent } from '../../domain/events/EventBus';
 import { AuditLogEntity, AuditAction, AuditModule } from '../../domain/audit/AuditLogEntity';
 import { AuditLogRepository } from '../../domain/audit/AuditLogRepository';
@@ -46,7 +47,7 @@ export class AuditLogService {
     const entityType = this.extractEntityType(event.payload);
 
     const auditLog = new AuditLogEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       event.projectId,
       module,
       entityType,
@@ -96,7 +97,7 @@ export class AuditLogService {
     metadata?: Record<string, any>;
   }): Promise<AuditLogEntity> {
     const log = new AuditLogEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       params.projectId,
       params.module,
       params.entityType,

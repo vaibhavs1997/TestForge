@@ -4,32 +4,21 @@ import { AppShell } from '../layouts/AppShell';
 import { ShowcasePage } from '../app/ShowcasePage';
 import { ProjectRoutes } from '../modules/project';
 import { DashboardPage } from '../modules/dashboard/pages/DashboardPage';
-import { ApiRoutes } from '../modules/api';
 import { ImportCenterPage } from '../modules/import/pages/ImportCenterPage';
-import { EnvironmentRoutes } from '../modules/environment';
-import { KnowledgeRoutes } from '../modules/knowledge';
-import { AnalysisRoutes } from '../modules/analysis';
-import { RequirementsRoutes } from '../modules/requirements';
-import { SuiteRoutes } from '../modules/suite';
-import { ExecutionRoutes } from '../modules/execution';
-import { ReportRoutes } from '../modules/report';
 import { SettingsRoutes } from '../modules/settings';
-import { TestDataRoutes } from '../modules/test-data';
-import { RecommendationRoutes } from '../modules/recommendation/routes';
-import { PipelineRoutes } from '../modules/pipeline';
-import { SchedulerRoutes } from '../modules/scheduler';
-import { NotificationRoutes } from '../modules/notification';
-import { VersioningRoutes } from '../modules/versioning';
-import { AuditRoutes } from '../modules/audit';
-import { PluginRoutes } from '../modules/plugin';
-import { AIProviderRoutes } from '../modules/ai-provider';
+import { projectStore } from '../store/projectStore';
 
-const PlaceholderPage = ({ title }: { title: string }) => (
-  <div className='flex h-full flex-col items-center justify-center'>
-    <h1 className='text-2xl font-bold text-text'>{title}</h1>
-    <p className='mt-2 text-text-secondary'>Placeholder for the {title} module.</p>
-  </div>
-);
+/**
+ * Redirects a top-level module URL (e.g. /apis) into the active project
+ * workspace (e.g. /projects/:projectId/apis) so existing URLs keep working.
+ */
+const ProjectModuleRedirect: React.FC<{ module: string }> = ({ module }) => {
+  const selectedProjectId = projectStore((state) => state.selectedProjectId);
+  const target = selectedProjectId
+    ? `/projects/${selectedProjectId}/${module}`
+    : '/projects';
+  return <Navigate to={target} replace />;
+};
 
 export const AppRoutes = () => (
   <Routes>
@@ -37,26 +26,41 @@ export const AppRoutes = () => (
       <Route path='/' element={<Navigate to='/projects' replace />} />
       <Route path='/dashboard' element={<DashboardPage />} />
       <Route path='/projects/*' element={<ProjectRoutes />} />
-      <Route path='/apis/*' element={<ApiRoutes />} />
       <Route path='/import' element={<ImportCenterPage />} />
-      <Route path='/environments/*' element={<EnvironmentRoutes />} />
-      <Route path='/knowledge/*' element={<KnowledgeRoutes />} />
-      <Route path='/analysis/*' element={<AnalysisRoutes />} />
-      <Route path='/requirements/*' element={<RequirementsRoutes />} />
-      <Route path='/suites/*' element={<SuiteRoutes />} />
-      <Route path='/executions/*' element={<ExecutionRoutes />} />
-      <Route path='/reports/*' element={<ReportRoutes />} />
       <Route path='/settings' element={<SettingsRoutes />} />
-      <Route path='/test-data/*' element={<TestDataRoutes />} />
-      <Route path='/recommendations/*' element={<RecommendationRoutes />} />
-      <Route path='/pipeline/*' element={<PipelineRoutes />} />
-      <Route path='/scheduler/*' element={<SchedulerRoutes />} />
-      <Route path='/notifications/*' element={<NotificationRoutes />} />
-      <Route path='/versions/*' element={<VersioningRoutes />} />
-      <Route path='/audit/*' element={<AuditRoutes />} />
-      <Route path='/plugins/*' element={<PluginRoutes />} />
-      <Route path='/ai-providers/*' element={<AIProviderRoutes />} />
       <Route path='/showcase' element={<ShowcasePage />} />
+
+      {/*
+        Backward-compatible top-level module routes.
+        These redirect into the active project workspace so existing URLs
+        continue to work while keeping a single source of truth for each module.
+      */}
+      <Route path='/apis' element={<ProjectModuleRedirect module='apis' />} />
+      <Route path='/apis/*' element={<ProjectModuleRedirect module='apis' />} />
+      <Route path='/environments' element={<ProjectModuleRedirect module='environment' />} />
+      <Route path='/environments/*' element={<ProjectModuleRedirect module='environment' />} />
+      <Route path='/knowledge' element={<ProjectModuleRedirect module='knowledge' />} />
+      <Route path='/knowledge/*' element={<ProjectModuleRedirect module='knowledge' />} />
+      <Route path='/reports' element={<ProjectModuleRedirect module='reports' />} />
+      <Route path='/reports/*' element={<ProjectModuleRedirect module='reports' />} />
+      <Route path='/notifications' element={<ProjectModuleRedirect module='notifications' />} />
+      <Route path='/notifications/*' element={<ProjectModuleRedirect module='notifications' />} />
+      <Route path='/versions' element={<ProjectModuleRedirect module='versions' />} />
+      <Route path='/versions/*' element={<ProjectModuleRedirect module='versions' />} />
+      <Route path='/audit' element={<ProjectModuleRedirect module='audit' />} />
+      <Route path='/audit/*' element={<ProjectModuleRedirect module='audit' />} />
+      <Route path='/plugins' element={<ProjectModuleRedirect module='plugins' />} />
+      <Route path='/plugins/*' element={<ProjectModuleRedirect module='plugins' />} />
+      <Route path='/ai-providers' element={<ProjectModuleRedirect module='ai-providers' />} />
+      <Route path='/ai-providers/*' element={<ProjectModuleRedirect module='ai-providers' />} />
+      <Route path='/recommendations' element={<ProjectModuleRedirect module='recommendations' />} />
+      <Route path='/recommendations/*' element={<ProjectModuleRedirect module='recommendations' />} />
+      <Route path='/pipeline' element={<ProjectModuleRedirect module='pipeline' />} />
+      <Route path='/pipeline/*' element={<ProjectModuleRedirect module='pipeline' />} />
+      <Route path='/context' element={<ProjectModuleRedirect module='context' />} />
+      <Route path='/context/*' element={<ProjectModuleRedirect module='context' />} />
+      <Route path='/prompts' element={<ProjectModuleRedirect module='prompts' />} />
+      <Route path='/prompts/*' element={<ProjectModuleRedirect module='prompts' />} />
     </Route>
   </Routes>
 );

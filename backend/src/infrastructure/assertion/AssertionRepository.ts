@@ -1,5 +1,6 @@
 // AssertionRepository - File-based repository implementation
 
+import { randomUUID } from 'node:crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AssertionEntity } from '../../domain/assertion/AssertionEntity';
@@ -29,7 +30,7 @@ export class AssertionRepository {
     
     const newAssertion: AssertionEntity = {
       ...assertion,
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };

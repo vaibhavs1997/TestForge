@@ -2,8 +2,8 @@
 // and delegates operations (validate, estimate, generate, stream, health).
 // Reuses the AIProviderRegistry for adapter resolution.
 
-import {
-  AIProviderEntity,
+import { AIProviderEntity } from '../../domain/ai-provider';
+import type {
   AIProviderConfig,
   AIProviderMessage,
   AIProviderGenerateOptions,

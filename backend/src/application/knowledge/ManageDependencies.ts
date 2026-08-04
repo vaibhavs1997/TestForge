@@ -1,4 +1,5 @@
 // ManageDependencies - Application Use Case for Dependencies in Knowledge Hub
+import { randomUUID } from 'node:crypto';
 import { Dependency } from '../../domain/knowledge/DependencyEntity';
 import { DependencyRepository } from '../../domain/knowledge/DependencyRepository';
 
@@ -18,7 +19,7 @@ export class ManageDependencies {
     const now = Date.now();
     const dependency: Dependency = {
       ...input,
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       name: input.name.trim(),
       description: input.description?.trim() || '',
       tags: input.tags?.map(t => t.trim()).filter(t => t.length > 0) || [],

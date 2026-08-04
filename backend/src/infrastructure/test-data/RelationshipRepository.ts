@@ -1,5 +1,6 @@
 // RelationshipRepository - In-memory implementation of Relationship Repository
 
+import { randomUUID } from 'node:crypto';
 import { IRelationshipRepository } from '../../domain/test-data/RelationshipRepository';
 import { RelationshipEntity } from '../../domain/test-data/RelationshipEntity';
 
@@ -9,7 +10,7 @@ export class RelationshipRepository implements IRelationshipRepository {
   private datasetRelationships: Map<string, Set<string>> = new Map();
 
   async create(relationship: Omit<RelationshipEntity, 'id' | 'createdAt' | 'updatedAt'>): Promise<RelationshipEntity> {
-    const id = crypto.randomUUID();
+    const id = randomUUID();
     const now = Date.now();
     
     const entity = new RelationshipEntity(

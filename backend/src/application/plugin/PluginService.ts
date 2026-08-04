@@ -1,8 +1,9 @@
 // PluginService - Application Service for Plugin Framework
 // Manages plugin lifecycle and registration.
 
-import { PluginEntity, PluginCategory, PluginCapability } from '../../domain/plugin';
-import { PluginRepository } from '../../domain/plugin';
+import { randomUUID } from 'node:crypto';
+import { PluginEntity } from '../../domain/plugin';
+import type { PluginCategory, PluginCapability, PluginRepository } from '../../domain/plugin';
 import { PluginRegistry } from './PluginRegistry';
 
 export interface CreatePluginInput {
@@ -25,7 +26,7 @@ export class PluginService {
   async create(input: CreatePluginInput): Promise<PluginEntity> {
     const now = Date.now();
     const plugin = new PluginEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       input.name,
       input.version,
       input.author,

@@ -1,5 +1,6 @@
 // TestDataResolutionService - Resolves test data from Data Source Mappings
 // Supports: Runtime Variable, Dataset Row, Generated Value, Environment Variable, Manual Value
+import { randomUUID } from 'node:crypto';
 import { DataSourceMappingRepository } from '../../infrastructure/test-data/DataSourceMappingRepository';
 import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowRepository';
 import { DatasetRepository } from '../../infrastructure/test-data/DatasetRepository';
@@ -266,7 +267,7 @@ export class TestDataResolutionService {
       case 'email':
         return `test${Date.now()}@example.com`;
       case 'uuid':
-        return crypto.randomUUID();
+        return randomUUID();
       default:
         return `generated_${column.name}`;
     }

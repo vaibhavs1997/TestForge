@@ -1,4 +1,5 @@
 // CreateDataset - Application Use Case
+import { randomUUID } from 'node:crypto';
 import { DatasetRepository } from '../../domain/test-data/DatasetRepository';
 import { DatasetEntity } from '../../domain/test-data/DatasetEntity';
 
@@ -23,7 +24,7 @@ export class CreateDataset {
 
     const now = Date.now();
     const dataset = new DatasetEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       params.projectId,
       trimmedName,
       params.description?.trim() || '',

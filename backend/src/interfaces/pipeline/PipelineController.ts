@@ -1,11 +1,13 @@
 // PipelineController - HTTP Controller for Pipeline operations
 import { Request, Response } from 'express';
 import { OrchestratePipeline } from '../../application/pipeline/OrchestratePipeline';
+import { RunAIPipeline } from '../../application/pipeline/RunAIPipeline';
 import { PipelineEntity, PipelineStage } from '../../domain/pipeline/PipelineEntity';
 
 export class PipelineController {
   constructor(
-    private readonly orchestratePipeline: OrchestratePipeline
+    private readonly orchestratePipeline: OrchestratePipeline,
+    private readonly runAIPipeline: RunAIPipeline
   ) {}
 
   async startPipeline(req: Request, res: Response): Promise<void> {
@@ -73,6 +75,34 @@ export class PipelineController {
     } catch (error) {
       res.status(500).json({ 
         error: error instanceof Error ? error.message : 'Failed to restart stage' 
+      });
+    }
+  }
+
+  async runAIPipelineHandler(req: Request, res: Response): Promise<void> {
+    try {
+      const projectId = req.params.projectId;
+      const { providerId, autoApprove } = req.body;
+
+      if (!projectId) {
+        res.status(400).json({ error: 'Project ID is required' });
+        return;
+      }
+      if (!providerId) {
+        res.status(400).json({ error: 'providerId is required' });
+        return;
+      }
+
+      const result = await this.runAIPipeline.execute({
+        projectId,
+        providerId,
+        autoApprove: !!autoApprove,
+      });
+
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Failed to run AI pipeline'
       });
     }
   }

@@ -1,5 +1,6 @@
 // ExecutionProfileRepository - In-memory implementation of Execution Profile Repository
 
+import { randomUUID } from 'node:crypto';
 import { IExecutionProfileRepository } from '../../domain/execution/ExecutionProfileRepository';
 import { ExecutionProfileEntity } from '../../domain/execution/ExecutionProfileEntity';
 
@@ -8,7 +9,7 @@ export class ExecutionProfileRepository implements IExecutionProfileRepository {
   private projectProfiles: Map<string, Set<string>> = new Map();
 
   async create(profile: Omit<ExecutionProfileEntity, 'id' | 'createdAt' | 'updatedAt'>): Promise<ExecutionProfileEntity> {
-    const id = crypto.randomUUID();
+    const id = randomUUID();
     const now = Date.now();
 
     const entity = new ExecutionProfileEntity(

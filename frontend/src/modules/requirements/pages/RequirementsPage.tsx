@@ -11,6 +11,8 @@ import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
 import { useRequirements } from '../hooks';
 import { useAnalysis } from '../../analysis/hooks';
 import { useAssertions } from '../../assertion/hooks/useAssertions';
+import { useAIProviders } from '../../ai-provider/hooks';
+import { requirementService } from '../services/requirementService';
 import type { Requirement, ApprovalStatus, ValidationCategory, TestStrategy, StrategyCategorySection, StrategyItem, TestDesign, Assertion, RuntimeBinding, ExecutionPlan, CleanupStep, AssertionReference } from '../types';
 import type { Assertion as ReusableAssertion } from '../../assertion/types';
 
@@ -102,6 +104,41 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
   const [selectedAssertionIds, setSelectedAssertionIds] = useState<Set<string>>(new Set());
   const [assertionFilterCategory, setAssertionFilterCategory] = useState<string>('all');
   const [assertionFilterSeverity, setAssertionFilterSeverity] = useState<string>('all');
+  const { providers: aiProviders } = useAIProviders(projectId);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [selectedAIProviderId, setSelectedAIProviderId] = useState<string>('');
+  const [aiPreview, setAiPreview] = useState<any>(null);
+  const [aiGeneratedRequirements, setAiGeneratedRequirements] = useState<Requirement[]>([]);
+  const [aiWarnings, setAiWarnings] = useState<string[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiStep, setAiStep] = useState<'select' | 'preview' | 'result'>('select');
+  const [aiStrategyModalOpen, setAiStrategyModalOpen] = useState(false);
+  const [aiStrategyProviderId, setAiStrategyProviderId] = useState<string>('');
+  const [aiStrategyPreview, setAiStrategyPreview] = useState<any>(null);
+  const [aiStrategyWarnings, setAiStrategyWarnings] = useState<string[]>([]);
+  const [aiStrategyStep, setAiStrategyStep] = useState<'select' | 'preview' | 'result'>('select');
+  const [aiStrategyResult, setAiStrategyResult] = useState<any>(null);
+  const [aiDesignModalOpen, setAiDesignModalOpen] = useState(false);
+  const [aiDesignProviderId, setAiDesignProviderId] = useState<string>('');
+  const [aiDesignPreview, setAiDesignPreview] = useState<any>(null);
+  const [aiDesignWarnings, setAiDesignWarnings] = useState<string[]>([]);
+  const [aiDesignStep, setAiDesignStep] = useState<'select' | 'preview' | 'result'>('select');
+  const [aiDesignResult, setAiDesignResult] = useState<any>(null);
+
+  const [designToReview, setDesignToReview] = useState<TestDesign | null>(null);
+  const [aiAssertionModalOpen, setAiAssertionModalOpen] = useState(false);
+  const [aiAssertionProviderId, setAiAssertionProviderId] = useState<string>('');
+  const [aiAssertionPreview, setAiAssertionPreview] = useState<any>(null);
+  const [aiAssertionWarnings, setAiAssertionWarnings] = useState<string[]>([]);
+  const [aiAssertionStep, setAiAssertionStep] = useState<'select' | 'preview' | 'result'>('select');
+  const [aiAssertionResult, setAiAssertionResult] = useState<any>(null);
+
+  const [aiExecutionPlanModalOpen, setAiExecutionPlanModalOpen] = useState(false);
+  const [aiExecutionPlanProviderId, setAiExecutionPlanProviderId] = useState<string>('');
+  const [aiExecutionPlanPreview, setAiExecutionPlanPreview] = useState<any>(null);
+  const [aiExecutionPlanWarnings, setAiExecutionPlanWarnings] = useState<string[]>([]);
+  const [aiExecutionPlanStep, setAiExecutionPlanStep] = useState<'select' | 'preview' | 'result'>('select');
+  const [aiExecutionPlanResult, setAiExecutionPlanResult] = useState<any>(null);
 
   const handleGenerateFromAnalysis = async (analysisId: string) => {
     try {
@@ -224,6 +261,250 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
     setToastMessage(`Strategy item ${newStatus.toLowerCase()}`);
     setToastType('success');
     setToastOpen(true);
+  };
+
+  const openAIGenerate = () => {
+    setAiStep('select');
+    setAiPreview(null);
+    setAiWarnings([]);
+    setAiGeneratedRequirements([]);
+    setSelectedAIProviderId(aiProviders.find(p => p.isDefault)?.id || aiProviders[0]?.id || '');
+    setAiModalOpen(true);
+  };
+
+  const handleAIPreview = async () => {
+    if (!selectedAIProviderId) return;
+    setAiLoading(true);
+    setAiWarnings([]);
+    try {
+      const result = await requirementService.generateWithAI(projectId, { providerId: selectedAIProviderId, previewOnly: true });
+      setAiPreview(result.data?.preview || null);
+      setAiWarnings(result.data?.warnings || result.warnings || []);
+      setAiStep('preview');
+    } catch (err: any) {
+      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to preview AI generation');
+      setToastType('error');
+      setToastOpen(true);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleAIGenerate = async () => {
+    if (!selectedAIProviderId) return;
+    setAiLoading(true);
+    setAiWarnings([]);
+    try {
+      const result = await requirementService.generateWithAI(projectId, { providerId: selectedAIProviderId, previewOnly: false });
+      setAiGeneratedRequirements(result.data?.requirements || []);
+      setAiWarnings(result.data?.warnings || result.warnings || []);
+      setAiStep('result');
+      setToastMessage(`Generated ${(result.data?.requirements || []).length} requirements with AI`);
+      setToastType('success');
+      setToastOpen(true);
+    } catch (err: any) {
+      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to generate requirements with AI');
+      setToastType('error');
+      setToastOpen(true);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const openAIStrategy = (requirement: Requirement) => {
+    setAiStrategyStep('select');
+    setAiStrategyPreview(null);
+    setAiStrategyWarnings([]);
+    setAiStrategyResult(null);
+    setAiStrategyProviderId(aiProviders.find(p => p.isDefault)?.id || aiProviders[0]?.id || '');
+    setRequirementToReview(requirement);
+    setAiStrategyModalOpen(true);
+  };
+
+  const handleAIStrategyPreview = async () => {
+    if (!aiStrategyProviderId || !requirementToReview) return;
+    setAiLoading(true);
+    setAiStrategyWarnings([]);
+    try {
+      const result = await requirementService.generateStrategyWithAI(projectId, requirementToReview.id, { providerId: aiStrategyProviderId, previewOnly: true });
+      setAiStrategyPreview(result.data?.preview || null);
+      setAiStrategyWarnings(result.data?.warnings || result.warnings || []);
+      setAiStrategyStep('preview');
+    } catch (err: any) {
+      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to preview AI strategy generation');
+      setToastType('error');
+      setToastOpen(true);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleAIStrategyGenerate = async () => {
+    if (!aiStrategyProviderId || !requirementToReview) return;
+    setAiLoading(true);
+    setAiStrategyWarnings([]);
+    try {
+      const result = await requirementService.generateStrategyWithAI(projectId, requirementToReview.id, { providerId: aiStrategyProviderId, previewOnly: false });
+      setAiStrategyResult(result.data?.strategy || null);
+      setAiStrategyWarnings(result.data?.warnings || result.warnings || []);
+      setAiStrategyStep('result');
+      setToastMessage('Test strategy generated with AI successfully');
+      setToastType('success');
+      setToastOpen(true);
+    } catch (err: any) {
+      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to generate test strategy with AI');
+      setToastType('error');
+      setToastOpen(true);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const openAIDesign = (requirement: Requirement) => {
+    setAiDesignStep('select');
+    setAiDesignPreview(null);
+    setAiDesignWarnings([]);
+    setAiDesignResult(null);
+    setAiDesignProviderId(aiProviders.find(p => p.isDefault)?.id || aiProviders[0]?.id || '');
+    setRequirementToReview(requirement);
+    setAiDesignModalOpen(true);
+  };
+
+  const openAIAssertions = (design: TestDesign) => {
+    setDesignToReview(design);
+    setAiAssertionStep('select');
+    setAiAssertionPreview(null);
+    setAiAssertionWarnings([]);
+    setAiAssertionResult(null);
+    setAiAssertionProviderId(aiProviders.find(p => p.isDefault)?.id || aiProviders[0]?.id || '');
+    setAiAssertionModalOpen(true);
+  };
+
+  const handleAIDesignPreview = async () => {
+    if (!aiDesignProviderId || !requirementToReview) return;
+    setAiLoading(true);
+    setAiDesignWarnings([]);
+    try {
+      const result = await requirementService.generateDesignWithAI(projectId, requirementToReview.id, { providerId: aiDesignProviderId, previewOnly: true });
+      setAiDesignPreview(result.data?.preview || null);
+      setAiDesignWarnings(result.data?.warnings || result.warnings || []);
+      setAiDesignStep('preview');
+    } catch (err: any) {
+      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to preview AI design generation');
+      setToastType('error');
+      setToastOpen(true);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleAIDesignGenerate = async () => {
+    if (!aiDesignProviderId || !requirementToReview) return;
+    setAiLoading(true);
+    setAiDesignWarnings([]);
+    try {
+      const result = await requirementService.generateDesignWithAI(projectId, requirementToReview.id, { providerId: aiDesignProviderId, previewOnly: false });
+      setAiDesignResult(result.data?.designs || []);
+      setAiDesignWarnings(result.data?.warnings || result.warnings || []);
+      setAiDesignStep('result');
+      setToastMessage('Test designs generated with AI successfully');
+      setToastType('success');
+      setToastOpen(true);
+    } catch (err: any) {
+      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to generate test designs with AI');
+      setToastType('error');
+      setToastOpen(true);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleAIAssertionPreview = async () => {
+    if (!aiAssertionProviderId || !designToReview) return;
+    setAiLoading(true);
+    setAiAssertionWarnings([]);
+    try {
+      const result = await requirementService.generateAssertionsWithAI(projectId, designToReview.id, { providerId: aiAssertionProviderId, previewOnly: true });
+      setAiAssertionPreview(result.data?.preview || null);
+      setAiAssertionWarnings(result.data?.warnings || result.warnings || []);
+      setAiAssertionStep('preview');
+    } catch (err: any) {
+      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to preview AI assertion generation');
+      setToastType('error');
+      setToastOpen(true);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const openAIExecutionPlan = (requirement: Requirement) => {
+    setAiExecutionPlanStep('select');
+    setAiExecutionPlanPreview(null);
+    setAiExecutionPlanWarnings([]);
+    setAiExecutionPlanResult(null);
+    setAiExecutionPlanProviderId(aiProviders.find(p => p.isDefault)?.id || aiProviders[0]?.id || '');
+    setRequirementToReview(requirement);
+    setAiExecutionPlanModalOpen(true);
+  };
+
+  const handleAIExecutionPlanPreview = async () => {
+    if (!aiExecutionPlanProviderId || !requirementToReview) return;
+    setAiLoading(true);
+    setAiExecutionPlanWarnings([]);
+    try {
+      const result = await requirementService.generateExecutionPlanWithAI(projectId, requirementToReview.id, { providerId: aiExecutionPlanProviderId, previewOnly: true });
+      setAiExecutionPlanPreview(result.data?.preview || null);
+      setAiExecutionPlanWarnings(result.data?.warnings || result.warnings || []);
+      setAiExecutionPlanStep('preview');
+    } catch (err: any) {
+      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to preview AI execution plan generation');
+      setToastType('error');
+      setToastOpen(true);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleAIExecutionPlanGenerate = async () => {
+    if (!aiExecutionPlanProviderId || !requirementToReview) return;
+    setAiLoading(true);
+    setAiExecutionPlanWarnings([]);
+    try {
+      const result = await requirementService.generateExecutionPlanWithAI(projectId, requirementToReview.id, { providerId: aiExecutionPlanProviderId, previewOnly: false });
+      setAiExecutionPlanResult(result.data?.plans || []);
+      setAiExecutionPlanWarnings(result.data?.warnings || result.warnings || []);
+      setAiExecutionPlanStep('result');
+      setToastMessage(`Generated ${(result.data?.plans || []).length} execution plans with AI`);
+      setToastType('success');
+      setToastOpen(true);
+    } catch (err: any) {
+      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to generate execution plans with AI');
+      setToastType('error');
+      setToastOpen(true);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleAIAssertionGenerate = async () => {
+    if (!aiAssertionProviderId || !designToReview) return;
+    setAiLoading(true);
+    setAiAssertionWarnings([]);
+    try {
+      const result = await requirementService.generateAssertionsWithAI(projectId, designToReview.id, { providerId: aiAssertionProviderId, previewOnly: false });
+      setAiAssertionResult(result.data?.assertions || []);
+      setAiAssertionWarnings(result.data?.warnings || result.warnings || []);
+      setAiAssertionStep('result');
+      setToastMessage('Assertions generated with AI successfully');
+      setToastType('success');
+      setToastOpen(true);
+    } catch (err: any) {
+      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to generate assertions with AI');
+      setToastType('error');
+      setToastOpen(true);
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   const renderRequirementCard = (requirement: Requirement) => (
@@ -515,6 +796,10 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
               {isGenerating ? 'Generating...' : 'Generate from Analysis'}
             </Button>
           )}
+          <Button variant='outline' onClick={openAIGenerate}>
+            <Sparkles className='mr-2 h-4 w-4' />
+            Generate with AI
+          </Button>
           <Button>
             <Plus className='mr-2 h-4 w-4' />
             Add Requirement
@@ -654,12 +939,17 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
             {/* Test Strategy Tab */}
             {strategyTab === 'strategy' && (
               <div>
+                <div className='flex items-center justify-between mb-4'>
+                  <h4 className='font-semibold text-text'>Test Strategy</h4>
+                  <div className='flex gap-2'>
+                    <Button size='sm' variant='outline' onClick={() => openAIStrategy(requirementToReview)}>
+                      <Sparkles className='mr-1 h-3 w-3' /> Generate Strategy with AI
+                    </Button>
+                    <Button size='sm' variant='outline'>Add Custom Item</Button>
+                  </div>
+                </div>
                 {testStrategy && testStrategy.requirementId === requirementToReview.id ? (
                   <div>
-                    <div className='flex items-center justify-between mb-4'>
-                      <h4 className='font-semibold text-text'>Test Strategy</h4>
-                      <Button size='sm' variant='outline'>Add Custom Item</Button>
-                    </div>
                     {testStrategy.sections.map(renderStrategySection)}
                   </div>
                 ) : (
@@ -676,11 +966,14 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
             {/* Test Design Tab */}
             {strategyTab === 'design' && (
               <div>
+                <div className='flex items-center justify-between mb-4'>
+                  <h4 className='font-semibold text-text'>Test Designs {testDesigns && testDesigns.length > 0 ? `(${testDesigns.length})` : ''}</h4>
+                  <Button size='sm' variant='outline' onClick={() => openAIDesign(requirementToReview)}>
+                    <Sparkles className='mr-1 h-3 w-3' /> Generate Designs with AI
+                  </Button>
+                </div>
                 {testDesigns && testDesigns.length > 0 ? (
                   <div>
-                    <div className='flex items-center justify-between mb-4'>
-                      <h4 className='font-semibold text-text'>Test Designs ({testDesigns.length})</h4>
-                    </div>
                     {testDesigns.map((design: TestDesign) => (
                       <div key={design.id} className='border border-border rounded-lg p-4 mb-3'>
                         <div className='flex items-start justify-between mb-3'>
@@ -762,7 +1055,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
                          )}
 
                          {/* Attach Assertion Button */}
-                         <div className='mt-3'>
+                         <div className='mt-3 flex gap-2'>
                            <Button
                              size='sm'
                              variant='outline'
@@ -774,6 +1067,9 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
                            >
                              <Plus className='h-3 w-3 mr-1' />
                              Attach Assertion
+                           </Button>
+                           <Button size='sm' variant='outline' onClick={() => openAIAssertions(design)}>
+                             <Sparkles className='h-3 w-3 mr-1' /> Generate Assertions with AI
                            </Button>
                          </div>
                         {design.runtimeBindings.length > 0 && (
@@ -805,14 +1101,19 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
             {/* Execution Plan Tab */}
             {strategyTab === 'execution' && (
               <div>
+                <div className='flex items-center justify-between mb-4'>
+                  <div className='flex items-center gap-2'>
+                    <Clock className='h-5 w-5 text-primary' />
+                    <h4 className='font-semibold text-text'>
+                      {executionPlans && executionPlans.length > 0 ? `Execution Timeline (${executionPlans.length} steps)` : 'Execution Plans'}
+                    </h4>
+                  </div>
+                  <Button size='sm' variant='outline' onClick={() => openAIExecutionPlan(requirementToReview)}>
+                    <Sparkles className='mr-1 h-3 w-3' /> Generate Execution Plan with AI
+                  </Button>
+                </div>
                 {executionPlans && executionPlans.length > 0 ? (
                   <div>
-                    <div className='flex items-center justify-between mb-4'>
-                      <div className='flex items-center gap-2'>
-                        <Clock className='h-5 w-5 text-primary' />
-                        <h4 className='font-semibold text-text'>Execution Timeline ({executionPlans.length} steps)</h4>
-                      </div>
-                    </div>
                     {renderExecutionTimeline(executionPlans)}
                   </div>
                 ) : (
@@ -987,6 +1288,733 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
               </div>
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {/* AI Generation Modal */}
+      {aiModalOpen && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
+          <div className='max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 dark:bg-gray-800'>
+            <div className='mb-4 flex items-start justify-between'>
+              <div>
+                <h3 className='text-lg font-semibold text-text'>Generate Requirements with AI</h3>
+                <p className='text-sm text-text-secondary'>Use your AI provider to generate requirements from project context.</p>
+              </div>
+              <button onClick={() => setAiModalOpen(false)} className='text-text-secondary hover:text-text'>✕</button>
+            </div>
+
+            {/* Step 1: Select Provider */}
+            {aiStep === 'select' && (
+              <div className='space-y-4'>
+                <div>
+                  <label className='block text-sm font-medium text-text-secondary mb-1'>AI Provider</label>
+                  <select
+                    value={selectedAIProviderId}
+                    onChange={(e) => setSelectedAIProviderId(e.target.value)}
+                    className='w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text'
+                  >
+                    <option value=''>Select a provider...</option>
+                    {aiProviders.map((provider) => (
+                      <option key={provider.id} value={provider.id}>
+                        {provider.name} ({provider.provider} - {provider.model}){provider.isDefault ? ' [Default]' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {aiProviders.length === 0 && (
+                    <p className='mt-2 text-xs text-yellow-600'>
+                      No AI providers configured. Add one in the AI Providers tab first.
+                    </p>
+                  )}
+                </div>
+                <div className='flex justify-end gap-2'>
+                  <Button variant='outline' onClick={() => setAiModalOpen(false)}>Cancel</Button>
+                  <Button variant='outline' onClick={handleAIPreview} disabled={!selectedAIProviderId || aiLoading}>
+                    {aiLoading ? 'Previewing...' : 'Preview Prompt'}
+                  </Button>
+                  <Button onClick={handleAIGenerate} disabled={!selectedAIProviderId || aiLoading}>
+                    {aiLoading ? 'Generating...' : 'Generate Requirements'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Preview */}
+            {aiStep === 'preview' && aiPreview && (
+              <div className='space-y-4'>
+                <div>
+                  <h4 className='font-semibold text-text mb-2'>Context Summary</h4>
+                  <pre className='rounded-lg bg-background p-3 text-xs text-text overflow-auto max-h-40'>
+                    {JSON.stringify(aiPreview.contextSummary, null, 2)}
+                  </pre>
+                </div>
+                <div>
+                  <h4 className='font-semibold text-text mb-2'>Generated Prompt</h4>
+                  <div className='rounded-lg border border-border p-3'>
+                    <p className='text-xs font-medium text-text-secondary mb-1'>System Prompt</p>
+                    <p className='text-sm text-text mb-3'>{aiPreview.generatedPrompt?.systemPrompt}</p>
+                    <p className='text-xs font-medium text-text-secondary mb-1'>User Prompt</p>
+                    <p className='text-sm text-text whitespace-pre-wrap'>{aiPreview.generatedPrompt?.userPrompt}</p>
+                  </div>
+                </div>
+                <div className='grid grid-cols-2 gap-3'>
+                  <div className='rounded-lg border border-border p-3'>
+                    <p className='text-xs font-medium text-text-secondary'>Token Estimate</p>
+                    <p className='text-lg font-semibold text-text'>{aiPreview.tokenEstimate}</p>
+                  </div>
+                  <div className='rounded-lg border border-border p-3'>
+                    <p className='text-xs font-medium text-text-secondary'>Cost Estimate</p>
+                    <p className='text-lg font-semibold text-text'>${aiPreview.costEstimate?.toFixed(6) || '0.000000'}</p>
+                  </div>
+                </div>
+                {aiWarnings.length > 0 && (
+                  <div className='rounded-lg bg-yellow-50 border border-yellow-200 p-3'>
+                    {aiWarnings.map((w, i) => (
+                      <p key={i} className='text-xs text-yellow-700'>• {w}</p>
+                    ))}
+                  </div>
+                )}
+                <div className='flex justify-end gap-2'>
+                  <Button variant='outline' onClick={() => setAiStep('select')}>Back</Button>
+                  <Button onClick={handleAIGenerate} disabled={aiLoading}>
+                    {aiLoading ? 'Generating...' : 'Generate Requirements'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Result */}
+            {aiStep === 'result' && (
+              <div className='space-y-4'>
+                <div className='flex items-center justify-between'>
+                  <h4 className='font-semibold text-text'>Generated Requirements ({aiGeneratedRequirements.length})</h4>
+                  <Button variant='outline' size='sm' onClick={() => { setAiModalOpen(false); window.location.reload(); }}>
+                    Close & Refresh
+                  </Button>
+                </div>
+                {aiWarnings.length > 0 && (
+                  <div className='rounded-lg bg-yellow-50 border border-yellow-200 p-3'>
+                    {aiWarnings.map((w, i) => (
+                      <p key={i} className='text-xs text-yellow-700'>• {w}</p>
+                    ))}
+                  </div>
+                )}
+                {aiGeneratedRequirements.length === 0 ? (
+                  <p className='text-sm text-text-secondary'>No requirements were generated.</p>
+                ) : (
+                  <div className='space-y-3'>
+                    {aiGeneratedRequirements.map((req) => (
+                      <div key={req.id} className='rounded-lg border border-border p-4'>
+                        <div className='flex items-center justify-between mb-2'>
+                          <h5 className='font-semibold text-text'>{req.title}</h5>
+                          <Badge className={getStatusBadgeVariant(req.approvalStatus)} variant='outline'>
+                            {req.approvalStatus}
+                          </Badge>
+                        </div>
+                        <p className='text-sm text-text-secondary mb-2'>{req.description}</p>
+                        <div className='flex items-center gap-3 text-xs text-text-secondary mb-2'>
+                          <span>Category: {req.category}</span>
+                          <span>Confidence: {req.confidence}%</span>
+                        </div>
+                        {req.acceptanceCriteria.length > 0 && (
+                          <ul className='list-disc list-inside text-xs text-text-secondary'>
+                            {req.acceptanceCriteria.slice(0, 3).map((ac) => (
+                              <li key={ac.id}>{ac.text}</li>
+                            ))}
+                          </ul>
+                        )}
+                        <div className='mt-3 flex gap-2'>
+                          <Button size='sm' variant='outline' onClick={() => { handleStatusChange(req.id, 'Approved'); setAiModalOpen(false); }}>
+                            <CheckCircle className='mr-1 h-3 w-3 text-green-600' /> Approve
+                          </Button>
+                          <Button size='sm' variant='outline' onClick={() => { handleStatusChange(req.id, 'Rejected'); setAiModalOpen(false); }}>
+                            <XCircle className='mr-1 h-3 w-3 text-red-600' /> Reject
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* AI Strategy Generation Modal */}
+      {aiStrategyModalOpen && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
+          <div className='max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 dark:bg-gray-800'>
+            <div className='mb-4 flex items-start justify-between'>
+              <div>
+                <h3 className='text-lg font-semibold text-text'>Generate Test Strategy with AI</h3>
+                <p className='text-sm text-text-secondary'>Use your AI provider to generate a test strategy for this requirement.</p>
+              </div>
+              <button onClick={() => setAiStrategyModalOpen(false)} className='text-text-secondary hover:text-text'>✕</button>
+            </div>
+
+            {/* Step 1: Select Provider */}
+            {aiStrategyStep === 'select' && (
+              <div className='space-y-4'>
+                <div>
+                  <label className='block text-sm font-medium text-text-secondary mb-1'>AI Provider</label>
+                  <select
+                    value={aiStrategyProviderId}
+                    onChange={(e) => setAiStrategyProviderId(e.target.value)}
+                    className='w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text'
+                  >
+                    <option value=''>Select a provider...</option>
+                    {aiProviders.map((provider) => (
+                      <option key={provider.id} value={provider.id}>
+                        {provider.name} ({provider.provider} - {provider.model}){provider.isDefault ? ' [Default]' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {aiProviders.length === 0 && (
+                    <p className='mt-2 text-xs text-yellow-600'>
+                      No AI providers configured. Add one in the AI Providers tab first.
+                    </p>
+                  )}
+                </div>
+                <div className='flex justify-end gap-2'>
+                  <Button variant='outline' onClick={() => setAiStrategyModalOpen(false)}>Cancel</Button>
+                  <Button variant='outline' onClick={handleAIStrategyPreview} disabled={!aiStrategyProviderId || aiLoading}>
+                    {aiLoading ? 'Previewing...' : 'Preview Prompt'}
+                  </Button>
+                  <Button onClick={handleAIStrategyGenerate} disabled={!aiStrategyProviderId || aiLoading}>
+                    {aiLoading ? 'Generating...' : 'Generate Strategy'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Preview */}
+            {aiStrategyStep === 'preview' && aiStrategyPreview && (
+              <div className='space-y-4'>
+                <div>
+                  <h4 className='font-semibold text-text mb-2'>Context Summary</h4>
+                  <pre className='rounded-lg bg-background p-3 text-xs text-text overflow-auto max-h-40'>
+                    {JSON.stringify(aiStrategyPreview.contextSummary, null, 2)}
+                  </pre>
+                </div>
+                <div>
+                  <h4 className='font-semibold text-text mb-2'>Generated Prompt</h4>
+                  <div className='rounded-lg border border-border p-3'>
+                    <p className='text-xs font-medium text-text-secondary mb-1'>System Prompt</p>
+                    <p className='text-sm text-text mb-3'>{aiStrategyPreview.generatedPrompt?.systemPrompt}</p>
+                    <p className='text-xs font-medium text-text-secondary mb-1'>User Prompt</p>
+                    <p className='text-sm text-text whitespace-pre-wrap'>{aiStrategyPreview.generatedPrompt?.userPrompt}</p>
+                  </div>
+                </div>
+                <div className='grid grid-cols-2 gap-3'>
+                  <div className='rounded-lg border border-border p-3'>
+                    <p className='text-xs font-medium text-text-secondary'>Token Estimate</p>
+                    <p className='text-lg font-semibold text-text'>{aiStrategyPreview.tokenEstimate}</p>
+                  </div>
+                  <div className='rounded-lg border border-border p-3'>
+                    <p className='text-xs font-medium text-text-secondary'>Cost Estimate</p>
+                    <p className='text-lg font-semibold text-text'>${aiStrategyPreview.costEstimate?.toFixed(6) || '0.000000'}</p>
+                  </div>
+                </div>
+                {aiStrategyWarnings.length > 0 && (
+                  <div className='rounded-lg bg-yellow-50 border border-yellow-200 p-3'>
+                    {aiStrategyWarnings.map((w, i) => (
+                      <p key={i} className='text-xs text-yellow-700'>• {w}</p>
+                    ))}
+                  </div>
+                )}
+                <div className='flex justify-end gap-2'>
+                  <Button variant='outline' onClick={() => setAiStrategyStep('select')}>Back</Button>
+                  <Button onClick={handleAIStrategyGenerate} disabled={aiLoading}>
+                    {aiLoading ? 'Generating...' : 'Generate Strategy'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Result */}
+            {aiStrategyStep === 'result' && (
+              <div className='space-y-4'>
+                <div className='flex items-center justify-between'>
+                  <h4 className='font-semibold text-text'>Generated Test Strategy</h4>
+                  <Button variant='outline' size='sm' onClick={() => { setAiStrategyModalOpen(false); window.location.reload(); }}>
+                    Close & Refresh
+                  </Button>
+                </div>
+                {aiStrategyWarnings.length > 0 && (
+                  <div className='rounded-lg bg-yellow-50 border border-yellow-200 p-3'>
+                    {aiStrategyWarnings.map((w, i) => (
+                      <p key={i} className='text-xs text-yellow-700'>• {w}</p>
+                    ))}
+                  </div>
+                )}
+                {aiStrategyResult && aiStrategyResult.sections ? (
+                  <div className='space-y-3'>
+                    {aiStrategyResult.sections.map((section: any) => (
+                      <div key={section.category} className='rounded-lg border border-border p-4'>
+                        <h5 className='font-semibold text-text mb-2'>{section.category}</h5>
+                        {section.items.map((item: any) => (
+                          <div key={item.id} className='mb-2 rounded border border-border p-3'>
+                            <div className='flex items-center justify-between mb-1'>
+                              <span className='text-sm font-medium text-text'>{item.title}</span>
+                              <Badge className={getPriorityBadgeVariant(item.priority)} variant='outline'>{item.priority}</Badge>
+                            </div>
+                            <p className='text-xs text-text-secondary'>{item.reason}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className='text-sm text-text-secondary'>No test strategy was generated.</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* AI Design Generation Modal */}
+      {aiDesignModalOpen && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
+          <div className='max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 dark:bg-gray-800'>
+            <div className='mb-4 flex items-start justify-between'>
+              <div>
+                <h3 className='text-lg font-semibold text-text'>Generate Test Designs with AI</h3>
+                <p className='text-sm text-text-secondary'>Use your AI provider to generate test designs for this requirement.</p>
+              </div>
+              <button onClick={() => setAiDesignModalOpen(false)} className='text-text-secondary hover:text-text'>✕</button>
+            </div>
+
+            {/* Step 1: Select Provider */}
+            {aiDesignStep === 'select' && (
+              <div className='space-y-4'>
+                <div>
+                  <label className='block text-sm font-medium text-text-secondary mb-1'>AI Provider</label>
+                  <select
+                    value={aiDesignProviderId}
+                    onChange={(e) => setAiDesignProviderId(e.target.value)}
+                    className='w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text'
+                  >
+                    <option value=''>Select a provider...</option>
+                    {aiProviders.map((provider) => (
+                      <option key={provider.id} value={provider.id}>
+                        {provider.name} ({provider.provider} - {provider.model}){provider.isDefault ? ' [Default]' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {aiProviders.length === 0 && (
+                    <p className='mt-2 text-xs text-yellow-600'>
+                      No AI providers configured. Add one in the AI Providers tab first.
+                    </p>
+                  )}
+                </div>
+                <div className='flex justify-end gap-2'>
+                  <Button variant='outline' onClick={() => setAiDesignModalOpen(false)}>Cancel</Button>
+                  <Button variant='outline' onClick={handleAIDesignPreview} disabled={!aiDesignProviderId || aiLoading}>
+                    {aiLoading ? 'Previewing...' : 'Preview Prompt'}
+                  </Button>
+                  <Button onClick={handleAIDesignGenerate} disabled={!aiDesignProviderId || aiLoading}>
+                    {aiLoading ? 'Generating...' : 'Generate Designs'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Preview */}
+            {aiDesignStep === 'preview' && aiDesignPreview && (
+              <div className='space-y-4'>
+                <div>
+                  <h4 className='font-semibold text-text mb-2'>Context Summary</h4>
+                  <pre className='rounded-lg bg-background p-3 text-xs text-text overflow-auto max-h-40'>
+                    {JSON.stringify(aiDesignPreview.contextSummary, null, 2)}
+                  </pre>
+                </div>
+                <div>
+                  <h4 className='font-semibold text-text mb-2'>Generated Prompt</h4>
+                  <div className='rounded-lg border border-border p-3'>
+                    <p className='text-xs font-medium text-text-secondary mb-1'>System Prompt</p>
+                    <p className='text-sm text-text mb-3'>{aiDesignPreview.generatedPrompt?.systemPrompt}</p>
+                    <p className='text-xs font-medium text-text-secondary mb-1'>User Prompt</p>
+                    <p className='text-sm text-text whitespace-pre-wrap'>{aiDesignPreview.generatedPrompt?.userPrompt}</p>
+                  </div>
+                </div>
+                <div className='grid grid-cols-2 gap-3'>
+                  <div className='rounded-lg border border-border p-3'>
+                    <p className='text-xs font-medium text-text-secondary'>Token Estimate</p>
+                    <p className='text-lg font-semibold text-text'>{aiDesignPreview.tokenEstimate}</p>
+                  </div>
+                  <div className='rounded-lg border border-border p-3'>
+                    <p className='text-xs font-medium text-text-secondary'>Cost Estimate</p>
+                    <p className='text-lg font-semibold text-text'>${aiDesignPreview.costEstimate?.toFixed(6) || '0.000000'}</p>
+                  </div>
+                </div>
+                {aiDesignWarnings.length > 0 && (
+                  <div className='rounded-lg bg-yellow-50 border border-yellow-200 p-3'>
+                    {aiDesignWarnings.map((w, i) => (
+                      <p key={i} className='text-xs text-yellow-700'>• {w}</p>
+                    ))}
+                  </div>
+                )}
+                <div className='flex justify-end gap-2'>
+                  <Button variant='outline' onClick={() => setAiDesignStep('select')}>Back</Button>
+                  <Button onClick={handleAIDesignGenerate} disabled={aiLoading}>
+                    {aiLoading ? 'Generating...' : 'Generate Designs'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Result */}
+            {aiDesignStep === 'result' && (
+              <div className='space-y-4'>
+                <div className='flex items-center justify-between'>
+                  <h4 className='font-semibold text-text'>Generated Test Designs ({Array.isArray(aiDesignResult) ? aiDesignResult.length : 0})</h4>
+                  <Button variant='outline' size='sm' onClick={() => { setAiDesignModalOpen(false); window.location.reload(); }}>
+                    Close & Refresh
+                  </Button>
+                </div>
+                {aiDesignWarnings.length > 0 && (
+                  <div className='rounded-lg bg-yellow-50 border border-yellow-200 p-3'>
+                    {aiDesignWarnings.map((w, i) => (
+                      <p key={i} className='text-xs text-yellow-700'>• {w}</p>
+                    ))}
+                  </div>
+                )}
+                {Array.isArray(aiDesignResult) && aiDesignResult.length > 0 ? (
+                  <div className='space-y-3'>
+                    {aiDesignResult.map((design: any) => (
+                      <div key={design.id} className='rounded-lg border border-border p-4'>
+                        <div className='flex items-center justify-between mb-2'>
+                          <h5 className='font-semibold text-text'>Design {design.id?.slice(0, 8) || 'N/A'}</h5>
+                          <div className='flex gap-1'>
+                            <Badge className={getPriorityBadgeVariant(design.priority)} variant='outline'>{design.priority}</Badge>
+                            <Badge variant='outline' className={design.status === 'Ready' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}>{design.status}</Badge>
+                          </div>
+                        </div>
+                        <div className='grid grid-cols-2 gap-2 text-xs text-text-secondary'>
+                          <div>API: {design.operationId || 'N/A'}</div>
+                          <div>Environment: {design.environmentId || 'N/A'}</div>
+                          <div>Dataset: {design.datasetId || 'N/A'}</div>
+                          <div>Priority: {design.priority}</div>
+                        </div>
+                        {design.assertions && design.assertions.length > 0 && (
+                          <div className='mt-2'>
+                            <span className='text-xs font-medium text-text-secondary'>Assertions:</span>
+                            <ul className='mt-1 space-y-0.5'>
+                              {design.assertions.map((a: any, i: number) => (
+                                <li key={i} className='text-xs text-text-secondary'>• {a.type} {a.operator} {a.path} → {String(a.expected)}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className='text-sm text-text-secondary'>No test designs were generated.</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* AI Execution Plan Generation Modal */}
+      {aiExecutionPlanModalOpen && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
+          <div className='max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 dark:bg-gray-800'>
+            <div className='mb-4 flex items-start justify-between'>
+              <div>
+                <h3 className='text-lg font-semibold text-text'>Generate Execution Plan with AI</h3>
+                <p className='text-sm text-text-secondary'>Use your AI provider to generate an ordered execution plan from approved test designs.</p>
+              </div>
+              <button onClick={() => setAiExecutionPlanModalOpen(false)} className='text-text-secondary hover:text-text'>✕</button>
+            </div>
+
+            {aiExecutionPlanStep === 'select' && (
+              <div className='space-y-4'>
+                <div>
+                  <label className='block text-sm font-medium text-text-secondary mb-1'>AI Provider</label>
+                  <select
+                    value={aiExecutionPlanProviderId}
+                    onChange={(e) => setAiExecutionPlanProviderId(e.target.value)}
+                    className='w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text'
+                  >
+                    <option value=''>Select a provider...</option>
+                    {aiProviders.map((provider) => (
+                      <option key={provider.id} value={provider.id}>
+                        {provider.name} ({provider.provider} - {provider.model}){provider.isDefault ? ' [Default]' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {aiProviders.length === 0 && (
+                    <p className='mt-2 text-xs text-yellow-600'>No AI providers configured. Add one in the AI Providers tab first.</p>
+                  )}
+                </div>
+                <div className='flex justify-end gap-2'>
+                  <Button variant='outline' onClick={() => setAiExecutionPlanModalOpen(false)}>Cancel</Button>
+                  <Button variant='outline' onClick={handleAIExecutionPlanPreview} disabled={!aiExecutionPlanProviderId || aiLoading}>
+                    {aiLoading ? 'Previewing...' : 'Preview Prompt'}
+                  </Button>
+                  <Button onClick={handleAIExecutionPlanGenerate} disabled={!aiExecutionPlanProviderId || aiLoading}>
+                    {aiLoading ? 'Generating...' : 'Generate Execution Plan'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {aiExecutionPlanStep === 'preview' && aiExecutionPlanPreview && (
+              <div className='space-y-4'>
+                <div>
+                  <h4 className='font-semibold text-text mb-2'>Context Summary</h4>
+                  <pre className='rounded-lg bg-background p-3 text-xs text-text overflow-auto max-h-40'>
+                    {JSON.stringify(aiExecutionPlanPreview.contextSummary, null, 2)}
+                  </pre>
+                </div>
+                <div>
+                  <h4 className='font-semibold text-text mb-2'>Generated Prompt</h4>
+                  <div className='rounded-lg border border-border p-3'>
+                    <p className='text-xs font-medium text-text-secondary mb-1'>System Prompt</p>
+                    <p className='text-sm text-text mb-3'>{aiExecutionPlanPreview.generatedPrompt?.systemPrompt}</p>
+                    <p className='text-xs font-medium text-text-secondary mb-1'>User Prompt</p>
+                    <p className='text-sm text-text whitespace-pre-wrap'>{aiExecutionPlanPreview.generatedPrompt?.userPrompt}</p>
+                  </div>
+                </div>
+                <div className='grid grid-cols-2 gap-3'>
+                  <div className='rounded-lg border border-border p-3'>
+                    <p className='text-xs font-medium text-text-secondary'>Token Estimate</p>
+                    <p className='text-lg font-semibold text-text'>{aiExecutionPlanPreview.tokenEstimate}</p>
+                  </div>
+                  <div className='rounded-lg border border-border p-3'>
+                    <p className='text-xs font-medium text-text-secondary'>Cost Estimate</p>
+                    <p className='text-lg font-semibold text-text'>${aiExecutionPlanPreview.costEstimate?.toFixed(6) || '0.000000'}</p>
+                  </div>
+                </div>
+                {aiExecutionPlanWarnings.length > 0 && (
+                  <div className='rounded-lg bg-yellow-50 border border-yellow-200 p-3'>
+                    {aiExecutionPlanWarnings.map((w, i) => (
+                      <p key={i} className='text-xs text-yellow-700'>• {w}</p>
+                    ))}
+                  </div>
+                )}
+                <div className='flex justify-end gap-2'>
+                  <Button variant='outline' onClick={() => setAiExecutionPlanStep('select')}>Back</Button>
+                  <Button onClick={handleAIExecutionPlanGenerate} disabled={aiLoading}>
+                    {aiLoading ? 'Generating...' : 'Generate Execution Plan'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {aiExecutionPlanStep === 'result' && (
+              <div className='space-y-4'>
+                <div className='flex items-center justify-between'>
+                  <h4 className='font-semibold text-text'>Generated Execution Plans ({Array.isArray(aiExecutionPlanResult) ? aiExecutionPlanResult.length : 0})</h4>
+                  <Button variant='outline' size='sm' onClick={() => { setAiExecutionPlanModalOpen(false); window.location.reload(); }}>
+                    Close & Refresh
+                  </Button>
+                </div>
+                {aiExecutionPlanWarnings.length > 0 && (
+                  <div className='rounded-lg bg-yellow-50 border border-yellow-200 p-3'>
+                    {aiExecutionPlanWarnings.map((w, i) => (
+                      <p key={i} className='text-xs text-yellow-700'>• {w}</p>
+                    ))}
+                  </div>
+                )}
+                {Array.isArray(aiExecutionPlanResult) && aiExecutionPlanResult.length > 0 ? (
+                  <div className='space-y-3'>
+                    {aiExecutionPlanResult
+                      .slice()
+                      .sort((a: any, b: any) => a.executionOrder - b.executionOrder)
+                      .map((plan: any) => (
+                        <div key={plan.id} className='rounded-lg border border-border p-4'>
+                          <div className='flex items-center justify-between mb-2'>
+                            <div className='flex items-center gap-2'>
+                              <span className='flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white'>{plan.executionOrder}</span>
+                              <h5 className='text-sm font-semibold text-text'>{plan.requestTemplate?.method} {plan.requestTemplate?.path || ''}</h5>
+                              <Badge variant='outline' className={getExecutionStatusBadgeVariant(plan.status)}>{plan.status}</Badge>
+                            </div>
+                            <span className='text-xs text-text-secondary'>Design {plan.testDesignId?.slice(0, 8) || 'N/A'}</span>
+                          </div>
+                          <div className='grid grid-cols-2 gap-2 text-xs text-text-secondary'>
+                            <div>Environment: {plan.environmentId || 'N/A'}</div>
+                            <div>Dataset: {plan.datasetId || 'N/A'}</div>
+                          </div>
+                          {plan.prerequisiteDesignIds && plan.prerequisiteDesignIds.length > 0 && (
+                            <div className='mt-2'>
+                              <span className='text-xs font-medium text-text-secondary'>Prerequisites:</span>
+                              <div className='flex flex-wrap gap-1 mt-1'>
+                                {plan.prerequisiteDesignIds.map((preId: string, i: number) => (
+                                  <Badge key={i} variant='outline' className='text-xs'>{preId.slice(0, 8)}</Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {plan.runtimeBindings && plan.runtimeBindings.length > 0 && (
+                            <div className='mt-2'>
+                              <span className='text-xs font-medium text-text-secondary'>Runtime Variables:</span>
+                              <ul className='mt-1 space-y-0.5'>
+                                {plan.runtimeBindings.map((binding: any, i: number) => (
+                                  <li key={i} className='text-xs text-text-secondary'>• {binding.variable} ({binding.source}) {binding.path || ''}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <p className='text-sm text-text-secondary'>No execution plans were generated.</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* AI Assertion Generation Modal */}
+      {aiAssertionModalOpen && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
+          <div className='max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 dark:bg-gray-800'>
+            <div className='mb-4 flex items-start justify-between'>
+              <div>
+                <h3 className='text-lg font-semibold text-text'>Generate Assertions with AI</h3>
+                <p className='text-sm text-text-secondary'>Use your AI provider to generate assertions for this test design.</p>
+              </div>
+              <button onClick={() => setAiAssertionModalOpen(false)} className='text-text-secondary hover:text-text'>✕</button>
+            </div>
+
+            {/* Step 1: Select Provider */}
+            {aiAssertionStep === 'select' && (
+              <div className='space-y-4'>
+                <div>
+                  <label className='block text-sm font-medium text-text-secondary mb-1'>AI Provider</label>
+                  <select
+                    value={aiAssertionProviderId}
+                    onChange={(e) => setAiAssertionProviderId(e.target.value)}
+                    className='w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text'
+                  >
+                    <option value=''>Select a provider...</option>
+                    {aiProviders.map((provider) => (
+                      <option key={provider.id} value={provider.id}>
+                        {provider.name} ({provider.provider} - {provider.model}){provider.isDefault ? ' [Default]' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {aiProviders.length === 0 && (
+                    <p className='mt-2 text-xs text-yellow-600'>
+                      No AI providers configured. Add one in the AI Providers tab first.
+                    </p>
+                  )}
+                </div>
+                <div className='flex justify-end gap-2'>
+                  <Button variant='outline' onClick={() => setAiAssertionModalOpen(false)}>Cancel</Button>
+                  <Button variant='outline' onClick={handleAIAssertionPreview} disabled={!aiAssertionProviderId || aiLoading}>
+                    {aiLoading ? 'Previewing...' : 'Preview Prompt'}
+                  </Button>
+                  <Button onClick={handleAIAssertionGenerate} disabled={!aiAssertionProviderId || aiLoading}>
+                    {aiLoading ? 'Generating...' : 'Generate Assertions'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Preview */}
+            {aiAssertionStep === 'preview' && aiAssertionPreview && (
+              <div className='space-y-4'>
+                <div>
+                  <h4 className='font-semibold text-text mb-2'>Context Summary</h4>
+                  <pre className='rounded-lg bg-background p-3 text-xs text-text overflow-auto max-h-40'>
+                    {JSON.stringify(aiAssertionPreview.contextSummary, null, 2)}
+                  </pre>
+                </div>
+                <div>
+                  <h4 className='font-semibold text-text mb-2'>Generated Prompt</h4>
+                  <div className='rounded-lg border border-border p-3'>
+                    <p className='text-xs font-medium text-text-secondary mb-1'>System Prompt</p>
+                    <p className='text-sm text-text mb-3'>{aiAssertionPreview.generatedPrompt?.systemPrompt}</p>
+                    <p className='text-xs font-medium text-text-secondary mb-1'>User Prompt</p>
+                    <p className='text-sm text-text whitespace-pre-wrap'>{aiAssertionPreview.generatedPrompt?.userPrompt}</p>
+                  </div>
+                </div>
+                <div className='grid grid-cols-2 gap-3'>
+                  <div className='rounded-lg border border-border p-3'>
+                    <p className='text-xs font-medium text-text-secondary'>Token Estimate</p>
+                    <p className='text-lg font-semibold text-text'>{aiAssertionPreview.tokenEstimate}</p>
+                  </div>
+                  <div className='rounded-lg border border-border p-3'>
+                    <p className='text-xs font-medium text-text-secondary'>Cost Estimate</p>
+                    <p className='text-lg font-semibold text-text'>${aiAssertionPreview.costEstimate?.toFixed(6) || '0.000000'}</p>
+                  </div>
+                </div>
+                {aiAssertionWarnings.length > 0 && (
+                  <div className='rounded-lg bg-yellow-50 border border-yellow-200 p-3'>
+                    {aiAssertionWarnings.map((w, i) => (
+                      <p key={i} className='text-xs text-yellow-700'>• {w}</p>
+                    ))}
+                  </div>
+                )}
+                <div className='flex justify-end gap-2'>
+                  <Button variant='outline' onClick={() => setAiAssertionStep('select')}>Back</Button>
+                  <Button onClick={handleAIAssertionGenerate} disabled={aiLoading}>
+                    {aiLoading ? 'Generating...' : 'Generate Assertions'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Result */}
+            {aiAssertionStep === 'result' && (
+              <div className='space-y-4'>
+                <div className='flex items-center justify-between'>
+                  <h4 className='font-semibold text-text'>Generated Assertions ({Array.isArray(aiAssertionResult) ? aiAssertionResult.length : 0})</h4>
+                  <Button variant='outline' size='sm' onClick={() => { setAiAssertionModalOpen(false); window.location.reload(); }}>
+                    Close & Refresh
+                  </Button>
+                </div>
+                {aiAssertionWarnings.length > 0 && (
+                  <div className='rounded-lg bg-yellow-50 border border-yellow-200 p-3'>
+                    {aiAssertionWarnings.map((w, i) => (
+                      <p key={i} className='text-xs text-yellow-700'>• {w}</p>
+                    ))}
+                  </div>
+                )}
+                {Array.isArray(aiAssertionResult) && aiAssertionResult.length > 0 ? (
+                  <div className='space-y-3'>
+                    {aiAssertionResult.map((assertion: any) => (
+                      <div key={assertion.id} className='rounded-lg border border-border p-4'>
+                        <div className='flex items-center justify-between mb-2'>
+                          <h5 className='text-sm font-semibold text-text'>{assertion.name}</h5>
+                          <div className='flex gap-1'>
+                            <Badge variant='outline' className='text-xs'>{assertion.type}</Badge>
+                            <Badge variant={assertion.severity === 'Critical' ? 'destructive' : 'secondary'} className='text-xs'>
+                              {assertion.severity}
+                            </Badge>
+                          </div>
+                        </div>
+                        <p className='text-xs text-text-secondary mb-2'>{assertion.description}</p>
+                        <div className='text-xs text-text-secondary'>
+                          <span className='font-medium'>Expression:</span> {assertion.expression}
+                        </div>
+                        <div className='text-xs text-text-secondary'>
+                          <span className='font-medium'>Expected:</span> {String(assertion.expectedValue)}
+                        </div>
+                        {assertion.tags && assertion.tags.length > 0 && (
+                          <div className='flex gap-1 mt-2'>
+                            {assertion.tags.map((tag: string) => (
+                              <Badge key={tag} variant='outline' className='text-xs'>{tag}</Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className='text-sm text-text-secondary'>No assertions were generated.</p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

@@ -6,6 +6,7 @@
 //   • Postman Collection v2.1 (JSON)
 //   • GraphQL Schema (.graphql)
 //   • GraphQL Introspection JSON
+import { randomUUID } from 'node:crypto';
 import * as yaml from 'js-yaml';
 import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity';
 import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
@@ -555,7 +556,7 @@ export class ImportApiContract {
       if (!exists) {
         const now = Date.now();
         serviceEntity = new ApiServiceEntity(
-          crypto.randomUUID(),
+          randomUUID(),
           params.projectId,
           svc.name,
           svc.description,
@@ -587,7 +588,8 @@ export class ImportApiContract {
         } else {
           const now = Date.now();
           const operation = new ApiOperationEntity(
-            crypto.randomUUID(),
+            randomUUID(),
+            params.projectId,
             serviceEntity!.id,
             op.name,
             op.method,

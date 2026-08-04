@@ -2,6 +2,7 @@
 // Converts Test Designs into executable execution plans.
 // Does NOT execute APIs. It prepares execution.
 // Reuses Test Design, Knowledge Flows, Runtime Variables, Population Strategies, API Operations.
+import { randomUUID } from 'node:crypto';
 import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
 import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository';
 import { ExecutionPlanRepository } from '../../domain/requirements/ExecutionPlanRepository';
@@ -78,7 +79,7 @@ export class PlanExecution {
       const executionOrder = this.resolveExecutionOrder(design, relatedFlows, i);
 
       const plan = new ExecutionPlanEntity(
-        crypto.randomUUID(),
+        randomUUID(),
         requirement.projectId,
         requirementId,
         design.id,

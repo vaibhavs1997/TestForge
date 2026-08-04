@@ -1,6 +1,7 @@
 // VersionService - Application Service for Versioning Framework
 // Creates and manages version history for entities.
 
+import { randomUUID } from 'node:crypto';
 import { VersionEntity, EntityType } from '../../domain/versioning/VersionEntity';
 import { VersionRepository } from '../../domain/versioning/VersionRepository';
 
@@ -32,7 +33,7 @@ export class VersionService {
     const now = Date.now();
     
     const version = new VersionEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       input.projectId,
       input.entityType,
       input.entityId,

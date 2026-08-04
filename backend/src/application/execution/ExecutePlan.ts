@@ -3,6 +3,7 @@
 // For every execution step: Resolve Environment → Resolve Dataset Values →
 // Resolve Runtime Variables → Apply Request Overrides → Execute HTTP Request →
 // Validate Assertions → Capture Runtime Variables → Store Step Result → Continue.
+import { randomUUID } from 'node:crypto';
 import axios from 'axios';
 import { ExecutionRunEntity, ExecutionContext, ExecutionStepResult, ExecutionSummary, FailureMode, RunStatus, StepStatus, ExecutionProfileMetadata } from '../../domain/execution/ExecutionRunEntity';
 import { ExecutionRunRepository } from '../../domain/execution/ExecutionRunRepository';
@@ -175,7 +176,7 @@ export class ExecutePlan {
 
     const now = Date.now();
     const run = new ExecutionRunEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       plan.projectId,
       plan.requirementId,
       plan.id,

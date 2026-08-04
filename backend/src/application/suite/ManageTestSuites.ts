@@ -1,6 +1,7 @@
 // ManageTestSuites - Application Use Case for Test Suite Management
 // A Test Suite is a reusable collection of Execution Plans.
 // It does NOT execute tests itself. It prepares reusable execution collections.
+import { randomUUID } from 'node:crypto';
 import { TestSuiteRepository } from '../../domain/suite/TestSuiteRepository';
 import { TestSuiteEntity, SuiteExecutionPolicy, SuiteStatus, SuiteTag, TestSuiteItem } from '../../domain/suite/TestSuiteEntity';
 
@@ -41,7 +42,7 @@ export class ManageTestSuites {
 
     const now = Date.now();
     const suite = new TestSuiteEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       input.projectId,
       input.name.trim(),
       input.description || '',

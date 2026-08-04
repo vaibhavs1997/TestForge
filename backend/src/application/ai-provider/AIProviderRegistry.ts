@@ -2,7 +2,7 @@
 // Registers all supported provider adapters and resolves them by type.
 // Reuses the Plugin Framework pattern for registration/resolution.
 
-import { AIProviderAdapter, AIProviderType } from '../../domain/ai-provider';
+import type { AIProviderAdapter, AIProviderType } from '../../domain/ai-provider';
 import {
   OpenAIAdapter,
   ClaudeAdapter,

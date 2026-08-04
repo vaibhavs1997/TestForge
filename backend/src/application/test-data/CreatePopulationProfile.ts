@@ -1,4 +1,5 @@
 // CreatePopulationProfile - Application Use Case
+import { randomUUID } from 'node:crypto';
 import { PopulationProfileRepository } from '../../domain/test-data/PopulationProfileRepository';
 import { PopulationProfileEntity } from '../../domain/test-data/PopulationProfileEntity';
 
@@ -27,7 +28,7 @@ export class CreatePopulationProfile {
 
     const now = Date.now();
     const profile = new PopulationProfileEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       params.datasetId,
       params.columnId,
       params.strategyType,

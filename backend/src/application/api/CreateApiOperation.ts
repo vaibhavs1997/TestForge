@@ -1,4 +1,5 @@
 // CreateApiOperation - Application Use Case
+import { randomUUID } from 'node:crypto';
 import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
 import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
 import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
@@ -10,6 +11,7 @@ export class CreateApiOperation {
   ) {}
 
   async execute(params: {
+    projectId: string;
     serviceId: string;
     name: string;
     method: string;
@@ -40,6 +42,8 @@ export class CreateApiOperation {
       throw new Error(`Service with id ${params.serviceId} not found`);
     }
 
+    const projectId = params.projectId || service.projectId;
+
     const existingOperations = await this.apiOperationRepository.findByService(params.serviceId);
     const isDuplicate = existingOperations.some(
       op => op.method === params.method && op.path === trimmedPath
@@ -50,7 +54,8 @@ export class CreateApiOperation {
 
     const now = Date.now();
     const operation = new ApiOperationEntity(
-      crypto.randomUUID(),
+      randomUUID(),
+      projectId,
       params.serviceId,
       params.name.trim(),
       params.method.trim(),

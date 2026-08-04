@@ -62,6 +62,21 @@ export function usePipeline(projectId?: string) {
     }
   }, []);
 
+  const runAIPipeline = useCallback(async (providerId: string, autoApprove?: boolean) => {
+    if (!projectId) return null;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await pipelineService.runAIPipeline(projectId, { providerId, autoApprove });
+      return result?.data || result;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to run AI pipeline');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
   return {
     pipeline,
     loading,
@@ -70,5 +85,6 @@ export function usePipeline(projectId?: string) {
     refreshPipeline,
     restartStage,
     cancelPipeline,
+    runAIPipeline,
   };
 }

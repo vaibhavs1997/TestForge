@@ -1,6 +1,7 @@
 // PipelinePage - Project Pipeline Orchestration Page
-import React from 'react';
+import React, { useState } from 'react';
 import { usePipeline } from '../hooks/usePipeline';
+import { useAIProviders } from '../../ai-provider/hooks';
 import { PipelineStage, PipelineStatus } from '../types';
 
 interface PipelinePageProps {
@@ -18,6 +19,8 @@ const STAGE_ORDER: PipelineStage[] = [
   'Execution Planning'
 ];
 
+const AI_STAGES = ['Requirements', 'Strategy', 'Design', 'Assertions', 'Execution Plans', 'Suites'];
+
 const STATUS_ICONS: Record<PipelineStatus, string> = {
   pending: '○',
   running: '◐',
@@ -34,8 +37,30 @@ const STATUS_COLORS: Record<PipelineStatus, string> = {
   cancelled: 'text-gray-500'
 };
 
+const AI_STATUS_ICONS: Record<string, string> = {
+  Pending: '○',
+  Running: '◐',
+  Completed: '✓',
+  Failed: '✗',
+  Skipped: '⊘'
+};
+
+const AI_STATUS_COLORS: Record<string, string> = {
+  Pending: 'text-gray-400',
+  Running: 'text-blue-500',
+  Completed: 'text-green-500',
+  Failed: 'text-red-500',
+  Skipped: 'text-gray-500'
+};
+
 export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
-  const { pipeline, loading, error, startPipeline, restartStage, cancelPipeline } = usePipeline(projectId);
+  const { pipeline, loading, error, startPipeline, restartStage, cancelPipeline, runAIPipeline } = usePipeline(projectId);
+  const { providers: aiProviders } = useAIProviders(projectId);
+
+  const [aiProviderId, setAiProviderId] = useState('');
+  const [autoApprove, setAutoApprove] = useState(false);
+  const [aiResult, setAiResult] = useState<any>(null);
+  const [aiRunning, setAiRunning] = useState(false);
 
   const getStageStatus = (stage: PipelineStage): PipelineStatus => {
     if (!pipeline) return 'pending';
@@ -71,11 +96,63 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
     }
   };
 
+  const handleRunAIPipeline = async () => {
+    if (!aiProviderId) return;
+    setAiRunning(true);
+    setAiResult(null);
+    const result = await runAIPipeline(aiProviderId, autoApprove);
+    setAiResult(result);
+    setAiRunning(false);
+  };
+
+  const formatDuration = (ms: number) => {
+    if (!ms) return '—';
+    return `${(ms / 1000).toFixed(1)}s`;
+  };
+
   return (
     <div className="pipeline-page p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold mb-4">Project Pipeline</h1>
-        
+
+        {/* AI Pipeline Controls */}
+        <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded">
+          <h2 className="text-lg font-semibold text-purple-800 mb-3">AI Pipeline</h2>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-sm font-medium text-purple-800 mb-1">AI Provider</label>
+              <select
+                value={aiProviderId}
+                onChange={(e) => setAiProviderId(e.target.value)}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text"
+              >
+                <option value="">Select a provider...</option>
+                {aiProviders.map((provider) => (
+                  <option key={provider.id} value={provider.id}>
+                    {provider.name} ({provider.provider} - {provider.model}){provider.isDefault ? ' [Default]' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-purple-800 pb-2">
+              <input
+                type="checkbox"
+                checked={autoApprove}
+                onChange={(e) => setAutoApprove(e.target.checked)}
+                className="h-4 w-4 rounded border-border"
+              />
+              Auto-approve requirements
+            </label>
+            <button
+              onClick={handleRunAIPipeline}
+              disabled={!aiProviderId || aiRunning || loading}
+              className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:bg-gray-400"
+            >
+              {aiRunning ? 'Running AI Pipeline...' : 'Run AI Pipeline'}
+            </button>
+          </div>
+        </div>
+
         {!pipeline && (
           <button
             onClick={handleRunEntirePipeline}
@@ -99,6 +176,92 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
       {error && (
         <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
           {error}
+        </div>
+      )}
+
+      {/* AI Pipeline Progress */}
+      {aiResult && (
+        <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-purple-800">AI Pipeline Result</h2>
+            <div className="flex items-center gap-4 text-sm">
+              <span className="text-purple-800">
+                Status: <strong>{aiResult.status}</strong>
+              </span>
+              <span className="text-purple-800">
+                Elapsed: <strong>{formatDuration(aiResult.totalDurationMs)}</strong>
+              </span>
+            </div>
+          </div>
+
+          {/* Stage progress */}
+          <div className="space-y-2">
+            {AI_STAGES.map((stage) => {
+              const stageResult = aiResult.stages?.find((s: any) => s.stage === stage);
+              const status = stageResult?.status || 'Pending';
+              return (
+                <div key={stage} className="flex items-center gap-3 p-2 bg-white rounded border border-purple-100">
+                  <span className={`text-xl ${AI_STATUS_COLORS[status]}`}>{AI_STATUS_ICONS[status]}</span>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-purple-900">{stage}</span>
+                      <span className={`text-sm ${AI_STATUS_COLORS[status]}`}>{status}</span>
+                    </div>
+                    <div className="flex items-center gap-4 text-xs text-gray-600 mt-1">
+                      <span>Duration: {formatDuration(stageResult?.durationMs)}</span>
+                      <span>Generated: {stageResult?.generatedCount ?? 0}</span>
+                      {stageResult?.error && (
+                        <span className="text-red-600">Error: {stageResult.error}</span>
+                      )}
+                    </div>
+                    {stageResult?.warnings && stageResult.warnings.length > 0 && (
+                      <div className="mt-1 text-xs text-yellow-700">
+                        {stageResult.warnings.map((w: string, i: number) => (
+                          <div key={i}>• {w}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Generated artifact counts */}
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
+            <div className="p-2 bg-white rounded border border-purple-100">
+              <span className="text-gray-600">Requirements:</span>{' '}
+              <strong className="text-purple-800">{aiResult.requirementIds?.length || 0}</strong>
+            </div>
+            <div className="p-2 bg-white rounded border border-purple-100">
+              <span className="text-gray-600">Strategies:</span>{' '}
+              <strong className="text-purple-800">{aiResult.strategyIds?.length || 0}</strong>
+            </div>
+            <div className="p-2 bg-white rounded border border-purple-100">
+              <span className="text-gray-600">Designs:</span>{' '}
+              <strong className="text-purple-800">{aiResult.designIds?.length || 0}</strong>
+            </div>
+            <div className="p-2 bg-white rounded border border-purple-100">
+              <span className="text-gray-600">Assertions:</span>{' '}
+              <strong className="text-purple-800">{aiResult.assertionIds?.length || 0}</strong>
+            </div>
+            <div className="p-2 bg-white rounded border border-purple-100">
+              <span className="text-gray-600">Execution Plans:</span>{' '}
+              <strong className="text-purple-800">{aiResult.executionPlanIds?.length || 0}</strong>
+            </div>
+            <div className="p-2 bg-white rounded border border-purple-100">
+              <span className="text-gray-600">Suites:</span>{' '}
+              <strong className="text-purple-800">{aiResult.suiteIds?.length || 0}</strong>
+            </div>
+          </div>
+
+          {aiResult.warnings && aiResult.warnings.length > 0 && (
+            <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-700">
+              {aiResult.warnings.map((w: string, i: number) => (
+                <div key={i}>• {w}</div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

@@ -1,4 +1,5 @@
 // CreateKnowledgeFlow - Application Use Case
+import { randomUUID } from 'node:crypto';
 import { KnowledgeFlowRepository } from '../../domain/knowledge/KnowledgeFlowRepository';
 import { KnowledgeFlowEntity, FlowStatus, FlowStep } from '../../domain/knowledge/KnowledgeFlowEntity';
 
@@ -25,7 +26,7 @@ export class CreateKnowledgeFlow {
 
     const now = Date.now();
     const flow = new KnowledgeFlowEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       params.projectId,
       trimmedName,
       params.description?.trim() || '',

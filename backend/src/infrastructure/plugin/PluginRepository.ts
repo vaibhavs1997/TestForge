@@ -1,7 +1,8 @@
 // PluginRepository - Infrastructure implementation for Plugin Framework
 // Uses in-memory storage. Can be swapped for DB implementation.
 
-import { PluginEntity, PluginRepository } from '../../domain/plugin';
+import { PluginEntity } from '../../domain/plugin';
+import type { PluginRepository } from '../../domain/plugin';
 
 export class InMemoryPluginRepository implements PluginRepository {
   private plugins: Map<string, PluginEntity> = new Map();

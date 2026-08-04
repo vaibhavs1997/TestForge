@@ -3,7 +3,7 @@
 // generate(), stream(), health().
 // For now, generate() returns deterministic placeholder responses with NO external API calls.
 
-import {
+import type {
   AIProviderAdapter,
   AIProviderConfig,
   AIProviderMessage,

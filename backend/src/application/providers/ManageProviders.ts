@@ -1,5 +1,6 @@
 // ManageProviders - Application Use Case for Provider Framework
 // Handles CRUD operations for providers (create, get, list, update, delete).
+import { randomUUID } from 'node:crypto';
 import { ProviderEntity, ProviderCategory, ProviderAdapterType } from '../../domain/providers/ProviderEntity';
 import { ProviderRepository } from '../../domain/providers/ProviderRepository';
 import { ProviderAdapterRegistry } from '../../infrastructure/providers/adapters/ProviderAdapterRegistry';
@@ -31,7 +32,7 @@ export class ManageProviders {
   async create(input: CreateProviderInput): Promise<ProviderEntity> {
     const now = Date.now();
     const provider = new ProviderEntity(
-      crypto.randomUUID(),
+      randomUUID(),
       input.projectId,
       input.name,
       input.category,

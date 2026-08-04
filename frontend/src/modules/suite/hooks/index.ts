@@ -52,6 +52,12 @@ export const useSuites = (projectId?: string) => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   });
 
+  const generateWithAIMutation = useMutation({
+    mutationFn: ({ projectId, providerId, previewOnly }: { projectId: string; providerId: string; previewOnly?: boolean }) =>
+      suiteService.generateSuiteWithAI(projectId, { providerId, previewOnly }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+  });
+
   return {
     suites,
     isLoading,
@@ -75,6 +81,8 @@ export const useSuites = (projectId?: string) => {
     reorderExecutionPlans: reorderExecutionPlansMutation.mutate,
     reorderExecutionPlansAsync: reorderExecutionPlansMutation.mutateAsync,
     isReordering: reorderExecutionPlansMutation.isPending,
+    generateWithAI: generateWithAIMutation.mutateAsync,
+    isGeneratingWithAI: generateWithAIMutation.isPending,
   };
 };
 

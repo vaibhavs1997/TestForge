@@ -1,5 +1,5 @@
 // External libraries
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 
 // Assets
@@ -17,10 +17,7 @@ import {
   Play,
   BarChart3,
   Sparkles,
-  FlaskConical,
-  GitBranch,
   Workflow,
-  CalendarClock,
   Bell,
   History,
   ScrollText,
@@ -28,12 +25,23 @@ import {
   Boxes,
   Send,
   Bot,
+  ChevronDown,
+  ChevronRight,
+  Wrench,
+  Shield,
 } from 'lucide-react';
 import { projectStore } from '../store/projectStore';
 
 // Styles
 
-const PROJECT_TAB_ITEMS: { key: string; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+interface NavItem {
+  key: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+// Primary workflow navigation - 8 items
+const PRIMARY_NAV_ITEMS: NavItem[] = [
   { key: 'overview', label: 'Overview', icon: LayoutDashboard },
   { key: 'apis', label: 'APIs', icon: FolderOpen },
   { key: 'environment', label: 'Environment', icon: Globe },
@@ -42,24 +50,34 @@ const PROJECT_TAB_ITEMS: { key: string; label: string; icon: React.ComponentType
   { key: 'requirements', label: 'Requirements', icon: ListChecks },
   { key: 'execution', label: 'Execution', icon: Play },
   { key: 'reports', label: 'Reports', icon: BarChart3 },
+];
+
+// Administration section - collapsible
+const ADMIN_NAV_ITEMS: NavItem[] = [
   { key: 'recommendations', label: 'Recommendations', icon: Sparkles },
-  { key: 'suites', label: 'Suites', icon: FlaskConical },
-  { key: 'analysis', label: 'Analysis', icon: GitBranch },
   { key: 'pipeline', label: 'Pipeline', icon: Workflow },
-  { key: 'scheduler', label: 'Scheduler', icon: CalendarClock },
   { key: 'notifications', label: 'Notifications', icon: Bell },
   { key: 'versions', label: 'Versions', icon: History },
-  { key: 'audit', label: 'Audit Log', icon: ScrollText },
-  { key: 'context', label: 'Context', icon: Boxes },
-  { key: 'prompts', label: 'Prompts', icon: Send },
+  { key: 'audit', label: 'Audit', icon: ScrollText },
+  { key: 'plugins', label: 'Plugins', icon: Puzzle },
   { key: 'ai-providers', label: 'AI Providers', icon: Bot },
+];
+
+// Developer Tools section - collapsible, hidden by default
+const DEV_TOOLS_NAV_ITEMS: NavItem[] = [
+  { key: 'context', label: 'Context Viewer', icon: Boxes },
+  { key: 'prompts', label: 'Prompt Builder', icon: Send },
 ];
 
 export const Sidebar: React.FC = () => {
   const location = useLocation();
   const selectedProjectId = projectStore((state) => state.selectedProjectId);
 
-  // Project-centric primary navigation
+  // Collapsible section state
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [devToolsOpen, setDevToolsOpen] = useState(false);
+
+  // Project-centric primary navigation (outside project workspace)
   const primaryNavigationItems = [
     { to: '/projects', label: 'Projects', icon: FolderKanban },
     { to: '/plugins', label: 'Plugins', icon: Puzzle },
@@ -82,8 +100,58 @@ export const Sidebar: React.FC = () => {
     return location.pathname.startsWith(itemPath);
   };
 
+  // Check if any admin item is active (to auto-expand the section)
+  const adminKeys = ADMIN_NAV_ITEMS.map((i) => i.key);
+  const isAdminActive = adminKeys.includes(activeProjectTab);
+  const devToolsKeys = DEV_TOOLS_NAV_ITEMS.map((i) => i.key);
+  const isDevToolsActive = devToolsKeys.includes(activeProjectTab);
+
   const handleLogoClick = () => {
     window.location.href = '/projects';
+  };
+
+  const renderNavItem = (item: NavItem) => {
+    const Icon = item.icon;
+    const tabPath = `/projects/${activeProjectId}/${item.key}`;
+    const isActive = activeProjectTab === item.key;
+    return (
+      <NavLink
+        key={item.key}
+        to={tabPath}
+        className={() =>
+          `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+            isActive
+              ? 'bg-primary text-white'
+              : 'text-text-secondary hover:bg-surface hover:text-text'
+          }`
+        }
+      >
+        <Icon className="h-4 w-4" />
+        {item.label}
+      </NavLink>
+    );
+  };
+
+  const renderCollapsibleItem = (item: NavItem, indent: boolean = true) => {
+    const Icon = item.icon;
+    const tabPath = `/projects/${activeProjectId}/${item.key}`;
+    const isActive = activeProjectTab === item.key;
+    return (
+      <NavLink
+        key={item.key}
+        to={tabPath}
+        className={() =>
+          `flex items-center gap-3 rounded-lg ${indent ? 'px-3 pl-9' : 'px-3'} py-2 text-sm font-medium transition-colors ${
+            isActive
+              ? 'bg-primary text-white'
+              : 'text-text-secondary hover:bg-surface hover:text-text'
+          }`
+        }
+      >
+        <Icon className="h-4 w-4" />
+        {item.label}
+      </NavLink>
+    );
   };
 
   return (
@@ -98,7 +166,7 @@ export const Sidebar: React.FC = () => {
           <img src={logoDark} alt='TestForge' className='hidden h-8 w-auto dark:block' />
         </button>
       </div>
-      <nav className="flex-1 space-y-1 p-4">
+      <nav className="flex-1 space-y-1 overflow-y-auto p-4">
         {!isInsideProject && primaryNavigationItems.map((item) => {
           const Icon = item.icon;
           return (
@@ -125,26 +193,59 @@ export const Sidebar: React.FC = () => {
               Project
             </div>
             <div className="space-y-1">
-              {PROJECT_TAB_ITEMS.map((tab) => {
-                const Icon = tab.icon;
-                const tabPath = `/projects/${activeProjectId}/${tab.key}`;
-                return (
-                  <NavLink
-                    key={tab.key}
-                    to={tabPath}
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                        activeProjectTab === tab.key
-                          ? 'bg-primary text-white'
-                          : 'text-text-secondary hover:bg-surface hover:text-text'
-                      }`
-                    }
-                  >
-                    <Icon className="h-4 w-4" />
-                    {tab.label}
-                  </NavLink>
-                );
-              })}
+              {PRIMARY_NAV_ITEMS.map(renderNavItem)}
+
+              {/* Administration Section - Collapsible */}
+              <div className="pt-3">
+                <button
+                  onClick={() => setAdminOpen(!adminOpen)}
+                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    isAdminActive
+                      ? 'text-text'
+                      : 'text-text-secondary hover:bg-surface hover:text-text'
+                  }`}
+                  aria-expanded={adminOpen || isAdminActive}
+                >
+                  {adminOpen || isAdminActive ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                  <Shield className="h-4 w-4" />
+                  Administration
+                </button>
+                {(adminOpen || isAdminActive) && (
+                  <div className="mt-1 space-y-1">
+                    {ADMIN_NAV_ITEMS.map((item) => renderCollapsibleItem(item))}
+                  </div>
+                )}
+              </div>
+
+              {/* Developer Tools Section - Collapsible, hidden by default */}
+              <div className="pt-3">
+                <button
+                  onClick={() => setDevToolsOpen(!devToolsOpen)}
+                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    isDevToolsActive
+                      ? 'text-text'
+                      : 'text-text-secondary hover:bg-surface hover:text-text'
+                  }`}
+                  aria-expanded={devToolsOpen || isDevToolsActive}
+                >
+                  {devToolsOpen || isDevToolsActive ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                  <Wrench className="h-4 w-4" />
+                  Developer Tools
+                </button>
+                {(devToolsOpen || isDevToolsActive) && (
+                  <div className="mt-1 space-y-1">
+                    {DEV_TOOLS_NAV_ITEMS.map((item) => renderCollapsibleItem(item))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

@@ -22,9 +22,9 @@ export class ApiOperationRepository {
   }
 
   async create(operation: ApiOperationEntity): Promise<ApiOperationEntity> {
-    this.ensureProjectDir(operation.serviceId);
-    const filePath = this.getOperationsFilePath(operation.serviceId);
-    const operations = await this.readOperations(operation.serviceId);
+    this.ensureProjectDir(operation.projectId);
+    const filePath = this.getOperationsFilePath(operation.projectId);
+    const operations = await this.readOperations(operation.projectId);
     operations.push(operation);
     fs.writeFileSync(filePath, JSON.stringify(operations, null, 2));
     return operation;
@@ -70,7 +70,13 @@ export class ApiOperationRepository {
   }
 
   async findByService(serviceId: string): Promise<ApiOperationEntity[]> {
-    return this.readOperations(serviceId);
+    const projectIds = this.listProjectIds();
+    for (const projectId of projectIds) {
+      const operations = await this.readOperations(projectId);
+      const filtered = operations.filter((o: any) => o.serviceId === serviceId);
+      if (filtered.length > 0) return filtered;
+    }
+    return [];
   }
 
   async list(): Promise<ApiOperationEntity[]> {
@@ -91,8 +97,8 @@ export class ApiOperationRepository {
     });
   }
 
-  private readOperations(serviceId: string): ApiOperationEntity[] {
-    const filePath = this.getOperationsFilePath(serviceId);
+  private readOperations(projectId: string): ApiOperationEntity[] {
+    const filePath = this.getOperationsFilePath(projectId);
     if (!fs.existsSync(filePath)) return [];
     const data = fs.readFileSync(filePath, 'utf-8');
     return JSON.parse(data);

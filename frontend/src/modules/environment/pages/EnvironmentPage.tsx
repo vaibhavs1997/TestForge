@@ -8,12 +8,14 @@ import { Badge } from '../../../components/ui/Badge';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { Toast } from '../../../components/shared/Toast';
+import { ErrorAlert } from '../../../components/shared/ErrorAlert';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
 import { ImportEnvironmentModal, type ImportEnvironmentModalData } from '../components/ImportEnvironmentModal';
 import { Globe, Plus, Server, Cloud, Upload, Key, Lock, Clock, MoreVertical, ExternalLink, Copy, Edit, Trash2 } from 'lucide-react';
 import { useEnvironments } from '../hooks/useEnvironments';
 import { environmentService } from '../services/environmentService';
 import { EnvironmentDialog, type EnvironmentDialogData } from '../components/EnvironmentDialog';
+import { logger } from '../../../utils/logger';
 
 // Styles
 
@@ -82,9 +84,11 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
             <p className='mt-1 text-sm text-text-secondary'>Manage reusable execution environments for this project.</p>
           </div>
         </div>
-        <div className='flex items-center justify-center py-12'>
-          <p className='text-sm text-error'>Error loading environments: {error?.message || 'Unknown error'}</p>
-        </div>
+        <ErrorAlert
+          title='Failed to load environments'
+          message={error?.message || 'An unexpected error occurred while loading environments.'}
+          onRetry={() => window.location.reload()}
+        />
       </div>
     );
   }
@@ -265,7 +269,7 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
         open={importOpen}
         onClose={() => setImportOpen(false)}
         onImport={(data: ImportEnvironmentModalData) => {
-          console.log('Import environment:', data);
+          logger.info('Import environment', data);
           setImportOpen(false);
         }}
       />

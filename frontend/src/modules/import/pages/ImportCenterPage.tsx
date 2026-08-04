@@ -17,6 +17,7 @@ import { Badge } from '../../../components/ui/Badge';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { Upload, FileText, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { logger } from '../../../utils/logger';
 
 // Styles
 
@@ -34,41 +35,32 @@ interface ImportJob {
 export const ImportCenterPage: React.FC<ImportCenterPageProps> = () => {
   const [search, setSearch] = React.useState('');
   const [loading, setLoading] = React.useState(false);
+  const [importJobs, setImportJobs] = React.useState<ImportJob[]>([]);
+  const [isLoadingJobs, setIsLoadingJobs] = React.useState(true);
+  const [jobsError, setJobsError] = React.useState<string | null>(null);
 
-  const importJobs: ImportJob[] = [
-    {
-      id: '1',
-      fileName: 'user_api_tests.json',
-      status: 'completed',
-      progress: 100,
-      recordsImported: 245,
-      timestamp: '2024-01-15T10:30:00Z',
-    },
-    {
-      id: '2',
-      fileName: 'payment_service.yaml',
-      status: 'processing',
-      progress: 67,
-      recordsImported: 0,
-      timestamp: '2024-01-15T09:15:00Z',
-    },
-    {
-      id: '3',
-      fileName: 'legacy_tests.csv',
-      status: 'failed',
-      progress: 45,
-      recordsImported: 0,
-      timestamp: '2024-01-15T08:45:00Z',
-    },
-    {
-      id: '4',
-      fileName: 'integration_suite.json',
-      status: 'queued',
-      progress: 0,
-      recordsImported: 0,
-      timestamp: '2024-01-15T08:00:00Z',
-    },
-  ];
+  // Load import jobs on mount
+  React.useEffect(() => {
+    const loadImportJobs = async () => {
+      try {
+        setIsLoadingJobs(true);
+        setJobsError(null);
+        // TODO: Replace with real API call
+        // const data = await importService.listJobs(projectId);
+        // setImportJobs(data);
+        
+        // For now, show empty state - no mock data
+        setImportJobs([]);
+      } catch (err) {
+        setJobsError(err instanceof Error ? err.message : 'Failed to load import jobs');
+        logger.error('Failed to load import jobs', err);
+      } finally {
+        setIsLoadingJobs(false);
+      }
+    };
+
+    loadImportJobs();
+  }, []);
 
   const filteredJobs = React.useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -141,8 +133,8 @@ export const ImportCenterPage: React.FC<ImportCenterPageProps> = () => {
             <FileText className='h-4 w-4 text-blue-600' />
           </CardHeader>
           <CardContent>
-            <div className='text-2xl font-bold text-text'>156</div>
-            <p className='text-xs text-text-secondary'>+12 this week</p>
+            <div className='text-2xl font-bold text-text'>—</div>
+            <p className='text-xs text-text-secondary'>No data available</p>
           </CardContent>
         </Card>
         <Card>
@@ -151,8 +143,8 @@ export const ImportCenterPage: React.FC<ImportCenterPageProps> = () => {
             <CheckCircle className='h-4 w-4 text-green-600' />
           </CardHeader>
           <CardContent>
-            <div className='text-2xl font-bold text-text'>94.2%</div>
-            <p className='text-xs text-text-secondary'>Last 30 days</p>
+            <div className='text-2xl font-bold text-text'>—</div>
+            <p className='text-xs text-text-secondary'>No data available</p>
           </CardContent>
         </Card>
         <Card>
@@ -161,8 +153,8 @@ export const ImportCenterPage: React.FC<ImportCenterPageProps> = () => {
             <XCircle className='h-4 w-4 text-red-600' />
           </CardHeader>
           <CardContent>
-            <div className='text-2xl font-bold text-text'>9</div>
-            <p className='text-xs text-text-secondary'>Requires attention</p>
+            <div className='text-2xl font-bold text-text'>—</div>
+            <p className='text-xs text-text-secondary'>No data available</p>
           </CardContent>
         </Card>
       </div>
@@ -178,7 +170,7 @@ export const ImportCenterPage: React.FC<ImportCenterPageProps> = () => {
           icon={<Upload className='h-12 w-12' />}
           title='No import jobs found'
           description={search ? 'Try adjusting your search criteria.' : 'Upload a file to start importing data.'}
-          action={search ? undefined : { label: 'Upload File', onClick: () => console.log('Upload clicked') }}
+          action={search ? undefined : { label: 'Upload File', onClick: () => logger.info('Upload clicked') }}
         />
       ) : (
         <div className='space-y-4'>

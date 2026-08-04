@@ -4,6 +4,8 @@ import { X } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { TextInput } from '../../../components/forms/TextInput';
+import { useFormValidation } from '../../../hooks/useFormValidation';
+import { isDuplicateName, FormErrors } from '../../../utils/validation';
 
 export interface RenameProjectModalProps {
   open: boolean;
@@ -21,13 +23,26 @@ export const RenameProjectModal = ({
   existingNames = [],
 }: RenameProjectModalProps) => {
   const [name, setName] = React.useState(currentName);
-  const [error, setError] = React.useState<string | undefined>(undefined);
+
+  const validate = React.useCallback((): FormErrors => {
+    const newErrors: FormErrors = {};
+    const trimmed = name.trim();
+
+    if (!trimmed) {
+      newErrors.name = 'Project name is required';
+    } else if (isDuplicateName(trimmed, existingNames, currentName)) {
+      newErrors.name = 'A project with this name already exists';
+    }
+
+    return newErrors;
+  }, [name, existingNames, currentName]);
+
+  const { errors, validateForm, clearError } = useFormValidation({ validate });
 
   // Sync the input with the current project name whenever the modal opens
   React.useEffect(() => {
     if (open) {
       setName(currentName);
-      setError(undefined);
     }
   }, [open, currentName]);
 
@@ -35,31 +50,23 @@ export const RenameProjectModal = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = name.trim();
-
-    if (!trimmed) {
-      setError('Project name is required');
-      return;
+    if (validateForm()) {
+      onSave(name.trim());
     }
-
-    // Allow keeping the same name; only block if it matches another project
-    if (trimmed.toLowerCase() !== currentName.toLowerCase() && existingNames.some((n) => n.toLowerCase() === trimmed.toLowerCase())) {
-      setError('A project with this name already exists');
-      return;
-    }
-
-    onSave(trimmed);
   };
 
   return (
     <div
       className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'
       onClick={onClose}
+      role='dialog'
+      aria-modal='true'
+      aria-labelledby='rename-project-title'
     >
       <Card className='mx-4 w-full max-w-md' onClick={(e) => e.stopPropagation()}>
         <CardHeader>
           <div className='flex items-center justify-between'>
-            <CardTitle>Rename Project</CardTitle>
+            <CardTitle id='rename-project-title'>Rename Project</CardTitle>
             <Button
               variant='ghost'
               size='sm'
@@ -72,18 +79,20 @@ export const RenameProjectModal = ({
             </Button>
           </div>
         </CardHeader>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <CardContent className='space-y-4'>
             <TextInput
               label='Project name'
+              name='name'
               value={name}
               onChange={(e) => {
                 setName(e.target.value);
-                if (error) setError(undefined);
+                clearError('name');
               }}
               placeholder='Enter project name'
-              error={error}
+              error={errors.name}
               autoFocus
+              required
             />
           </CardContent>
           <CardFooter className='justify-end gap-2'>

@@ -13,6 +13,7 @@ import { PromptEntity, PromptVariableValue, PromptStatus } from '../../domain/pr
 import { PromptRepository } from '../../domain/prompt';
 import { ProjectContextService } from '../context/ProjectContextService';
 import { VersionService } from '../versioning/VersionService';
+import { EventPublisher } from '../EventPublisher';
 
 export interface BuildPromptInput {
   templateId: string;
@@ -42,7 +43,8 @@ export class PromptBuilderService {
   constructor(
     private readonly promptRepository: PromptRepository,
     private readonly projectContextService: ProjectContextService,
-    private readonly versionService: VersionService
+    private readonly versionService: VersionService,
+    private readonly eventPublisher?: EventPublisher
   ) {}
 
   /**
@@ -96,23 +98,16 @@ export class PromptBuilderService {
     // Persist the generated prompt
     const saved = await this.promptRepository.createPrompt(prompt);
 
-    // Persist a version snapshot (reusing Versioning framework)
-    try {
-      await this.versionService.create({
-        projectId: input.projectId,
-        entityType: 'Prompt' as any,
-        entityId: prompt.id,
-        snapshot: {
-          systemPrompt: prompt.systemPrompt,
-          userPrompt: prompt.userPrompt,
-          variables: prompt.variables,
-          tokenEstimate: prompt.tokenEstimate,
-        },
-        changeSummary: `Built prompt from template ${template.name} v${template.version}`,
-        createdBy: input.createdBy || 'System',
-      });
-    } catch {
-      // Versioning is best-effort
+    // Publish CREATED event through central EventPublisher.
+    // The VersionEventListener will automatically create a version snapshot.
+    if (this.eventPublisher) {
+      await this.eventPublisher.created('prompt', prompt.id, input.projectId, 'Prompt', {
+        templateId: template.id,
+        templateName: template.name,
+        templateVersion: template.version,
+        status: built.status,
+        tokenEstimate: built.tokenEstimate,
+      } as any);
     }
 
     return saved;

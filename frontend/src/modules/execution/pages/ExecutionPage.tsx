@@ -17,6 +17,7 @@ import { useExecution } from '../hooks';
 
 // Types
 import type { ExecutionRun, StepStatus } from '../types';
+import { logger } from '../../../utils/logger';
 
 export interface ExecutionPageProps {}
 
@@ -63,29 +64,9 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
 
   // Load profiles
   React.useEffect(() => {
-    profileService.listByProject(projectId).then(setProfiles).catch(() => {
-      // Use mock data if API fails
-      setProfiles([
-        {
-          id: '1',
-          projectId: '1',
-          name: 'Default Profile',
-          description: 'Standard execution profile',
-          defaultEnvironmentId: '1',
-          failureMode: 'StopOnFailure',
-          retryPolicy: { enabled: false, maxRetries: 3, retryDelay: 1000 },
-          timeout: 30000,
-          parallelism: { enabled: false, maxConcurrent: 1 },
-          assertionMode: 'all',
-          runtimeVariableReset: true,
-          datasetSelectionStrategy: 'first',
-          tags: ['default'],
-          enabled: true,
-          isDefault: true,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        },
-      ]);
+    profileService.listByProject(projectId).then(setProfiles).catch((err) => {
+      logger.error('Failed to load execution profiles', err);
+      setProfiles([]);
     });
   }, [projectId]);
 
@@ -120,7 +101,7 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
     try {
       await startExecution({ projectId, executionPlanId, executionProfileId: selectedProfileId });
     } catch (err) {
-      console.error('Failed to start execution:', err);
+      logger.error('Failed to start execution', err);
     }
   };
 

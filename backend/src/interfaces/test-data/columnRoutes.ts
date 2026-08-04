@@ -1,22 +1,23 @@
 // ColumnRoutes - Route definitions for Dataset Columns
 import { Router } from 'express';
 import { ColumnController } from './ColumnController';
-import { ColumnRepository } from '../../infrastructure/test-data/ColumnRepository';
+import { container } from '../../application/ApplicationContainer';
+
+// Reuse shared repositories from the ApplicationContainer
+const {
+  columnRepository,
+  apiServiceRepository,
+  apiOperationRepository,
+} = container;
+
+// Initialize use cases
 import { CreateColumn } from '../../application/test-data/CreateColumn';
 import { UpdateColumn } from '../../application/test-data/UpdateColumn';
 import { DeleteColumn } from '../../application/test-data/DeleteColumn';
 import { GetColumn } from '../../application/test-data/GetColumn';
 import { ListColumns } from '../../application/test-data/ListColumns';
 import { SuggestColumns } from '../../application/test-data/SuggestColumns';
-import { ApiServiceRepository } from '../../infrastructure/api/ApiServiceRepository';
-import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
 
-// Initialize repositories
-const columnRepository = new ColumnRepository();
-const apiServiceRepository = new ApiServiceRepository();
-const apiOperationRepository = new ApiOperationRepository();
-
-// Initialize use cases
 const createColumn = new CreateColumn(columnRepository);
 const updateColumn = new UpdateColumn(columnRepository);
 const deleteColumn = new DeleteColumn(columnRepository);

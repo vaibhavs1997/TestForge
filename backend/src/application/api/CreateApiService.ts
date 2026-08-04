@@ -2,9 +2,13 @@
 import { randomUUID } from 'node:crypto';
 import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity';
 import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
+import { EventPublisher } from '../EventPublisher';
 
 export class CreateApiService {
-  constructor(private readonly apiServiceRepository: ApiServiceRepository) {}
+  constructor(
+    private readonly apiServiceRepository: ApiServiceRepository,
+    private readonly eventPublisher?: EventPublisher
+  ) {}
 
   async execute(params: {
     projectId: string;
@@ -34,7 +38,15 @@ export class CreateApiService {
       now
     );
 
-    return this.apiServiceRepository.create(service);
+    const created = await this.apiServiceRepository.create(service);
+
+    // Publish through central EventPublisher — triggers audit, versioning,
+    // cache invalidation, recommendation refresh, and pipeline refresh.
+    if (this.eventPublisher) {
+      await this.eventPublisher.created('api', created.id, created.projectId, 'ApiService', created as any);
+    }
+
+    return created;
   }
 }
 

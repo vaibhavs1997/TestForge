@@ -1,6 +1,5 @@
 // AuditLogService - Application Service for Audit Log Framework
 // Subscribes to EventBus and logs important actions.
-
 import { randomUUID } from 'node:crypto';
 import { EventBus, EventType, ModuleName, DomainEvent } from '../../domain/events/EventBus';
 import { AuditLogEntity, AuditAction, AuditModule } from '../../domain/audit/AuditLogEntity';
@@ -15,10 +14,12 @@ export class AuditLogService {
   }
 
   private setupEventSubscriptions(eventBus: EventBus): void {
-    // Subscribe to all modules
+    // Subscribe to ALL modules so every operation produces an audit entry
     const modules: ModuleName[] = [
-      'api', 'environment', 'dataset', 'analysis', 'knowledge', 'requirements',
-      'strategy', 'design', 'execution', 'pipeline', 'recommendation', 'scheduler', 'report'
+      'api', 'environment', 'dataset', 'analysis', 'knowledge',
+      'requirements', 'strategy', 'design', 'execution', 'pipeline',
+      'recommendation', 'scheduler', 'report', 'assertion', 'suite',
+      'plugin', 'provider', 'ai', 'version', 'audit', 'notification',
     ];
 
     const actionMapping: Record<EventType, AuditAction> = {
@@ -31,6 +32,9 @@ export class AuditLogService {
       'INVALIDATED': 'DELETE',
       'COMPLETED': 'EXECUTE',
       'FAILED': 'EXECUTE',
+      'RESTORED': 'RESTORE',
+      'ENABLED': 'ENABLE',
+      'DISABLED': 'DISABLE',
     };
 
     for (const module of modules) {
@@ -77,6 +81,15 @@ export class AuditLogService {
       'pipeline': 'ExecutionPlan',
       'recommendation': 'Report',
       'scheduler': 'Scheduler',
+      'report': 'Report',
+      'assertion': 'Assertion',
+      'suite': 'TestSuite',
+      'plugin': 'Plugin',
+      'provider': 'Provider',
+      'ai': 'AI',
+      'version': 'Version',
+      'audit': 'AuditLog',
+      'notification': 'Notification',
     };
     return mapping[module] || 'Project';
   }

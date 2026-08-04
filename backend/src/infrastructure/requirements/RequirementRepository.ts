@@ -2,8 +2,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { RequirementEntity } from '../../domain/requirements/RequirementEntity';
-import { VersionService } from '../../application/versioning/VersionService';
-import { EventBus } from '../../domain/events/EventBus';
+import { EventPublisher } from '../../application/EventPublisher';
 
 const DATA_ROOT = path.join(process.cwd(), 'data', 'requirements');
 
@@ -24,8 +23,7 @@ export class RequirementRepository {
   }
 
   constructor(
-    private readonly versionService?: VersionService,
-    private readonly eventBus?: EventBus
+    private readonly eventPublisher?: EventPublisher
   ) {}
 
   async create(requirement: RequirementEntity): Promise<RequirementEntity> {
@@ -34,34 +32,13 @@ export class RequirementRepository {
     const items = await this.readRequirements(requirement.projectId);
     items.push(requirement);
     fs.writeFileSync(filePath, JSON.stringify(items, null, 2));
-    
-    // Create version snapshot
-    if (this.versionService) {
-      await this.versionService.create({
-        projectId: requirement.projectId,
-        entityType: 'Requirement',
-        entityId: requirement.id,
-        snapshot: requirement as any,
-        changeSummary: 'Requirement created',
-      });
+
+    // Publish through central EventPublisher — triggers audit, versioning,
+    // cache invalidation, recommendation refresh, and pipeline refresh.
+    if (this.eventPublisher) {
+      await this.eventPublisher.created('requirements', requirement.id, requirement.projectId, 'Requirement', requirement as any);
     }
 
-    // Publish event for audit logging
-    if (this.eventBus) {
-      await this.eventBus.publish({
-        type: 'IMPORTED',
-        module: 'requirements',
-        entityId: requirement.id,
-        projectId: requirement.projectId,
-        timestamp: Date.now(),
-        payload: {
-          entityType: 'Requirement',
-          oldValue: null,
-          newValue: requirement as any,
-        },
-      });
-    }
-    
     return requirement;
   }
 
@@ -71,38 +48,18 @@ export class RequirementRepository {
       const items = await this.readRequirements(projectId);
       const index = items.findIndex(r => r.id === id);
       if (index !== -1) {
+        const oldValue = { ...items[index] };
         const updated = { ...items[index], ...data, updatedAt: Date.now() };
         items[index] = updated;
         const filePath = this.getRequirementsFilePath(projectId);
         fs.writeFileSync(filePath, JSON.stringify(items, null, 2));
-        
-        // Create version snapshot
-        if (this.versionService) {
-          await this.versionService.create({
-            projectId: updated.projectId,
-            entityType: 'Requirement',
-            entityId: updated.id,
-            snapshot: updated as any,
-            changeSummary: 'Requirement updated',
-          });
+
+        // Publish through central EventPublisher — triggers audit, versioning,
+        // cache invalidation, recommendation refresh, and pipeline refresh.
+        if (this.eventPublisher) {
+          await this.eventPublisher.updated('requirements', updated.id, updated.projectId, 'Requirement', oldValue as any, updated as any);
         }
 
-        // Publish event for audit logging
-        if (this.eventBus) {
-          await this.eventBus.publish({
-            type: 'UPDATED',
-            module: 'requirements',
-            entityId: updated.id,
-            projectId: updated.projectId,
-            timestamp: Date.now(),
-            payload: {
-              entityType: 'Requirement',
-              oldValue: items[index] as any,
-              newValue: updated as any,
-            },
-          });
-        }
-        
         return updated;
       }
     }
@@ -120,32 +77,12 @@ export class RequirementRepository {
         const filePath = this.getRequirementsFilePath(projectId);
         fs.writeFileSync(filePath, JSON.stringify(filtered, null, 2));
 
-        // Publish event for audit logging
-        if (this.eventBus) {
-          await this.eventBus.publish({
-            type: 'DELETED',
-            module: 'requirements',
-            entityId: deleted.id,
-            projectId: deleted.projectId,
-            timestamp: Date.now(),
-            payload: {
-              entityType: 'Requirement',
-              oldValue: deleted as any,
-              newValue: null,
-            },
-          });
+        // Publish through central EventPublisher — triggers audit, versioning,
+        // cache invalidation, recommendation refresh, and pipeline refresh.
+        if (this.eventPublisher) {
+          await this.eventPublisher.deleted('requirements', deleted.id, deleted.projectId, 'Requirement', deleted as any);
         }
 
-        // Create version snapshot for deletion
-        if (this.versionService) {
-          await this.versionService.create({
-            projectId: deleted.projectId,
-            entityType: 'Requirement',
-            entityId: deleted.id,
-            snapshot: deleted as any,
-            changeSummary: 'Requirement deleted',
-          });
-        }
         return;
       }
     }

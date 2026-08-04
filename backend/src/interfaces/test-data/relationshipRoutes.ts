@@ -1,10 +1,10 @@
 // RelationshipRoutes - Route definitions for Dataset Relationships
 import { Router } from 'express';
 import { RelationshipController } from './RelationshipController';
-import { RelationshipRepository } from '../../infrastructure/test-data/RelationshipRepository';
+import { container } from '../../application/ApplicationContainer';
 
-// Initialize repository
-const relationshipRepository = new RelationshipRepository();
+// Reuse shared repository from the ApplicationContainer
+const { relationshipRepository } = container;
 
 // Initialize controller
 const relationshipController = new RelationshipController(relationshipRepository);

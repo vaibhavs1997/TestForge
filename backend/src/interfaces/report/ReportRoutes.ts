@@ -1,54 +1,34 @@
 // ReportRoutes - Route definitions for Reporting Module
 import { Router } from 'express';
 import { ReportController } from './ReportController';
-import { ReportRepository } from '../../infrastructure/report/ReportRepository';
-import { GenerateReport } from '../../application/report/GenerateReport';
-import { ManageReports } from '../../application/report/ManageReports';
-import { ExecutionRunRepository } from '../../infrastructure/execution/ExecutionRunRepository';
-import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository';
-import { RecommendationEngine } from '../../application/recommendation/RecommendationEngine';
-import { RequirementRepository } from '../../infrastructure/requirements/RequirementRepository';
-import { TestStrategyRepository } from '../../infrastructure/requirements/TestStrategyRepository';
-import { TestDesignRepository } from '../../infrastructure/requirements/TestDesignRepository';
-import { ExecutionPlanRepository } from '../../infrastructure/requirements/ExecutionPlanRepository';
-import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository';
-import { DatasetRepository } from '../../infrastructure/test-data/DatasetRepository';
-import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
-import { EventBus } from '../../domain/events/EventBus';
+import { container } from '../../application/ApplicationContainer';
 
-// Initialize repositories
-const reportRepository = new ReportRepository();
-const executionRunRepository = new ExecutionRunRepository();
-const environmentRepository = new EnvironmentRepository();
-const requirementRepository = new RequirementRepository();
-const testStrategyRepository = new TestStrategyRepository();
-const testDesignRepository = new TestDesignRepository();
-const executionPlanRepository = new ExecutionPlanRepository();
-const knowledgeFlowRepository = new KnowledgeFlowRepository();
-const datasetRepository = new DatasetRepository();
-const apiOperationRepository = new ApiOperationRepository();
-
-// Initialize recommendation engine (reused, not duplicated)
-const recommendationEngine = new RecommendationEngine(
+// Reuse shared repositories and services from the ApplicationContainer
+const {
+  reportRepository,
+  executionRunRepository,
+  environmentRepository,
   requirementRepository,
   testStrategyRepository,
   testDesignRepository,
   executionPlanRepository,
-  executionRunRepository,
   knowledgeFlowRepository,
   datasetRepository,
-  environmentRepository,
-  apiOperationRepository
-);
+  apiOperationRepository,
+  recommendationEngine,
+  eventPublisher,
+} = container;
 
 // Initialize use cases
-const eventBus = new EventBus();
+import { GenerateReport } from '../../application/report/GenerateReport';
+import { ManageReports } from '../../application/report/ManageReports';
+
 const generateReport = new GenerateReport(
   reportRepository,
   executionRunRepository,
   environmentRepository,
   recommendationEngine,
-  eventBus
+  eventPublisher
 );
 
 const manageReports = new ManageReports(reportRepository);

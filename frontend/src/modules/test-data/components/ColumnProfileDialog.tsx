@@ -5,6 +5,8 @@ import { Button } from '../../../components/ui/Button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { TextInput } from '../../../components/forms/TextInput';
 import { Select } from '../../../components/forms/Select';
+import { useFormValidation } from '../../../hooks/useFormValidation';
+import { FormErrors } from '../../../utils/validation';
 
 export interface ColumnProfileData {
   id?: string;
@@ -62,21 +64,9 @@ const generatorOptions = [
   { value: 'Random Boolean', label: 'Random Boolean' },
 ];
 
-const mockDatasets = [
-  { value: '1', label: 'Users' },
-  { value: '2', label: 'Customers' },
-  { value: '3', label: 'Products' },
-  { value: '4', label: 'Orders' },
-  { value: '5', label: 'Payments' },
-];
-
-const mockColumns = [
-  { value: 'email', label: 'Email' },
-  { value: 'firstName', label: 'First Name' },
-  { value: 'lastName', label: 'Last Name' },
-  { value: 'password', label: 'Password' },
-  { value: 'phoneNumber', label: 'Phone Number' },
-];
+// Mock data removed - connect to real API endpoints
+const mockDatasets: { value: string; label: string }[] = [];
+const mockColumns: { value: string; label: string }[] = [];
 
 type TabSection = 'General' | 'Population' | 'Validation';
 
@@ -94,7 +84,6 @@ export const ColumnProfileDialog = ({ open, onClose, onSubmit, column, isSubmitt
   const [required, setRequired] = React.useState(false);
   const [nullable, setNullable] = React.useState(true);
   const [unique, setUnique] = React.useState(false);
-  const [errors, setErrors] = React.useState<Record<string, string>>({});
 
   React.useEffect(() => {
     if (open) {
@@ -125,13 +114,12 @@ export const ColumnProfileDialog = ({ open, onClose, onSubmit, column, isSubmitt
         setNullable(true);
         setUnique(false);
       }
-      setErrors({});
       setActiveSection('General');
     }
   }, [open, column]);
 
-  const validate = (): boolean => {
-    const newErrors: Record<string, string> = {};
+  const validate = React.useCallback((): FormErrors => {
+    const newErrors: FormErrors = {};
     if (!name.trim()) newErrors.name = 'Column name is required';
     if (!dataType.trim()) newErrors.dataType = 'Data type is required';
     if (strategyType === 'Static Value' && !staticValue.trim()) newErrors.staticValue = 'Value is required';
@@ -139,13 +127,14 @@ export const ColumnProfileDialog = ({ open, onClose, onSubmit, column, isSubmitt
       if (!selectedDataset) newErrors.dataset = 'Dataset is required';
       if (!selectedColumn) newErrors.column = 'Column is required';
     }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+    return newErrors;
+  }, [name, dataType, strategyType, staticValue, selectedDataset, selectedColumn]);
+
+  const { errors, validateForm, clearError } = useFormValidation({ validate });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate()) return;
+    if (!validateForm()) return;
 
     let strategyConfig: Record<string, any> = {};
     switch (strategyType) {
@@ -201,7 +190,7 @@ export const ColumnProfileDialog = ({ open, onClose, onSubmit, column, isSubmitt
             {activeSection === 'General' && (
               <div className='space-y-4'>
                 <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
-                  <TextInput label='Column Name' value={name} onChange={(e) => { setName(e.target.value); setErrors(prev => ({ ...prev, name: '' })); }} placeholder='e.g., email, firstName' error={errors.name} required />
+                  <TextInput label='Column Name' value={name} onChange={(e) => { setName(e.target.value); clearError('name'); }} placeholder='e.g., email, firstName' error={errors.name} required />
                   <TextInput label='Display Name' value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder='e.g., Email Address' />
                 </div>
                 <Select label='Data Type' value={dataType} onChange={(e) => setDataType(e.target.value)} options={dataTypeOptions} />
@@ -213,13 +202,13 @@ export const ColumnProfileDialog = ({ open, onClose, onSubmit, column, isSubmitt
               <div className='space-y-4'>
                 <Select label='Strategy Type' value={strategyType} onChange={(e) => setStrategyType(e.target.value)} options={strategyOptions} />
                 {strategyType === 'Static Value' && (
-                  <TextInput label='Value' value={staticValue} onChange={(e) => { setStaticValue(e.target.value); setErrors(prev => ({ ...prev, staticValue: '' })); }} placeholder='e.g., Active, true, 100' error={errors.staticValue} />
+                  <TextInput label='Value' value={staticValue} onChange={(e) => { setStaticValue(e.target.value); clearError('staticValue'); }} placeholder='e.g., Active, true, 100' error={errors.staticValue} />
                 )}
                 {strategyType === 'Existing Dataset' && (
                   <div className='space-y-4'>
-                    <Select label='Dataset' value={selectedDataset} onChange={(e) => { setSelectedDataset(e.target.value); setErrors(prev => ({ ...prev, dataset: '' })); }} options={mockDatasets} />
+                    <Select label='Dataset' value={selectedDataset} onChange={(e) => { setSelectedDataset(e.target.value); clearError('dataset'); }} options={mockDatasets} />
                     {errors.dataset && <p className='text-sm text-error'>{errors.dataset}</p>}
-                    <Select label='Column' value={selectedColumn} onChange={(e) => { setSelectedColumn(e.target.value); setErrors(prev => ({ ...prev, column: '' })); }} options={mockColumns} />
+                    <Select label='Column' value={selectedColumn} onChange={(e) => { setSelectedColumn(e.target.value); clearError('column'); }} options={mockColumns} />
                     {errors.column && <p className='text-sm text-error'>{errors.column}</p>}
                   </div>
                 )}

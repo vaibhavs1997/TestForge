@@ -1,20 +1,17 @@
 // AIProviderRoutes - Route definitions for AI Provider Management module
 import { Router } from 'express';
 import { AIProviderController } from './AIProviderController';
-import { ManageAIProviders } from '../../application/ai-provider/ManageAIProviders';
-import { AIProviderRegistry } from '../../application/ai-provider/AIProviderRegistry';
-import { AIProviderResolutionService } from '../../application/ai-provider/AIProviderResolutionService';
-import { InMemoryAIProviderRepository } from '../../infrastructure/ai-provider/AIProviderRepository';
+import { container } from '../../application/ApplicationContainer';
 
-// Initialize AI Provider module
-const aiProviderRepository = new InMemoryAIProviderRepository();
-const aiProviderRegistry = new AIProviderRegistry();
-const aiProviderResolutionService = new AIProviderResolutionService(aiProviderRegistry);
-const manageAIProviders = new ManageAIProviders(
+// Reuse shared repositories and services from the ApplicationContainer
+const {
   aiProviderRepository,
   aiProviderRegistry,
-  aiProviderResolutionService
-);
+  aiProviderResolutionService,
+  manageAIProviders,
+} = container;
+
+// Initialize controller
 const aiProviderController = new AIProviderController(manageAIProviders);
 
 const router = Router();

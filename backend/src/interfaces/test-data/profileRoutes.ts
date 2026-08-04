@@ -1,17 +1,18 @@
 // PopulationProfileRoutes - Route definitions for Population Profiles
 import { Router } from 'express';
 import { PopulationProfileController } from './PopulationProfileController';
-import { PopulationProfileRepository } from '../../infrastructure/test-data/PopulationProfileRepository';
+import { container } from '../../application/ApplicationContainer';
+
+// Reuse shared repository from the ApplicationContainer
+const { populationProfileRepository: profileRepository } = container;
+
+// Initialize use cases
 import { CreatePopulationProfile } from '../../application/test-data/CreatePopulationProfile';
 import { UpdatePopulationProfile } from '../../application/test-data/UpdatePopulationProfile';
 import { DeletePopulationProfile } from '../../application/test-data/DeletePopulationProfile';
 import { GetPopulationProfile } from '../../application/test-data/GetPopulationProfile';
 import { ListPopulationProfiles } from '../../application/test-data/ListPopulationProfiles';
 
-// Initialize repositories
-const profileRepository = new PopulationProfileRepository();
-
-// Initialize use cases
 const createProfile = new CreatePopulationProfile(profileRepository);
 const updateProfile = new UpdatePopulationProfile(profileRepository);
 const deleteProfile = new DeletePopulationProfile(profileRepository);

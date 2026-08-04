@@ -1,9 +1,13 @@
 // UpdateRequirement - Application Use Case
 import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
 import { RequirementEntity, RequirementSource, ReviewStatus, ApprovalStatus, AcceptanceCriterion } from '../../domain/requirements/RequirementEntity';
+import { EventPublisher } from '../EventPublisher';
 
 export class UpdateRequirement {
-  constructor(private readonly requirementRepository: RequirementRepository) {}
+  constructor(
+    private readonly requirementRepository: RequirementRepository,
+    private readonly eventPublisher?: EventPublisher
+  ) {}
 
   async execute(params: {
     id: string;
@@ -43,7 +47,21 @@ export class UpdateRequirement {
     if (params.relatedDatasets !== undefined) updateData.relatedDatasets = params.relatedDatasets;
     if (params.acceptanceCriteria !== undefined) updateData.acceptanceCriteria = params.acceptanceCriteria;
 
-    return this.requirementRepository.update(params.id, updateData);
+    const updated = await this.requirementRepository.update(params.id, updateData);
+
+    // If the approval status changed, publish APPROVED/REJECTED events.
+    // The repository already published an UPDATED event, but the
+    // CacheInvalidationService listens specifically for APPROVED/REJECTED
+    // on the requirements module to trigger strategy/recommendation refresh.
+    if (this.eventPublisher && params.approvalStatus !== undefined && params.approvalStatus !== existing.approvalStatus) {
+      if (params.approvalStatus === 'Approved') {
+        await this.eventPublisher.approved('requirements', updated.id, updated.projectId, 'Requirement');
+      } else if (params.approvalStatus === 'Rejected') {
+        await this.eventPublisher.rejected('requirements', updated.id, updated.projectId, 'Requirement');
+      }
+    }
+
+    return updated;
   }
 }
 

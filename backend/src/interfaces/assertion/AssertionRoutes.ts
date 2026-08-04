@@ -2,13 +2,14 @@
 
 import { Router } from 'express';
 import { AssertionController } from './AssertionController';
-import { AssertionRepository } from '../../infrastructure/assertion/AssertionRepository';
-import { ManageAssertions } from '../../application/assertion/ManageAssertions';
+import { container } from '../../application/ApplicationContainer';
 
-// Initialize repository
-const assertionRepository = new AssertionRepository();
+// Reuse shared repository from the ApplicationContainer
+const { assertionRepository } = container;
 
 // Initialize use case
+import { ManageAssertions } from '../../application/assertion/ManageAssertions';
+
 const manageAssertions = new ManageAssertions(assertionRepository);
 
 // Initialize controller

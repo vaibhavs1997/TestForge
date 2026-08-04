@@ -1,8 +1,30 @@
 // RequirementRoutes - Route definitions for Requirement Workspace
 import { Router } from 'express';
 import { RequirementController } from './RequirementController';
-import { RequirementRepository } from '../../infrastructure/requirements/RequirementRepository';
-import { AnalysisRepository } from '../../infrastructure/analysis/AnalysisRepository';
+import { AIRequirementController } from './AIRequirementController';
+import { container } from '../../application/ApplicationContainer';
+
+// Reuse shared use cases from the ApplicationContainer
+const {
+  requirementRepository,
+  analysisRepository,
+  knowledgeFlowRepository,
+  datasetRepository,
+  environmentRepository,
+  apiServiceRepository,
+  apiOperationRepository,
+  testStrategyRepository,
+  testDesignRepository,
+  executionPlanRepository,
+  generateRequirementsWithAI,
+  generateTestStrategyWithAI,
+  generateTestDesignWithAI,
+  generateAssertionsWithAI,
+  generateExecutionPlanWithAI,
+  eventPublisher,
+} = container;
+
+// Initialize use cases
 import { CreateRequirement } from '../../application/requirements/CreateRequirement';
 import { UpdateRequirement } from '../../application/requirements/UpdateRequirement';
 import { DeleteRequirement } from '../../application/requirements/DeleteRequirement';
@@ -13,122 +35,9 @@ import { ValidateRequirementReadiness } from '../../application/requirements/Val
 import { PlanTestStrategy } from '../../application/requirements/PlanTestStrategy';
 import { GenerateTestDesigns } from '../../application/requirements/GenerateTestDesigns';
 import { PlanExecution } from '../../application/requirements/PlanExecution';
-import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository';
-import { DatasetRepository } from '../../infrastructure/test-data/DatasetRepository';
-import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository';
-import { ApiServiceRepository } from '../../infrastructure/api/ApiServiceRepository';
-import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
-import { TestStrategyRepository } from '../../infrastructure/requirements/TestStrategyRepository';
-import { TestDesignRepository } from '../../infrastructure/requirements/TestDesignRepository';
-import { ExecutionPlanRepository } from '../../infrastructure/requirements/ExecutionPlanRepository';
-import { VersionService } from '../../application/versioning/VersionService';
-import { InMemoryVersionRepository } from '../../infrastructure/versioning/VersionRepository';
-import { AIRequirementController } from './AIRequirementController';
-import { GenerateRequirementsWithAI } from '../../application/requirements/GenerateRequirementsWithAI';
-import { GenerateTestStrategyWithAI } from '../../application/requirements/GenerateTestStrategyWithAI';
-import { GenerateTestDesignWithAI } from '../../application/requirements/GenerateTestDesignWithAI';
-import { GenerateExecutionPlanWithAI } from '../../application/requirements/GenerateExecutionPlanWithAI';
-import { GenerateAssertionsWithAI } from '../../application/assertion/GenerateAssertionsWithAI';
-import { ProjectContextService } from '../../application/context/ProjectContextService';
-import { RecommendationEngine } from '../../application/recommendation/RecommendationEngine';
-import { ExecutionRunRepository } from '../../infrastructure/execution/ExecutionRunRepository';
-import { PromptBuilderService } from '../../application/prompt/PromptBuilderService';
-import { PromptRepository } from '../../infrastructure/prompt/PromptRepository';
-import { ManageAIProviders } from '../../application/ai-provider/ManageAIProviders';
-import { AIProviderRegistry } from '../../application/ai-provider/AIProviderRegistry';
-import { AIProviderResolutionService } from '../../application/ai-provider/AIProviderResolutionService';
-import { InMemoryAIProviderRepository } from '../../infrastructure/ai-provider/AIProviderRepository';
-import { ColumnRepository } from '../../infrastructure/test-data/ColumnRepository';
-import { RelationshipRepository } from '../../infrastructure/test-data/RelationshipRepository';
-import { BusinessRuleRepository } from '../../infrastructure/knowledge/BusinessRuleRepository';
-import { RuntimeVariableRepository } from '../../infrastructure/knowledge/RuntimeVariableRepository';
-import { DependencyRepository } from '../../infrastructure/knowledge/DependencyRepository';
-import { DocumentationRepository } from '../../infrastructure/knowledge/DocumentationRepository';
-import { ReportRepository } from '../../infrastructure/report/ReportRepository';
-import { AssertionRepository } from '../../infrastructure/assertion/AssertionRepository';
-import { TestSuiteRepository } from '../../infrastructure/suite/TestSuiteRepository';
-import { ExecutionProfileRepository } from '../../infrastructure/execution/ExecutionProfileRepository';
-import ProviderRepository from '../../infrastructure/providers/ProviderRepository';
-import VersionRepository from '../../infrastructure/versioning/VersionRepository';
-import AuditLogRepository from '../../infrastructure/audit/AuditLogRepository';
-import PluginRepository from '../../infrastructure/plugin/PluginRepository';
 
-// Initialize repositories
-const versionRepository = new InMemoryVersionRepository();
-const versionService = new VersionService(versionRepository);
-const requirementRepository = new RequirementRepository(versionService);
-const analysisRepository = new AnalysisRepository();
-const knowledgeFlowRepository = new KnowledgeFlowRepository();
-const datasetRepository = new DatasetRepository();
-const environmentRepository = new EnvironmentRepository();
-const apiServiceRepository = new ApiServiceRepository();
-const apiOperationRepository = new ApiOperationRepository();
-const testStrategyRepository = new TestStrategyRepository();
-const testDesignRepository = new TestDesignRepository();
-const executionPlanRepository = new ExecutionPlanRepository();
-
-// Reuse AI Provider Framework (AI Orchestrator)
-const aiProviderRepository = new InMemoryAIProviderRepository();
-const aiProviderRegistry = new AIProviderRegistry();
-const aiProviderResolutionService = new AIProviderResolutionService(aiProviderRegistry);
-const manageAIProviders = new ManageAIProviders(
-  aiProviderRepository,
-  aiProviderRegistry,
-  aiProviderResolutionService
-);
-
-// Reuse Project Context Builder
-const recommendationEngine = new RecommendationEngine(
-  requirementRepository,
-  testStrategyRepository,
-  testDesignRepository,
-  executionPlanRepository,
-  new ExecutionRunRepository(),
-  knowledgeFlowRepository,
-  datasetRepository,
-  environmentRepository,
-  apiOperationRepository
-);
-
-const projectContextService = new ProjectContextService(
-  apiServiceRepository,
-  apiOperationRepository,
-  environmentRepository,
-  datasetRepository,
-  new ColumnRepository(),
-  new RelationshipRepository(),
-  knowledgeFlowRepository,
-  new BusinessRuleRepository(),
-  new RuntimeVariableRepository(),
-  new DependencyRepository(),
-  new DocumentationRepository(),
-  analysisRepository,
-  requirementRepository,
-  new ReportRepository(),
-  testStrategyRepository,
-  testDesignRepository,
-  executionPlanRepository,
-  new AssertionRepository(),
-  new TestSuiteRepository(),
-  new ExecutionProfileRepository(),
-  new ProviderRepository(),
-  new VersionRepository(),
-  new AuditLogRepository(),
-  new PluginRepository(),
-  recommendationEngine
-);
-
-// Reuse Prompt Builder
-const promptRepository = new PromptRepository();
-const promptBuilderService = new PromptBuilderService(
-  promptRepository,
-  projectContextService,
-  versionService
-);
-
-// Initialize use cases
 const createRequirement = new CreateRequirement(requirementRepository);
-const updateRequirement = new UpdateRequirement(requirementRepository);
+const updateRequirement = new UpdateRequirement(requirementRepository, eventPublisher);
 const deleteRequirement = new DeleteRequirement(requirementRepository);
 const getRequirement = new GetRequirement(requirementRepository);
 const listRequirements = new ListRequirements(requirementRepository);
@@ -170,49 +79,7 @@ const planExecution = new PlanExecution(
   apiOperationRepository
 );
 
-// Initialize AI requirement generation
-const generateRequirementsWithAI = new GenerateRequirementsWithAI(
-  requirementRepository,
-  projectContextService,
-  promptBuilderService,
-  manageAIProviders,
-  versionService
-);
-const generateTestStrategyWithAI = new GenerateTestStrategyWithAI(
-  requirementRepository,
-  testStrategyRepository,
-  projectContextService,
-  promptBuilderService,
-  manageAIProviders,
-  versionService
-);
-const generateTestDesignWithAI = new GenerateTestDesignWithAI(
-  requirementRepository,
-  testStrategyRepository,
-  testDesignRepository,
-  projectContextService,
-  promptBuilderService,
-  manageAIProviders,
-  versionService
-);
-const generateAssertionsWithAI = new GenerateAssertionsWithAI(
-  new AssertionRepository(),
-  testDesignRepository,
-  projectContextService,
-  promptBuilderService,
-  manageAIProviders,
-  versionService
-);
-const generateExecutionPlanWithAI = new GenerateExecutionPlanWithAI(
-  requirementRepository,
-  testStrategyRepository,
-  testDesignRepository,
-  executionPlanRepository,
-  projectContextService,
-  promptBuilderService,
-  manageAIProviders,
-  versionService
-);
+// AI requirement generation (reused from container)
 const aiRequirementController = new AIRequirementController(
   generateRequirementsWithAI,
   generateTestStrategyWithAI,

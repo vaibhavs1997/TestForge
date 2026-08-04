@@ -2,10 +2,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { ExecutionPlanEntity } from '../../domain/requirements/ExecutionPlanEntity';
+import { EventPublisher } from '../../application/EventPublisher';
 
 const DATA_ROOT = path.join(process.cwd(), 'data', 'execution-plans');
 
 export class ExecutionPlanRepository {
+  constructor(private readonly eventPublisher?: EventPublisher) {}
+
   private getProjectDir(projectId: string): string {
     return path.join(DATA_ROOT, projectId);
   }
@@ -27,6 +30,12 @@ export class ExecutionPlanRepository {
     const items = await this.readPlans(plan.projectId);
     items.push(plan);
     fs.writeFileSync(filePath, JSON.stringify(items, null, 2));
+
+    // Publish CREATED event through central EventPublisher
+    if (this.eventPublisher) {
+      await this.eventPublisher.created('execution', plan.id, plan.projectId, 'ExecutionPlan', plan as any);
+    }
+
     return plan;
   }
 
@@ -36,10 +45,17 @@ export class ExecutionPlanRepository {
       const items = await this.readPlans(projectId);
       const index = items.findIndex(p => p.id === id);
       if (index !== -1) {
+        const oldValue = items[index];
         const updated = { ...items[index], ...data, updatedAt: Date.now() };
         items[index] = updated;
         const filePath = this.getPlansFilePath(projectId);
         fs.writeFileSync(filePath, JSON.stringify(items, null, 2));
+
+        // Publish UPDATED event through central EventPublisher
+        if (this.eventPublisher) {
+          await this.eventPublisher.updated('execution', updated.id, updated.projectId, 'ExecutionPlan', oldValue as any, updated as any);
+        }
+
         return updated;
       }
     }
@@ -50,10 +66,17 @@ export class ExecutionPlanRepository {
     const projectIds = this.listProjectIds();
     for (const projectId of projectIds) {
       const items = await this.readPlans(projectId);
-      const filtered = items.filter(p => p.id !== id);
-      if (filtered.length !== items.length) {
+      const plan = items.find(p => p.id === id);
+      if (plan) {
+        const filtered = items.filter(p => p.id !== id);
         const filePath = this.getPlansFilePath(projectId);
         fs.writeFileSync(filePath, JSON.stringify(filtered, null, 2));
+
+        // Publish DELETED event through central EventPublisher
+        if (this.eventPublisher) {
+          await this.eventPublisher.deleted('execution', plan.id, plan.projectId, 'ExecutionPlan', plan as any);
+        }
+
         return;
       }
     }

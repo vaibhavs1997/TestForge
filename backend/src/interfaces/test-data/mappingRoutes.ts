@@ -1,17 +1,18 @@
 // DataSourceMappingRoutes - Route definitions for Data Source Mappings
 import { Router } from 'express';
 import { DataSourceMappingController } from './DataSourceMappingController';
-import { DataSourceMappingRepository } from '../../infrastructure/test-data/DataSourceMappingRepository';
+import { container } from '../../application/ApplicationContainer';
+
+// Reuse shared repository from the ApplicationContainer
+const { dataSourceMappingRepository: mappingRepository } = container;
+
+// Initialize use cases
 import { CreateDataSourceMapping } from '../../application/test-data/CreateDataSourceMapping';
 import { UpdateDataSourceMapping } from '../../application/test-data/UpdateDataSourceMapping';
 import { DeleteDataSourceMapping } from '../../application/test-data/DeleteDataSourceMapping';
 import { GetDataSourceMapping } from '../../application/test-data/GetDataSourceMapping';
 import { ListDataSourceMappings } from '../../application/test-data/ListDataSourceMappings';
 
-// Initialize repositories
-const mappingRepository = new DataSourceMappingRepository();
-
-// Initialize use cases
 const createMapping = new CreateDataSourceMapping(mappingRepository);
 const updateMapping = new UpdateDataSourceMapping(mappingRepository);
 const deleteMapping = new DeleteDataSourceMapping(mappingRepository);

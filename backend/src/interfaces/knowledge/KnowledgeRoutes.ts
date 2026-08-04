@@ -1,7 +1,18 @@
 // KnowledgeRoutes - Route definitions for Knowledge Management
 import { Router } from 'express';
 import { KnowledgeController } from './KnowledgeController';
-import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository';
+import { container } from '../../application/ApplicationContainer';
+
+// Reuse shared repositories from the ApplicationContainer
+const {
+  knowledgeFlowRepository,
+  businessRuleRepository,
+  runtimeVariableRepository,
+  dependencyRepository,
+  documentationRepository,
+} = container;
+
+// Initialize use cases
 import { CreateKnowledgeFlow } from '../../application/knowledge/CreateKnowledgeFlow';
 import { UpdateKnowledgeFlow } from '../../application/knowledge/UpdateKnowledgeFlow';
 import { DeleteKnowledgeFlow } from '../../application/knowledge/DeleteKnowledgeFlow';
@@ -11,19 +22,7 @@ import { ManageBusinessRules } from '../../application/knowledge/ManageBusinessR
 import { ManageRuntimeVariables } from '../../application/knowledge/ManageRuntimeVariables';
 import { ManageDependencies } from '../../application/knowledge/ManageDependencies';
 import { ManageDocumentation } from '../../application/knowledge/ManageDocumentation';
-import { BusinessRuleRepository } from '../../infrastructure/knowledge/BusinessRuleRepository';
-import { RuntimeVariableRepository } from '../../infrastructure/knowledge/RuntimeVariableRepository';
-import { DependencyRepository } from '../../infrastructure/knowledge/DependencyRepository';
-import { DocumentationRepository } from '../../infrastructure/knowledge/DocumentationRepository';
 
-// Initialize repositories
-const knowledgeFlowRepository = new KnowledgeFlowRepository();
-const businessRuleRepository = new BusinessRuleRepository();
-const runtimeVariableRepository = new RuntimeVariableRepository();
-const dependencyRepository = new DependencyRepository();
-const documentationRepository = new DocumentationRepository();
-
-// Initialize use cases
 const createKnowledgeFlow = new CreateKnowledgeFlow(knowledgeFlowRepository);
 const updateKnowledgeFlow = new UpdateKnowledgeFlow(knowledgeFlowRepository);
 const deleteKnowledgeFlow = new DeleteKnowledgeFlow(knowledgeFlowRepository);

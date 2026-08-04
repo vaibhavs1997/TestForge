@@ -1,17 +1,18 @@
 // RowRoutes - Route definitions for Dataset Row management
 import { Router } from 'express';
 import { RowController } from './RowController';
-import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowRepository';
+import { container } from '../../application/ApplicationContainer';
+
+// Reuse shared repository from the ApplicationContainer
+const { datasetRowRepository: datasetRowRepository } = container;
+
+// Initialize use cases
 import { CreateRow } from '../../application/test-data/CreateRow';
 import { UpdateRow } from '../../application/test-data/UpdateRow';
 import { DeleteRow } from '../../application/test-data/DeleteRow';
 import { GetRow } from '../../application/test-data/GetRow';
 import { ListRows } from '../../application/test-data/ListRows';
 
-// Initialize repository
-const datasetRowRepository = new DatasetRowRepository();
-
-// Initialize use cases
 const createRow = new CreateRow(datasetRowRepository);
 const updateRow = new UpdateRow(datasetRowRepository);
 const deleteRow = new DeleteRow(datasetRowRepository);

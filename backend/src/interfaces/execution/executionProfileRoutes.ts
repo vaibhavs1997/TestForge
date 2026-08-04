@@ -1,15 +1,15 @@
 // Execution Profile Routes
-
 import { Router } from 'express';
 import { ExecutionProfileController } from './ExecutionProfileController';
-import { ManageExecutionProfiles } from '../../application/execution/ManageExecutionProfiles';
-import { ExecutionProfileRepository } from '../../infrastructure/execution/ExecutionProfileRepository';
+import { container } from '../../application/ApplicationContainer';
 
-// Initialize repository
-const profileRepository = new ExecutionProfileRepository();
+// Reuse shared repository from the ApplicationContainer
+const { executionProfileRepository } = container;
 
 // Initialize use case
-const manageProfiles = new ManageExecutionProfiles(profileRepository);
+import { ManageExecutionProfiles } from '../../application/execution/ManageExecutionProfiles';
+
+const manageProfiles = new ManageExecutionProfiles(executionProfileRepository);
 
 // Initialize controller
 const profileController = new ExecutionProfileController(manageProfiles);

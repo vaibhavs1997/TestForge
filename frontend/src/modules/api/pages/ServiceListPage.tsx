@@ -5,13 +5,17 @@ import { PageHeader } from '../../../components/layout/PageHeader';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
-import { Card } from '../../../components/ui/Card';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '../../../components/ui/Card';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
+import { Toast } from '../../../components/shared/Toast';
 import { Select } from '../../../components/forms/Select';
 import { ServiceDialog } from '../components/ServiceDialog';
-import { useService } from '../hooks/useService';
-import type { Service, ServiceFormData } from '../types';
-import { ChevronRight, Plus, Import, MoreVertical, Play, Edit, Trash2 } from 'lucide-react';
+import { ImportApiModal, type ImportApiModalData } from '../components/ImportApiModal';
+import { AddApiModal, type AddApiModalData } from '../components/AddApiModal';
+import { useService, useApiOperations, useImportApiContract } from '../hooks/useService';
+import { environmentService } from '../../environment/services/environmentService';
+import type { Service, ServiceFormData, Operation, OperationStatus, ImportSummary, DetectedEnvironment } from '../types';
+import { ChevronRight, Plus, Import, MoreVertical, Play, Edit, Trash2, FolderOpen } from 'lucide-react';
 
 type SortField = 'name' | 'protocol' | 'version' | 'status' | 'updatedDate';
 type SortDir = 'asc' | 'desc';
@@ -31,96 +35,95 @@ const statusOptions = [
   { value: 'Inactive', label: 'Inactive' },
 ];
 
-interface Operation {
-  id: string;
-  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-  path: string;
-  status: 'active' | 'inactive';
-  description: string;
-  tags: string[];
+// Local Operation interface for UI use — mirrors what ServiceListPage expects.
+interface OperationLocal extends Operation {
+  serviceName: string;
+  apiName: string;
+  isCustom: boolean;
 }
 
 interface ServiceWithOperations extends Service {
-  operations: Operation[];
+  operations: OperationLocal[];
 }
+
+/** Convert a raw operation from the hook into the local shape the UI expects. */
+const toOperationLocal = (op: Operation, serviceName: string): OperationLocal => ({
+  id: op.id,
+  serviceId: op.serviceId,
+  serviceName,
+  apiName: op.apiName || op.name || '',
+  name: op.name,
+  method: op.method,
+  path: op.path,
+  description: op.description,
+  status: (op.status || 'active') as OperationStatus,
+  authentication: op.authentication,
+  authenticationType: op.authenticationType,
+  tags: op.tags || [],
+  version: op.version,
+  isCustom: true,
+  createdAt: op.createdAt,
+  updatedAt: op.updatedAt,
+});
 
 export const ServiceListPage = ({ projectId: propProjectId, projectName }: { projectId?: string; projectName?: string }) => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const projectId = propProjectId ?? routeProjectId ?? '1';
-  const { services, create, update, remove } = useService(projectId);
+  const { services, create, createAsync, update, remove } = useService(projectId);
+  const { importContractAsync, isImporting } = useImportApiContract(projectId);
+
+  // Fetch all operations for every service in this project
+  const serviceIds = React.useMemo(() => services.map((s) => s.id), [services]);
+  const { operations: rawOperations, createOperationAsync } = useApiOperations(projectId, serviceIds);
 
   const [search, setSearch] = React.useState('');
   const [selectedService, setSelectedService] = React.useState<ServiceWithOperations | null>(null);
-  const [selectedOperation, setSelectedOperation] = React.useState<Operation | null>(null);
+  const [selectedOperation, setSelectedOperation] = React.useState<OperationLocal | null>(null);
   const [activeTab, setActiveTab] = React.useState('overview');
   const [protocol, setProtocol] = React.useState('');
   const [createOpen, setCreateOpen] = React.useState(false);
+  const [addApiOpen, setAddApiOpen] = React.useState(false);
   const [editService, setEditService] = React.useState<Service | undefined>(undefined);
   const [editOpen, setEditOpen] = React.useState(false);
   const [deleteService, setDeleteService] = React.useState<Service | undefined>(undefined);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [importOpen, setImportOpen] = React.useState(false);
+  const [toastOpen, setToastOpen] = React.useState(false);
+  const [expandedServices, setExpandedServices] = React.useState<Set<string>>(new Set());
 
-  // Mock data for services with operations
+  // Import contract state
+  const [uploadProgress, setUploadProgress] = React.useState(0);
+  const [progressToastOpen, setProgressToastOpen] = React.useState(false);
+  const [progressMessage, setProgressMessage] = React.useState('');
+  const [summaryToastOpen, setSummaryToastOpen] = React.useState(false);
+  const [summaryMessage, setSummaryMessage] = React.useState('');
+  const [errorToastOpen, setErrorToastOpen] = React.useState(false);
+  const [errorMessage, setErrorMessage] = React.useState('');
+  
+  // Environment detection state
+  const [envConfirmOpen, setEnvConfirmOpen] = React.useState(false);
+  const [detectedEnvironments, setDetectedEnvironments] = React.useState<DetectedEnvironment[]>([]);
+  const [selectedEnvIds, setSelectedEnvIds] = React.useState<Set<string>>(new Set());
+  const [isCreatingEnvironments, setIsCreatingEnvironments] = React.useState(false);
+
+  // Build services with operations, merging fetched operations per service
   const servicesWithOperations: ServiceWithOperations[] = React.useMemo(() => {
-    return services.map(service => ({
-      ...service,
-      operations: [
-        {
-          id: `${service.id}-op-1`,
-          method: 'POST',
-          path: '/auth/login',
-          status: 'active' as const,
-          description: 'Authenticate user with email and password',
-          tags: ['Authentication', 'Auth'],
-        },
-        {
-          id: `${service.id}-op-2`,
-          method: 'POST',
-          path: '/auth/logout',
-          status: 'active' as const,
-          description: 'Logout user and invalidate session',
-          tags: ['Authentication'],
-        },
-        {
-          id: `${service.id}-op-3`,
-          method: 'POST',
-          path: '/auth/refresh',
-          status: 'active' as const,
-          description: 'Refresh access token',
-          tags: ['Authentication'],
-        },
-        {
-          id: `${service.id}-op-4`,
-          method: 'POST',
-          path: '/auth/register',
-          status: 'active' as const,
-          description: 'Register new user account',
-          tags: ['Authentication'],
-        },
-        {
-          id: `${service.id}-op-5`,
-          method: 'GET',
-          path: '/auth/me',
-          status: 'active' as const,
-          description: 'Get current user profile',
-          tags: ['Authentication'],
-        },
-        {
-          id: `${service.id}-op-6`,
-          method: 'POST',
-          path: '/auth/forgot-password',
-          status: 'inactive' as const,
-          description: 'Request password reset',
-          tags: ['Authentication'],
-        },
-      ],
-    }));
-  }, [services]);
+    return services.map((service) => {
+      const serviceOps = rawOperations
+        .filter((op) => op.serviceId === service.id)
+        .map((op) => toOperationLocal(op, service.name));
+      return {
+        ...service,
+        operations: serviceOps,
+      };
+    });
+  }, [services, rawOperations]);
 
-  // Auto-select first service if none selected
+  // Auto-select and expand first service if none selected
   React.useEffect(() => {
     if (!selectedService && servicesWithOperations.length > 0) {
       setSelectedService(servicesWithOperations[0]);
+      setExpandedServices((prev) => new Set(prev).add(servicesWithOperations[0].id));
       if (servicesWithOperations[0].operations.length > 0) {
         setSelectedOperation(servicesWithOperations[0].operations[0]);
       }
@@ -128,6 +131,15 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
   }, [servicesWithOperations, selectedService]);
 
   const handleServiceClick = (service: ServiceWithOperations) => {
+    setExpandedServices((prev) => {
+      const next = new Set(prev);
+      if (next.has(service.id)) {
+        next.delete(service.id);
+      } else {
+        next.add(service.id);
+      }
+      return next;
+    });
     setSelectedService(service);
     if (service.operations.length > 0) {
       setSelectedOperation(service.operations[0]);
@@ -135,7 +147,7 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
     setActiveTab('overview');
   };
 
-  const handleOperationClick = (operation: Operation) => {
+  const handleOperationClick = (operation: OperationLocal) => {
     setSelectedOperation(operation);
     setActiveTab('overview');
   };
@@ -147,7 +159,7 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
 
   const handleUpdate = (data: ServiceFormData) => {
     if (editService) {
-      update(editService.id, data);
+      update({ id: editService.id, ...data });
       setEditOpen(false);
     }
   };
@@ -157,6 +169,138 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
       remove(deleteService.id);
       setDeleteOpen(false);
     }
+  };
+
+  const handleImportApi = (data: ImportApiModalData) => {
+    if (data.source === 'file' && data.file) {
+      const file = data.file;
+      setUploadProgress(0);
+      setProgressMessage('Starting upload…');
+      setProgressToastOpen(true);
+
+      importContractAsync({
+        file,
+        onUploadProgress: (e: any) => {
+          if (e.total && e.total > 0) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            setUploadProgress(percent);
+            setProgressMessage(`Uploading… ${percent}%`);
+          }
+        },
+      })
+        .then((summary: ImportSummary) => {
+          setProgressToastOpen(false);
+          setUploadProgress(0);
+
+          const lines: string[] = [];
+          lines.push(`✔ ${summary.servicesImported} Services Imported`);
+          lines.push(`✔ ${summary.operationsImported} Operations Imported`);
+          if (summary.duplicatesSkipped > 0) {
+            lines.push(`⚠ ${summary.duplicatesSkipped} Duplicate Operations Skipped`);
+          }
+          if (summary.warnings && summary.warnings.length > 0) {
+            summary.warnings.forEach((w) => lines.push(`⚠ ${w}`));
+          }
+          
+          // Check for detected environments
+          if (summary.detectedEnvironments && summary.detectedEnvironments.length > 0) {
+            setDetectedEnvironments(summary.detectedEnvironments);
+            setSelectedEnvIds(new Set(summary.detectedEnvironments.map(e => `${e.name}-${e.baseUrl}`)));
+            setEnvConfirmOpen(true);
+          } else {
+            setSummaryMessage(lines.join('\n'));
+            setSummaryToastOpen(true);
+          }
+        })
+        .catch((error: any) => {
+          setProgressToastOpen(false);
+          setUploadProgress(0);
+          const msg =
+            error?.response?.data?.message ||
+            error?.message ||
+            'Import failed. Please try again.';
+          setErrorMessage(msg);
+          setErrorToastOpen(true);
+        });
+    }
+    setImportOpen(false);
+  };
+
+  const handleCreateSelectedEnvironments = async () => {
+    setIsCreatingEnvironments(true);
+    try {
+      const selected = detectedEnvironments.filter(e => selectedEnvIds.has(`${e.name}-${e.baseUrl}`));
+      await Promise.all(
+        selected.map(env =>
+          environmentService.createEnvironment(projectId, {
+            name: env.name,
+            baseUrl: env.baseUrl,
+            description: env.description,
+          })
+        )
+      );
+      setEnvConfirmOpen(false);
+      setSummaryMessage(`✔ ${selected.length} environments created successfully.`);
+      setSummaryToastOpen(true);
+    } catch (error: any) {
+      setErrorMessage(error?.message || 'Failed to create environments');
+      setErrorToastOpen(true);
+    } finally {
+      setIsCreatingEnvironments(false);
+    }
+  };
+
+  const handleSkipEnvironments = () => {
+    setEnvConfirmOpen(false);
+    setSummaryMessage('Import completed successfully.');
+    setSummaryToastOpen(true);
+  };
+
+  // Collect all existing APIs for duplicate checking
+  const existingApis = React.useMemo(() => {
+    return servicesWithOperations.flatMap((s) =>
+      s.operations.map((op) => ({
+        method: op.method,
+        endpointPath: op.path,
+      })),
+    );
+  }, [servicesWithOperations]);
+
+  const existingServiceNames = React.useMemo(() => {
+    return services.map((s) => s.name);
+  }, [services]);
+
+  const handleAddApi = async (data: AddApiModalData) => {
+    let service = services.find((s: Service) => s.name.toLowerCase() === data.serviceName.toLowerCase());
+
+    if (!service) {
+      service = await createAsync({
+        projectId,
+        name: data.serviceName,
+        description: data.apiName,
+        version: data.version,
+      });
+    }
+
+    await createOperationAsync({
+      serviceId: service!.id,
+      name: data.apiName,
+      method: data.method,
+      path: data.endpointPath,
+      description: data.description || 'No description provided',
+      authenticationType: data.authentication,
+      status: 'Active',
+    });
+
+    const updatedService = servicesWithOperations.find((s) => s.id === service!.id);
+    if (updatedService) {
+      setSelectedService(updatedService);
+      setExpandedServices((prev) => new Set(prev).add(updatedService.id));
+    }
+    setActiveTab('overview');
+
+    setAddApiOpen(false);
+    setToastOpen(true);
   };
 
   const tabs = [
@@ -196,11 +340,11 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
           </p>
         </div>
         <div className='flex items-center gap-3'>
-          <Button variant='outline'>
+          <Button variant='outline' onClick={() => setImportOpen(true)}>
             <Import className='mr-2 h-4 w-4' />
             Import / Sync APIs
           </Button>
-          <Button>
+          <Button onClick={() => setAddApiOpen(true)}>
             <Plus className='mr-2 h-4 w-4' />
             Add API
           </Button>
@@ -209,7 +353,7 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
 
       {/* Search and Filters */}
       <div className='mb-6 flex flex-col gap-3 sm:flex-row sm:items-center'>
-        <SearchBar value={search} onChange={setSearch} placeholder='Search operations, endpoints, tags...' className='sm:w-96' />
+        <SearchBar value={search} onChange={setSearch} placeholder='Search services or endpoints...' className='sm:w-96' />
         <Select options={protocolOptions} value={protocol} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setProtocol(e.target.value)} className='sm:w-40' />
         <Select options={statusOptions} value={protocol} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setProtocol(e.target.value)} className='sm:w-40' />
         <Button variant='outline' size='sm'>
@@ -223,56 +367,63 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
         <Card className='lg:col-span-1'>
           <div className='border-b border-border px-4 py-3'>
             <div className='flex items-center justify-between'>
-              <h3 className='text-sm font-semibold text-text'>API Operations</h3>
+              <h3 className='text-sm font-semibold text-text'>Services</h3>
               <span className='text-xs text-text-secondary'>{services.length}</span>
             </div>
           </div>
           <div className='p-4'>
-            <div className='space-y-1'>
-              {servicesWithOperations.map((service) => (
-                <div key={service.id} className='space-y-1'>
-                  <button
-                    onClick={() => handleServiceClick(service)}
-                    className={`w-full flex items-center justify-between rounded-lg px-3 py-2 text-left transition-colors ${
-                      selectedService?.id === service.id
-                        ? 'bg-primary text-white'
-                        : 'hover:bg-surface text-text'
-                    }`}
-                  >
-                    <div className='flex items-center gap-2'>
-                      <ChevronRight className='h-4 w-4' />
-                      <div>
-                        <div className='text-sm font-medium'>{service.name}</div>
-                        <div className='text-xs opacity-75'>{service.operations.length} operations</div>
+            {servicesWithOperations.length === 0 ? (
+              <div className='py-8 text-center'>
+                <FolderOpen className='mx-auto mb-2 h-8 w-8 text-text-secondary' />
+                <p className='text-sm text-text-secondary'>No services yet</p>
+              </div>
+            ) : (
+              <div className='space-y-1'>
+                {servicesWithOperations.map((service) => (
+                  <div key={service.id} className='space-y-1'>
+                    <button
+                      onClick={() => handleServiceClick(service)}
+                      className={`w-full flex items-center justify-between rounded-lg px-3 py-2 text-left transition-colors ${
+                        selectedService?.id === service.id
+                          ? 'bg-primary text-white'
+                          : 'hover:bg-surface text-text'
+                      }`}
+                    >
+                      <div className='flex items-center gap-2'>
+                        <ChevronRight className={`h-4 w-4 transition-transform ${expandedServices.has(service.id) ? 'rotate-90' : ''}`} />
+                        <div>
+                          <div className='text-sm font-medium'>{service.name}</div>
+                          <div className='text-xs opacity-75'>{service.operations.length} operations</div>
+                        </div>
                       </div>
-                    </div>
-                  </button>
-                  {selectedService?.id === service.id && (
-                    <div className='ml-4 space-y-1'>
-                      {service.operations.map((operation) => (
-                        <button
-                          key={operation.id}
-                          onClick={() => handleOperationClick(operation)}
-                          className={`w-full flex items-center justify-between rounded px-3 py-2 text-left transition-colors ${
-                            selectedOperation?.id === operation.id
-                              ? 'bg-primary/10 text-primary'
-                              : 'hover:bg-surface text-text-secondary'
-                          }`}
-                        >
-                          <div className='flex items-center gap-2'>
-                            <Badge className={`text-xs ${getMethodColor(operation.method)}`} variant='outline'>
-                              {operation.method}
-                            </Badge>
-                            <span className='text-sm font-mono'>{operation.path}</span>
-                          </div>
-                          <div className={`h-2 w-2 rounded-full ${operation.status === 'active' ? 'bg-green-500' : 'bg-gray-400'}`} />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+                    </button>
+                    {expandedServices.has(service.id) && (
+                      <div className='ml-4 space-y-1'>
+                        {service.operations.map((operation) => (
+                          <button
+                            key={operation.id}
+                            onClick={() => handleOperationClick(operation)}
+                            className={`w-full flex items-center justify-between rounded px-3 py-2 text-left transition-colors ${
+                              selectedOperation?.id === operation.id
+                                ? 'bg-primary/10 text-primary'
+                                : 'hover:bg-surface text-text-secondary'
+                            }`}
+                          >
+                            <div className='flex items-center gap-2'>
+                              <Badge className={`text-xs ${getMethodColor(operation.method)}`} variant='outline'>
+                                {operation.method}
+                              </Badge>
+                              <span className='text-sm font-mono'>{operation.path}</span>
+                            </div>
+                            <div className={`h-2 w-2 rounded-full ${operation.status === 'active' ? 'bg-green-500' : 'bg-gray-400'}`} />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </Card>
 
@@ -333,14 +484,16 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
                     {/* Operation Summary */}
                     <div>
                       <h3 className='text-sm font-semibold text-text mb-2'>Operation Summary</h3>
-                      <p className='text-sm text-text-secondary'>{selectedOperation.description}</p>
+                      <p className='text-sm text-text-secondary'>
+                        {selectedOperation.apiName || selectedOperation.description}
+                      </p>
                     </div>
 
                     {/* Description */}
                     <div>
                       <h3 className='text-sm font-semibold text-text mb-2'>Description</h3>
                       <p className='text-sm text-text-secondary'>
-                        Authenticates a user with valid credentials and returns access token and refresh token.
+                        {selectedOperation.description || 'No description provided.'}
                       </p>
                     </div>
 
@@ -348,40 +501,54 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
                     <div>
                       <h3 className='text-sm font-semibold text-text mb-2'>Tags</h3>
                       <div className='flex gap-2'>
-                        {selectedOperation.tags.map((tag) => (
-                          <Badge key={tag} variant='outline'>{tag}</Badge>
-                        ))}
+                        {(selectedOperation.tags || []).length > 0 ? (
+                          (selectedOperation.tags || []).map((tag) => (
+                            <Badge key={tag} variant='outline'>{tag}</Badge>
+                          ))
+                        ) : (
+                          <p className='text-sm text-text-secondary'>No tags</p>
+                        )}
                       </div>
                     </div>
 
                     {/* Metadata Grid */}
                     <div className='grid grid-cols-2 gap-4'>
                       <div>
-                        <h3 className='text-sm font-semibold text-text mb-1'>Service</h3>
-                        <p className='text-sm text-text-secondary'>{selectedService?.name}</p>
+                        <h3 className='text-sm font-semibold text-text mb-1'>Service Name</h3>
+                        <p className='text-sm text-text-secondary'>
+                          {selectedOperation.serviceName || selectedService?.name}
+                        </p>
                       </div>
                       <div>
-                        <h3 className='text-sm font-semibold text-text mb-1'>Method</h3>
+                        <h3 className='text-sm font-semibold text-text mb-1'>API Name</h3>
+                        <p className='text-sm text-text-secondary'>
+                          {selectedOperation.apiName || selectedOperation.description}
+                        </p>
+                      </div>
+                      <div>
+                        <h3 className='text-sm font-semibold text-text mb-1'>HTTP Method</h3>
                         <Badge className={getMethodColor(selectedOperation.method)}>{selectedOperation.method}</Badge>
                       </div>
                       <div>
+                        <h3 className='text-sm font-semibold text-text mb-1'>Endpoint Path</h3>
+                        <code className='text-sm text-text-secondary'>{selectedOperation.path}</code>
+                      </div>
+                      <div>
                         <h3 className='text-sm font-semibold text-text mb-1'>Base URL</h3>
-                        <code className='text-sm text-text-secondary'>{selectedService?.baseUrl}</code>
+                        <code className='text-sm text-text-secondary'>{selectedService?.baseUrl || '—'}</code>
                       </div>
                       <div>
                         <h3 className='text-sm font-semibold text-text mb-1'>Authentication</h3>
-                        <p className='text-sm text-text-secondary'>Bearer Token</p>
+                        <p className='text-sm text-text-secondary'>
+                          {selectedOperation.authentication || 'None'}
+                        </p>
                       </div>
                       <div>
-                        <h3 className='text-sm font-semibold text-text mb-1'>Rate Limit</h3>
-                        <p className='text-sm text-text-secondary'>100 requests / minute</p>
+                        <h3 className='text-sm font-semibold text-text mb-1'>Version</h3>
+                        <p className='text-sm text-text-secondary'>
+                          {selectedOperation.version || 'v1'}
+                        </p>
                       </div>
-                    </div>
-
-                    {/* Operation ID */}
-                    <div>
-                      <h3 className='text-sm font-semibold text-text mb-1'>Operation ID</h3>
-                      <code className='text-sm text-text-secondary'>loginUser</code>
                     </div>
                   </div>
                 )}
@@ -390,7 +557,7 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
                   <div className='space-y-4'>
                     <h3 className='text-sm font-semibold text-text'>Request</h3>
                     <div className='rounded-lg border border-border p-4'>
-                      <p className='text-sm text-text-secondary'>Request configuration panel would be displayed here.</p>
+                      <p className='text-sm text-text-secondary'>No request schema defined.</p>
                     </div>
                   </div>
                 )}
@@ -399,7 +566,7 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
                   <div className='space-y-4'>
                     <h3 className='text-sm font-semibold text-text'>Response</h3>
                     <div className='rounded-lg border border-border p-4'>
-                      <p className='text-sm text-text-secondary'>Response examples would be displayed here.</p>
+                      <p className='text-sm text-text-secondary'>No response schema defined.</p>
                     </div>
                   </div>
                 )}
@@ -408,7 +575,7 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
                   <div className='space-y-4'>
                     <h3 className='text-sm font-semibold text-text'>Schema</h3>
                     <div className='rounded-lg border border-border p-4'>
-                      <p className='text-sm text-text-secondary'>Schema definition would be displayed here.</p>
+                      <p className='text-sm text-text-secondary'>Schema not available.</p>
                     </div>
                   </div>
                 )}
@@ -417,7 +584,7 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
                   <div className='space-y-4'>
                     <h3 className='text-sm font-semibold text-text'>Tests</h3>
                     <div className='rounded-lg border border-border p-4'>
-                      <p className='text-sm text-text-secondary'>Test cases would be displayed here.</p>
+                      <p className='text-sm text-text-secondary'>No generated test cases.</p>
                     </div>
                   </div>
                 )}
@@ -426,7 +593,7 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
                   <div className='space-y-4'>
                     <h3 className='text-sm font-semibold text-text'>History</h3>
                     <div className='rounded-lg border border-border p-4'>
-                      <p className='text-sm text-text-secondary'>Execution history would be displayed here.</p>
+                      <p className='text-sm text-text-secondary'>No activity yet.</p>
                     </div>
                   </div>
                 )}
@@ -440,8 +607,30 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
         </Card>
       </div>
 
-      {/* Service Dialog */}
-      <ServiceDialog open={createOpen} mode='create' onSubmit={handleCreate} onCancel={() => setCreateOpen(false)} />
+      {/* Empty State when no APIs exist */}
+      {servicesWithOperations.length === 0 && (
+        <div className='mt-8 flex flex-col items-center justify-center py-12 text-center'>
+          <div className='mb-4 text-text-secondary'>
+            <FolderOpen className='h-12 w-12' />
+          </div>
+          <h3 className='text-lg font-semibold text-text'>No APIs Found</h3>
+          <p className='mt-1 text-sm text-text-secondary max-w-sm'>
+            Import an API contract or create your first API manually.
+          </p>
+          <div className='mt-4 flex gap-2'>
+            <Button variant='outline' onClick={() => setImportOpen(true)}>
+              <Import className='mr-2 h-4 w-4' />
+              Import API Contract
+            </Button>
+            <Button onClick={() => setAddApiOpen(true)}>
+              <Plus className='mr-2 h-4 w-4' />
+              Add API
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Service Dialog (for edit) */}
       <ServiceDialog open={editOpen} mode='edit' service={editService} onSubmit={handleUpdate} onCancel={() => setEditOpen(false)} />
       <ConfirmDialog
         open={deleteOpen}
@@ -452,6 +641,119 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
         variant='destructive'
         onConfirm={handleDelete}
         onCancel={() => setDeleteOpen(false)}
+      />
+
+      <ImportApiModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImport={handleImportApi}
+        isImporting={isImporting}
+        uploadProgress={uploadProgress}
+      />
+
+      <AddApiModal
+        open={addApiOpen}
+        onClose={() => setAddApiOpen(false)}
+        onCreate={handleAddApi}
+        existingApis={existingApis}
+        existingServiceNames={existingServiceNames}
+      />
+
+      <Toast
+        message='API created successfully.'
+        open={toastOpen}
+        onClose={() => setToastOpen(false)}
+      />
+
+      {/* Environment Detection Confirmation Dialog */}
+      {envConfirmOpen && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
+          <Card className='mx-4 w-full max-w-2xl'>
+            <CardHeader>
+              <CardTitle>Detected Environments</CardTitle>
+            </CardHeader>
+            <CardContent className='space-y-4'>
+              <p className='text-sm text-text-secondary'>
+                The imported API specification contains server definitions. Select the environments you would like to create.
+              </p>
+              <div className='max-h-96 overflow-y-auto rounded-lg border border-border'>
+                <table className='w-full text-sm'>
+                  <thead className='border-b border-border bg-surface'>
+                    <tr>
+                      <th className='px-4 py-2 text-left'>Select</th>
+                      <th className='px-4 py-2 text-left'>Environment Name</th>
+                      <th className='px-4 py-2 text-left'>Base URL</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detectedEnvironments.map((env, idx) => {
+                      const envKey = `${env.name}-${env.baseUrl}`;
+                      const isSelected = selectedEnvIds.has(envKey);
+                      return (
+                        <tr key={idx} className='border-b border-border last:border-b-0 hover:bg-surface/50'>
+                          <td className='px-4 py-3'>
+                            <input
+                              type='checkbox'
+                              checked={isSelected}
+                              onChange={(e) => {
+                                setSelectedEnvIds(prev => {
+                                  const next = new Set(prev);
+                                  if (e.target.checked) {
+                                    next.add(envKey);
+                                  } else {
+                                    next.delete(envKey);
+                                  }
+                                  return next;
+                                });
+                              }}
+                              className='h-4 w-4 rounded border-border'
+                            />
+                          </td>
+                          <td className='px-4 py-3 font-medium'>{env.name}</td>
+                          <td className='px-4 py-3 font-mono text-xs'>{env.baseUrl}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+            <CardFooter className='justify-end gap-2'>
+              <Button variant='outline' onClick={handleSkipEnvironments} disabled={isCreatingEnvironments}>
+                Skip
+              </Button>
+              <Button onClick={handleCreateSelectedEnvironments} disabled={isCreatingEnvironments || selectedEnvIds.size === 0}>
+                Create Selected ({selectedEnvIds.size})
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      )}
+
+      {/* Upload progress toast */}
+      <Toast
+        message={progressMessage || 'Uploading…'}
+        open={progressToastOpen}
+        onClose={() => setProgressToastOpen(false)}
+        duration={0}
+        type='info'
+      />
+
+      {/* Import summary toast */}
+      <Toast
+        message={summaryMessage}
+        open={summaryToastOpen}
+        onClose={() => setSummaryToastOpen(false)}
+        duration={10000}
+        type='success'
+      />
+
+      {/* Error toast */}
+      <Toast
+        message={errorMessage}
+        open={errorToastOpen}
+        onClose={() => setErrorToastOpen(false)}
+        type='error'
       />
     </div>
   );

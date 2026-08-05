@@ -1,0 +1,19 @@
+name: Protect Main Branch
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  block:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reject PR to main
+        run: |
+          echo "❌ Direct PRs to main are not allowed!"
+          echo "🔄 Workflow:"
+          echo "1. Create a PR against master (dev)"
+          echo "2. After merge, run the 'Release to Production' workflow"
+          echo "3. This will create a tag and push to main (prod)"
+          exit 1

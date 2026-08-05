@@ -1,3 +1,6 @@
 // Barrel export file
-// Add exports here as modules are implemented
-export {};
+export * from './environment';
+export * from './knowledge';
+export * from './analysis';
+export * from './requirements';
+export * from './prompt';

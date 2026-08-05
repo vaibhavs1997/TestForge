@@ -1,0 +1,5 @@
+<svg width="148" height="32" viewBox="0 0 148 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="32" height="32" rx="8" fill="#6366F1"/>
+  <path d="M16 9 L23 16 L16 23 L9 16 Z" stroke="#FFFFFF" stroke-width="2" fill="none" stroke-linejoin="round"/>
+  <text x="40" y="22" font-family="Inter, system-ui, sans-serif" font-size="17" font-weight="700" fill="#F9FAFB">TestForge</text>
+</svg>

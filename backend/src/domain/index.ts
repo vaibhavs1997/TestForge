@@ -1,3 +1,20 @@
-// Barrel export file
-// Add exports here as modules are implemented
-export {};
+export * from './analysis';
+export * from './environment';
+export * from './events';
+export * from './execution';
+export * from './knowledge';
+export * from './notification';
+export * from './project';
+export * from './versioning';
+export * from './audit';
+export * from './plugin';
+export * from './providers';
+export * from './recommendation';
+export * from './report';
+export * from './requirements';
+export * from './scheduler';
+export * from './suite';
+export * from './test-data';
+export * from './validation';
+export * from './context';
+export * from './prompt';

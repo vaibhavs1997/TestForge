@@ -1,0 +1,17 @@
+// GetApiService - Application Use Case
+import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
+import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity';
+
+export class GetApiService {
+  constructor(private readonly apiServiceRepository: ApiServiceRepository) {}
+
+  async execute(id: string): Promise<ApiServiceEntity> {
+    const service = await this.apiServiceRepository.findById(id);
+    if (!service) {
+      throw new Error(`Service with id ${id} not found`);
+    }
+    return service;
+  }
+}
+
+export default GetApiService;

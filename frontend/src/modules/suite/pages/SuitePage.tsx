@@ -6,181 +6,148 @@ import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
-import { FlaskConical, Plus, Play, GitBranch, Clock, CheckCircle, AlertTriangle, MoreVertical, ChevronDown } from 'lucide-react';
+import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
+import { useSuites } from '../hooks';
+import { projectStore } from '../../../store/projectStore';
+import type { TestSuite, TestSuiteFormData, SuiteExecutionPolicy, SuiteStatus } from '../types';
+import { FlaskConical, Plus, Copy, Archive, Trash2, GripVertical, ChevronUp, ChevronDown, Clock, Layers } from 'lucide-react';
 
 // Styles
 
 export interface SuitePageProps {}
 
-interface TestSuite {
-  id: string;
-  name: string;
-  description: string;
-  tags: string[];
-  status: 'Active' | 'Paused' | 'Failed';
-  lastUpdated: string;
-  testCases: number;
-  successRate: number;
-}
-
-interface SuiteDetails {
-  name: string;
-  description: string;
-  suiteId: string;
-  category: string;
-  tags: string[];
-  testCases: number;
-  lastExecution: string;
-  successRate: number;
-  recentExecutions: Array<{
-    id: string;
-    status: 'passed' | 'failed';
-    name: string;
-    time: string;
-  }>;
-}
-
 export const SuitePage: React.FC<SuitePageProps> = () => {
+  const selectedProjectId = projectStore((state) => state.selectedProjectId);
+  const projectId = selectedProjectId || '1';
+  const { suites, isLoading, create, update, remove, addExecutionPlan, removeExecutionPlan, reorderExecutionPlans } = useSuites(projectId);
+
   const [search, setSearch] = React.useState('');
-  const [filter, setFilter] = React.useState<string>('all');
-  const [selectedSuite, setSelectedSuite] = React.useState<SuiteDetails | null>(null);
-
-  const testSuites: TestSuite[] = [
-    {
-      id: '1',
-      name: 'Authentication Tests',
-      description: 'Tests for user authentication and authorization',
-      tags: ['Auth', 'Security'],
-      status: 'Active',
-      lastUpdated: '2 hours ago',
-      testCases: 12,
-      successRate: 100,
-    },
-    {
-      id: '2',
-      name: 'Payment Gateway Tests',
-      description: 'Payment processing API tests',
-      tags: ['Payments', 'Critical'],
-      status: 'Active',
-      lastUpdated: '1 day ago',
-      testCases: 45,
-      successRate: 94,
-    },
-    {
-      id: '3',
-      name: 'User Management Tests',
-      description: 'User service validation tests',
-      tags: ['Users', 'Core'],
-      status: 'Active',
-      lastUpdated: '3 days ago',
-      testCases: 28,
-      successRate: 89,
-    },
-    {
-      id: '4',
-      name: 'Fraud Detection Tests',
-      description: 'Fraud detection service tests',
-      tags: ['Security', 'AI'],
-      status: 'Active',
-      lastUpdated: '5 days ago',
-      testCases: 36,
-      successRate: 92,
-    },
-    {
-      id: '5',
-      name: 'Account Service Tests',
-      description: 'Account management tests',
-      tags: ['Accounts', 'Core'],
-      status: 'Active',
-      lastUpdated: '1 week ago',
-      testCases: 24,
-      successRate: 96,
-    },
-    {
-      id: '6',
-      name: 'Notification Tests',
-      description: 'Notification service tests',
-      tags: ['Messaging', 'Events'],
-      status: 'Paused',
-      lastUpdated: '1 week ago',
-      testCases: 18,
-      successRate: 85,
-    },
-    {
-      id: '7',
-      name: 'Export Import Tests',
-      description: 'Data export and import tests',
-      tags: ['Data', 'Integration'],
-      status: 'Active',
-      lastUpdated: '2 weeks ago',
-      testCases: 32,
-      successRate: 91,
-    },
-    {
-      id: '8',
-      name: 'Security Compliance Tests',
-      description: 'Security and compliance tests',
-      tags: ['Security', 'Compliance'],
-      status: 'Failed',
-      lastUpdated: '2 weeks ago',
-      testCases: 56,
-      successRate: 78,
-    },
-  ];
-
-  const suiteDetails: SuiteDetails = {
-    name: 'Authentication Tests',
-    description: 'Tests for user authentication and authorization',
-    suiteId: 'auth-suite',
-    category: 'Security',
-    tags: ['Auth', 'Security'],
-    testCases: 12,
-    lastExecution: '2 hours ago',
-    successRate: 100,
-    recentExecutions: [
-      { id: '1', status: 'passed', name: 'Run #24 - Passed', time: '2 hours ago' },
-      { id: '2', status: 'passed', name: 'Run #23 - Passed', time: '1 day ago' },
-      { id: '3', status: 'passed', name: 'Run #22 - Passed', time: '3 days ago' },
-    ],
-  };
+  const [selectedSuite, setSelectedSuite] = React.useState<TestSuite | null>(null);
+  const [createOpen, setCreateOpen] = React.useState(false);
+  const [deleteSuite, setDeleteSuite] = React.useState<TestSuite | undefined>(undefined);
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [newSuiteName, setNewSuiteName] = React.useState('');
+  const [newSuiteDescription, setNewSuiteDescription] = React.useState('');
+  const [newSuiteTags, setNewSuiteTags] = React.useState('');
+  const [newSuitePolicy, setNewSuitePolicy] = React.useState<SuiteExecutionPolicy>('Sequential');
+  const [newSuiteStatus, setNewSuiteStatus] = React.useState<SuiteStatus>('Draft');
+  const [newExecutionPlanId, setNewExecutionPlanId] = React.useState('');
 
   React.useEffect(() => {
-    if (testSuites.length > 0 && !selectedSuite) {
-      setSelectedSuite(suiteDetails);
+    if (suites.length > 0 && !selectedSuite) {
+      setSelectedSuite(suites[0]);
     }
-  }, []);
+  }, [suites, selectedSuite]);
 
   const filteredSuites = React.useMemo(() => {
     const term = search.trim().toLowerCase();
-    return testSuites.filter((suite) => {
+    return suites.filter((suite) => {
       const matchesSearch =
         !term ||
         suite.name.toLowerCase().includes(term) ||
         suite.description.toLowerCase().includes(term) ||
-        suite.tags.some(tag => tag.toLowerCase().includes(term));
-      const matchesFilter = filter === 'all' || suite.status.toLowerCase() === filter;
-      return matchesSearch && matchesFilter;
+        suite.tags.some(tag => tag.name.toLowerCase().includes(term));
+      return matchesSearch;
     });
-  }, [search, filter, testSuites]);
+  }, [search, suites]);
 
-  const getStatusBadge = (status: TestSuite['status']) => {
-    const variants: Record<TestSuite['status'], 'success' | 'warning' | 'destructive'> = {
+  const getStatusBadge = (status: SuiteStatus) => {
+    const variants: Record<SuiteStatus, 'success' | 'warning' | 'secondary'> = {
       'Active': 'success',
-      'Paused': 'warning',
-      'Failed': 'destructive',
+      'Draft': 'secondary',
+      'Archived': 'warning',
     };
     return <Badge variant={variants[status]}>{status}</Badge>;
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'passed':
-        return 'text-green-600';
-      case 'failed':
-        return 'text-red-600';
-      default:
-        return 'text-text-secondary';
+  const getPolicyBadge = (policy: SuiteExecutionPolicy) => {
+    return <Badge variant='outline'>{policy}</Badge>;
+  };
+
+  const handleCreateSuite = () => {
+    if (!newSuiteName.trim()) return;
+    const tags = newSuiteTags
+      .split(',')
+      .map(t => t.trim())
+      .filter(Boolean)
+      .map((name, index) => ({ id: `tag-${Date.now()}-${index}`, name }));
+
+    const payload: TestSuiteFormData = {
+      name: newSuiteName,
+      description: newSuiteDescription,
+      tags,
+      executionPlans: [],
+      defaultEnvironmentId: '',
+      executionPolicy: newSuitePolicy,
+      estimatedDuration: 0,
+      status: newSuiteStatus,
+    };
+
+    create({ projectId, ...payload });
+    setNewSuiteName('');
+    setNewSuiteDescription('');
+    setNewSuiteTags('');
+    setNewSuitePolicy('Sequential');
+    setNewSuiteStatus('Draft');
+    setCreateOpen(false);
+  };
+
+  const handleDuplicateSuite = (suite: TestSuite) => {
+    const payload: TestSuiteFormData = {
+      name: `${suite.name} (Copy)`,
+      description: suite.description,
+      tags: suite.tags.map(t => ({ ...t, id: `tag-${Date.now()}-${t.name}` })),
+      executionPlans: suite.executionPlans.map(item => ({ ...item })),
+      defaultEnvironmentId: suite.defaultEnvironmentId,
+      executionPolicy: suite.executionPolicy,
+      estimatedDuration: suite.estimatedDuration,
+      status: 'Draft',
+    };
+    create({ projectId, ...payload });
+  };
+
+  const handleArchiveSuite = (suite: TestSuite) => {
+    update({ projectId, suiteId: suite.id, status: 'Archived' });
+  };
+
+  const handleDeleteSuite = () => {
+    if (!deleteSuite) return;
+    remove({ projectId, suiteId: deleteSuite.id });
+    setDeleteOpen(false);
+    setDeleteSuite(undefined);
+    if (selectedSuite?.id === deleteSuite.id) {
+      setSelectedSuite(null);
     }
+  };
+
+  const handleAddExecutionPlan = (suite: TestSuite) => {
+    if (!newExecutionPlanId.trim()) return;
+    addExecutionPlan({ projectId, suiteId: suite.id, executionPlanId: newExecutionPlanId });
+    setNewExecutionPlanId('');
+  };
+
+  const handleRemoveExecutionPlan = (suite: TestSuite, executionPlanId: string) => {
+    removeExecutionPlan({ projectId, suiteId: suite.id, executionPlanId });
+  };
+
+  const handleMovePlan = (suite: TestSuite, index: number, direction: 'up' | 'down') => {
+    const plans = [...suite.executionPlans].sort((a, b) => a.order - b.order);
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= plans.length) return;
+
+    const [moved] = plans.splice(index, 1);
+    plans.splice(targetIndex, 0, moved);
+    const orderedPlanIds = plans.map(p => p.executionPlanId);
+    reorderExecutionPlans({ projectId, suiteId: suite.id, orderedPlanIds });
+  };
+
+  const formatDuration = (seconds: number) => {
+    if (!seconds) return 'Not estimated';
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h ${minutes % 60}m`;
   };
 
   return (
@@ -189,107 +156,13 @@ export const SuitePage: React.FC<SuitePageProps> = () => {
       <div className='mb-6 flex items-center justify-between'>
         <div>
           <h1 className='text-2xl font-bold text-text'>Test Suites</h1>
-          <p className='mt-1 text-sm text-text-secondary'>Organize and manage your API test suites for service validation and regression testing.</p>
+          <p className='mt-1 text-sm text-text-secondary'>Reusable collections of execution plans for API validation.</p>
         </div>
         <div className='flex items-center gap-3'>
           <SearchBar value={search} onChange={setSearch} placeholder='Search test suites...' className='sm:w-80' />
-          <Button>
+          <Button onClick={() => setCreateOpen(true)}>
             <Plus className='mr-2 h-4 w-4' />
             Create Suite
-          </Button>
-        </div>
-      </div>
-
-      {/* Summary Cards */}
-      <div className='mb-8 grid grid-cols-1 gap-4 sm:grid-cols-4'>
-        <Card>
-          <CardContent className='pt-6'>
-            <div className='flex items-center justify-between'>
-              <div>
-                <p className='text-sm font-medium text-text-secondary'>Total Suites</p>
-                <p className='text-2xl font-bold text-text'>8</p>
-                <p className='text-xs text-text-secondary mt-1'>+2 this week</p>
-              </div>
-              <div className='h-12 w-12 rounded-lg bg-purple-100 dark:bg-purple-900 flex items-center justify-center'>
-                <FlaskConical className='h-6 w-6 text-purple-600' />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className='pt-6'>
-            <div className='flex items-center justify-between'>
-              <div>
-                <p className='text-sm font-medium text-text-secondary'>Passed Suites</p>
-                <p className='text-2xl font-bold text-text'>6</p>
-                <p className='text-xs text-text-secondary mt-1'>75% success rate</p>
-              </div>
-              <div className='h-12 w-12 rounded-lg bg-green-100 dark:bg-green-900 flex items-center justify-center'>
-                <CheckCircle className='h-6 w-6 text-green-600' />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className='pt-6'>
-            <div className='flex items-center justify-between'>
-              <div>
-                <p className='text-sm font-medium text-text-secondary'>Failed Suites</p>
-                <p className='text-2xl font-bold text-text'>1</p>
-                <p className='text-xs text-text-secondary mt-1'>12% failure rate</p>
-              </div>
-              <div className='h-12 w-12 rounded-lg bg-yellow-100 dark:bg-yellow-900 flex items-center justify-center'>
-                <AlertTriangle className='h-6 w-6 text-yellow-600' />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className='pt-6'>
-            <div className='flex items-center justify-between'>
-              <div>
-                <p className='text-sm font-medium text-text-secondary'>Total Executions</p>
-                <p className='text-2xl font-bold text-text'>24</p>
-                <p className='text-xs text-text-secondary mt-1'>+5 this week</p>
-              </div>
-              <div className='h-12 w-12 rounded-lg bg-blue-100 dark:bg-blue-900 flex items-center justify-center'>
-                <Clock className='h-6 w-6 text-blue-600' />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filters */}
-      <div className='mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
-        <div className='flex items-center gap-2'>
-          <span className='text-sm text-text-secondary'>Filter:</span>
-          <select 
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className='rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text'
-          >
-            <option value='all'>All Status</option>
-            <option value='active'>Active</option>
-            <option value='paused'>Paused</option>
-            <option value='failed'>Failed</option>
-          </select>
-          <select className='rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text'>
-            <option>All Tags</option>
-            <option>Auth</option>
-            <option>Security</option>
-            <option>Payments</option>
-          </select>
-        </div>
-        <div className='flex items-center gap-2'>
-          <span className='text-sm text-text-secondary'>Sort:</span>
-          <select className='rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text'>
-            <option>Updated</option>
-            <option>Name</option>
-            <option>Status</option>
-          </select>
-          <Button variant='outline' size='sm'>
-            <ChevronDown className='h-4 w-4' />
           </Button>
         </div>
       </div>
@@ -299,67 +172,78 @@ export const SuitePage: React.FC<SuitePageProps> = () => {
         {/* Left Panel - Test Suites List */}
         <Card className='lg:col-span-2'>
           <CardContent className='p-0'>
-            <div className='overflow-x-auto'>
-              <table className='w-full'>
-                <thead className='border-b border-border'>
-                  <tr className='text-left text-sm text-text-secondary'>
-                    <th className='px-4 py-3 font-medium'>Suite Name</th>
-                    <th className='px-4 py-3 font-medium'>Description</th>
-                    <th className='px-4 py-3 font-medium'>Tags</th>
-                    <th className='px-4 py-3 font-medium'>Status</th>
-                    <th className='px-4 py-3 font-medium'>Last Updated</th>
-                    <th className='px-4 py-3 font-medium'></th>
-                  </tr>
-                </thead>
-                <tbody className='divide-y divide-border'>
-                  {filteredSuites.map((suite) => (
-                    <tr 
-                      key={suite.id} 
-                      className={`hover:bg-surface transition-colors cursor-pointer ${
-                        selectedSuite?.suiteId === suite.id ? 'bg-surface' : ''
-                      }`}
-                      onClick={() => setSelectedSuite({
-                        name: suite.name,
-                        description: suite.description,
-                        suiteId: suite.id,
-                        category: 'General',
-                        tags: suite.tags,
-                        testCases: suite.testCases,
-                        lastExecution: suite.lastUpdated,
-                        successRate: suite.successRate,
-                        recentExecutions: [],
-                      })}
-                    >
-                      <td className='px-4 py-4'>
-                        <div className='flex items-center gap-3'>
-                          <div className='h-8 w-8 rounded-lg bg-purple-100 dark:bg-purple-900 flex items-center justify-center'>
-                            <FlaskConical className='h-4 w-4 text-purple-600' />
-                          </div>
-                          <div className='font-medium text-text'>{suite.name}</div>
-                        </div>
-                      </td>
-                      <td className='px-4 py-4'>
-                        <div className='text-sm text-text-secondary line-clamp-1'>{suite.description}</div>
-                      </td>
-                      <td className='px-4 py-4'>
-                        <div className='flex gap-1'>
-                          {suite.tags.slice(0, 2).map((tag) => (
-                            <Badge key={tag} variant='outline' className='text-xs'>{tag}</Badge>
-                          ))}
-                        </div>
-                      </td>
-                      <td className='px-4 py-4'>{getStatusBadge(suite.status)}</td>
-                      <td className='px-4 py-4 text-sm text-text-secondary'>{suite.lastUpdated}</td>
-                      <td className='px-4 py-4'>
-                        <Button variant='ghost' size='sm' className='h-8 w-8 p-0'>
-                          <MoreVertical className='h-4 w-4' />
-                        </Button>
-                      </td>
+            {isLoading ? (
+              <div className='p-8 text-center text-text-secondary'>Loading suites...</div>
+            ) : filteredSuites.length === 0 ? (
+              <EmptyState
+                icon={<FlaskConical className='h-12 w-12' />}
+                title={search ? 'No matching suites' : 'No test suites yet'}
+                description={search ? 'Try adjusting your search criteria.' : 'Create your first test suite to get started.'}
+                action={search ? undefined : { label: 'Create Suite', onClick: () => setCreateOpen(true) }}
+              />
+            ) : (
+              <div className='overflow-x-auto'>
+                <table className='w-full'>
+                  <thead className='border-b border-border'>
+                    <tr className='text-left text-sm text-text-secondary'>
+                      <th className='px-4 py-3 font-medium'>Suite Name</th>
+                      <th className='px-4 py-3 font-medium'>Description</th>
+                      <th className='px-4 py-3 font-medium'>Tags</th>
+                      <th className='px-4 py-3 font-medium'>Plans</th>
+                      <th className='px-4 py-3 font-medium'>Policy</th>
+                      <th className='px-4 py-3 font-medium'>Status</th>
+                      <th className='px-4 py-3 font-medium'></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className='divide-y divide-border'>
+                    {filteredSuites.map((suite) => (
+                      <tr
+                        key={suite.id}
+                        className={`hover:bg-surface transition-colors cursor-pointer ${
+                          selectedSuite?.id === suite.id ? 'bg-surface' : ''
+                        }`}
+                        onClick={() => setSelectedSuite(suite)}
+                      >
+                        <td className='px-4 py-4'>
+                          <div className='flex items-center gap-3'>
+                            <div className='h-8 w-8 rounded-lg bg-purple-100 dark:bg-purple-900 flex items-center justify-center'>
+                              <FlaskConical className='h-4 w-4 text-purple-600' />
+                            </div>
+                            <div className='font-medium text-text'>{suite.name}</div>
+                          </div>
+                        </td>
+                        <td className='px-4 py-4'>
+                          <div className='text-sm text-text-secondary line-clamp-1'>{suite.description || '—'}</div>
+                        </td>
+                        <td className='px-4 py-4'>
+                          <div className='flex gap-1'>
+                            {suite.tags.slice(0, 2).map((tag) => (
+                              <Badge key={tag.id} variant='outline' className='text-xs'>{tag.name}</Badge>
+                            ))}
+                          </div>
+                        </td>
+                        <td className='px-4 py-4 text-sm text-text-secondary'>{suite.executionPlans.length}</td>
+                        <td className='px-4 py-4'>{getPolicyBadge(suite.executionPolicy)}</td>
+                        <td className='px-4 py-4'>{getStatusBadge(suite.status)}</td>
+                        <td className='px-4 py-4'>
+                          <div className='flex items-center gap-1' onClick={(e) => e.stopPropagation()}>
+                            <Button variant='ghost' size='sm' className='h-8 w-8 p-0' onClick={() => handleDuplicateSuite(suite)} title='Duplicate'>
+                              <Copy className='h-4 w-4' />
+                            </Button>
+                            <Button variant='ghost' size='sm' className='h-8 w-8 p-0' onClick={() => handleArchiveSuite(suite)} title='Archive'>
+                              <Archive className='h-4 w-4' />
+                            </Button>
+                            <Button variant='ghost' size='sm' className='h-8 w-8 p-0' onClick={() => { setDeleteSuite(suite); setDeleteOpen(true); }} title='Delete'>
+                              <Trash2 className='h-4 w-4' />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -369,14 +253,14 @@ export const SuitePage: React.FC<SuitePageProps> = () => {
             <CardHeader>
               <div className='flex items-center justify-between'>
                 <CardTitle className='text-base'>Suite Details</CardTitle>
-                {getStatusBadge('Active')}
+                {getStatusBadge(selectedSuite.status)}
               </div>
             </CardHeader>
             <CardContent className='space-y-6'>
               {/* Suite Info */}
               <div>
                 <h3 className='text-lg font-semibold text-text'>{selectedSuite.name}</h3>
-                <p className='text-sm text-text-secondary mt-1'>{selectedSuite.description}</p>
+                <p className='text-sm text-text-secondary mt-1'>{selectedSuite.description || 'No description'}</p>
               </div>
 
               {/* Key Information */}
@@ -385,67 +269,166 @@ export const SuitePage: React.FC<SuitePageProps> = () => {
                 <div className='space-y-2'>
                   <div className='flex items-center justify-between text-sm'>
                     <span className='text-text-secondary'>Suite ID</span>
-                    <span className='font-medium text-text'>{selectedSuite.suiteId}</span>
-                  </div>
-                  <div className='flex items-center justify-between text-sm'>
-                    <span className='text-text-secondary'>Category</span>
-                    <span className='font-medium text-text'>{selectedSuite.category}</span>
+                    <span className='font-medium text-text'>{selectedSuite.id}</span>
                   </div>
                   <div className='flex items-center justify-between text-sm'>
                     <span className='text-text-secondary'>Tags</span>
                     <div className='flex gap-1'>
-                      {selectedSuite.tags.map((tag) => (
-                        <Badge key={tag} variant='outline' className='text-xs'>{tag}</Badge>
-                      ))}
+                      {selectedSuite.tags.length > 0 ? selectedSuite.tags.map((tag) => (
+                        <Badge key={tag.id} variant='outline' className='text-xs'>{tag.name}</Badge>
+                      )) : <span className='text-text-secondary'>—</span>}
                     </div>
                   </div>
+                  <div className='flex items-center justify-between text-sm'>
+                    <span className='text-text-secondary'>Execution Policy</span>
+                    {getPolicyBadge(selectedSuite.executionPolicy)}
+                  </div>
+                  <div className='flex items-center justify-between text-sm'>
+                    <span className='text-text-secondary'>Default Environment</span>
+                    <span className='font-medium text-text'>{selectedSuite.defaultEnvironmentId || '—'}</span>
+                  </div>
+                  <div className='flex items-center justify-between text-sm'>
+                    <span className='text-text-secondary'>Estimated Duration</span>
+                    <span className='font-medium text-text flex items-center gap-1'>
+                      <Clock className='h-3 w-3' />
+                      {formatDuration(selectedSuite.estimatedDuration)}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              {/* Stats */}
+              {/* Execution Plans */}
               <div>
-                <h4 className='text-sm font-semibold text-text mb-3'>Stats</h4>
+                <h4 className='text-sm font-semibold text-text mb-3 flex items-center gap-2'>
+                  <Layers className='h-4 w-4' />
+                  Execution Plans ({selectedSuite.executionPlans.length})
+                </h4>
                 <div className='space-y-2'>
-                  <div className='flex items-center justify-between text-sm'>
-                    <span className='text-text-secondary'>Test Cases</span>
-                    <span className='font-medium text-text'>{selectedSuite.testCases}</span>
-                  </div>
-                  <div className='flex items-center justify-between text-sm'>
-                    <span className='text-text-secondary'>Last Execution</span>
-                    <span className='font-medium text-text'>{selectedSuite.lastExecution}</span>
-                  </div>
-                  <div className='flex items-center justify-between text-sm'>
-                    <span className='text-text-secondary'>Success Rate</span>
-                    <span className='font-medium text-green-600'>{selectedSuite.successRate}%</span>
-                  </div>
+                  {selectedSuite.executionPlans.length === 0 ? (
+                    <p className='text-sm text-text-secondary'>No execution plans added yet.</p>
+                  ) : (
+                    [...selectedSuite.executionPlans]
+                      .sort((a, b) => a.order - b.order)
+                      .map((plan, index) => (
+                        <div key={plan.executionPlanId} className='flex items-center justify-between rounded-lg border border-border p-2'>
+                          <div className='flex items-center gap-2'>
+                            <GripVertical className='h-4 w-4 text-text-secondary' />
+                            <span className='text-sm font-medium text-text'>{index + 1}. {plan.executionPlanId}</span>
+                          </div>
+                          <div className='flex items-center gap-1'>
+                            <Button variant='ghost' size='sm' className='h-6 w-6 p-0' onClick={() => handleMovePlan(selectedSuite, index, 'up')} disabled={index === 0}>
+                              <ChevronUp className='h-3 w-3' />
+                            </Button>
+                            <Button variant='ghost' size='sm' className='h-6 w-6 p-0' onClick={() => handleMovePlan(selectedSuite, index, 'down')} disabled={index === selectedSuite.executionPlans.length - 1}>
+                              <ChevronDown className='h-3 w-3' />
+                            </Button>
+                            <Button variant='ghost' size='sm' className='h-6 w-6 p-0' onClick={() => handleRemoveExecutionPlan(selectedSuite, plan.executionPlanId)}>
+                              <Trash2 className='h-3 w-3' />
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                  )}
+                </div>
+                <div className='mt-3 flex gap-2'>
+                  <input
+                    value={newExecutionPlanId}
+                    onChange={(e) => setNewExecutionPlanId(e.target.value)}
+                    placeholder='Execution Plan ID'
+                    className='flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text'
+                  />
+                  <Button size='sm' variant='outline' onClick={() => handleAddExecutionPlan(selectedSuite)}>
+                    Add
+                  </Button>
                 </div>
               </div>
-
-              {/* Recent Executions */}
-              <div>
-                <h4 className='text-sm font-semibold text-text mb-3'>Recent Executions</h4>
-                <div className='space-y-2'>
-                  {selectedSuite.recentExecutions.map((exec) => (
-                    <div key={exec.id} className='flex items-center justify-between text-sm'>
-                      <div className='flex items-center gap-2'>
-                        <CheckCircle className={`h-4 w-4 ${getStatusColor(exec.status)}`} />
-                        <span className='text-text'>{exec.name}</span>
-                      </div>
-                      <span className='text-text-secondary'>{exec.time}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Run Suite Button */}
-              <Button className='w-full'>
-                <Play className='mr-2 h-4 w-4' />
-                Run Suite
-              </Button>
             </CardContent>
           </Card>
         )}
       </div>
+
+      {/* Create Suite Modal */}
+      {createOpen && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
+          <Card className='w-full max-w-lg'>
+            <CardHeader>
+              <CardTitle>Create Test Suite</CardTitle>
+              <CardDescription>Create a reusable collection of execution plans.</CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-4'>
+              <div>
+                <label className='text-sm font-medium text-text'>Name *</label>
+                <input
+                  value={newSuiteName}
+                  onChange={(e) => setNewSuiteName(e.target.value)}
+                  placeholder='Suite name'
+                  className='mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text'
+                />
+              </div>
+              <div>
+                <label className='text-sm font-medium text-text'>Description</label>
+                <textarea
+                  value={newSuiteDescription}
+                  onChange={(e) => setNewSuiteDescription(e.target.value)}
+                  placeholder='Suite description'
+                  rows={3}
+                  className='mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text'
+                />
+              </div>
+              <div>
+                <label className='text-sm font-medium text-text'>Tags (comma separated)</label>
+                <input
+                  value={newSuiteTags}
+                  onChange={(e) => setNewSuiteTags(e.target.value)}
+                  placeholder='Auth, Security, Critical'
+                  className='mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text'
+                />
+              </div>
+              <div className='grid grid-cols-2 gap-4'>
+                <div>
+                  <label className='text-sm font-medium text-text'>Execution Policy</label>
+                  <select
+                    value={newSuitePolicy}
+                    onChange={(e) => setNewSuitePolicy(e.target.value as SuiteExecutionPolicy)}
+                    className='mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text'
+                  >
+                    <option value='Sequential'>Sequential</option>
+                    <option value='FailFast'>Fail Fast</option>
+                    <option value='ContinueOnError'>Continue on Error</option>
+                  </select>
+                </div>
+                <div>
+                  <label className='text-sm font-medium text-text'>Status</label>
+                  <select
+                    value={newSuiteStatus}
+                    onChange={(e) => setNewSuiteStatus(e.target.value as SuiteStatus)}
+                    className='mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text'
+                  >
+                    <option value='Draft'>Draft</option>
+                    <option value='Active'>Active</option>
+                    <option value='Archived'>Archived</option>
+                  </select>
+                </div>
+              </div>
+              <div className='flex justify-end gap-2 pt-2'>
+                <Button variant='outline' onClick={() => setCreateOpen(false)}>Cancel</Button>
+                <Button onClick={handleCreateSuite} disabled={!newSuiteName.trim()}>Create Suite</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={deleteOpen}
+        title='Delete Test Suite'
+        message={`Deleting "${deleteSuite?.name}" cannot be undone.`}
+        confirmLabel='Delete'
+        cancelLabel='Cancel'
+        variant='destructive'
+        onConfirm={handleDeleteSuite}
+        onCancel={() => { setDeleteOpen(false); setDeleteSuite(undefined); }}
+      />
     </div>
   );
 };

@@ -1,31 +1,52 @@
 // External libraries
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Route, Routes, useParams } from 'react-router-dom';
 
-// Shared constants
+// Project pages
+import { ProjectsHomePage } from './pages';
 
-// Shared types
+// Project workspace components (tabbed workspaces that reuse existing modules)
+import { RequirementsWorkspace } from './components/RequirementsWorkspace';
+import { ExecutionWorkspace } from './components/ExecutionWorkspace';
+import { TestDataWorkspace } from './components/TestDataWorkspace';
 
-// Hooks
+// Existing module pages reused directly inside the workspace
+import { ApiRoutes } from '../api';
+import { EnvironmentPage } from '../environment/pages/EnvironmentPage';
+import { KnowledgePage } from '../knowledge/pages/KnowledgePage';
+import { ReportPage } from '../report/pages/ReportPage';
 
-// Services
+// Lazy load Administration and Developer Tools modules
+const RecommendationsPage = lazy(() => import('../recommendation/pages/RecommendationsPage').then(m => ({ default: m.RecommendationsPage })));
+const PipelinePage = lazy(() => import('../pipeline/pages/PipelinePage').then(m => ({ default: m.PipelinePage })));
+const NotificationPage = lazy(() => import('../notification/pages').then(m => ({ default: m.NotificationPage })));
+const VersionHistoryPage = lazy(() => import('../versioning/pages').then(m => ({ default: m.VersionHistoryPage })));
+const AuditLogPage = lazy(() => import('../audit/pages').then(m => ({ default: m.AuditLogPage })));
+const PluginManagementPage = lazy(() => import('../plugin/pages').then(m => ({ default: m.PluginManagementPage })));
+const AIProviderManagementPage = lazy(() => import('../ai-provider/pages').then(m => ({ default: m.AIProviderManagementPage })));
+const ProjectContextPage = lazy(() => import('../context/pages').then(m => ({ default: m.ProjectContextPage })));
+const PromptBuilderPage = lazy(() => import('../prompt/pages').then(m => ({ default: m.PromptBuilderPage })));
 
-// Components
-import { ProjectsHomePage, ProjectDashboardPage } from './pages';
+// Project store
 import { projectStore } from '../../store/projectStore';
 
-// Styles
+// Project overview dashboard (existing component)
+import { PipelineDashboard } from './components/PipelineDashboard';
 
-export const ProjectRoutes: React.FC = () => {
-  return (
-    <Routes>
-      <Route path='/' element={<ProjectsHomePage />} />
-      <Route path=':projectId/dashboard' element={<ProjectDashboardPageWrapper />} />
-    </Routes>
-  );
-};
+// Simple loading fallback for lazy routes
+const PageLoader = () => (
+  <div className="flex h-screen items-center justify-center">
+    <div className="text-lg">Loading...</div>
+  </div>
+);
 
-const ProjectDashboardPageWrapper: React.FC = () => {
+/**
+ * Single Project Workspace.
+ *
+ * Every project route renders through this component. It mounts the existing
+ * module routes/pages directly - no wrappers, no placeholders, no duplicates.
+ */
+const ProjectWorkspace: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const setSelectedProjectId = projectStore((state) => state.setSelectedProjectId);
 
@@ -35,7 +56,56 @@ const ProjectDashboardPageWrapper: React.FC = () => {
     }
   }, [projectId, setSelectedProjectId]);
 
-  return <ProjectDashboardPage projectId={projectId} />;
+  if (!projectId) return <ProjectsHomePage />;
+
+  // Wrapper components that pass projectId as a prop to pages that use useParams
+  const ProjectEnvironmentPage = () => <EnvironmentPage />;
+  const ProjectKnowledgePage = () => <KnowledgePage />;
+  const ProjectReportPage = () => <ReportPage />;
+  const ProjectRecommendationsPage = () => <RecommendationsPage />;
+  const ProjectNotificationPage = () => <NotificationPage />;
+  const ProjectVersionHistoryPage = () => <VersionHistoryPage />;
+  const ProjectAuditLogPage = () => <AuditLogPage />;
+  const ProjectPluginManagementPage = () => <PluginManagementPage />;
+
+  return (
+    <Routes>
+      {/* Primary workflow */}
+      <Route path='overview' element={<PipelineDashboard projectId={projectId} />} />
+      <Route path='apis' element={<ApiRoutes />} />
+      <Route path='environment' element={<ProjectEnvironmentPage />} />
+      <Route path='testdata/*' element={<TestDataWorkspace projectId={projectId} />} />
+      <Route path='knowledge' element={<ProjectKnowledgePage />} />
+      <Route path='requirements/*' element={<RequirementsWorkspace projectId={projectId} />} />
+      <Route path='execution/*' element={<ExecutionWorkspace projectId={projectId} />} />
+      <Route path='reports/*' element={<ProjectReportPage />} />
+
+      {/* Administration */}
+      <Route path='recommendations' element={<ProjectRecommendationsPage />} />
+      <Route path='pipeline' element={<PipelinePage projectId={projectId} />} />
+      <Route path='notifications' element={<ProjectNotificationPage />} />
+      <Route path='versions' element={<ProjectVersionHistoryPage />} />
+      <Route path='audit' element={<ProjectAuditLogPage />} />
+      <Route path='plugins' element={<ProjectPluginManagementPage />} />
+      <Route path='ai-providers' element={<AIProviderManagementPage projectId={projectId} />} />
+
+      {/* Developer Tools */}
+      <Route path='context' element={<ProjectContextPage projectId={projectId} />} />
+      <Route path='prompts' element={<PromptBuilderPage projectId={projectId} />} />
+
+      {/* Default to overview */}
+      <Route index element={<PipelineDashboard projectId={projectId} />} />
+    </Routes>
+  );
+};
+
+export const ProjectRoutes: React.FC = () => {
+  return (
+    <Routes>
+      <Route path='/' element={<ProjectsHomePage />} />
+      <Route path=':projectId/*' element={<ProjectWorkspace />} />
+    </Routes>
+  );
 };
 
 export default ProjectRoutes;

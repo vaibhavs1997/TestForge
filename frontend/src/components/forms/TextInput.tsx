@@ -18,10 +18,11 @@ export interface TextInputProps extends React.InputHTMLAttributes<HTMLInputEleme
   label?: string;
   error?: string;
   helperText?: string;
+  required?: boolean;
 }
 
 export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
-  ({ className, label, error, helperText, id, ...props }, ref) => {
+  ({ className, label, error, helperText, required, id, name, ...props }, ref) => {
     const inputId = id || label?.toLowerCase().replace(/\s+/g, '-');
 
     return (
@@ -32,17 +33,21 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
             className="mb-1.5 block text-sm font-medium text-text"
           >
             {label}
+            {required && <span className="ml-1 text-error" aria-hidden="true">*</span>}
           </label>
         )}
         <input
           id={inputId}
           ref={ref}
+          name={name}
+          required={required}
           className={cn(
             'flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50',
             error && 'border-error focus:ring-error',
             className
           )}
           aria-invalid={error ? 'true' : undefined}
+          aria-required={required ? 'true' : undefined}
           aria-describedby={error ? `${inputId}-error` : helperText ? `${inputId}-helper` : undefined}
           {...props}
         />

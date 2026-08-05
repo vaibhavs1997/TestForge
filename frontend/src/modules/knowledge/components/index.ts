@@ -1,3 +1,3 @@
-// Barrel export file
-// Add exports here as modules are implemented
-export {};
+// Barrel export file for knowledge module components
+export * from './FlowDialog';
+export * from './AddArticleModal';

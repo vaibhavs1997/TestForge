@@ -18,7 +18,8 @@ import { KnowledgePage } from './pages';
 export const KnowledgeRoutes: React.FC = () => {
   return (
     <Routes>
-      {/* Define knowledge routes here */}
+      <Route path='/' element={<KnowledgePage />} />
+      <Route path=':projectId' element={<KnowledgePage />} />
     </Routes>
   );
 };

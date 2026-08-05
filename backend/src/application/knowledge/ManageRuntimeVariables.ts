@@ -2,27 +2,34 @@
 import { randomUUID } from 'node:crypto';
 import { RuntimeVariable } from '../../domain/knowledge/RuntimeVariableEntity';
 import { RuntimeVariableRepository } from '../../domain/knowledge/RuntimeVariableRepository';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export class ManageRuntimeVariables {
   constructor(private readonly runtimeVariableRepository: RuntimeVariableRepository) {}
 
   async create(input: Omit<RuntimeVariable, 'id' | 'createdAt' | 'updatedAt'>): Promise<RuntimeVariable> {
-    if (!input.name || !input.name.trim()) {
-      throw new Error('Runtime Variable name is required');
-    }
+    const name = ValidationHelpers.validateRequired(input.name, 'Runtime Variable name');
 
-    const exists = await this.runtimeVariableRepository.existsByName(input.name.trim(), input.projectId);
-    if (exists) {
-      throw new Error(`Runtime Variable with name "${input.name}" already exists in this project`);
+    try {
+      await ValidationHelpers.validateUniqueName(
+        this.runtimeVariableRepository,
+        input.name,
+        input.projectId
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message === `Resource with name "${input.name}" already exists in this project`) {
+        throw new Error(`Runtime Variable with name "${input.name}" already exists in this project`);
+      }
+      throw error;
     }
 
     const now = Date.now();
     const variable: RuntimeVariable = {
       ...input,
       id: randomUUID(),
-      name: input.name.trim(),
-      description: input.description?.trim() || '',
-      tags: input.tags?.map(t => t.trim()).filter(t => t.length > 0) || [],
+      name,
+      description: ValidationHelpers.trimString(input.description),
+      tags: ValidationHelpers.trimStringArray(input.tags),
       createdAt: now,
       updatedAt: now,
     };
@@ -36,13 +43,15 @@ export class ManageRuntimeVariables {
       throw new Error(`Runtime Variable with id ${id} not found`);
     }
 
-    if (data.name !== undefined && !data.name.trim()) {
-      throw new Error('Runtime Variable name cannot be empty');
+    if (data.name !== undefined) {
+      ValidationHelpers.validateNotEmpty(data.name, 'Runtime Variable name');
     }
 
     return this.runtimeVariableRepository.update(id, {
       ...data,
-      name: data.name?.trim() || existing.name,
+      name: data.name !== undefined ? ValidationHelpers.trimString(data.name) : existing.name,
+      description: data.description !== undefined ? ValidationHelpers.trimString(data.description) : existing.description,
+      tags: data.tags !== undefined ? ValidationHelpers.trimStringArray(data.tags) : existing.tags,
       updatedAt: Date.now(),
     });
   }

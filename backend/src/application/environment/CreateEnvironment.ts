@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { EnvironmentRepository } from '../../domain/environment/EnvironmentRepository';
 import { EnvironmentEntity } from '../../domain/environment/EnvironmentEntity';
 import { DEFAULT_TIMEOUT_MS } from '../../constants/defaults';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export class CreateEnvironment {
   constructor(private readonly environmentRepository: EnvironmentRepository) {}
@@ -16,32 +17,22 @@ export class CreateEnvironment {
     variables?: Record<string, string>;
     timeout?: number;
   }): Promise<EnvironmentEntity> {
-    if (!params.name || !params.name.trim()) {
-      throw new Error('Environment Name is required');
-    }
+    const name = ValidationHelpers.validateRequired(params.name, 'Environment Name');
+    const baseUrl = ValidationHelpers.validateRequired(params.baseUrl, 'Base URL');
 
-    if (!params.baseUrl || !params.baseUrl.trim()) {
-      throw new Error('Base URL is required');
-    }
-
-    const trimmedName = params.name.trim();
-    const exists = await this.environmentRepository.existsByName(trimmedName, params.projectId);
-    if (exists) {
-      throw new Error(`Environment with name "${params.name}" already exists in this project`);
-    }
-
-    const defaultEnv = await this.environmentRepository.findDefault(params.projectId);
-    if (defaultEnv) {
-      throw new Error('A default environment already exists. Only one default environment is allowed.');
-    }
+    await ValidationHelpers.validateUniqueName(
+      this.environmentRepository,
+      name,
+      params.projectId
+    );
 
     const now = Date.now();
     const environment = new EnvironmentEntity(
       randomUUID(),
       params.projectId,
-      trimmedName,
-      params.baseUrl.trim(),
-      params.description?.trim() || '',
+      name,
+      baseUrl,
+      ValidationHelpers.trimString(params.description),
       params.authentication || null,
       params.variables || {},
       params.timeout || DEFAULT_TIMEOUT_MS,

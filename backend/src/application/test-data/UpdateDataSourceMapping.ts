@@ -1,5 +1,6 @@
 // UpdateDataSourceMapping - Application Use Case
 import { DataSourceMappingRepository } from '../../domain/test-data/DataSourceMappingRepository';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export class UpdateDataSourceMapping {
   constructor(private readonly mappingRepository: DataSourceMappingRepository) {}
@@ -20,23 +21,25 @@ export class UpdateDataSourceMapping {
       throw new Error(`Mapping with id ${params.id} not found`);
     }
 
-    if (params.fieldPath !== undefined && !params.fieldPath.trim()) {
-      throw new Error('Field path cannot be empty');
+    let sourceType: string | undefined;
+
+    if (params.fieldPath !== undefined) {
+      ValidationHelpers.validateNotEmpty(params.fieldPath, 'Field path');
     }
 
-    if (params.sourceType !== undefined && !params.sourceType.trim()) {
-      throw new Error('Source type is required');
+    if (params.sourceType !== undefined) {
+      sourceType = ValidationHelpers.validateRequired(params.sourceType, 'Source type');
     }
 
     const updateData: any = {};
-    if (params.fieldPath !== undefined) updateData.fieldPath = params.fieldPath.trim();
-    if (params.sourceType !== undefined) updateData.sourceType = params.sourceType.trim();
+    if (params.fieldPath !== undefined) updateData.fieldPath = ValidationHelpers.trimString(params.fieldPath);
+    if (sourceType !== undefined) updateData.sourceType = sourceType;
     if (params.datasetId !== undefined) updateData.datasetId = params.datasetId;
-    if (params.datasetColumn !== undefined) updateData.datasetColumn = params.datasetColumn?.trim();
-    if (params.environmentVariable !== undefined) updateData.environmentVariable = params.environmentVariable?.trim();
+    if (params.datasetColumn !== undefined) updateData.datasetColumn = ValidationHelpers.trimString(params.datasetColumn);
+    if (params.environmentVariable !== undefined) updateData.environmentVariable = ValidationHelpers.trimString(params.environmentVariable);
     if (params.runtimeOperationId !== undefined) updateData.runtimeOperationId = params.runtimeOperationId;
-    if (params.runtimeField !== undefined) updateData.runtimeField = params.runtimeField?.trim();
-    if (params.notes !== undefined) updateData.notes = params.notes.trim();
+    if (params.runtimeField !== undefined) updateData.runtimeField = ValidationHelpers.trimString(params.runtimeField);
+    if (params.notes !== undefined) updateData.notes = ValidationHelpers.trimString(params.notes);
 
     return this.mappingRepository.update(params.id, updateData);
   }

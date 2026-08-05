@@ -1,6 +1,7 @@
 // UpdateEnvironment - Application Use Case
 import { EnvironmentRepository } from '../../domain/environment/EnvironmentRepository';
 import { EnvironmentEntity } from '../../domain/environment/EnvironmentEntity';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export class UpdateEnvironment {
   constructor(private readonly environmentRepository: EnvironmentRepository) {}
@@ -20,33 +21,31 @@ export class UpdateEnvironment {
       throw new Error(`Environment with id ${params.id} not found`);
     }
 
-    if (params.name !== undefined && !params.name.trim()) {
-      throw new Error('Environment Name cannot be empty');
+    if (params.name !== undefined) {
+      ValidationHelpers.validateNotEmpty(params.name, 'Environment Name');
+      await ValidationHelpers.validateUniqueName(
+        this.environmentRepository,
+        params.name,
+        existing.projectId,
+        existing.name
+      );
     }
 
-    if (params.baseUrl !== undefined && !params.baseUrl.trim()) {
-      throw new Error('Base URL cannot be empty');
+    if (params.baseUrl !== undefined) {
+      ValidationHelpers.validateNotEmpty(params.baseUrl, 'Base URL');
     }
 
-    if (params.name && params.name.trim() !== existing.name) {
-      const exists = await this.environmentRepository.existsByName(params.name.trim(), existing.projectId);
-      if (exists) {
-        throw new Error(`Environment with name "${params.name}" already exists in this project`);
-      }
+    if (params.timeout !== undefined) {
+      ValidationHelpers.validateGreaterThan(params.timeout, 0, 'Timeout');
     }
 
     const updateData: any = {};
     if (params.name !== undefined) updateData.name = params.name.trim();
     if (params.baseUrl !== undefined) updateData.baseUrl = params.baseUrl.trim();
-    if (params.description !== undefined) updateData.description = params.description.trim();
+    if (params.description !== undefined) updateData.description = ValidationHelpers.trimString(params.description);
     if (params.authentication !== undefined) updateData.authentication = params.authentication;
     if (params.variables !== undefined) updateData.variables = params.variables;
-    if (params.timeout !== undefined) {
-      if (params.timeout <= 0) {
-        throw new Error('Timeout must be greater than 0');
-      }
-      updateData.timeout = params.timeout;
-    }
+    if (params.timeout !== undefined) updateData.timeout = params.timeout;
     if (params.isDefault !== undefined) updateData.isDefault = params.isDefault;
 
     return this.environmentRepository.update(params.id, updateData);

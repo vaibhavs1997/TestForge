@@ -2,6 +2,7 @@
 import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
 import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
 import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export class UpdateApiOperation {
   constructor(
@@ -23,19 +24,19 @@ export class UpdateApiOperation {
       throw new Error(`Operation with id ${params.id} not found`);
     }
 
-    if (params.name !== undefined && !params.name.trim()) {
-      throw new Error('API Name cannot be empty');
+    if (params.name !== undefined) {
+      ValidationHelpers.validateNotEmpty(params.name, 'API Name');
     }
 
-    if (params.method !== undefined && !params.method.trim()) {
-      throw new Error('HTTP Method cannot be empty');
+    if (params.method !== undefined) {
+      ValidationHelpers.validateNotEmpty(params.method, 'HTTP Method');
     }
 
-    if (params.path !== undefined && !params.path.trim()) {
-      throw new Error('Endpoint Path cannot be empty');
+    if (params.path !== undefined) {
+      ValidationHelpers.validateNotEmpty(params.path, 'Endpoint Path');
     }
 
-    const trimmedPath = params.path !== undefined ? params.path.trim() : existing.path;
+    const trimmedPath = params.path !== undefined ? ValidationHelpers.trimString(params.path) : existing.path;
     if (!trimmedPath.startsWith('/')) {
       throw new Error('Endpoint Path must begin with "/"');
     }
@@ -45,7 +46,7 @@ export class UpdateApiOperation {
       throw new Error(`Service with id ${existing.serviceId} not found`);
     }
 
-    const methodToCheck = params.method !== undefined ? params.method.trim() : existing.method;
+    const methodToCheck = params.method !== undefined ? ValidationHelpers.trimString(params.method) : existing.method;
     if (methodToCheck !== existing.method || trimmedPath !== existing.path) {
       const existingOperations = await this.apiOperationRepository.findByService(existing.serviceId);
       const isDuplicate = existingOperations.some(
@@ -57,12 +58,12 @@ export class UpdateApiOperation {
     }
 
     const updateData: any = {};
-    if (params.name !== undefined) updateData.name = params.name.trim();
-    if (params.method !== undefined) updateData.method = params.method.trim();
+    if (params.name !== undefined) updateData.name = ValidationHelpers.trimString(params.name);
+    if (params.method !== undefined) updateData.method = ValidationHelpers.trimString(params.method);
     if (params.path !== undefined) updateData.path = trimmedPath;
-    if (params.description !== undefined) updateData.description = params.description.trim();
-    if (params.authenticationType !== undefined) updateData.authenticationType = params.authenticationType.trim() || 'None';
-    if (params.status !== undefined) updateData.status = params.status.trim() || 'Active';
+    if (params.description !== undefined) updateData.description = ValidationHelpers.trimString(params.description);
+    if (params.authenticationType !== undefined) updateData.authenticationType = ValidationHelpers.trimString(params.authenticationType) || 'None';
+    if (params.status !== undefined) updateData.status = ValidationHelpers.trimString(params.status) || 'Active';
 
     return this.apiOperationRepository.update(params.id, updateData);
   }

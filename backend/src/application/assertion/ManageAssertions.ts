@@ -2,6 +2,7 @@
 
 import { AssertionRepository } from '../../infrastructure/assertion/AssertionRepository';
 import { AssertionEntity, AssertionCategory, AssertionSeverity, AssertionType } from '../../domain/assertion/AssertionEntity';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export interface AssertionFormData {
   projectId: string;
@@ -20,10 +21,17 @@ export class ManageAssertions {
   constructor(private readonly assertionRepository: AssertionRepository) {}
 
   async createAssertion(data: AssertionFormData): Promise<AssertionEntity> {
-    // Validate unique name
-    const exists = await this.assertionRepository.existsByName(data.name, data.projectId);
-    if (exists) {
-      throw new Error(`Assertion with name "${data.name}" already exists`);
+    try {
+      await ValidationHelpers.validateUniqueName(
+        this.assertionRepository,
+        data.name,
+        data.projectId
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message === `Resource with name "${data.name}" already exists in this project`) {
+        throw new Error(`Assertion with name "${data.name}" already exists`);
+      }
+      throw error;
     }
 
     const assertion: Omit<AssertionEntity, 'id' | 'createdAt' | 'updatedAt'> = {
@@ -39,11 +47,18 @@ export class ManageAssertions {
       throw new Error(`Assertion with id ${id} not found`);
     }
 
-    // If name is being updated, check uniqueness
     if (data.name && data.name !== existing.name) {
-      const exists = await this.assertionRepository.existsByName(data.name, existing.projectId);
-      if (exists) {
-        throw new Error(`Assertion with name "${data.name}" already exists`);
+      try {
+        await ValidationHelpers.validateUniqueName(
+          this.assertionRepository,
+          data.name,
+          existing.projectId
+        );
+      } catch (error) {
+        if (error instanceof Error && error.message === `Resource with name "${data.name}" already exists in this project`) {
+          throw new Error(`Assertion with name "${data.name}" already exists`);
+        }
+        throw error;
       }
     }
 
@@ -108,8 +123,8 @@ export class ManageAssertions {
   async searchAssertions(projectId: string, query: string): Promise<AssertionEntity[]> {
     const allAssertions = await this.assertionRepository.findByProject(projectId);
     const lowerQuery = query.toLowerCase();
-    
-    return allAssertions.filter(assertion => 
+
+    return allAssertions.filter(assertion =>
       assertion.name.toLowerCase().includes(lowerQuery) ||
       assertion.description.toLowerCase().includes(lowerQuery) ||
       assertion.tags.some(tag => tag.toLowerCase().includes(lowerQuery))

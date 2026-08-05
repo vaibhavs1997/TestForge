@@ -2,22 +2,21 @@
 import { randomUUID } from 'node:crypto';
 import { Documentation } from '../../domain/knowledge/DocumentationEntity';
 import { DocumentationRepository } from '../../domain/knowledge/DocumentationRepository';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export class ManageDocumentation {
   constructor(private readonly documentationRepository: DocumentationRepository) {}
 
   async create(input: Omit<Documentation, 'id' | 'createdAt' | 'updatedAt'>): Promise<Documentation> {
-    if (!input.title || !input.title.trim()) {
-      throw new Error('Documentation title is required');
-    }
+    const title = ValidationHelpers.validateRequired(input.title, 'Documentation title');
 
     const now = Date.now();
     const doc: Documentation = {
       ...input,
       id: randomUUID(),
-      title: input.title.trim(),
-      content: input.content?.trim() || '',
-      tags: input.tags?.map(t => t.trim()).filter(t => t.length > 0) || [],
+      title,
+      content: ValidationHelpers.trimString(input.content),
+      tags: ValidationHelpers.trimStringArray(input.tags),
       createdAt: now,
       updatedAt: now,
     };
@@ -31,14 +30,15 @@ export class ManageDocumentation {
       throw new Error(`Documentation with id ${id} not found`);
     }
 
-    if (data.title !== undefined && !data.title.trim()) {
-      throw new Error('Documentation title cannot be empty');
+    if (data.title !== undefined) {
+      ValidationHelpers.validateNotEmpty(data.title, 'Documentation title');
     }
 
     return this.documentationRepository.update(id, {
       ...data,
-      title: data.title?.trim() || existing.title,
-      content: data.content?.trim() || existing.content,
+      title: data.title !== undefined ? ValidationHelpers.trimString(data.title) : existing.title,
+      content: data.content !== undefined ? ValidationHelpers.trimString(data.content) || existing.content : existing.content,
+      tags: data.tags !== undefined ? ValidationHelpers.trimStringArray(data.tags) : existing.tags,
       updatedAt: Date.now(),
     });
   }

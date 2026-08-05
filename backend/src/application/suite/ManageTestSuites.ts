@@ -4,6 +4,7 @@
 import { randomUUID } from 'node:crypto';
 import { TestSuiteRepository } from '../../domain/suite/TestSuiteRepository';
 import { TestSuiteEntity, SuiteExecutionPolicy, SuiteStatus, SuiteTag, TestSuiteItem } from '../../domain/suite/TestSuiteEntity';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export interface CreateSuiteInput {
   projectId: string;
@@ -33,18 +34,14 @@ export class ManageTestSuites {
   constructor(private readonly suiteRepository: TestSuiteRepository) {}
 
   async create(input: CreateSuiteInput): Promise<TestSuiteEntity> {
-    if (!input.name || !input.name.trim()) {
-      throw new Error('Suite name is required');
-    }
-    if (!input.projectId) {
-      throw new Error('Project ID is required');
-    }
+    const name = ValidationHelpers.validateRequired(input.name, 'Suite name');
+    const projectId = ValidationHelpers.validateRequired(input.projectId, 'Project ID');
 
     const now = Date.now();
     const suite = new TestSuiteEntity(
       randomUUID(),
-      input.projectId,
-      input.name.trim(),
+      projectId,
+      name,
       input.description || '',
       input.tags || [],
       input.executionPlans || [],
@@ -65,8 +62,8 @@ export class ManageTestSuites {
       throw new Error(`Test Suite with id ${input.id} not found`);
     }
 
-    if (input.name !== undefined && !input.name.trim()) {
-      throw new Error('Suite name cannot be empty');
+    if (input.name !== undefined) {
+      ValidationHelpers.validateNotEmpty(input.name, 'Suite name');
     }
 
     return this.suiteRepository.update(input.id, {

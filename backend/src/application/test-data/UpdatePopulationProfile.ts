@@ -1,5 +1,6 @@
 // UpdatePopulationProfile - Application Use Case
 import { PopulationProfileRepository } from '../../domain/test-data/PopulationProfileRepository';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export class UpdatePopulationProfile {
   constructor(private readonly profileRepository: PopulationProfileRepository) {}
@@ -14,12 +15,13 @@ export class UpdatePopulationProfile {
       throw new Error(`Profile with id ${params.id} not found`);
     }
 
-    if (params.strategyType !== undefined && !params.strategyType.trim()) {
-      throw new Error('Strategy type is required');
+    let strategyType: string | undefined;
+    if (params.strategyType !== undefined) {
+      strategyType = ValidationHelpers.validateRequired(params.strategyType, 'Strategy type');
     }
 
     const updateData: any = {};
-    if (params.strategyType !== undefined) updateData.strategyType = params.strategyType.trim();
+    if (strategyType !== undefined) updateData.strategyType = strategyType;
     if (params.configuration !== undefined) updateData.configuration = params.configuration;
 
     return this.profileRepository.update(params.id, updateData);

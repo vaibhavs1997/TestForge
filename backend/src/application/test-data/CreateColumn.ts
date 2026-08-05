@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { ColumnRepository } from '../../domain/test-data/ColumnRepository';
 import { ColumnEntity } from '../../domain/test-data/ColumnEntity';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export class CreateColumn {
   constructor(private readonly columnRepository: ColumnRepository) {}
@@ -16,30 +17,34 @@ export class CreateColumn {
     nullable: boolean;
     description?: string;
   }): Promise<ColumnEntity> {
-    if (!params.name || !params.name.trim()) {
-      throw new Error('Column name is required');
-    }
+    const name = ValidationHelpers.validateRequired(params.name, 'Column name');
+    const dataType = ValidationHelpers.validateRequired(params.dataType, 'Data type');
 
-    if (!params.dataType || !params.dataType.trim()) {
-      throw new Error('Data type is required');
-    }
-
-    const exists = await this.columnRepository.existsByName(params.name.trim(), params.datasetId);
-    if (exists) {
-      throw new Error(`Column with name "${params.name}" already exists in this dataset`);
+    try {
+      await ValidationHelpers.validateUniqueNameInContext(
+        this.columnRepository,
+        params.name,
+        params.datasetId,
+        'Column'
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message === `Column with name "${params.name}" already exists in this column`) {
+        throw new Error(`Column with name "${params.name}" already exists in this dataset`);
+      }
+      throw error;
     }
 
     const now = Date.now();
     const column = new ColumnEntity(
       randomUUID(),
       params.datasetId,
-      params.name.trim(),
+      name,
       params.displayName.trim(),
-      params.dataType.trim(),
+      dataType,
       params.required,
       params.unique,
       params.nullable,
-      params.description?.trim() || '',
+      ValidationHelpers.trimString(params.description),
       now,
       now
     );

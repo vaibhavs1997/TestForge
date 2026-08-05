@@ -64,13 +64,13 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
 
   const getStageStatus = (stage: PipelineStage): PipelineStatus => {
     if (!pipeline) return 'pending';
-    const stageResult = pipeline.stages.find(s => s.stage === stage);
+    const stageResult = pipeline.stages.find((s: any) => s.stage === stage);
     return stageResult?.status || 'pending';
   };
 
   const getStageDuration = (stage: PipelineStage): string | null => {
     if (!pipeline) return null;
-    const stageResult = pipeline.stages.find(s => s.stage === stage);
+    const stageResult = pipeline.stages.find((s: any) => s.stage === stage);
     if (!stageResult?.startedAt || !stageResult?.completedAt) return null;
     const duration = stageResult.completedAt - stageResult.startedAt;
     return `${(duration / 1000).toFixed(1)}s`;
@@ -270,7 +270,7 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
           <div className="flex justify-between items-center">
             <div>
               <p className="text-sm text-gray-600">Pipeline Status</p>
-              <p className={`text-lg font-semibold ${STATUS_COLORS[pipeline.status]}`}>
+              <p className={`text-lg font-semibold ${STATUS_COLORS[pipeline.status as PipelineStatus]}`}>
                 {pipeline.status.toUpperCase()}
               </p>
             </div>
@@ -298,7 +298,7 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
           const status = getStageStatus(stage);
           const duration = getStageDuration(stage);
           const running = isStageRunning(stage);
-          const stageResult = pipeline?.stages.find(s => s.stage === stage);
+          const stageResult = pipeline?.stages.find((s: any) => s.stage === stage);
 
           return (
             <div

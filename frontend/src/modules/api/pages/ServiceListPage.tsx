@@ -159,7 +159,7 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
 
   const handleUpdate = (data: ServiceFormData) => {
     if (editService) {
-      update({ id: editService.id, ...data });
+      update(editService.id, data);
       setEditOpen(false);
     }
   };

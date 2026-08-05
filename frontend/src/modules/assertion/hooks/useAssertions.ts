@@ -1,6 +1,7 @@
 // Assertion hooks
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCRUD } from '../../../hooks/useCRUD';
 import { assertionService } from '../services';
 import type { Assertion, AssertionFormData } from '../types';
 import { queryKeys } from '../../../constants';
@@ -9,30 +10,13 @@ export function useAssertions(projectId: string) {
   const queryClient = useQueryClient();
   const queryKey = queryKeys.assertions(projectId);
 
-  const listQuery = useQuery({
+  const { data, isLoading, isError, error, create, update, remove, refetch } = useCRUD({
     queryKey,
-    queryFn: () => assertionService.listAssertions(projectId),
-  });
-
-  const createMutation = useMutation({
-    mutationFn: (data: AssertionFormData) => assertionService.createAssertion(projectId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<AssertionFormData> }) =>
-      assertionService.updateAssertion(projectId, id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => assertionService.deleteAssertion(projectId, id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
+    service: {
+      list: () => assertionService.listAssertions(projectId),
+      create: (data: AssertionFormData) => assertionService.createAssertion(projectId, data),
+      update: (id: string, data: Partial<AssertionFormData>) => assertionService.updateAssertion(projectId, id, data),
+      delete: (id: string) => assertionService.deleteAssertion(projectId, id),
     },
   });
 
@@ -50,7 +34,7 @@ export function useAssertions(projectId: string) {
       }
       return { previous };
     },
-    onError: (_err, _vars, context) => {
+    onError: (_err: any, _vars: any, context: any) => {
       if (context?.previous) {
         queryClient.setQueryData(queryKey, context.previous);
       }
@@ -66,23 +50,28 @@ export function useAssertions(projectId: string) {
   });
 
   return {
-    assertions: listQuery.data || [],
-    isLoading: listQuery.isLoading,
-    isError: listQuery.isError,
-    error: listQuery.error,
-    createAssertion: createMutation.mutateAsync,
-    updateAssertion: updateMutation.mutateAsync,
-    deleteAssertion: deleteMutation.mutateAsync,
+    assertions: data,
+    isLoading,
+    isError,
+    error,
+    createAssertion: create,
+    updateAssertion: update,
+    deleteAssertion: remove,
     toggleAssertion: toggleMutation.mutateAsync,
     duplicateAssertion: duplicateMutation.mutateAsync,
-    refetch: listQuery.refetch,
+    refetch,
   };
 }
 
 export function useAssertion(projectId: string, assertionId: string) {
-  return useQuery({
+  return useCRUD({
     queryKey: queryKeys.assertion(projectId, assertionId),
-    queryFn: () => assertionService.getAssertion(projectId, assertionId),
+    service: {
+      list: () => assertionService.getAssertion(projectId, assertionId).then(a => [a]),
+      create: () => Promise.resolve({} as any),
+      update: () => Promise.resolve({} as any),
+      delete: () => Promise.resolve(),
+    },
     enabled: !!assertionId,
-  });
+  }).data[0] || null;
 }

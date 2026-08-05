@@ -95,7 +95,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
     { label: 'Requirements' },
   ];
 
-  const { suggested, approved, archived, isLoading, isError, error, generateFromAnalysisAsync, isGenerating, update, remove, validateReadinessAsync, isValidating, validationResult, planTestStrategyAsync, isPlanningStrategy, testStrategy, generateTestDesignsAsync, isGeneratingDesigns, testDesigns, planExecutionAsync, isPlanningExecution, executionPlans } = useRequirements(projectId);
+  const { suggested, approved, archived, isLoading, isError, error, generateFromAnalysisAsync, isGenerating, update, updateAsync, remove, removeAsync, validateReadinessAsync, isValidating, validationResult, planTestStrategyAsync, isPlanningStrategy, testStrategy, generateTestDesignsAsync, isGeneratingDesigns, testDesigns, planExecutionAsync, isPlanningExecution, executionPlans } = useRequirements(projectId);
   const { analysisCards, runAnalysisAsync, isAnalyzing } = useAnalysis(projectId);
   const { assertions: reusableAssertions } = useAssertions(projectId);
 
@@ -164,7 +164,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
 
   const handleStatusChange = async (requirementId: string, status: ApprovalStatus) => {
     try {
-      await update({ projectId, requirementId, approvalStatus: status });
+      await updateAsync(requirementId, { approvalStatus: status });
       setToastMessage(`Requirement ${status.toLowerCase()} successfully`);
       setToastType('success');
     } catch (err: any) {
@@ -178,7 +178,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
   const handleDelete = async () => {
     if (!requirementToDelete) return;
     try {
-      await remove({ projectId, requirementId: requirementToDelete.id });
+      await removeAsync(requirementToDelete.id);
       setToastMessage('Requirement deleted successfully');
       setToastType('success');
     } catch (err: any) {

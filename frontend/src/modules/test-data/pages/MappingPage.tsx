@@ -139,8 +139,7 @@ export const MappingPage: React.FC<MappingPageProps> = () => {
     setIsSubmitting(true);
     try {
       if (data.id) {
-        await updateAsync({
-          mappingId: data.id,
+        await updateAsync(data.id, {
           fieldPath: data.fieldPath,
           sourceType: data.sourceType,
           datasetId: data.datasetId,

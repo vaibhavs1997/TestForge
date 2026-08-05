@@ -118,7 +118,7 @@ export const RowEditor: React.FC<RowEditorProps> = ({
     }
 
     try {
-      await updateAsync({ rowId, values: newValues });
+      await updateAsync(rowId, newValues);
       setErrors({});
       setToastMessage('Cell updated');
       setToastOpen(true);

@@ -1,5 +1,6 @@
 // TanStack Query hooks for Requirement Workspace
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCRUD } from '../../../hooks/useCRUD';
 import { requirementService } from '../services/requirementService';
 import type { Requirement, ApprovalStatus, ValidationReport, TestStrategy, TestDesign, ExecutionPlan } from '../types';
 import { queryKeys } from '../../../constants';
@@ -8,53 +9,41 @@ export const useRequirements = (projectId?: string) => {
   const queryClient = useQueryClient();
   const queryKey = queryKeys.requirements(projectId || '');
 
-  const { data: requirements = [], isLoading, isError, error } = useQuery({
+  const { data, isLoading, isError, error, create, update, remove, isCreating, isUpdating, isDeleting } = useCRUD({
     queryKey,
-    queryFn: async () => {
-      if (!projectId) return [];
-      return requirementService.listRequirements(projectId);
+    service: {
+      list: () => (projectId ? requirementService.listRequirements(projectId) : Promise.resolve([])),
+      create: (input: { projectId: string } & Omit<Requirement, 'id' | 'projectId' | 'createdAt' | 'updatedAt'>) =>
+        requirementService.createRequirement(input.projectId, input),
+      update: (requirementId: string, input: Partial<Requirement>) =>
+        requirementService.updateRequirement(projectId || '', requirementId, input),
+      delete: (requirementId: string) => requirementService.deleteRequirement(projectId || '', requirementId),
     },
     enabled: !!projectId,
-  });
-
-  const createMutation = useMutation({
-    mutationFn: (data: { projectId: string } & Omit<Requirement, 'id' | 'projectId' | 'createdAt' | 'updatedAt'>) =>
-      requirementService.createRequirement(data.projectId, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
-  });
-
-  // Optimistic update for requirement edits / approval status changes (safe, non-destructive)
-  const updateMutation = useMutation({
-    mutationFn: ({ requirementId, projectId, ...data }: { requirementId: string; projectId: string } & Partial<Requirement>) =>
-      requirementService.updateRequirement(projectId, requirementId, data),
-    onMutate: async ({ requirementId, projectId: _projectId, ...data }) => {
-      await queryClient.cancelQueries({ queryKey });
-      const previous = queryClient.getQueryData<Requirement[]>(queryKey);
-      if (previous) {
-        queryClient.setQueryData<Requirement[]>(queryKey, (old) =>
-          (old || []).map((req) => (req.id === requirementId ? { ...req, ...data } : req))
-        );
-      }
-      return { previous };
-    },
-    onError: (_err, _vars, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(queryKey, context.previous);
-      }
-    },
-    onSettled: () => {
-      // Invalidate both the list and the affected detail query
-      queryClient.invalidateQueries({ queryKey });
-      queryClient.invalidateQueries({ queryKey: ['requirements'], exact: false });
+    updateOptions: {
+      onMutate: async ({ id: requirementId, data: updateData }: any) => {
+        await queryClient.cancelQueries({ queryKey });
+        const previous = queryClient.getQueryData<Requirement[]>(queryKey);
+        if (previous) {
+          queryClient.setQueryData<Requirement[]>(queryKey, (old) =>
+            (old || []).map((req) => (req.id === requirementId ? { ...req, ...updateData } : req))
+          );
+        }
+        return { previous };
+      },
+      onError: (_err: any, _vars: any, context: any) => {
+        if (context?.previous) {
+          queryClient.setQueryData(queryKey, context.previous);
+        }
+      },
+      onSettled: () => {
+        queryClient.invalidateQueries({ queryKey });
+        queryClient.invalidateQueries({ queryKey: ['requirements'], exact: false });
+      },
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: ({ projectId, requirementId }: { projectId: string; requirementId: string }) =>
-      requirementService.deleteRequirement(projectId, requirementId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
-  });
-
+  // Custom mutations for special operations
   const generateFromAnalysisMutation = useMutation({
     mutationFn: ({ projectId, analysisId }: { projectId: string; analysisId: string }) =>
       requirementService.generateFromAnalysis(projectId, analysisId),
@@ -87,27 +76,27 @@ export const useRequirements = (projectId?: string) => {
       requirementService.planExecution(projectId, requirementId),
   });
 
-  const suggested = requirements.filter(r => r.approvalStatus === 'Suggested');
-  const approved = requirements.filter(r => r.approvalStatus === 'Approved');
-  const archived = requirements.filter(r => r.approvalStatus === 'Archived' || r.approvalStatus === 'Rejected');
+  const suggested = data.filter(r => r.approvalStatus === 'Suggested');
+  const approved = data.filter(r => r.approvalStatus === 'Approved');
+  const archived = data.filter(r => r.approvalStatus === 'Archived' || r.approvalStatus === 'Rejected');
 
   return {
-    requirements,
+    requirements: data,
     suggested,
     approved,
     archived,
     isLoading,
     isError,
     error,
-    create: createMutation.mutate,
-    createAsync: createMutation.mutateAsync,
-    isCreating: createMutation.isPending,
-    update: updateMutation.mutate,
-    updateAsync: updateMutation.mutateAsync,
-    isUpdating: updateMutation.isPending,
-    remove: deleteMutation.mutate,
-    removeAsync: deleteMutation.mutateAsync,
-    isDeleting: deleteMutation.isPending,
+    create,
+    createAsync: create,
+    isCreating,
+    update,
+    updateAsync: update,
+    isUpdating,
+    remove,
+    removeAsync: remove,
+    isDeleting,
     generateFromAnalysis: generateFromAnalysisMutation.mutate,
     generateFromAnalysisAsync: generateFromAnalysisMutation.mutateAsync,
     isGenerating: generateFromAnalysisMutation.isPending,

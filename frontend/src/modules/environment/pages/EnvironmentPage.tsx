@@ -142,8 +142,7 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
     setIsSubmitting(true);
     try {
       if (data.id) {
-        await updateAsync({
-          environmentId: data.id,
+        await updateAsync(data.id, {
           name: data.name,
           baseUrl: data.baseUrl,
           description: data.description,

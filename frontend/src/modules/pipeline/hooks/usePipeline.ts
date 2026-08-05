@@ -1,5 +1,6 @@
 // usePipeline - React hook for pipeline operations - migrated to TanStack Query
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCRUD } from '../../../hooks/useCRUD';
 import { PipelineEntity, PipelineStage } from '../types';
 import pipelineService from '../services/pipelineService';
 import { queryKeys } from '../../../constants';
@@ -8,43 +9,50 @@ export function usePipeline(projectId?: string) {
   const queryClient = useQueryClient();
   const queryKey = queryKeys.pipeline(projectId || '');
 
-  const { data: pipeline = null, isLoading: loading, isError, error } = useQuery({
+  const { data, isLoading: loading, isError, error } = useCRUD({
     queryKey,
-    queryFn: async () => {
-      if (!projectId) return null;
-      const result = await pipelineService.startPipeline(projectId);
-      return result;
+    service: {
+      list: () => (projectId ? pipelineService.startPipeline(projectId).then(p => [p]) : Promise.resolve([])),
+      create: () => Promise.resolve({} as any),
+      update: () => Promise.resolve({} as any),
+      delete: () => Promise.resolve(),
     },
     enabled: !!projectId,
-    // Pipeline status changes frequently; poll while running
-    refetchInterval: (query) => {
-      const data = query.state.data as PipelineEntity | undefined;
-      if (data && (data.status === 'running' || data.status === 'pending')) {
-        return 3000;
-      }
-      return false;
+    listOptions: {
+      refetchInterval: (query) => {
+        const pipelineData = query.state.data as PipelineEntity[] | undefined;
+        if (pipelineData && pipelineData.length > 0) {
+          const pipeline = pipelineData[0];
+          if (pipeline.status === 'running' || pipeline.status === 'pending') {
+            return 3000;
+          }
+        }
+        return false;
+      },
     },
   });
 
+  const pipeline = data.length > 0 ? data[0] : null;
+
   const refreshPipelineMutation = useMutation({
     mutationFn: (pipelineId: string) => pipelineService.getPipelineStatus(pipelineId),
-    onSuccess: (data) => {
-      queryClient.setQueryData(queryKey, data);
+    onSuccess: (pipelineData) => {
+      queryClient.setQueryData(queryKey, [pipelineData]);
     },
   });
 
   const restartStageMutation = useMutation({
     mutationFn: ({ pipelineId, stage }: { pipelineId: string; stage: PipelineStage }) =>
       pipelineService.restartStage(pipelineId, stage),
-    onSuccess: (data) => {
-      queryClient.setQueryData(queryKey, data);
+    onSuccess: (pipelineData) => {
+      queryClient.setQueryData(queryKey, [pipelineData]);
     },
   });
 
   const cancelPipelineMutation = useMutation({
     mutationFn: (pipelineId: string) => pipelineService.cancelPipeline(pipelineId),
-    onSuccess: (data) => {
-      queryClient.setQueryData(queryKey, data);
+    onSuccess: (pipelineData) => {
+      queryClient.setQueryData(queryKey, [pipelineData]);
     },
   });
 

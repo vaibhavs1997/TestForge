@@ -1,5 +1,6 @@
 // TanStack Query hooks for Dataset Columns
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
+import { useCRUD } from '../../../hooks/useCRUD';
 import { columnService } from '../services/columnService';
 import type { ColumnDto, ColumnSuggestion } from '../services/columnService';
 import { queryKeys } from '../../../constants';
@@ -7,65 +8,42 @@ import { queryKeys } from '../../../constants';
 // ─── Columns ───────────────────────────────────────────────────
 
 export const useColumns = (projectId?: string, datasetId?: string) => {
-  const queryClient = useQueryClient();
-  const queryKey = queryKeys.columns(projectId || '', datasetId || '');
-
-  const { data: columns = [], isLoading, isError, error } = useQuery({
-    queryKey,
-    queryFn: async () => {
-      if (!projectId) return [];
-      const result = await columnService.listColumns(projectId, datasetId);
-      return result;
+  const { data, isLoading, isError, error, create, update, remove, isCreating, isUpdating, isDeleting } = useCRUD({
+    queryKey: queryKeys.columns(projectId || '', datasetId || ''),
+    service: {
+      list: () => (projectId ? columnService.listColumns(projectId, datasetId) : Promise.resolve([])),
+      create: (input: { projectId: string; datasetId: string; name: string; displayName: string; dataType: string; required: boolean; unique: boolean; nullable: boolean; description?: string }) =>
+        columnService.createColumn(input.projectId, {
+          datasetId: input.datasetId,
+          name: input.name,
+          displayName: input.displayName,
+          dataType: input.dataType,
+          required: input.required,
+          unique: input.unique,
+          nullable: input.nullable,
+          description: input.description,
+        }),
+      update: (columnId: string, input: { name?: string; displayName?: string; dataType?: string; required?: boolean; unique?: boolean; nullable?: boolean; description?: string }) =>
+        columnService.updateColumn(projectId || '', columnId, input),
+      delete: (columnId: string) => columnService.deleteColumn(projectId || '', columnId),
     },
     enabled: !!projectId,
   });
 
-  const createMutation = useMutation({
-    mutationFn: (data: { projectId: string; datasetId: string; name: string; displayName: string; dataType: string; required: boolean; unique: boolean; nullable: boolean; description?: string }) =>
-      columnService.createColumn(data.projectId, {
-        datasetId: data.datasetId,
-        name: data.name,
-        displayName: data.displayName,
-        dataType: data.dataType,
-        required: data.required,
-        unique: data.unique,
-        nullable: data.nullable,
-        description: data.description,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ columnId, ...data }: { columnId: string } & { name?: string; displayName?: string; dataType?: string; required?: boolean; unique?: boolean; nullable?: boolean; description?: string }) =>
-      columnService.updateColumn(projectId || '', columnId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (columnId: string) => columnService.deleteColumn(projectId || '', columnId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
-    },
-  });
-
   return {
-    columns,
+    columns: data,
     isLoading,
     isError,
     error,
-    create: createMutation.mutate,
-    createAsync: createMutation.mutateAsync,
-    isCreating: createMutation.isPending,
-    update: updateMutation.mutate,
-    updateAsync: updateMutation.mutateAsync,
-    isUpdating: updateMutation.isPending,
-    remove: deleteMutation.mutate,
-    removeAsync: deleteMutation.mutateAsync,
-    isDeleting: deleteMutation.isPending,
+    create,
+    createAsync: create,
+    isCreating,
+    update,
+    updateAsync: update,
+    isUpdating,
+    remove,
+    removeAsync: remove,
+    isDeleting,
   };
 };
 

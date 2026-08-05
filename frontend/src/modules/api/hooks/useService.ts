@@ -1,5 +1,6 @@
 // TanStack Query hooks for API services and operations.
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCRUD } from '../../../hooks/useCRUD';
 import { apiService } from '../services/apiService';
 import type { ServiceFormData, OperationFormData, Operation, ImportSummary } from '../types';
 import type { AxiosProgressEvent } from 'axios';
@@ -8,56 +9,43 @@ import { queryKeys } from '../../../constants';
 // ─── Services ────────────────────────────────────────────────
 
 export const useServices = (projectId?: string) => {
-  const queryClient = useQueryClient();
-  const queryKey = queryKeys.services(projectId || '');
-
-  const { data: services = [], isLoading, isError, error } = useQuery({
-    queryKey,
-    queryFn: () => (projectId ? apiService.listServices(projectId) : Promise.resolve([])),
+  const { data, isLoading, isError, error, create, update, remove, isCreating, isUpdating, isDeleting } = useCRUD({
+    queryKey: queryKeys.services(projectId || ''),
+    service: {
+      list: () => (projectId ? apiService.listServices(projectId) : Promise.resolve([])),
+      create: (data: ServiceFormData) =>
+        apiService.createService(data.projectId, {
+          name: data.name,
+          description: data.description,
+          version: data.version,
+          tags: data.tags,
+        }),
+      update: (id: string, data: ServiceFormData) =>
+        apiService.updateService(data.projectId, id, {
+          name: data.name,
+          description: data.description,
+          version: data.version,
+          tags: data.tags,
+        }),
+      delete: (id: string) => apiService.deleteService(projectId || '', id),
+    },
     enabled: !!projectId,
   });
 
-  const createMutation = useMutation({
-    mutationFn: (data: ServiceFormData) =>
-      apiService.createService(data.projectId, {
-        name: data.name,
-        description: data.description,
-        version: data.version,
-        tags: data.tags,
-      }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, ...data }: { id: string } & ServiceFormData) =>
-      apiService.updateService(data.projectId, id, {
-        name: data.name,
-        description: data.description,
-        version: data.version,
-        tags: data.tags,
-      }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => apiService.deleteService(projectId || '', id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
-  });
-
   return {
-    services,
+    services: data,
     isLoading,
     isError,
     error,
-    create: createMutation.mutate,
-    createAsync: createMutation.mutateAsync,
-    isCreating: createMutation.isPending,
-    update: updateMutation.mutate,
-    updateAsync: updateMutation.mutateAsync,
-    isUpdating: updateMutation.isPending,
-    remove: deleteMutation.mutate,
-    removeAsync: deleteMutation.mutateAsync,
-    isDeleting: deleteMutation.isPending,
+    create,
+    createAsync: create,
+    isCreating,
+    update,
+    updateAsync: update,
+    isUpdating,
+    remove,
+    removeAsync: remove,
+    isDeleting,
   };
 };
 
@@ -103,24 +91,28 @@ export const useApiOperations = (projectId?: string, serviceIds?: string[]) => {
   const servicesQueryKey = queryKeys.services(projectId || '');
   const queryKey = queryKeys.operations(projectId || '');
 
-  const { data: operations = [], isLoading, isError, error } = useQuery({
+  const { data: operations, isLoading, isError, error } = useCRUD({
     queryKey,
-    queryFn: async () => {
-      if (!projectId || !serviceIds || serviceIds.length === 0) return [];
-      // Fetch operations for every service in parallel, then flatten + map.
-      // Note: Parallel calls are intentional here to minimize total load time.
-      // If serviceIds array becomes very large (>20), consider implementing pagination.
-      const results = await Promise.all(
-        serviceIds.map(async (sid) => {
-          const service = await apiService.getService(projectId, sid).catch(() => null);
-          const ops = await apiService.listOperations(projectId, sid).catch(() => []);
-          return ops.map((op: any) => mapOperation(op, service?.name));
-        }),
-      );
-      return results.flat();
+    service: {
+      list: async () => {
+        if (!projectId || !serviceIds || serviceIds.length === 0) return [];
+        const results = await Promise.all(
+          serviceIds.map(async (sid) => {
+            const service = await apiService.getService(projectId, sid).catch(() => null);
+            const ops = await apiService.listOperations(projectId, sid).catch(() => []);
+            return ops.map((op: any) => mapOperation(op, service?.name));
+          }),
+        );
+        return results.flat();
+      },
+      create: () => Promise.resolve({} as any),
+      update: () => Promise.resolve({} as any),
+      delete: () => Promise.resolve(),
     },
     enabled: !!(projectId && serviceIds && serviceIds.length > 0),
-    staleTime: 30_000,
+    listOptions: {
+      staleTime: 30_000,
+    },
   });
 
   const createMutation = useMutation({
@@ -133,7 +125,6 @@ export const useApiOperations = (projectId?: string, serviceIds?: string[]) => {
         authenticationType: payload.authenticationType,
         status: payload.status,
       }),
-    // Invalidate both queries so the list and any selected service refresh.
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
       queryClient.invalidateQueries({ queryKey: servicesQueryKey });

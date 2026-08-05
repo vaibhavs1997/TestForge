@@ -1,90 +1,77 @@
-// usePipeline - React hook for pipeline operations
-import { useState, useCallback } from 'react';
+// usePipeline - React hook for pipeline operations - migrated to TanStack Query
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PipelineEntity, PipelineStage } from '../types';
 import pipelineService from '../services/pipelineService';
+import { queryKeys } from '../../../constants';
 
 export function usePipeline(projectId?: string) {
-  const [pipeline, setPipeline] = useState<PipelineEntity | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const queryKey = queryKeys.pipeline(projectId || '');
 
-  const startPipeline = useCallback(async () => {
-    if (!projectId) return;
-    
-    setLoading(true);
-    setError(null);
-    try {
+  const { data: pipeline = null, isLoading: loading, isError, error } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      if (!projectId) return null;
       const result = await pipelineService.startPipeline(projectId);
-      setPipeline(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start pipeline');
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
+      return result;
+    },
+    enabled: !!projectId,
+    // Pipeline status changes frequently; poll while running
+    refetchInterval: (query) => {
+      const data = query.state.data as PipelineEntity | undefined;
+      if (data && (data.status === 'running' || data.status === 'pending')) {
+        return 3000;
+      }
+      return false;
+    },
+  });
 
-  const refreshPipeline = useCallback(async (pipelineId: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await pipelineService.getPipelineStatus(pipelineId);
-      setPipeline(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to refresh pipeline');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const refreshPipelineMutation = useMutation({
+    mutationFn: (pipelineId: string) => pipelineService.getPipelineStatus(pipelineId),
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKey, data);
+    },
+  });
 
-  const restartStage = useCallback(async (pipelineId: string, stage: PipelineStage) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await pipelineService.restartStage(pipelineId, stage);
-      setPipeline(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to restart stage');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const restartStageMutation = useMutation({
+    mutationFn: ({ pipelineId, stage }: { pipelineId: string; stage: PipelineStage }) =>
+      pipelineService.restartStage(pipelineId, stage),
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKey, data);
+    },
+  });
 
-  const cancelPipeline = useCallback(async (pipelineId: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await pipelineService.cancelPipeline(pipelineId);
-      setPipeline(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to cancel pipeline');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const cancelPipelineMutation = useMutation({
+    mutationFn: (pipelineId: string) => pipelineService.cancelPipeline(pipelineId),
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKey, data);
+    },
+  });
 
-  const runAIPipeline = useCallback(async (providerId: string, autoApprove?: boolean) => {
-    if (!projectId) return null;
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await pipelineService.runAIPipeline(projectId, { providerId, autoApprove });
-      return result?.data || result;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to run AI pipeline');
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
+  const runAIPipelineMutation = useMutation({
+    mutationFn: ({ providerId, autoApprove }: { providerId: string; autoApprove?: boolean }) => {
+      if (!projectId) throw new Error('Missing projectId');
+      return pipelineService.runAIPipeline(projectId, { providerId, autoApprove });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+    },
+  });
 
   return {
     pipeline,
     loading,
-    error,
-    startPipeline,
-    refreshPipeline,
-    restartStage,
-    cancelPipeline,
-    runAIPipeline,
+    isLoading: loading,
+    isError,
+    error: error ? (error as Error).message : null,
+    startPipeline: () => queryClient.invalidateQueries({ queryKey }),
+    refreshPipeline: refreshPipelineMutation.mutate,
+    restartStage: restartStageMutation.mutate,
+    cancelPipeline: cancelPipelineMutation.mutate,
+    runAIPipeline: runAIPipelineMutation.mutateAsync,
+    isRefreshing: refreshPipelineMutation.isPending,
+    isRestarting: restartStageMutation.isPending,
+    isCancelling: cancelPipelineMutation.isPending,
+    isRunningAI: runAIPipelineMutation.isPending,
   };
 }

@@ -86,7 +86,7 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
 
   const handleRetryStage = async (stage: PipelineStage) => {
     if (!pipeline) return;
-    await restartStage(pipeline.id, stage);
+    await restartStage({ pipelineId: pipeline.id, stage });
   };
 
   const handleCancelPipeline = async () => {
@@ -100,7 +100,7 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
     if (!aiProviderId) return;
     setAiRunning(true);
     setAiResult(null);
-    const result = await runAIPipeline(aiProviderId, autoApprove);
+    const result = await runAIPipeline({ providerId: aiProviderId, autoApprove });
     setAiResult(result);
     setAiRunning(false);
   };

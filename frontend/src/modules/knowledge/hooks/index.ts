@@ -8,11 +8,12 @@ import type {
   DependencyFormData,
   DocumentationFormData,
 } from '../types';
+import { queryKeys } from '../../../constants';
 
 // Knowledge Flows hooks
 export const useKnowledgeFlows = (projectId?: string) => {
   const queryClient = useQueryClient();
-  const queryKey = ['knowledge-flows', projectId];
+  const queryKey = queryKeys.knowledgeFlows(projectId || '');
 
   const { data: flows = [], isLoading, isError, error } = useQuery({
     queryKey,
@@ -60,7 +61,7 @@ export const useKnowledgeFlows = (projectId?: string) => {
 // Business Rules hooks
 export const useBusinessRules = (projectId?: string) => {
   const queryClient = useQueryClient();
-  const queryKey = ['business-rules', projectId];
+  const queryKey = queryKeys.businessRules(projectId || '');
 
   const { data: rules = [], isLoading, isError, error } = useQuery({
     queryKey,
@@ -108,7 +109,7 @@ export const useBusinessRules = (projectId?: string) => {
 // Runtime Variables hooks
 export const useRuntimeVariables = (projectId?: string) => {
   const queryClient = useQueryClient();
-  const queryKey = ['runtime-variables', projectId];
+  const queryKey = queryKeys.runtimeVariables(projectId || '');
 
   const { data: variables = [], isLoading, isError, error } = useQuery({
     queryKey,
@@ -156,7 +157,7 @@ export const useRuntimeVariables = (projectId?: string) => {
 // Dependencies hooks
 export const useDependencies = (projectId?: string) => {
   const queryClient = useQueryClient();
-  const queryKey = ['dependencies', projectId];
+  const queryKey = queryKeys.dependencies(projectId || '');
 
   const { data: dependencies = [], isLoading, isError, error } = useQuery({
     queryKey,
@@ -204,7 +205,7 @@ export const useDependencies = (projectId?: string) => {
 // Documentation hooks
 export const useDocumentation = (projectId?: string) => {
   const queryClient = useQueryClient();
-  const queryKey = ['documentation', projectId];
+  const queryKey = queryKeys.documentation(projectId || '');
 
   const { data: docs = [], isLoading, isError, error } = useQuery({
     queryKey,

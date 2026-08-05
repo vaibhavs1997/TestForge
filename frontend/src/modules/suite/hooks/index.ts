@@ -2,10 +2,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { suiteService } from '../services';
 import type { TestSuite, TestSuiteFormData } from '../types';
+import { queryKeys } from '../../../constants';
 
 export const useSuites = (projectId?: string) => {
   const queryClient = useQueryClient();
-  const queryKey = ['suites', projectId];
+  const queryKey = queryKeys.suites(projectId || '');
 
   const { data: suites = [], isLoading, isError, error } = useQuery({
     queryKey,

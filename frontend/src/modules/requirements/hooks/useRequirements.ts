@@ -2,10 +2,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { requirementService } from '../services/requirementService';
 import type { Requirement, ApprovalStatus, ValidationReport, TestStrategy, TestDesign, ExecutionPlan } from '../types';
+import { queryKeys } from '../../../constants';
 
 export const useRequirements = (projectId?: string) => {
   const queryClient = useQueryClient();
-  const queryKey = ['requirements', projectId];
+  const queryKey = queryKeys.requirements(projectId || '');
 
   const { data: requirements = [], isLoading, isError, error } = useQuery({
     queryKey,
@@ -22,10 +23,30 @@ export const useRequirements = (projectId?: string) => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   });
 
+  // Optimistic update for requirement edits / approval status changes (safe, non-destructive)
   const updateMutation = useMutation({
     mutationFn: ({ requirementId, projectId, ...data }: { requirementId: string; projectId: string } & Partial<Requirement>) =>
       requirementService.updateRequirement(projectId, requirementId, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+    onMutate: async ({ requirementId, projectId: _projectId, ...data }) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<Requirement[]>(queryKey);
+      if (previous) {
+        queryClient.setQueryData<Requirement[]>(queryKey, (old) =>
+          (old || []).map((req) => (req.id === requirementId ? { ...req, ...data } : req))
+        );
+      }
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKey, context.previous);
+      }
+    },
+    onSettled: () => {
+      // Invalidate both the list and the affected detail query
+      queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: ['requirements'], exact: false });
+    },
   });
 
   const deleteMutation = useMutation({

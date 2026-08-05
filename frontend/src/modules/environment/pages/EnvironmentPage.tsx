@@ -2,7 +2,7 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
 import { PageHeader } from '../../../components/layout/PageHeader';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../../../components/ui/Card';
+import { Card, CardContent } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { SearchBar } from '../../../components/shared/SearchBar';
@@ -11,9 +11,8 @@ import { Toast } from '../../../components/shared/Toast';
 import { ErrorAlert } from '../../../components/shared/ErrorAlert';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
 import { ImportEnvironmentModal, type ImportEnvironmentModalData } from '../components/ImportEnvironmentModal';
-import { Globe, Plus, Server, Cloud, Upload, Key, Lock, Clock, MoreVertical, ExternalLink, Copy, Edit, Trash2 } from 'lucide-react';
+import { Plus, Cloud, Upload, Edit, Trash2 } from 'lucide-react';
 import { useEnvironments } from '../hooks/useEnvironments';
-import { environmentService } from '../services/environmentService';
 import { EnvironmentDialog, type EnvironmentDialogData } from '../components/EnvironmentDialog';
 import { logger } from '../../../utils/logger';
 
@@ -47,6 +46,7 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
   const [editOpen, setEditOpen] = React.useState(false);
   const [toastOpen, setToastOpen] = React.useState(false);
   const [toastMessage, setToastMessage] = React.useState('');
+  const [toastType, setToastType] = React.useState<'success' | 'error'>('success');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const filteredEnvironments = React.useMemo(() => {
@@ -59,15 +59,20 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
   }, [search, filter, environments]);
 
 
+  const breadcrumbItems = [
+    { label: 'Projects', to: '/projects' },
+    { label: 'Project', to: `/projects/${projectId}/overview` },
+    { label: 'Environment' },
+  ];
+
   if (isLoading) {
     return (
       <div className='mx-auto max-w-7xl px-4 py-8'>
-        <div className='mb-6 flex items-center justify-between'>
-          <div>
-            <h1 className='text-2xl font-bold text-text'>Environments</h1>
-            <p className='mt-1 text-sm text-text-secondary'>Manage reusable execution environments for this project.</p>
-          </div>
-        </div>
+        <PageHeader
+          title='Environments'
+          description='Manage reusable execution environments for this project.'
+          breadcrumb={breadcrumbItems}
+        />
         <div className='flex items-center justify-center py-12'>
           <p className='text-sm text-text-secondary'>Loading environments...</p>
         </div>
@@ -78,12 +83,11 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
   if (isError) {
     return (
       <div className='mx-auto max-w-7xl px-4 py-8'>
-        <div className='mb-6 flex items-center justify-between'>
-          <div>
-            <h1 className='text-2xl font-bold text-text'>Environments</h1>
-            <p className='mt-1 text-sm text-text-secondary'>Manage reusable execution environments for this project.</p>
-          </div>
-        </div>
+        <PageHeader
+          title='Environments'
+          description='Manage reusable execution environments for this project.'
+          breadcrumb={breadcrumbItems}
+        />
         <ErrorAlert
           title='Failed to load environments'
           message={error?.message || 'An unexpected error occurred while loading environments.'}
@@ -96,22 +100,20 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
   if (filteredEnvironments.length === 0) {
     return (
       <div className='mx-auto max-w-7xl px-4 py-8'>
-        <div className='mb-6 flex items-center justify-between'>
-          <div>
-            <h1 className='text-2xl font-bold text-text'>Environments</h1>
-            <p className='mt-1 text-sm text-text-secondary'>Manage reusable execution environments for this project.</p>
-          </div>
-          <div className='flex items-center gap-2'>
-            <Button variant='outline' onClick={() => setImportOpen(true)}>
-              <Upload className='mr-2 h-4 w-4' />
-              Import Environment
-            </Button>
-            <Button onClick={() => { setSelectedEnvironment(undefined); setEditOpen(true); }}>
-              <Plus className='mr-2 h-4 w-4' />
-              Create Environment
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          title='Environments'
+          description='Manage reusable execution environments for this project.'
+          breadcrumb={breadcrumbItems}
+        >
+          <Button variant='outline' onClick={() => setImportOpen(true)}>
+            <Upload className='mr-2 h-4 w-4' />
+            Import Environment
+          </Button>
+          <Button onClick={() => { setSelectedEnvironment(undefined); setEditOpen(true); }}>
+            <Plus className='mr-2 h-4 w-4' />
+            Create Environment
+          </Button>
+        </PageHeader>
         <EmptyState
           icon={<Cloud className='h-12 w-12' />}
           title='No environments found'
@@ -172,25 +174,38 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
     }
   };
 
+  const handleImport = async (data: ImportEnvironmentModalData) => {
+    try {
+      // TODO: Implement actual API call when environmentService.importEnvironment is available
+      // For now, log the import data
+      logger.info('Import environment', data);
+      setImportOpen(false);
+      setToastMessage('Environment import is not yet implemented');
+      setToastType('error');
+      setToastOpen(true);
+    } catch (error: any) {
+      setToastMessage(error?.message || 'Failed to import environment');
+      setToastType('error');
+      setToastOpen(true);
+    }
+  };
+
   return (
     <div className='mx-auto max-w-7xl px-4 py-8'>
-      {/* Page Header */}
-      <div className='mb-6 flex items-center justify-between'>
-        <div>
-          <h1 className='text-2xl font-bold text-text'>Environments</h1>
-          <p className='mt-1 text-sm text-text-secondary'>Manage reusable execution environments for this project.</p>
-        </div>
-        <div className='flex items-center gap-2'>
-          <Button variant='outline' onClick={() => setImportOpen(true)}>
-            <Upload className='mr-2 h-4 w-4' />
-            Import Environment
-          </Button>
-          <Button onClick={() => { setSelectedEnvironment(undefined); setEditOpen(true); }}>
-            <Plus className='mr-2 h-4 w-4' />
-            Create Environment
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title='Environments'
+        description='Manage reusable execution environments for this project.'
+        breadcrumb={breadcrumbItems}
+      >
+        <Button variant='outline' onClick={() => setImportOpen(true)}>
+          <Upload className='mr-2 h-4 w-4' />
+          Import Environment
+        </Button>
+        <Button onClick={() => { setSelectedEnvironment(undefined); setEditOpen(true); }}>
+          <Plus className='mr-2 h-4 w-4' />
+          Create Environment
+        </Button>
+      </PageHeader>
 
       {/* Search and Filters */}
       <div className='mb-6 flex flex-col gap-3 sm:flex-row sm:items-center'>

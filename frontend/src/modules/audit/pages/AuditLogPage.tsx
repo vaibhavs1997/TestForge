@@ -7,7 +7,7 @@ import { useParams } from 'react-router-dom';
 
 export function AuditLogPage() {
   const { projectId } = useParams<{ projectId: string }>();
-  const { logs, loading, error, refetch } = useAuditLogs(projectId || null);
+  const { data: logs = [], isLoading: loading, isError, error, refetch } = useAuditLogs(projectId || null);
 
   const [filters, setFilters] = useState<{
     module: AuditModule | '';
@@ -88,7 +88,7 @@ export function AuditLogPage() {
   };
 
   if (loading) return <div className="p-4">Loading audit logs...</div>;
-  if (error) return <div className="p-4 text-red-500">Error: {error}</div>;
+  if (error) return <div className="p-4 text-red-500">Error: {String(error)}</div>;
 
   return (
     <div className="p-6">

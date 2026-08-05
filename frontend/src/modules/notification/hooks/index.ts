@@ -1,56 +1,60 @@
-// Notification hooks
-import { useState, useEffect, useCallback } from 'react';
+// Notification hooks - migrated to TanStack Query
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notificationService } from '../services';
-import type { Notification, Provider } from '../types';
+import { queryKeys } from '../../../constants';
 
 export function useNotifications(projectId: string | null) {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryKey = queryKeys.notifications(projectId || '');
 
-  const fetchNotifications = useCallback(async () => {
-    if (!projectId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await notificationService.listNotifications(projectId);
-      setNotifications(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch notifications');
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
-
-  useEffect(() => {
-    fetchNotifications();
-  }, [fetchNotifications]);
-
-  return { notifications, loading, error, refetch: fetchNotifications };
+  return useQuery({
+    queryKey,
+    queryFn: () => notificationService.listNotifications(projectId || ''),
+    enabled: !!projectId,
+  });
 }
 
 export function useProviders(projectId: string | null) {
-  const [providers, setProviders] = useState<Provider[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryKey = queryKeys.providers(projectId || '');
 
-  const fetchProviders = useCallback(async () => {
-    if (!projectId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await notificationService.listProviders(projectId);
-      setProviders(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch providers');
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
-
-  useEffect(() => {
-    fetchProviders();
-  }, [fetchProviders]);
-
-  return { providers, loading, error, refetch: fetchProviders };
+  return useQuery({
+    queryKey,
+    queryFn: () => notificationService.listProviders(projectId || ''),
+    enabled: !!projectId,
+  });
 }
+
+export const useNotificationMutations = (projectId?: string) => {
+  const queryClient = useQueryClient();
+  const notificationsKey = queryKeys.notifications(projectId || '');
+
+  const createMutation = useMutation({
+    mutationFn: (payload: any) => notificationService.createNotification(projectId || '', payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: notificationsKey });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (payload: { notificationId: string; data: any }) =>
+      notificationService.updateNotification(payload.notificationId, payload.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: notificationsKey });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (notificationId: string) => notificationService.deleteNotification(notificationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: notificationsKey });
+    },
+  });
+
+  return {
+    createNotification: createMutation.mutateAsync,
+    isCreating: createMutation.isPending,
+    updateNotification: updateMutation.mutateAsync,
+    isUpdating: updateMutation.isPending,
+    deleteNotification: deleteMutation.mutateAsync,
+    isDeleting: deleteMutation.isPending,
+  };
+};

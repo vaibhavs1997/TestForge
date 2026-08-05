@@ -2,10 +2,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { reportService } from '../services';
 import type { ReportGeneratePayload } from '../types';
+import { queryKeys } from '../../../constants';
 
 export const useReports = (projectId?: string) => {
   const queryClient = useQueryClient();
-  const queryKey = ['reports', projectId];
+  const queryKey = queryKeys.reports(projectId || '');
 
   const { data: reports = [], isLoading, isError, error } = useQuery({
     queryKey,
@@ -44,7 +45,7 @@ export const useReports = (projectId?: string) => {
 
 export const useReport = (projectId?: string, reportId?: string) => {
   return useQuery({
-    queryKey: ['report', projectId, reportId],
+    queryKey: queryKeys.report(projectId || '', reportId || ''),
     queryFn: async () => {
       if (!projectId || !reportId) return null;
       return reportService.getReport(projectId, reportId);

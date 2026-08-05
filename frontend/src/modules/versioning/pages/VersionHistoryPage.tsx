@@ -42,7 +42,7 @@ export function VersionHistoryPage() {
       alert('Please select two versions to compare');
       return;
     }
-    await compare(version1, version2);
+    await compare({ versionId1: version1, versionId2: version2 });
   };
 
   const formatDate = (timestamp: number) => {
@@ -64,7 +64,7 @@ export function VersionHistoryPage() {
   };
 
   if (loading) return <div className="p-4">Loading versions...</div>;
-  if (error) return <div className="p-4 text-red-500">Error: {error}</div>;
+  if (error) return <div className="p-4 text-red-500">Error: {String(error)}</div>;
 
   return (
     <div className="p-6">

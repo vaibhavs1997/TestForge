@@ -2,10 +2,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { scheduleService } from '../services';
 import type { Schedule, ScheduleFormData } from '../types';
+import { queryKeys } from '../../../constants';
 
 export const useSchedules = (projectId?: string) => {
   const queryClient = useQueryClient();
-  const queryKey = ['schedules', projectId];
+  const queryKey = queryKeys.schedules(projectId || '');
 
   const { data: schedules = [], isLoading, isError, error } = useQuery({
     queryKey,
@@ -40,16 +41,48 @@ export const useSchedules = (projectId?: string) => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   });
 
+  // Optimistic enable (safe, non-destructive)
   const enableMutation = useMutation({
     mutationFn: ({ projectId, scheduleId }: { projectId: string; scheduleId: string }) =>
       scheduleService.enableSchedule(projectId, scheduleId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+    onMutate: async ({ scheduleId }) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<Schedule[]>(queryKey);
+      if (previous) {
+        queryClient.setQueryData<Schedule[]>(queryKey, (old) =>
+          (old || []).map((s) => (s.id === scheduleId ? { ...s, enabled: true } : s))
+        );
+      }
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKey, context.previous);
+      }
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey }),
   });
 
+  // Optimistic disable (safe, non-destructive)
   const disableMutation = useMutation({
     mutationFn: ({ projectId, scheduleId }: { projectId: string; scheduleId: string }) =>
       scheduleService.disableSchedule(projectId, scheduleId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+    onMutate: async ({ scheduleId }) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<Schedule[]>(queryKey);
+      if (previous) {
+        queryClient.setQueryData<Schedule[]>(queryKey, (old) =>
+          (old || []).map((s) => (s.id === scheduleId ? { ...s, enabled: false } : s))
+        );
+      }
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKey, context.previous);
+      }
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey }),
   });
 
   return {

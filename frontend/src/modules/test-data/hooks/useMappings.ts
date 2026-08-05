@@ -2,12 +2,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { mappingService } from '../services/mappingService';
 import type { DataSourceMappingDto } from '../services/mappingService';
+import { queryKeys } from '../../../constants';
 
 // ─── Mappings ──────────────────────────────────────────────────
 
 export const useMappings = (projectId?: string, operationId?: string) => {
   const queryClient = useQueryClient();
-  const queryKey = ['mappings', projectId, operationId];
+  const queryKey = queryKeys.mappings(projectId || '', operationId);
 
   const { data: mappings = [], isLoading, isError, error } = useQuery({
     queryKey,

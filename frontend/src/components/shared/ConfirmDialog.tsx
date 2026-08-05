@@ -15,6 +15,12 @@ export interface ConfirmDialogProps {
   onCancel: () => void;
 }
 
+/**
+ * Consistent confirmation dialog.
+ *
+ * Ordering: Cancel (left) → Confirm (right).
+ * Cancels always use the outline variant; the primary action is always rightmost.
+ */
 export const ConfirmDialog = ({ open, title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel', variant = 'default', onConfirm, onCancel }: ConfirmDialogProps) => {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
@@ -80,15 +86,20 @@ export const ConfirmDialog = ({ open, title, message, confirmLabel = 'Confirm', 
       <div ref={dialogRef} className='mx-4 w-full max-w-md' role='document'>
         <Card>
           <CardHeader>
-            <div className='flex items-center gap-2'>
-              <AlertTriangle className={cn('h-5 w-5', variant === 'destructive' ? 'text-error' : 'text-primary')} />
+            <div className='flex items-center gap-3'>
+              <div className={cn(
+                'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg',
+                variant === 'destructive' ? 'bg-red-100 dark:bg-red-900' : 'bg-primary/10'
+              )}>
+                <AlertTriangle className={cn('h-5 w-5', variant === 'destructive' ? 'text-error' : 'text-primary')} />
+              </div>
               <CardTitle id='confirm-dialog-title'>{title}</CardTitle>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-6">
             <p id='confirm-dialog-message' className='text-sm text-text-secondary'>{message}</p>
           </CardContent>
-          <CardFooter className='justify-end gap-2'>
+          <CardFooter className='justify-end gap-2 border-t border-border px-6 py-4'>
             <Button data-confirm-cancel variant='outline' onClick={onCancel}>{cancelLabel}</Button>
             <Button data-confirm-ok variant={variant === 'destructive' ? 'destructive' : 'default'} onClick={onConfirm}>{confirmLabel}</Button>
           </CardFooter>

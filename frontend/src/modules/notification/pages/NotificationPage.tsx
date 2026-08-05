@@ -1,17 +1,21 @@
 // NotificationPage - CRUD interface for managing notifications
-import { useState, useEffect, useCallback } from 'react';
-import { useNotifications, useProviders } from '../hooks';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNotifications, useProviders, useNotificationMutations } from '../hooks';
 import { notificationService } from '../services';
+import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
 import type { Notification, NotificationFormData, Provider } from '../types';
 import { useParams } from 'react-router-dom';
 
 export function NotificationPage() {
   const { projectId } = useParams<{ projectId: string }>();
-  const { notifications, loading, error, refetch } = useNotifications(projectId || null);
-  const { providers } = useProviders(projectId || null);
+  const { data: notifications = [], isLoading: loading, isError, error } = useNotifications(projectId || null);
+  const { data: providers = [] } = useProviders(projectId || null);
+  const { createNotification, updateNotification, deleteNotification } = useNotificationMutations(projectId || undefined);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingNotification, setEditingNotification] = useState<Notification | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState<NotificationFormData>({
     name: '',
@@ -65,20 +69,19 @@ export function NotificationPage() {
       bodyTemplate: notification.bodyTemplate,
       enabled: false,
     };
-    await notificationService.createNotification(notification.projectId, duplicated);
-    refetch();
-  }, [refetch]);
+    await createNotification(duplicated);
+  }, [createNotification]);
 
-  const handleDelete = useCallback(async (id: string) => {
-    if (!confirm('Are you sure you want to delete this notification?')) return;
-    await notificationService.deleteNotification(id);
-    refetch();
-  }, [refetch]);
+  const handleDelete = useCallback(async () => {
+    if (!deleteId) return;
+    await deleteNotification(deleteId);
+    setDeleteOpen(false);
+    setDeleteId(null);
+  }, [deleteId, deleteNotification]);
 
   const handleToggleEnabled = useCallback(async (notification: Notification) => {
-    await notificationService.updateNotification(notification.id, { enabled: !notification.enabled });
-    refetch();
-  }, [refetch]);
+    await updateNotification({ notificationId: notification.id, data: { enabled: !notification.enabled } });
+  }, [updateNotification]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,12 +89,11 @@ export function NotificationPage() {
 
     try {
       if (editingNotification) {
-        await notificationService.updateNotification(editingNotification.id, formData);
+        await updateNotification({ notificationId: editingNotification.id, data: formData });
       } else {
-        await notificationService.createNotification(projectId, formData);
+        await createNotification(formData);
       }
       setIsModalOpen(false);
-      refetch();
     } catch (err) {
       console.error('Failed to save notification:', err);
     }
@@ -108,18 +110,38 @@ export function NotificationPage() {
   };
 
   if (loading) return <div className="p-4">Loading notifications...</div>;
-  if (error) return <div className="p-4 text-red-500">Error: {error}</div>;
+  if (error) return <div className="p-4 text-red-500">Error: {String(error)}</div>;
+
+  const breadcrumbItems = [
+    { label: 'Projects', to: '/projects' },
+    { label: 'Project', to: `/projects/${projectId}/overview` },
+    { label: 'Notifications' },
+  ];
 
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Notifications</h1>
-        <button
-          onClick={handleCreate}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-        >
-          Create Notification
-        </button>
+      <div className="mb-6">
+        <nav className="flex items-center gap-2 text-sm text-text-secondary">
+          {breadcrumbItems.map((item, idx) => (
+            <React.Fragment key={idx}>
+              {idx > 0 && <span>/</span>}
+              {item.to ? (
+                <a href={item.to} className="hover:text-text">{item.label}</a>
+              ) : (
+                <span className="text-text">{item.label}</span>
+              )}
+            </React.Fragment>
+          ))}
+        </nav>
+        <div className="flex justify-between items-center mt-4">
+          <h1 className="text-2xl font-bold">Notifications</h1>
+          <button
+            onClick={handleCreate}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Create Notification
+          </button>
+        </div>
       </div>
 
       <div className="mb-4">
@@ -187,7 +209,7 @@ export function NotificationPage() {
                     Duplicate
                   </button>
                   <button
-                    onClick={() => handleDelete(notification.id)}
+                    onClick={() => { setDeleteId(notification.id); setDeleteOpen(true); }}
                     className="text-red-600 hover:text-red-800"
                   >
                     Delete
@@ -205,6 +227,17 @@ export function NotificationPage() {
           </tbody>
         </table>
       </div>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        title='Delete Notification'
+        message={`Deleting this notification cannot be undone.`}
+        confirmLabel='Delete'
+        cancelLabel='Cancel'
+        variant='destructive'
+        onConfirm={handleDelete}
+        onCancel={() => { setDeleteOpen(false); setDeleteId(null); }}
+      />
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">

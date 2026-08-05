@@ -84,7 +84,7 @@ export const RecommendationsPage: React.FC<RecommendationsPageProps> = () => {
 
   const filteredRecommendations = React.useMemo(() => {
     if (statusFilter === 'all') return recommendations;
-    return recommendations.filter((r) => r.status === statusFilter);
+    return recommendations.filter((r: any) => r.status === statusFilter);
   }, [recommendations, statusFilter]);
 
   if (isLoading) {
@@ -151,15 +151,15 @@ export const RecommendationsPage: React.FC<RecommendationsPageProps> = () => {
           <div className='flex items-center gap-4 text-sm'>
             <div className='flex items-center gap-1.5'>
               <div className='h-2.5 w-2.5 rounded-full bg-red-500' />
-              <span className='text-text-secondary'>High: {recommendations.filter(r => r.priority === 'High').length}</span>
+              <span className='text-text-secondary'>High: {recommendations.filter((r: any) => r.priority === 'High').length}</span>
             </div>
             <div className='flex items-center gap-1.5'>
               <div className='h-2.5 w-2.5 rounded-full bg-yellow-500' />
-              <span className='text-text-secondary'>Medium: {recommendations.filter(r => r.priority === 'Medium').length}</span>
+              <span className='text-text-secondary'>Medium: {recommendations.filter((r: any) => r.priority === 'Medium').length}</span>
             </div>
             <div className='flex items-center gap-1.5'>
               <div className='h-2.5 w-2.5 rounded-full bg-blue-500' />
-              <span className='text-text-secondary'>Low: {recommendations.filter(r => r.priority === 'Low').length}</span>
+              <span className='text-text-secondary'>Low: {recommendations.filter((r: any) => r.priority === 'Low').length}</span>
             </div>
           </div>
         </div>
@@ -183,7 +183,7 @@ export const RecommendationsPage: React.FC<RecommendationsPageProps> = () => {
         />
       ) : (
         <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
-          {filteredRecommendations.map((rec) => {
+          {filteredRecommendations.map((rec: any) => {
             const Icon = CATEGORY_ICONS[rec.category] || Info;
             return (
               <Card key={rec.id} className='flex flex-col'>
@@ -229,7 +229,7 @@ export const RecommendationsPage: React.FC<RecommendationsPageProps> = () => {
                     <div>
                       <p className='text-xs font-medium text-text-secondary mb-1'>Affected Requirements</p>
                       <div className='flex flex-wrap gap-1'>
-                        {rec.affectedRequirementIds.slice(0, 5).map((reqId) => (
+                        {rec.affectedRequirementIds.slice(0, 5).map((reqId: any) => (
                           <Badge key={reqId} variant='secondary' className='text-xs font-mono'>
                             {reqId.slice(0, 8)}...
                           </Badge>
@@ -248,7 +248,7 @@ export const RecommendationsPage: React.FC<RecommendationsPageProps> = () => {
                     <div>
                       <p className='text-xs font-medium text-text-secondary mb-1'>Affected APIs</p>
                       <div className='flex flex-wrap gap-1'>
-                        {rec.affectedApiOperationIds.slice(0, 5).map((apiId) => (
+                        {rec.affectedApiOperationIds.slice(0, 5).map((apiId: any) => (
                           <Badge key={apiId} variant='outline' className='text-xs font-mono'>
                             {apiId.slice(0, 8)}...
                           </Badge>

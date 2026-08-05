@@ -78,7 +78,7 @@ export function PluginManagementPage() {
   };
 
   if (loading) return <div className="p-4">Loading plugins...</div>;
-  if (error) return <div className="p-4 text-red-500">Error: {error}</div>;
+  if (error) return <div className="p-4 text-red-500">Error: {String(error)}</div>;
 
   return (
     <div className="p-6">

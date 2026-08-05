@@ -1,75 +1,140 @@
-name: Release to Production
+name: Release
 
 on:
+  push:
+    tags: ['v*']
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Release version (e.g., v1.0.0)'
-        required: true
-        type: string
-      commit:
-        description: 'Commit SHA from master to release (leave empty for HEAD)'
-        required: false
-        type: string
 
 jobs:
-  release:
+  build:
+    name: Build & Package
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    
     steps:
       - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
         with:
-          fetch-depth: 0
-      
-      - name: Validate version format
-        run: |
-          if [[ ! "${{ github.event.inputs.version }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "❌ Version must match format: v1.0.0"
-            exit 1
-          fi
-          echo "✓ Version format valid: ${{ github.event.inputs.version }}"
-      
-      - name: Setup Git
-        run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-      
-      - name: Determine commit
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - name: Get version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      - name: Get git commit
         id: commit
+        run: echo "COMMIT=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      - name: Get build timestamp
+        id: timestamp
+        run: echo "TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+      - name: Install backend deps
+        working-directory: backend
+        run: npm ci
+      - name: Build backend
+        working-directory: backend
+        env:
+          BUILD_TIMESTAMP: ${{ steps.timestamp.outputs.TIMESTAMP }}
+          GIT_COMMIT: ${{ steps.commit.outputs.COMMIT }}
+        run: npm run build
+      - name: Package backend
+        working-directory: backend
         run: |
-          if [ -z "${{ github.event.inputs.commit }}" ]; then
-            COMMIT=$(git rev-parse origin/master)
-          else
-            COMMIT=${{ github.event.inputs.commit }}
-          fi
-          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
-          echo "Release commit: $COMMIT"
-      
-      - name: Create release tag
+          mkdir -p ../release/backend
+          cp -r dist ../release/backend/
+          cp package.json Dockerfile .env.example ../release/backend/
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          BUILD_TIMESTAMP: ${{ steps.timestamp.outputs.TIMESTAMP }}
+          GIT_COMMIT: ${{ steps.commit.outputs.COMMIT }}
+        run: npm run build
+      - name: Package frontend
+        working-directory: frontend
         run: |
-          git fetch origin master
-          git tag -a ${{ github.event.inputs.version }} ${{ steps.commit.outputs.commit }} \
-            -m "Release ${{ github.event.inputs.version }}"
-          git push origin ${{ github.event.inputs.version }}
-          echo "✓ Tag created: ${{ github.event.inputs.version }}"
-      
-      - name: Prepare main branch
+          mkdir -p ../release/frontend
+          cp -r dist ../release/frontend/
+          cp Dockerfile nginx.conf .env.example ../release/frontend/
+      - name: Create deployment package
         run: |
-          git fetch origin main
-          git checkout -b release/${{ github.event.inputs.version }} origin/main
-          git merge --ff-only ${{ steps.commit.outputs.commit }}
-          echo "✓ Main ready to merge from ${{ steps.commit.outputs.commit }}"
-      
-      - name: Push to main
-        run: |
-          git push origin release/${{ github.event.inputs.version }}:main
-          echo "✓ Code deployed to main (${{ steps.commit.outputs.commit }})"
-      
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+          mkdir -p release
+          cp docker-compose.yml DEPLOYMENT.md .env.example release/
+          echo "VERSION=${{ steps.version.outputs.VERSION }}" > release/VERSION
+          echo "COMMIT=${{ steps.commit.outputs.COMMIT }}" >> release/VERSION
+          echo "BUILD_TIMESTAMP=${{ steps.timestamp.outputs.TIMESTAMP }}" >> release/VERSION
+          tar -czf testforge-${{ steps.version.outputs.VERSION }}.tar.gz release/
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ github.event.inputs.version }}
-          generate_release_notes: true
-          target_commitish: main
+          name: testforge-${{ steps.version.outputs.VERSION }}
+          path: testforge-${{ steps.version.outputs.VERSION }}.tar.gz
+          retention-days: 30
+
+  docker:
+    name: Docker Images
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      - name: Build backend image
+        run: docker build -t testforge-backend:${{ steps.version.outputs.VERSION }} ./backend
+      - name: Build frontend image
+        run: docker build -t testforge-frontend:${{ steps.version.outputs.VERSION }} ./frontend
+      - name: Tag as latest
+        run: |
+          docker tag testforge-backend:${{ steps.version.outputs.VERSION }} testforge-backend:latest
+          docker tag testforge-frontend:${{ steps.version.outputs.VERSION }} testforge-frontend:latest
+      - name: Save backend image
+        run: docker save testforge-backend:${{ steps.version.outputs.VERSION }} | gzip > testforge-backend-${{ steps.version.outputs.VERSION }}.tar.gz
+      - name: Save frontend image
+        run: docker save testforge-frontend:${{ steps.version.outputs.VERSION }} | gzip > testforge-frontend-${{ steps.version.outputs.VERSION }}.tar.gz
+      - name: Upload backend image
+        uses: actions/upload-artifact@v4
+        with:
+          name: testforge-backend-image
+          path: testforge-backend-${{ steps.version.outputs.VERSION }}.tar.gz
+          retention-days: 30
+      - name: Upload frontend image
+        uses: actions/upload-artifact@v4
+        with:
+          name: testforge-frontend-image
+          path: testforge-frontend-${{ steps.version.outputs.VERSION }}.tar.gz
+          retention-days: 30
+
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build, docker]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref }}
+          name: TestForge ${{ steps.version.outputs.VERSION }}
+          body: |
+            ## TestForge ${{ steps.version.outputs.VERSION }}
+            ### Artifacts
+            - Deployment package (tar.gz)
+            - Backend Docker image
+            - Frontend Docker image
+            ### Deployment
+            ```bash
+            docker-compose up -d --build
+            ```
+          files: artifacts/**/*.tar.gz
+          draft: false
+          prerelease: false

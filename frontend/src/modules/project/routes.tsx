@@ -1,5 +1,5 @@
 // External libraries
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Route, Routes, useParams } from 'react-router-dom';
 
 // Project pages
@@ -15,21 +15,30 @@ import { ApiRoutes } from '../api';
 import { EnvironmentPage } from '../environment/pages/EnvironmentPage';
 import { KnowledgePage } from '../knowledge/pages/KnowledgePage';
 import { ReportPage } from '../report/pages/ReportPage';
-import { RecommendationsPage } from '../recommendation/pages/RecommendationsPage';
-import { PipelinePage } from '../pipeline/pages/PipelinePage';
-import { NotificationPage } from '../notification/pages';
-import { VersionHistoryPage } from '../versioning/pages';
-import { AuditLogPage } from '../audit/pages';
-import { PluginManagementPage } from '../plugin/pages';
-import { AIProviderManagementPage } from '../ai-provider/pages';
-import { ProjectContextPage } from '../context/pages';
-import { PromptBuilderPage } from '../prompt/pages';
+
+// Lazy load Administration and Developer Tools modules
+const RecommendationsPage = lazy(() => import('../recommendation/pages/RecommendationsPage').then(m => ({ default: m.RecommendationsPage })));
+const PipelinePage = lazy(() => import('../pipeline/pages/PipelinePage').then(m => ({ default: m.PipelinePage })));
+const NotificationPage = lazy(() => import('../notification/pages').then(m => ({ default: m.NotificationPage })));
+const VersionHistoryPage = lazy(() => import('../versioning/pages').then(m => ({ default: m.VersionHistoryPage })));
+const AuditLogPage = lazy(() => import('../audit/pages').then(m => ({ default: m.AuditLogPage })));
+const PluginManagementPage = lazy(() => import('../plugin/pages').then(m => ({ default: m.PluginManagementPage })));
+const AIProviderManagementPage = lazy(() => import('../ai-provider/pages').then(m => ({ default: m.AIProviderManagementPage })));
+const ProjectContextPage = lazy(() => import('../context/pages').then(m => ({ default: m.ProjectContextPage })));
+const PromptBuilderPage = lazy(() => import('../prompt/pages').then(m => ({ default: m.PromptBuilderPage })));
 
 // Project store
 import { projectStore } from '../../store/projectStore';
 
 // Project overview dashboard (existing component)
 import { PipelineDashboard } from './components/PipelineDashboard';
+
+// Simple loading fallback for lazy routes
+const PageLoader = () => (
+  <div className="flex h-screen items-center justify-center">
+    <div className="text-lg">Loading...</div>
+  </div>
+);
 
 /**
  * Single Project Workspace.

@@ -2,10 +2,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { executionService } from '../services';
 import type { ExecutionRun, ExecutionRunCreatePayload } from '../types';
+import { queryKeys } from '../../../constants';
 
 export const useExecution = (projectId?: string) => {
   const queryClient = useQueryClient();
-  const queryKey = ['executions', projectId];
+  const queryKey = queryKeys.executions(projectId || '');
 
   const { data: runs = [], isLoading, isError, error } = useQuery({
     queryKey,
@@ -14,7 +15,13 @@ export const useExecution = (projectId?: string) => {
       return executionService.listExecutions(projectId);
     },
     enabled: !!projectId,
-    refetchInterval: 2000, // Poll every 2 seconds for running executions
+    refetchInterval: (query) => {
+      const data = query.state.data as ExecutionRun[];
+      if (!data || data.length === 0) return false;
+      const hasRunning = data.some(run => run.status === 'Running');
+      if (!hasRunning) return false;
+      return 3000; // Poll every 3 seconds while executions are running
+    },
   });
 
   const startMutation = useMutation({

@@ -2,10 +2,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { rowService } from '../services/rowService';
 import type { CreateRowInput } from '../types';
+import { queryKeys } from '../../../constants';
 
 export const useRows = (projectId?: string, datasetId?: string) => {
   const queryClient = useQueryClient();
-  const queryKey = ['dataset-rows', projectId, datasetId];
+  const queryKey = queryKeys.rows(projectId || '', datasetId || '');
 
   const { data: rows = [], isLoading, isError, error, refetch } = useQuery({
     queryKey,

@@ -2,12 +2,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { profileService } from '../services/profileService';
 import type { PopulationProfileDto } from '../services/profileService';
+import { queryKeys } from '../../../constants';
 
 // ─── Profiles ──────────────────────────────────────────────────
 
 export const useProfiles = (projectId?: string, datasetId?: string) => {
   const queryClient = useQueryClient();
-  const queryKey = ['profiles', projectId, datasetId];
+  const queryKey = queryKeys.profiles(projectId || '', datasetId || '');
 
   const { data: profiles = [], isLoading, isError, error } = useQuery({
     queryKey,

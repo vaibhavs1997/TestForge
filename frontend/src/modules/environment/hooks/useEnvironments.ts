@@ -2,12 +2,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { environmentService } from '../services/environmentService';
 import type { EnvironmentDto } from '../services/environmentService';
+import { queryKeys } from '../../../constants';
 
 // ─── Environments ──────────────────────────────────────────────
 
 export const useEnvironments = (projectId?: string) => {
   const queryClient = useQueryClient();
-  const queryKey = ['environments', projectId];
+  const queryKey = queryKeys.environments(projectId || '');
 
   const { data: environments = [], isLoading, isError, error } = useQuery({
     queryKey,
@@ -34,10 +35,26 @@ export const useEnvironments = (projectId?: string) => {
     },
   });
 
+  // Optimistic update for environment edits (safe, non-destructive)
   const updateMutation = useMutation({
     mutationFn: ({ environmentId, ...data }: { environmentId: string } & { name?: string; baseUrl?: string; description?: string; authentication?: any; variables?: Record<string, string>; timeout?: number; isDefault?: boolean }) =>
       environmentService.updateEnvironment(projectId || '', environmentId, data),
-    onSuccess: () => {
+    onMutate: async ({ environmentId, ...data }) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<EnvironmentDto[]>(queryKey);
+      if (previous) {
+        queryClient.setQueryData<EnvironmentDto[]>(queryKey, (old) =>
+          (old || []).map((env) => (env.id === environmentId ? { ...env, ...data } : env))
+        );
+      }
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKey, context.previous);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey });
     },
   });

@@ -1,6 +1,5 @@
-// Column service functions for Dataset Columns
-import axios from 'axios';
-import { API_BASE_URL } from '../../../constants/api';
+// Column service for Dataset Columns
+import { ApiClient } from '../../../services/ApiClient';
 
 export interface ColumnDto {
   id: string;
@@ -27,55 +26,63 @@ export interface ColumnSuggestion {
   usedBy: string[];
 }
 
-export const columnService = {
-  listColumns: async (projectId: string, datasetId?: string): Promise<ColumnDto[]> => {
+class ColumnService extends ApiClient<ColumnDto> {
+  constructor() {
+    super('/projects/:projectId/test-data/columns');
+  }
+
+  async listColumns(projectId: string, datasetId?: string): Promise<ColumnDto[]> {
     const params = datasetId ? { datasetId } : {};
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/test-data/columns`, { params });
-    return data.data;
-  },
+    return this.list(projectId, params);
+  }
 
-  getColumn: async (projectId: string, columnId: string): Promise<ColumnDto> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/test-data/columns/${columnId}`);
-    return data.data;
-  },
+  async getColumn(projectId: string, columnId: string): Promise<ColumnDto> {
+    return this.get(projectId, columnId);
+  }
 
-  createColumn: async (projectId: string, payload: {
-    datasetId: string;
-    name: string;
-    displayName: string;
-    dataType: string;
-    required: boolean;
-    unique: boolean;
-    nullable: boolean;
-    description?: string;
-  }): Promise<ColumnDto> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/test-data/columns`, payload);
-    return data.data;
-  },
+  async createColumn(
+    projectId: string,
+    payload: {
+      datasetId: string;
+      name: string;
+      displayName: string;
+      dataType: string;
+      required: boolean;
+      unique: boolean;
+      nullable: boolean;
+      description?: string;
+    }
+  ): Promise<ColumnDto> {
+    return this.create(projectId, payload);
+  }
 
-  updateColumn: async (projectId: string, columnId: string, payload: {
-    name?: string;
-    displayName?: string;
-    dataType?: string;
-    required?: boolean;
-    unique?: boolean;
-    nullable?: boolean;
-    description?: string;
-  }): Promise<ColumnDto> => {
-    const { data } = await axios.patch(`${API_BASE_URL}/projects/${projectId}/test-data/columns/${columnId}`, payload);
-    return data.data;
-  },
+  async updateColumn(
+    projectId: string,
+    columnId: string,
+    payload: {
+      name?: string;
+      displayName?: string;
+      dataType?: string;
+      required?: boolean;
+      unique?: boolean;
+      nullable?: boolean;
+      description?: string;
+    }
+  ): Promise<ColumnDto> {
+    return this.patch(projectId, columnId, payload);
+  }
 
-  deleteColumn: async (projectId: string, columnId: string): Promise<void> => {
-    await axios.delete(`${API_BASE_URL}/projects/${projectId}/test-data/columns/${columnId}`);
-  },
+  async deleteColumn(projectId: string, columnId: string): Promise<void> {
+    return this.delete(projectId, columnId);
+  }
 
-  suggestColumns: async (projectId: string, datasetName: string): Promise<{ suggestions: ColumnSuggestion[] }> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/test-data/columns/suggest`, {
-      params: { datasetName },
+  async suggestColumns(projectId: string, datasetName: string): Promise<{ suggestions: ColumnSuggestion[] }> {
+    return this.getCustom(`/projects/:projectId/test-data/columns/suggest`.replace(':projectId', projectId), {
+      datasetName,
     });
-    return data.data;
-  },
-};
+  }
+}
+
+export const columnService = new ColumnService();
 
 export default columnService;

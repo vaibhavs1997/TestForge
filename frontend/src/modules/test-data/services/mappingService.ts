@@ -1,6 +1,5 @@
-// Mapping service functions for Data Source Intelligence
-import axios from 'axios';
-import { API_BASE_URL } from '../../../constants/api';
+// Mapping service for Data Source Intelligence
+import { ApiClient } from '../../../services/ApiClient';
 
 export interface DataSourceMappingDto {
   id: string;
@@ -19,51 +18,60 @@ export interface DataSourceMappingDto {
   updatedAt: number;
 }
 
-export const mappingService = {
-  listMappings: async (projectId: string, operationId?: string): Promise<DataSourceMappingDto[]> => {
+class MappingService extends ApiClient<DataSourceMappingDto> {
+  constructor() {
+    super('/projects/:projectId/test-data/mappings');
+  }
+
+  async listMappings(projectId: string, operationId?: string): Promise<DataSourceMappingDto[]> {
     const params = operationId ? { operationId } : {};
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/test-data/mappings`, { params });
-    return data.data;
-  },
+    return this.list(projectId, params);
+  }
 
-  getMapping: async (projectId: string, mappingId: string): Promise<DataSourceMappingDto> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/test-data/mappings/${mappingId}`);
-    return data.data;
-  },
+  async getMapping(projectId: string, mappingId: string): Promise<DataSourceMappingDto> {
+    return this.get(projectId, mappingId);
+  }
 
-  createMapping: async (projectId: string, payload: {
-    serviceId: string;
-    operationId: string;
-    fieldPath: string;
-    sourceType: string;
-    datasetId?: string;
-    datasetColumn?: string;
-    environmentVariable?: string;
-    runtimeOperationId?: string;
-    runtimeField?: string;
-    notes?: string;
-  }): Promise<DataSourceMappingDto> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/test-data/mappings`, payload);
-    return data.data;
-  },
+  async createMapping(
+    projectId: string,
+    payload: {
+      serviceId: string;
+      operationId: string;
+      fieldPath: string;
+      sourceType: string;
+      datasetId?: string;
+      datasetColumn?: string;
+      environmentVariable?: string;
+      runtimeOperationId?: string;
+      runtimeField?: string;
+      notes?: string;
+    }
+  ): Promise<DataSourceMappingDto> {
+    return this.create(projectId, payload);
+  }
 
-  updateMapping: async (projectId: string, mappingId: string, payload: {
-    fieldPath?: string;
-    sourceType?: string;
-    datasetId?: string;
-    datasetColumn?: string;
-    environmentVariable?: string;
-    runtimeOperationId?: string;
-    runtimeField?: string;
-    notes?: string;
-  }): Promise<DataSourceMappingDto> => {
-    const { data } = await axios.patch(`${API_BASE_URL}/projects/${projectId}/test-data/mappings/${mappingId}`, payload);
-    return data.data;
-  },
+  async updateMapping(
+    projectId: string,
+    mappingId: string,
+    payload: {
+      fieldPath?: string;
+      sourceType?: string;
+      datasetId?: string;
+      datasetColumn?: string;
+      environmentVariable?: string;
+      runtimeOperationId?: string;
+      runtimeField?: string;
+      notes?: string;
+    }
+  ): Promise<DataSourceMappingDto> {
+    return this.patch(projectId, mappingId, payload);
+  }
 
-  deleteMapping: async (projectId: string, mappingId: string): Promise<void> => {
-    await axios.delete(`${API_BASE_URL}/projects/${projectId}/test-data/mappings/${mappingId}`);
-  },
-};
+  async deleteMapping(projectId: string, mappingId: string): Promise<void> {
+    return this.delete(projectId, mappingId);
+  }
+}
+
+export const mappingService = new MappingService();
 
 export default mappingService;

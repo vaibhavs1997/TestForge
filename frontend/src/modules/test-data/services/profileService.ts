@@ -1,6 +1,5 @@
-// Profile service functions for Population Profiles
-import axios from 'axios';
-import { API_BASE_URL } from '../../../constants/api';
+// Profile service for Population Profiles
+import { ApiClient } from '../../../services/ApiClient';
 
 export interface PopulationProfileDto {
   id: string;
@@ -12,39 +11,48 @@ export interface PopulationProfileDto {
   updatedAt: number;
 }
 
-export const profileService = {
-  listProfiles: async (projectId: string, datasetId?: string): Promise<PopulationProfileDto[]> => {
+class PopulationProfileService extends ApiClient<PopulationProfileDto> {
+  constructor() {
+    super('/projects/:projectId/test-data/profiles');
+  }
+
+  async listProfiles(projectId: string, datasetId?: string): Promise<PopulationProfileDto[]> {
     const params = datasetId ? { datasetId } : {};
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/test-data/profiles`, { params });
-    return data.data;
-  },
+    return this.list(projectId, params);
+  }
 
-  getProfile: async (projectId: string, profileId: string): Promise<PopulationProfileDto> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/test-data/profiles/${profileId}`);
-    return data.data;
-  },
+  async getProfile(projectId: string, profileId: string): Promise<PopulationProfileDto> {
+    return this.get(projectId, profileId);
+  }
 
-  createProfile: async (projectId: string, payload: {
-    datasetId: string;
-    columnId: string;
-    strategyType: string;
-    configuration?: Record<string, any>;
-  }): Promise<PopulationProfileDto> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/test-data/profiles`, payload);
-    return data.data;
-  },
+  async createProfile(
+    projectId: string,
+    payload: {
+      datasetId: string;
+      columnId: string;
+      strategyType: string;
+      configuration?: Record<string, any>;
+    }
+  ): Promise<PopulationProfileDto> {
+    return this.create(projectId, payload);
+  }
 
-  updateProfile: async (projectId: string, profileId: string, payload: {
-    strategyType?: string;
-    configuration?: Record<string, any>;
-  }): Promise<PopulationProfileDto> => {
-    const { data } = await axios.patch(`${API_BASE_URL}/projects/${projectId}/test-data/profiles/${profileId}`, payload);
-    return data.data;
-  },
+  async updateProfile(
+    projectId: string,
+    profileId: string,
+    payload: {
+      strategyType?: string;
+      configuration?: Record<string, any>;
+    }
+  ): Promise<PopulationProfileDto> {
+    return this.patch(projectId, profileId, payload);
+  }
 
-  deleteProfile: async (projectId: string, profileId: string): Promise<void> => {
-    await axios.delete(`${API_BASE_URL}/projects/${projectId}/test-data/profiles/${profileId}`);
-  },
-};
+  async deleteProfile(projectId: string, profileId: string): Promise<void> {
+    return this.delete(projectId, profileId);
+  }
+}
+
+export const profileService = new PopulationProfileService();
 
 export default profileService;

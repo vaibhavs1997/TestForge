@@ -2,8 +2,7 @@
 import axios from 'axios';
 import type { AxiosProgressEvent } from 'axios';
 import type { ImportSummary } from '../types';
-
-const API_BASE = '/api';
+import { API_BASE_URL } from '../../../constants/api';
 
 export interface ApiServiceDto {
   id: string;
@@ -32,12 +31,12 @@ export interface ApiOperationDto {
 export const apiService = {
   // Services
   listServices: async (projectId: string): Promise<ApiServiceDto[]> => {
-    const { data } = await axios.get(`${API_BASE}/projects/${projectId}/services`);
+    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/services`);
     return data.data;
   },
 
   getService: async (projectId: string, serviceId: string): Promise<ApiServiceDto> => {
-    const { data } = await axios.get(`${API_BASE}/projects/${projectId}/services/${serviceId}`);
+    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/services/${serviceId}`);
     return data.data;
   },
 
@@ -47,7 +46,7 @@ export const apiService = {
     version?: string;
     tags?: string[];
   }): Promise<ApiServiceDto> => {
-    const { data } = await axios.post(`${API_BASE}/projects/${projectId}/services`, payload);
+    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/services`, payload);
     return data.data;
   },
 
@@ -57,22 +56,22 @@ export const apiService = {
     version?: string;
     tags?: string[];
   }): Promise<ApiServiceDto> => {
-    const { data } = await axios.patch(`${API_BASE}/projects/${projectId}/services/${serviceId}`, payload);
+    const { data } = await axios.patch(`${API_BASE_URL}/projects/${projectId}/services/${serviceId}`, payload);
     return data.data;
   },
 
   deleteService: async (projectId: string, serviceId: string): Promise<void> => {
-    await axios.delete(`${API_BASE}/projects/${projectId}/services/${serviceId}`);
+    await axios.delete(`${API_BASE_URL}/projects/${projectId}/services/${serviceId}`);
   },
 
   // Operations
   listOperations: async (projectId: string, serviceId: string): Promise<ApiOperationDto[]> => {
-    const { data } = await axios.get(`${API_BASE}/projects/${projectId}/services/${serviceId}/apis`);
+    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/services/${serviceId}/apis`);
     return data.data;
   },
 
   getOperation: async (projectId: string, serviceId: string, apiId: string): Promise<ApiOperationDto> => {
-    const { data } = await axios.get(`${API_BASE}/projects/${projectId}/services/${serviceId}/apis/${apiId}`);
+    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/services/${serviceId}/apis/${apiId}`);
     return data.data;
   },
 
@@ -84,7 +83,7 @@ export const apiService = {
     authenticationType?: string;
     status?: string;
   }): Promise<ApiOperationDto> => {
-    const { data } = await axios.post(`${API_BASE}/projects/${projectId}/services/${serviceId}/apis`, payload);
+    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/services/${serviceId}/apis`, payload);
     return data.data;
   },
 
@@ -96,12 +95,12 @@ export const apiService = {
     authenticationType?: string;
     status?: string;
   }): Promise<ApiOperationDto> => {
-    const { data } = await axios.patch(`${API_BASE}/projects/${projectId}/services/${serviceId}/apis/${apiId}`, payload);
+    const { data } = await axios.patch(`${API_BASE_URL}/projects/${projectId}/services/${serviceId}/apis/${apiId}`, payload);
     return data.data;
   },
 
   deleteOperation: async (projectId: string, serviceId: string, apiId: string): Promise<void> => {
-    await axios.delete(`${API_BASE}/projects/${projectId}/services/${serviceId}/apis/${apiId}`);
+    await axios.delete(`${API_BASE_URL}/projects/${projectId}/services/${serviceId}/apis/${apiId}`);
   },
 
   // Import Contract
@@ -113,7 +112,7 @@ export const apiService = {
     const formData = new FormData();
     formData.append('file', file);
 
-    const { data } = await axios.post(`${API_BASE}/projects/${projectId}/import`, formData, {
+    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/import`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress,
     });
@@ -123,3 +122,4 @@ export const apiService = {
 };
 
 export default apiService;
+

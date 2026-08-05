@@ -1,8 +1,7 @@
 // Audit Log service functions
 import axios from 'axios';
 import type { AuditLog, AuditLogFilters, AuditModule, AuditAction } from '../types';
-
-const API_BASE = '/api';
+import { API_BASE_URL } from '../../../constants/api';
 
 export const auditService = {
   getAuditLogs: async (projectId: string, filters?: AuditLogFilters): Promise<AuditLog[]> => {
@@ -15,12 +14,12 @@ export const auditService = {
       if (filters.startDate) params.set('startDate', filters.startDate.toString());
       if (filters.endDate) params.set('endDate', filters.endDate.toString());
     }
-    const { data } = await axios.get(`${API_BASE}/projects/${projectId}/audit?${params.toString()}`);
+    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/audit?${params.toString()}`);
     return data.data;
   },
 
   getAuditLog: async (logId: string): Promise<AuditLog> => {
-    const { data } = await axios.get(`${API_BASE}/audit/${logId}`);
+    const { data } = await axios.get(`${API_BASE_URL}/audit/${logId}`);
     return data.data;
   },
 };

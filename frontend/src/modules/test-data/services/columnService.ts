@@ -1,7 +1,6 @@
 // Column service functions for Dataset Columns
 import axios from 'axios';
-
-const API_BASE = '/api';
+import { API_BASE_URL } from '../../../constants/api';
 
 export interface ColumnDto {
   id: string;
@@ -31,12 +30,12 @@ export interface ColumnSuggestion {
 export const columnService = {
   listColumns: async (projectId: string, datasetId?: string): Promise<ColumnDto[]> => {
     const params = datasetId ? { datasetId } : {};
-    const { data } = await axios.get(`${API_BASE}/projects/${projectId}/test-data/columns`, { params });
+    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/test-data/columns`, { params });
     return data.data;
   },
 
   getColumn: async (projectId: string, columnId: string): Promise<ColumnDto> => {
-    const { data } = await axios.get(`${API_BASE}/projects/${projectId}/test-data/columns/${columnId}`);
+    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/test-data/columns/${columnId}`);
     return data.data;
   },
 
@@ -50,7 +49,7 @@ export const columnService = {
     nullable: boolean;
     description?: string;
   }): Promise<ColumnDto> => {
-    const { data } = await axios.post(`${API_BASE}/projects/${projectId}/test-data/columns`, payload);
+    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/test-data/columns`, payload);
     return data.data;
   },
 
@@ -63,16 +62,16 @@ export const columnService = {
     nullable?: boolean;
     description?: string;
   }): Promise<ColumnDto> => {
-    const { data } = await axios.patch(`${API_BASE}/projects/${projectId}/test-data/columns/${columnId}`, payload);
+    const { data } = await axios.patch(`${API_BASE_URL}/projects/${projectId}/test-data/columns/${columnId}`, payload);
     return data.data;
   },
 
   deleteColumn: async (projectId: string, columnId: string): Promise<void> => {
-    await axios.delete(`${API_BASE}/projects/${projectId}/test-data/columns/${columnId}`);
+    await axios.delete(`${API_BASE_URL}/projects/${projectId}/test-data/columns/${columnId}`);
   },
 
   suggestColumns: async (projectId: string, datasetName: string): Promise<{ suggestions: ColumnSuggestion[] }> => {
-    const { data } = await axios.get(`${API_BASE}/projects/${projectId}/test-data/columns/suggest`, {
+    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/test-data/columns/suggest`, {
       params: { datasetName },
     });
     return data.data;

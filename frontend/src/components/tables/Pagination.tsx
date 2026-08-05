@@ -8,6 +8,9 @@ import { cn } from '../../utils/cn';
 // Components
 import { Button } from '../ui/Button';
 
+// Constants
+import { PAGE_SIZE_OPTIONS } from '../../constants/pagination';
+
 export interface PaginationProps {
   /** Current page (1-based) */
   page: number;
@@ -34,7 +37,7 @@ export const Pagination: React.FC<PaginationProps> = ({
   totalItems,
   onPageChange,
   onPageSizeChange,
-  pageSizeOptions = [25, 50, 100],
+  pageSizeOptions = PAGE_SIZE_OPTIONS,
   className,
 }) => {
   const startItem = totalItems === 0 ? 0 : (page - 1) * pageSize + 1;

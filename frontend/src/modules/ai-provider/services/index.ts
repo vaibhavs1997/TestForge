@@ -9,17 +9,16 @@ import type {
   AIProviderGenerateResult,
   AIProviderAdapterInfo,
 } from '../types';
-
-const API_BASE = '/api';
+import { API_BASE_URL } from '../../../constants/api';
 
 export const aiProviderService = {
   listProviders: async (projectId: string): Promise<AIProvider[]> => {
-    const { data } = await axios.get(`${API_BASE}/projects/${projectId}/ai/providers`);
+    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/ai/providers`);
     return data.data;
   },
 
   getProvider: async (projectId: string, providerId: string): Promise<AIProvider> => {
-    const { data } = await axios.get(`${API_BASE}/projects/${projectId}/ai/providers/${providerId}`);
+    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/ai/providers/${providerId}`);
     return data.data;
   },
 
@@ -40,7 +39,7 @@ export const aiProviderService = {
       default?: boolean;
     }
   ): Promise<AIProvider> => {
-    const { data } = await axios.post(`${API_BASE}/projects/${projectId}/ai/providers`, provider);
+    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/ai/providers`, provider);
     return data.data;
   },
 
@@ -62,31 +61,31 @@ export const aiProviderService = {
       default: boolean;
     }>
   ): Promise<AIProvider> => {
-    const { data } = await axios.patch(`${API_BASE}/projects/${projectId}/ai/providers/${providerId}`, updates);
+    const { data } = await axios.patch(`${API_BASE_URL}/projects/${projectId}/ai/providers/${providerId}`, updates);
     return data.data;
   },
 
   deleteProvider: async (projectId: string, providerId: string): Promise<void> => {
-    await axios.delete(`${API_BASE}/projects/${projectId}/ai/providers/${providerId}`);
+    await axios.delete(`${API_BASE_URL}/projects/${projectId}/ai/providers/${providerId}`);
   },
 
   testProvider: async (projectId: string, providerId: string): Promise<AIProviderHealth> => {
-    const { data } = await axios.post(`${API_BASE}/projects/${projectId}/ai/providers/${providerId}/test`);
+    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/ai/providers/${providerId}/test`);
     return data.data;
   },
 
   enableProvider: async (projectId: string, providerId: string): Promise<AIProvider> => {
-    const { data } = await axios.post(`${API_BASE}/projects/${projectId}/ai/providers/${providerId}/enable`);
+    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/ai/providers/${providerId}/enable`);
     return data.data;
   },
 
   disableProvider: async (projectId: string, providerId: string): Promise<AIProvider> => {
-    const { data } = await axios.post(`${API_BASE}/projects/${projectId}/ai/providers/${providerId}/disable`);
+    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/ai/providers/${providerId}/disable`);
     return data.data;
   },
 
   setDefaultProvider: async (projectId: string, providerId: string): Promise<AIProvider> => {
-    const { data } = await axios.post(`${API_BASE}/projects/${projectId}/ai/providers/${providerId}/default`);
+    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/ai/providers/${providerId}/default`);
     return data.data;
   },
 
@@ -96,7 +95,7 @@ export const aiProviderService = {
     messages: AIProviderMessage[],
     maxTokens?: number
   ): Promise<AIProviderEstimate> => {
-    const { data } = await axios.post(`${API_BASE}/projects/${projectId}/ai/providers/${providerId}/estimate`, {
+    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/ai/providers/${providerId}/estimate`, {
       messages,
       maxTokens,
     });
@@ -109,7 +108,7 @@ export const aiProviderService = {
     messages: AIProviderMessage[],
     options?: { maxTokens?: number; temperature?: number; topP?: number; stop?: string[] }
   ): Promise<AIProviderGenerateResult> => {
-    const { data } = await axios.post(`${API_BASE}/projects/${projectId}/ai/providers/${providerId}/generate`, {
+    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/ai/providers/${providerId}/generate`, {
       messages,
       options,
     });
@@ -117,12 +116,12 @@ export const aiProviderService = {
   },
 
   listSupportedTypes: async (): Promise<AIProviderType[]> => {
-    const { data } = await axios.get(`${API_BASE}/ai/providers/types`);
+    const { data } = await axios.get(`${API_BASE_URL}/ai/providers/types`);
     return data.data;
   },
 
   listAdapters: async (): Promise<AIProviderAdapterInfo[]> => {
-    const { data } = await axios.get(`${API_BASE}/ai/providers/adapters`);
+    const { data } = await axios.get(`${API_BASE_URL}/ai/providers/adapters`);
     return data.data;
   },
 };

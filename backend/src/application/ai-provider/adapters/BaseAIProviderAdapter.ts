@@ -13,6 +13,7 @@ import type {
   AIProviderHealthResult,
   AIProviderType,
 } from '../../../domain/ai-provider';
+import { DEFAULT_TIMEOUT_MS, DEFAULT_MAX_TOKENS } from '../../../constants/defaults';
 
 export abstract class BaseAIProviderAdapter implements AIProviderAdapter {
   abstract readonly type: AIProviderType;
@@ -28,10 +29,10 @@ export abstract class BaseAIProviderAdapter implements AIProviderAdapter {
   protected abstract readonly outputCostPer1K: number;
 
   /** Default max tokens for generation. */
-  protected readonly defaultMaxTokens = 2048;
+  protected readonly defaultMaxTokens = DEFAULT_MAX_TOKENS;
 
   /** Default timeout in ms. */
-  protected readonly defaultTimeout = 30000;
+  protected readonly defaultTimeout = DEFAULT_TIMEOUT_MS;
 
   validateConfiguration(config: AIProviderConfig): string[] {
     const errors: string[] = [];

@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { EnvironmentRepository } from '../../domain/environment/EnvironmentRepository';
 import { EnvironmentEntity } from '../../domain/environment/EnvironmentEntity';
+import { DEFAULT_TIMEOUT_MS } from '../../constants/defaults';
 
 export class CreateEnvironment {
   constructor(private readonly environmentRepository: EnvironmentRepository) {}
@@ -43,7 +44,7 @@ export class CreateEnvironment {
       params.description?.trim() || '',
       params.authentication || null,
       params.variables || {},
-      params.timeout || 30000,
+      params.timeout || DEFAULT_TIMEOUT_MS,
       now,
       now
     );

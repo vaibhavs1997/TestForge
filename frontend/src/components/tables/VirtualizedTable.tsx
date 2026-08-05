@@ -9,6 +9,9 @@ import { cn } from '../../utils/cn';
 import { Skeleton } from '../ui/Skeleton';
 import { Button } from '../ui/Button';
 
+// Constants
+import { VIRTUALIZED_TABLE_ROW_HEIGHT } from '../../constants/pagination';
+
 export interface Column<T> {
   key: string;
   header: string;
@@ -49,7 +52,7 @@ export function VirtualizedTable<T extends Record<string, unknown>>({
   skeletonRows = 5,
   className,
   totalCount,
-  rowHeight = 50,
+  rowHeight = VIRTUALIZED_TABLE_ROW_HEIGHT,
   overscan = 5,
 }: VirtualizedTableProps<T>) {
   const parentRef = useRef<HTMLDivElement>(null);

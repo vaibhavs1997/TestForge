@@ -1,7 +1,6 @@
 // Mapping service functions for Data Source Intelligence
 import axios from 'axios';
-
-const API_BASE = '/api';
+import { API_BASE_URL } from '../../../constants/api';
 
 export interface DataSourceMappingDto {
   id: string;
@@ -23,12 +22,12 @@ export interface DataSourceMappingDto {
 export const mappingService = {
   listMappings: async (projectId: string, operationId?: string): Promise<DataSourceMappingDto[]> => {
     const params = operationId ? { operationId } : {};
-    const { data } = await axios.get(`${API_BASE}/projects/${projectId}/test-data/mappings`, { params });
+    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/test-data/mappings`, { params });
     return data.data;
   },
 
   getMapping: async (projectId: string, mappingId: string): Promise<DataSourceMappingDto> => {
-    const { data } = await axios.get(`${API_BASE}/projects/${projectId}/test-data/mappings/${mappingId}`);
+    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/test-data/mappings/${mappingId}`);
     return data.data;
   },
 
@@ -44,7 +43,7 @@ export const mappingService = {
     runtimeField?: string;
     notes?: string;
   }): Promise<DataSourceMappingDto> => {
-    const { data } = await axios.post(`${API_BASE}/projects/${projectId}/test-data/mappings`, payload);
+    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/test-data/mappings`, payload);
     return data.data;
   },
 
@@ -58,12 +57,12 @@ export const mappingService = {
     runtimeField?: string;
     notes?: string;
   }): Promise<DataSourceMappingDto> => {
-    const { data } = await axios.patch(`${API_BASE}/projects/${projectId}/test-data/mappings/${mappingId}`, payload);
+    const { data } = await axios.patch(`${API_BASE_URL}/projects/${projectId}/test-data/mappings/${mappingId}`, payload);
     return data.data;
   },
 
   deleteMapping: async (projectId: string, mappingId: string): Promise<void> => {
-    await axios.delete(`${API_BASE}/projects/${projectId}/test-data/mappings/${mappingId}`);
+    await axios.delete(`${API_BASE_URL}/projects/${projectId}/test-data/mappings/${mappingId}`);
   },
 };
 

@@ -3,6 +3,7 @@
 import { Request, Response } from 'express';
 import { ManageExecutionProfiles } from '../../application/execution/ManageExecutionProfiles';
 import { ExecutionProfileRepository } from '../../infrastructure/execution/ExecutionProfileRepository';
+import { createSuccessResponse, createErrorResponse } from '../types/ApiResponse';
 
 export class ExecutionProfileController {
   constructor(private readonly manageProfiles: ManageExecutionProfiles) {}
@@ -12,16 +13,10 @@ export class ExecutionProfileController {
       const { projectId } = req.params;
       const profiles = await this.manageProfiles.listByProject(projectId);
       
-      res.status(200).json({
-        success: true,
-        data: profiles,
-      });
+      res.status(200).json(createSuccessResponse(profiles));
     } catch (error: any) {
       console.error('List profiles error:', error);
-      res.status(500).json({
-        success: false,
-        message: error.message || 'Failed to list profiles',
-      });
+      res.status(500).json(createErrorResponse(error.message || 'Failed to list profiles', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -30,16 +25,10 @@ export class ExecutionProfileController {
       const { projectId } = req.params;
       const profile = await this.manageProfiles.getDefault(projectId);
       
-      res.status(200).json({
-        success: true,
-        data: profile,
-      });
+      res.status(200).json(createSuccessResponse(profile));
     } catch (error: any) {
       console.error('Get default profile error:', error);
-      res.status(500).json({
-        success: false,
-        message: error.message || 'Failed to get default profile',
-      });
+      res.status(500).json(createErrorResponse(error.message || 'Failed to get default profile', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -49,23 +38,14 @@ export class ExecutionProfileController {
       const profile = await this.manageProfiles.getById(profileId);
       
       if (!profile) {
-        res.status(404).json({
-          success: false,
-          message: 'Profile not found',
-        });
+        res.status(404).json(createErrorResponse('Profile not found', 'NOT_FOUND'));
         return;
       }
 
-      res.status(200).json({
-        success: true,
-        data: profile,
-      });
+      res.status(200).json(createSuccessResponse(profile));
     } catch (error: any) {
       console.error('Get profile error:', error);
-      res.status(500).json({
-        success: false,
-        message: error.message || 'Failed to get profile',
-      });
+      res.status(500).json(createErrorResponse(error.message || 'Failed to get profile', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -79,16 +59,10 @@ export class ExecutionProfileController {
         projectId,
       });
 
-      res.status(201).json({
-        success: true,
-        data: profile,
-      });
+      res.status(201).json(createSuccessResponse(profile));
     } catch (error: any) {
       console.error('Create profile error:', error);
-      res.status(400).json({
-        success: false,
-        message: error.message || 'Failed to create profile',
-      });
+      res.status(400).json(createErrorResponse(error.message || 'Failed to create profile', 'VALIDATION_ERROR'));
     }
   }
 
@@ -99,16 +73,10 @@ export class ExecutionProfileController {
 
       const profile = await this.manageProfiles.update(profileId, body);
 
-      res.status(200).json({
-        success: true,
-        data: profile,
-      });
+      res.status(200).json(createSuccessResponse(profile));
     } catch (error: any) {
       console.error('Update profile error:', error);
-      res.status(400).json({
-        success: false,
-        message: error.message || 'Failed to update profile',
-      });
+      res.status(400).json(createErrorResponse(error.message || 'Failed to update profile', 'VALIDATION_ERROR'));
     }
   }
 
@@ -124,10 +92,7 @@ export class ExecutionProfileController {
       });
     } catch (error: any) {
       console.error('Delete profile error:', error);
-      res.status(400).json({
-        success: false,
-        message: error.message || 'Failed to delete profile',
-      });
+      res.status(400).json(createErrorResponse(error.message || 'Failed to delete profile', 'VALIDATION_ERROR'));
     }
   }
 
@@ -137,25 +102,16 @@ export class ExecutionProfileController {
       const { name } = req.body;
 
       if (!name) {
-        res.status(400).json({
-          success: false,
-          message: 'New profile name is required',
-        });
+        res.status(400).json(createErrorResponse('New profile name is required', 'VALIDATION_ERROR'));
         return;
       }
 
       const profile = await this.manageProfiles.duplicate(profileId, name);
 
-      res.status(201).json({
-        success: true,
-        data: profile,
-      });
+      res.status(201).json(createSuccessResponse(profile));
     } catch (error: any) {
       console.error('Duplicate profile error:', error);
-      res.status(400).json({
-        success: false,
-        message: error.message || 'Failed to duplicate profile',
-      });
+      res.status(400).json(createErrorResponse(error.message || 'Failed to duplicate profile', 'VALIDATION_ERROR'));
     }
   }
 }

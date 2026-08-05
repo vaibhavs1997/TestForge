@@ -5,6 +5,7 @@ import { UpdatePopulationProfile } from '../../application/test-data/UpdatePopul
 import { DeletePopulationProfile } from '../../application/test-data/DeletePopulationProfile';
 import { GetPopulationProfile } from '../../application/test-data/GetPopulationProfile';
 import { ListPopulationProfiles } from '../../application/test-data/ListPopulationProfiles';
+import { createSuccessResponse, createErrorResponse } from '../types/ApiResponse';
 
 export class PopulationProfileController {
   constructor(
@@ -21,9 +22,9 @@ export class PopulationProfileController {
       const profiles = await this.listProfilesUseCase.execute({
         datasetId: datasetId as string | undefined,
       });
-      res.status(200).json({ success: true, data: profiles });
+      res.status(200).json(createSuccessResponse(profiles));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -38,14 +39,14 @@ export class PopulationProfileController {
         configuration,
       });
 
-      res.status(201).json({ success: true, data: profile });
+      res.status(201).json(createSuccessResponse(profile));
     } catch (error: any) {
       if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else if (error.message.includes('already exists')) {
-        res.status(409).json({ success: false, message: error.message, details: null });
+        res.status(409).json(createErrorResponse(error.message, 'CONFLICT'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -54,12 +55,12 @@ export class PopulationProfileController {
     try {
       const { profileId } = req.params;
       const profile = await this.getProfileUseCase.execute(profileId);
-      res.status(200).json({ success: true, data: profile });
+      res.status(200).json(createSuccessResponse(profile));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -75,14 +76,14 @@ export class PopulationProfileController {
         configuration,
       });
 
-      res.status(200).json({ success: true, data: profile });
+      res.status(200).json(createSuccessResponse(profile));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -94,9 +95,9 @@ export class PopulationProfileController {
       res.status(204).send();
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }

@@ -1,6 +1,7 @@
 // VersionController - Controller for Versioning Module endpoints
 import { Request, Response } from 'express';
 import { VersionService } from '../../application/versioning/VersionService';
+import { createSuccessResponse, createErrorResponse } from '../types/ApiResponse';
 
 export class VersionController {
   constructor(private readonly versionService: VersionService) {}
@@ -17,9 +18,9 @@ export class VersionController {
         versions = await this.versionService.listProjectVersions(projectId);
       }
       
-      res.status(200).json({ success: true, data: versions });
+      res.status(200).json(createSuccessResponse(versions));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -27,9 +28,9 @@ export class VersionController {
     try {
       const { versionId } = req.params;
       const version = await this.versionService.getVersion(versionId);
-      res.status(200).json({ success: true, data: version });
+      res.status(200).json(createSuccessResponse(version));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -37,9 +38,9 @@ export class VersionController {
     try {
       const { projectId, entityType, entityId } = req.params;
       const versions = await this.versionService.listEntityVersions(entityType, entityId);
-      res.status(200).json({ success: true, data: versions });
+      res.status(200).json(createSuccessResponse(versions));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -47,9 +48,9 @@ export class VersionController {
     try {
       const { versionId } = req.params;
       const restored = await this.versionService.restoreVersion({ versionId });
-      res.status(200).json({ success: true, data: restored, message: 'Version restored successfully' });
+      res.status(200).json(createSuccessResponse(restored, 'Version restored successfully'));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -57,9 +58,9 @@ export class VersionController {
     try {
       const { versionId1, versionId2 } = req.params;
       const comparison = await this.versionService.compareVersions(versionId1, versionId2);
-      res.status(200).json({ success: true, data: comparison });
+      res.status(200).json(createSuccessResponse(comparison));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 }

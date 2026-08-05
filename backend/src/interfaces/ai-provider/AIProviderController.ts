@@ -1,6 +1,7 @@
 // AIProviderController - Controller for AI Provider Management endpoints
 import { Request, Response } from 'express';
 import { ManageAIProviders } from '../../application/ai-provider/ManageAIProviders';
+import { createSuccessResponse, createErrorResponse } from '../types/ApiResponse';
 
 export class AIProviderController {
   constructor(private readonly manageAIProviders: ManageAIProviders) {}
@@ -9,9 +10,9 @@ export class AIProviderController {
     try {
       const { projectId } = req.params;
       const providers = await this.manageAIProviders.listByProject(projectId);
-      res.status(200).json({ success: true, data: providers });
+      res.status(200).json(createSuccessResponse(providers));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -19,9 +20,9 @@ export class AIProviderController {
     try {
       const { providerId } = req.params;
       const provider = await this.manageAIProviders.getProvider(providerId);
-      res.status(200).json({ success: true, data: provider });
+      res.status(200).json(createSuccessResponse(provider));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -58,9 +59,9 @@ export class AIProviderController {
         enabled,
         default: isDefault,
       });
-      res.status(201).json({ success: true, data: created });
+      res.status(201).json(createSuccessResponse(created));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -96,9 +97,9 @@ export class AIProviderController {
         enabled,
         default: isDefault,
       });
-      res.status(200).json({ success: true, data: updated });
+      res.status(200).json(createSuccessResponse(updated));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -108,7 +109,7 @@ export class AIProviderController {
       await this.manageAIProviders.delete(providerId);
       res.status(204).send();
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -116,9 +117,9 @@ export class AIProviderController {
     try {
       const { providerId } = req.params;
       const result = await this.manageAIProviders.testConnection(providerId);
-      res.status(200).json({ success: true, data: result });
+      res.status(200).json(createSuccessResponse(result));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -126,9 +127,9 @@ export class AIProviderController {
     try {
       const { providerId } = req.params;
       const provider = await this.manageAIProviders.enable(providerId);
-      res.status(200).json({ success: true, data: provider });
+      res.status(200).json(createSuccessResponse(provider));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -136,9 +137,9 @@ export class AIProviderController {
     try {
       const { providerId } = req.params;
       const provider = await this.manageAIProviders.disable(providerId);
-      res.status(200).json({ success: true, data: provider });
+      res.status(200).json(createSuccessResponse(provider));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -146,27 +147,27 @@ export class AIProviderController {
     try {
       const { providerId } = req.params;
       const provider = await this.manageAIProviders.setDefault(providerId);
-      res.status(200).json({ success: true, data: provider });
+      res.status(200).json(createSuccessResponse(provider));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
   async listSupportedTypes(req: Request, res: Response): Promise<void> {
     try {
       const types = this.manageAIProviders.listSupportedTypes();
-      res.status(200).json({ success: true, data: types });
+      res.status(200).json(createSuccessResponse(types));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
   async listAdapters(req: Request, res: Response): Promise<void> {
     try {
       const adapters = this.manageAIProviders.listAdapters();
-      res.status(200).json({ success: true, data: adapters });
+      res.status(200).json(createSuccessResponse(adapters));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -179,9 +180,9 @@ export class AIProviderController {
         messages || [],
         maxTokens
       );
-      res.status(200).json({ success: true, data: estimate });
+      res.status(200).json(createSuccessResponse(estimate));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -194,9 +195,9 @@ export class AIProviderController {
         messages || [],
         options
       );
-      res.status(200).json({ success: true, data: result });
+      res.status(200).json(createSuccessResponse(result));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 }

@@ -7,6 +7,7 @@ import { DatasetRepository } from '../../domain/test-data/DatasetRepository';
 import { ColumnRepository } from '../../domain/test-data/ColumnRepository';
 import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowRepository';
 import { ColumnRepository as ColumnRepositoryImpl } from '../../infrastructure/test-data/ColumnRepository';
+import { createSuccessResponse, createErrorResponse } from '../types/ApiResponse';
 
 export class ImportController {
   constructor(
@@ -19,10 +20,7 @@ export class ImportController {
       const file = req.file;
 
       if (!file) {
-        res.status(400).json({
-          success: false,
-          message: 'No file uploaded',
-        });
+        res.status(400).json(createErrorResponse('No file uploaded', 'VALIDATION_ERROR'));
         return;
       }
 
@@ -35,18 +33,12 @@ export class ImportController {
 
       // Validate options
       if (!['append', 'replace', 'skipDuplicates'].includes(options.mode)) {
-        res.status(400).json({
-          success: false,
-          message: 'Invalid import mode. Must be: append, replace, or skipDuplicates',
-        });
+        res.status(400).json(createErrorResponse('Invalid import mode. Must be: append, replace, or skipDuplicates', 'VALIDATION_ERROR'));
         return;
       }
 
       if (!['stop', 'continue'].includes(options.onError)) {
-        res.status(400).json({
-          success: false,
-          message: 'Invalid onError option. Must be: stop or continue',
-        });
+        res.status(400).json(createErrorResponse('Invalid onError option. Must be: stop or continue', 'VALIDATION_ERROR'));
         return;
       }
 
@@ -60,10 +52,7 @@ export class ImportController {
       );
 
       if (result.success) {
-        res.status(200).json({
-          success: true,
-          data: result,
-        });
+        res.status(200).json(createSuccessResponse(result));
       } else {
         res.status(400).json({
           success: false,
@@ -90,9 +79,8 @@ export class ImportController {
       // Return CSV header template
       const csvHeader = columns.map(col => col.name).join(',');
       
-      res.status(200).json({
-        success: true,
-        data: {
+      res.status(200).json(
+        createSuccessResponse({
           csvHeader,
           columns: columns.map((col) => ({
             name: col.name,
@@ -102,14 +90,11 @@ export class ImportController {
             unique: col.unique,
             nullable: col.nullable,
           })),
-        },
-      });
+        })
+      );
     } catch (error: any) {
       console.error('Get template error:', error);
-      res.status(500).json({
-        success: false,
-        message: error.message || 'Failed to get template',
-      });
+      res.status(500).json(createErrorResponse(error.message || 'Failed to get template', 'INTERNAL_SERVER_ERROR'));
     }
   }
 }

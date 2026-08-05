@@ -5,6 +5,7 @@ import { UpdateEnvironment } from '../../application/environment/UpdateEnvironme
 import { DeleteEnvironment } from '../../application/environment/DeleteEnvironment';
 import { GetEnvironment } from '../../application/environment/GetEnvironment';
 import { ListEnvironments } from '../../application/environment/ListEnvironments';
+import { ApiResponse, createSuccessResponse, createErrorResponse } from '../types/ApiResponse';
 
 export class EnvironmentController {
   constructor(
@@ -19,9 +20,9 @@ export class EnvironmentController {
     try {
       const projectId = req.params.projectId;
       const environments = await this.listEnvironmentsUseCase.execute({ projectId });
-      res.status(200).json({ success: true, data: environments });
+      res.status(200).json(createSuccessResponse(environments));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -40,14 +41,14 @@ export class EnvironmentController {
         timeout,
       });
 
-      res.status(201).json({ success: true, data: environment });
+      res.status(201).json(createSuccessResponse(environment));
     } catch (error: any) {
       if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else if (error.message.includes('already exists') || error.message.includes('Only one default')) {
-        res.status(409).json({ success: false, message: error.message, details: null });
+        res.status(409).json(createErrorResponse(error.message, 'CONFLICT'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -56,12 +57,12 @@ export class EnvironmentController {
     try {
       const { environmentId } = req.params;
       const environment = await this.getEnvironmentUseCase.execute(environmentId);
-      res.status(200).json({ success: true, data: environment });
+      res.status(200).json(createSuccessResponse(environment));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -82,16 +83,16 @@ export class EnvironmentController {
         isDefault,
       });
 
-      res.status(200).json({ success: true, data: environment });
+      res.status(200).json(createSuccessResponse(environment));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else if (error.message.includes('required') || error.message.includes('cannot be empty') || error.message.includes('must be greater')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else if (error.message.includes('already exists') || error.message.includes('Only one default')) {
-        res.status(409).json({ success: false, message: error.message, details: null });
+        res.status(409).json(createErrorResponse(error.message, 'CONFLICT'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -103,9 +104,9 @@ export class EnvironmentController {
       res.status(204).send();
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }

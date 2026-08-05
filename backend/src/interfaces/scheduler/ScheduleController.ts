@@ -4,6 +4,7 @@ import { CreateSchedule } from '../../application/scheduler/CreateSchedule';
 import { UpdateSchedule } from '../../application/scheduler/UpdateSchedule';
 import { GetSchedule, ListSchedules, DeleteSchedule } from '../../application/scheduler/ManageSchedules';
 import { SchedulerService } from '../../application/scheduler/SchedulerService';
+import { createSuccessResponse, createErrorResponse } from '../types/ApiResponse';
 
 export class ScheduleController {
   constructor(
@@ -22,14 +23,14 @@ export class ScheduleController {
         projectId,
         ...req.body,
       });
-      res.status(201).json({ success: true, data: schedule });
+      res.status(201).json(createSuccessResponse(schedule));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else if (error.message.includes('required') || error.message.includes('Invalid') || error.message.includes('already exists') || error.message.includes('disabled')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -42,14 +43,14 @@ export class ScheduleController {
         projectId,
         ...req.body,
       });
-      res.status(200).json({ success: true, data: schedule });
+      res.status(200).json(createSuccessResponse(schedule));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else if (error.message.includes('required') || error.message.includes('Invalid') || error.message.includes('already exists') || error.message.includes('disabled')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -58,12 +59,12 @@ export class ScheduleController {
     try {
       const { scheduleId } = req.params;
       const schedule = await this.getScheduleUseCase.execute(scheduleId);
-      res.status(200).json({ success: true, data: schedule });
+      res.status(200).json(createSuccessResponse(schedule));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -72,9 +73,9 @@ export class ScheduleController {
     try {
       const { projectId } = req.params;
       const schedules = await this.listSchedulesUseCase.execute(projectId);
-      res.status(200).json({ success: true, data: schedules });
+      res.status(200).json(createSuccessResponse(schedules));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -85,9 +86,9 @@ export class ScheduleController {
       res.status(204).send();
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -96,14 +97,14 @@ export class ScheduleController {
     try {
       const { scheduleId } = req.params;
       const schedule = await this.schedulerService.runNow(scheduleId);
-      res.status(200).json({ success: true, data: schedule });
+      res.status(200).json(createSuccessResponse(schedule));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else if (error.message.includes('already running')) {
-        res.status(409).json({ success: false, message: error.message, details: null });
+        res.status(409).json(createErrorResponse(error.message, 'CONFLICT'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -116,12 +117,12 @@ export class ScheduleController {
         projectId,
         enabled: true,
       });
-      res.status(200).json({ success: true, data: schedule });
+      res.status(200).json(createSuccessResponse(schedule));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -134,12 +135,12 @@ export class ScheduleController {
         projectId,
         enabled: false,
       });
-      res.status(200).json({ success: true, data: schedule });
+      res.status(200).json(createSuccessResponse(schedule));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }

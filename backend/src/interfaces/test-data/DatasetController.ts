@@ -5,6 +5,7 @@ import { UpdateDataset } from '../../application/test-data/UpdateDataset';
 import { DeleteDataset } from '../../application/test-data/DeleteDataset';
 import { GetDataset } from '../../application/test-data/GetDataset';
 import { ListDatasets } from '../../application/test-data/ListDatasets';
+import { createSuccessResponse, createErrorResponse } from '../types/ApiResponse';
 
 export class DatasetController {
   constructor(
@@ -19,9 +20,9 @@ export class DatasetController {
     try {
       const projectId = req.params.projectId;
       const datasets = await this.listDatasetsUseCase.execute({ projectId });
-      res.status(200).json({ success: true, data: datasets });
+      res.status(200).json(createSuccessResponse(datasets));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -37,14 +38,14 @@ export class DatasetController {
         category,
       });
 
-      res.status(201).json({ success: true, data: dataset });
+      res.status(201).json(createSuccessResponse(dataset));
     } catch (error: any) {
       if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else if (error.message.includes('already exists')) {
-        res.status(409).json({ success: false, message: error.message, details: null });
+        res.status(409).json(createErrorResponse(error.message, 'CONFLICT'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -53,12 +54,12 @@ export class DatasetController {
     try {
       const { datasetId } = req.params;
       const dataset = await this.getDatasetUseCase.execute(datasetId);
-      res.status(200).json({ success: true, data: dataset });
+      res.status(200).json(createSuccessResponse(dataset));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -75,16 +76,16 @@ export class DatasetController {
         category,
       });
 
-      res.status(200).json({ success: true, data: dataset });
+      res.status(200).json(createSuccessResponse(dataset));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else if (error.message.includes('already exists')) {
-        res.status(409).json({ success: false, message: error.message, details: null });
+        res.status(409).json(createErrorResponse(error.message, 'CONFLICT'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -96,9 +97,9 @@ export class DatasetController {
       res.status(204).send();
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }

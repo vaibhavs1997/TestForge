@@ -10,6 +10,7 @@ import { ValidateRequirementReadiness } from '../../application/requirements/Val
 import { PlanTestStrategy } from '../../application/requirements/PlanTestStrategy';
 import { GenerateTestDesigns } from '../../application/requirements/GenerateTestDesigns';
 import { PlanExecution } from '../../application/requirements/PlanExecution';
+import { createSuccessResponse, createErrorResponse } from '../types/ApiResponse';
 
 export class RequirementController {
   constructor(
@@ -30,9 +31,9 @@ export class RequirementController {
       const projectId = req.params.projectId;
       const approvalStatus = req.query.approvalStatus as string | undefined;
       const items = await this.listRequirementsUseCase.execute({ projectId, approvalStatus });
-      res.status(200).json({ success: true, data: items });
+      res.status(200).json(createSuccessResponse(items));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -57,12 +58,12 @@ export class RequirementController {
         acceptanceCriteria,
       });
 
-      res.status(201).json({ success: true, data: requirement });
+      res.status(201).json(createSuccessResponse(requirement));
     } catch (error: any) {
       if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -71,12 +72,12 @@ export class RequirementController {
     try {
       const { requirementId } = req.params;
       const requirement = await this.getRequirementUseCase.execute(requirementId);
-      res.status(200).json({ success: true, data: requirement });
+      res.status(200).json(createSuccessResponse(requirement));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -102,14 +103,14 @@ export class RequirementController {
         acceptanceCriteria,
       });
 
-      res.status(200).json({ success: true, data: requirement });
+      res.status(200).json(createSuccessResponse(requirement));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -121,9 +122,9 @@ export class RequirementController {
       res.status(204).send();
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -133,9 +134,9 @@ export class RequirementController {
       const projectId = req.params.projectId;
       const { analysisId } = req.params;
       const requirements = await this.generateFromAnalysisUseCase.execute(projectId, analysisId);
-      res.status(201).json({ success: true, data: requirements });
+      res.status(201).json(createSuccessResponse(requirements));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -143,12 +144,12 @@ export class RequirementController {
     try {
       const { requirementId } = req.params;
       const report = await this.validateRequirementReadinessUseCase.execute(requirementId);
-      res.status(200).json({ success: true, data: report });
+      res.status(200).json(createSuccessResponse(report));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -157,12 +158,12 @@ export class RequirementController {
     try {
       const { requirementId } = req.params;
       const strategy = await this.planTestStrategyUseCase.execute(requirementId);
-      res.status(201).json({ success: true, data: strategy });
+      res.status(201).json(createSuccessResponse(strategy));
     } catch (error: any) {
       if (error.message.includes('not found') || error.message.includes('Only Approved')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -171,12 +172,12 @@ export class RequirementController {
     try {
       const { requirementId } = req.params;
       const designs = await this.generateTestDesignsUseCase.execute(requirementId);
-      res.status(201).json({ success: true, data: designs });
+      res.status(201).json(createSuccessResponse(designs));
     } catch (error: any) {
       if (error.message.includes('not found') || error.message.includes('Test strategy not found')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -185,12 +186,12 @@ export class RequirementController {
     try {
       const { requirementId } = req.params;
       const plans = await this.planExecutionUseCase.execute(requirementId);
-      res.status(201).json({ success: true, data: plans });
+      res.status(201).json(createSuccessResponse(plans));
     } catch (error: any) {
       if (error.message.includes('not found') || error.message.includes('No test designs')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }

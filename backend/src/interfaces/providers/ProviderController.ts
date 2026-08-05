@@ -2,6 +2,7 @@
 import { Request, Response } from 'express';
 import { ManageProviders } from '../../application/providers/ManageProviders';
 import { ProviderAdapterRegistry } from '../../infrastructure/providers/adapters/ProviderAdapterRegistry';
+import { createSuccessResponse, createErrorResponse } from '../types/ApiResponse';
 
 export class ProviderController {
   constructor(private readonly manageProviders: ManageProviders) {}
@@ -10,9 +11,9 @@ export class ProviderController {
     try {
       const { projectId } = req.params;
       const provider = await this.manageProviders.create({ projectId, ...req.body });
-      res.status(201).json({ success: true, data: provider });
+      res.status(201).json(createSuccessResponse(provider));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -22,13 +23,13 @@ export class ProviderController {
       const provider = await this.manageProviders.get(providerId);
       const adapter = ProviderAdapterRegistry.getInstance().get(provider.adapter);
       if (!adapter) {
-        res.status(400).json({ success: false, message: 'No adapter', details: null });
+        res.status(400).json(createErrorResponse('No adapter', 'VALIDATION_ERROR'));
         return;
       }
       const result = await adapter.testConnection(provider.configuration, provider.credentials);
-      res.status(200).json({ success: true, data: result });
+      res.status(200).json(createSuccessResponse(result));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -36,9 +37,9 @@ export class ProviderController {
     try {
       const { providerId } = req.params;
       const provider = await this.manageProviders.get(providerId);
-      res.status(200).json({ success: true, data: provider });
+      res.status(200).json(createSuccessResponse(provider));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -52,21 +53,26 @@ export class ProviderController {
       } else {
         providers = await this.manageProviders.listByProject(projectId);
       }
-      res.status(200).json({ success: true, data: providers });
+      res.status(200).json(createSuccessResponse(providers));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
   async listAdapterTypes(req: Request, res: Response): Promise<void> {
     try {
       const adapters = ProviderAdapterRegistry.getInstance().list();
-      res.status(200).json({
-        success: true,
-        data: adapters.map(a => ({ type: a.type, category: a.category, capabilities: a.getCapabilities() })),
-      });
+      res.status(200).json(
+        createSuccessResponse(
+          adapters.map((a) => ({
+            type: a.type,
+            category: a.category,
+            capabilities: a.getCapabilities(),
+          }))
+        )
+      );
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -74,9 +80,9 @@ export class ProviderController {
     try {
       const { providerId } = req.params;
       const provider = await this.manageProviders.update(providerId, req.body);
-      res.status(200).json({ success: true, data: provider });
+      res.status(200).json(createSuccessResponse(provider));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -86,7 +92,7 @@ export class ProviderController {
       await this.manageProviders.delete(providerId);
       res.status(204).send();
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 }

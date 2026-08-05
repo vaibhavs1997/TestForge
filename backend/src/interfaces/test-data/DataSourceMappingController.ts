@@ -5,6 +5,7 @@ import { UpdateDataSourceMapping } from '../../application/test-data/UpdateDataS
 import { DeleteDataSourceMapping } from '../../application/test-data/DeleteDataSourceMapping';
 import { GetDataSourceMapping } from '../../application/test-data/GetDataSourceMapping';
 import { ListDataSourceMappings } from '../../application/test-data/ListDataSourceMappings';
+import { createSuccessResponse, createErrorResponse } from '../types/ApiResponse';
 
 export class DataSourceMappingController {
   constructor(
@@ -25,9 +26,9 @@ export class DataSourceMappingController {
         operationId: operationId as string | undefined,
       });
       
-      res.status(200).json({ success: true, data: mappings });
+      res.status(200).json(createSuccessResponse(mappings));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -50,14 +51,14 @@ export class DataSourceMappingController {
         notes,
       });
 
-      res.status(201).json({ success: true, data: mapping });
+      res.status(201).json(createSuccessResponse(mapping));
     } catch (error: any) {
       if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else if (error.message.includes('already exists')) {
-        res.status(409).json({ success: false, message: error.message, details: null });
+        res.status(409).json(createErrorResponse(error.message, 'CONFLICT'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -66,12 +67,12 @@ export class DataSourceMappingController {
     try {
       const { mappingId } = req.params;
       const mapping = await this.getMappingUseCase.execute(mappingId);
-      res.status(200).json({ success: true, data: mapping });
+      res.status(200).json(createSuccessResponse(mapping));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -93,16 +94,16 @@ export class DataSourceMappingController {
         notes,
       });
 
-      res.status(200).json({ success: true, data: mapping });
+      res.status(200).json(createSuccessResponse(mapping));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else if (error.message.includes('already exists')) {
-        res.status(409).json({ success: false, message: error.message, details: null });
+        res.status(409).json(createErrorResponse(error.message, 'CONFLICT'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -114,9 +115,9 @@ export class DataSourceMappingController {
       res.status(204).send();
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }

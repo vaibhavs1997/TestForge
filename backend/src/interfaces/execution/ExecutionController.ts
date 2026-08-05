@@ -2,6 +2,7 @@
 import { Request, Response } from 'express';
 import { ExecutePlan } from '../../application/execution/ExecutePlan';
 import { ExecutionRunRepository } from '../../infrastructure/execution/ExecutionRunRepository';
+import { createSuccessResponse, createErrorResponse } from '../types/ApiResponse';
 
 export class ExecutionController {
   constructor(
@@ -15,9 +16,9 @@ export class ExecutionController {
       const { failureMode = 'StopOnFailure', executionProfileId } = req.body;
       
       const run = await this.executePlanUseCase.execute(executionPlanId, failureMode as any, executionProfileId);
-      res.status(201).json({ success: true, data: run });
+      res.status(201).json(createSuccessResponse(run));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -27,13 +28,13 @@ export class ExecutionController {
       const run = await this.executionRunRepository.findById(runId);
       
       if (!run) {
-        res.status(404).json({ success: false, message: 'Execution run not found', details: null });
+        res.status(404).json(createErrorResponse('Execution run not found', 'NOT_FOUND'));
         return;
       }
       
-      res.status(200).json({ success: true, data: run });
+      res.status(200).json(createSuccessResponse(run));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -41,9 +42,9 @@ export class ExecutionController {
     try {
       const projectId = req.params.projectId;
       const runs = await this.executionRunRepository.findByProject(projectId);
-      res.status(200).json({ success: true, data: runs });
+      res.status(200).json(createSuccessResponse(runs));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -52,7 +53,7 @@ export class ExecutionController {
       const { runId } = req.params;
       res.status(501).json({ success: false, message: 'Cancel execution not yet implemented', details: null });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 }

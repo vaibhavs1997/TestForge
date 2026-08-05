@@ -6,6 +6,7 @@ import { DeleteAnalysis } from '../../application/analysis/DeleteAnalysis';
 import { GetAnalysis } from '../../application/analysis/GetAnalysis';
 import { ListAnalysis } from '../../application/analysis/ListAnalysis';
 import { AnalyzeProject } from '../../application/analysis/AnalyzeProject';
+import { createSuccessResponse, createErrorResponse } from '../types/ApiResponse';
 
 export class AnalysisController {
   constructor(
@@ -21,9 +22,9 @@ export class AnalysisController {
     try {
       const projectId = req.params.projectId;
       const items = await this.listAnalysisUseCase.execute({ projectId });
-      res.status(200).json({ success: true, data: items });
+      res.status(200).json(createSuccessResponse(items));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -45,12 +46,12 @@ export class AnalysisController {
         status,
       });
 
-      res.status(201).json({ success: true, data: analysis });
+      res.status(201).json(createSuccessResponse(analysis));
     } catch (error: any) {
       if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -59,12 +60,12 @@ export class AnalysisController {
     try {
       const { analysisId } = req.params;
       const analysis = await this.getAnalysisUseCase.execute(analysisId);
-      res.status(200).json({ success: true, data: analysis });
+      res.status(200).json(createSuccessResponse(analysis));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -87,14 +88,14 @@ export class AnalysisController {
         status,
       });
 
-      res.status(200).json({ success: true, data: analysis });
+      res.status(200).json(createSuccessResponse(analysis));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -106,9 +107,9 @@ export class AnalysisController {
       res.status(204).send();
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -117,9 +118,9 @@ export class AnalysisController {
     try {
       const projectId = req.params.projectId;
       const cards = await this.analyzeProjectUseCase.execute(projectId);
-      res.status(200).json({ success: true, data: cards });
+      res.status(200).json(createSuccessResponse(cards));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 }

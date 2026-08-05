@@ -15,6 +15,7 @@ import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
 import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
 import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity';
 import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
+import { createSuccessResponse, createErrorResponse } from '../types/ApiResponse';
 
 export class ApiController {
   constructor(
@@ -37,9 +38,9 @@ export class ApiController {
     try {
       const projectId = req.params.projectId;
       const services = await this.listApiServices.execute(projectId);
-      res.status(200).json({ success: true, data: services });
+      res.status(200).json(createSuccessResponse(services));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -56,14 +57,14 @@ export class ApiController {
         tags,
       });
 
-      res.status(201).json({ success: true, data: service });
+      res.status(201).json(createSuccessResponse(service));
     } catch (error: any) {
       if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else if (error.message.includes('already exists')) {
-        res.status(409).json({ success: false, message: error.message, details: null });
+        res.status(409).json(createErrorResponse(error.message, 'CONFLICT'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -72,12 +73,12 @@ export class ApiController {
     try {
       const { serviceId } = req.params;
       const service = await this.getApiService.execute(serviceId);
-      res.status(200).json({ success: true, data: service });
+      res.status(200).json(createSuccessResponse(service));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -95,16 +96,16 @@ export class ApiController {
         tags,
       });
 
-      res.status(200).json({ success: true, data: service });
+      res.status(200).json(createSuccessResponse(service));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else if (error.message.includes('already exists')) {
-        res.status(409).json({ success: false, message: error.message, details: null });
+        res.status(409).json(createErrorResponse(error.message, 'CONFLICT'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -116,9 +117,9 @@ export class ApiController {
       res.status(204).send();
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -127,9 +128,9 @@ export class ApiController {
     try {
       const { serviceId } = req.params;
       const operations = await this.listApiOperations.execute(serviceId);
-      res.status(200).json({ success: true, data: operations });
+      res.status(200).json(createSuccessResponse(operations));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -149,16 +150,16 @@ export class ApiController {
         status,
       });
 
-      res.status(201).json({ success: true, data: operation });
+      res.status(201).json(createSuccessResponse(operation));
     } catch (error: any) {
       if (error.message.includes('required') || error.message.includes('cannot be empty') || error.message.includes('must begin with')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else if (error.message.includes('already exists')) {
-        res.status(409).json({ success: false, message: error.message, details: null });
+        res.status(409).json(createErrorResponse(error.message, 'CONFLICT'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -167,12 +168,12 @@ export class ApiController {
     try {
       const { apiId } = req.params;
       const operation = await this.getApiOperation.execute(apiId);
-      res.status(200).json({ success: true, data: operation });
+      res.status(200).json(createSuccessResponse(operation));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -192,16 +193,16 @@ export class ApiController {
         status,
       });
 
-      res.status(200).json({ success: true, data: operation });
+      res.status(200).json(createSuccessResponse(operation));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else if (error.message.includes('required') || error.message.includes('cannot be empty') || error.message.includes('must begin with')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else if (error.message.includes('already exists')) {
-        res.status(409).json({ success: false, message: error.message, details: null });
+        res.status(409).json(createErrorResponse(error.message, 'CONFLICT'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -213,9 +214,9 @@ export class ApiController {
       res.status(204).send();
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -226,7 +227,7 @@ export class ApiController {
       const file = req.file;
 
       if (!file) {
-        res.status(400).json({ success: false, message: 'No file uploaded', details: null });
+        res.status(400).json(createErrorResponse('No file uploaded', 'VALIDATION_ERROR'));
         return;
       }
 
@@ -239,9 +240,9 @@ export class ApiController {
         content,
       });
 
-      res.status(200).json({ success: true, data: summary });
+      res.status(200).json(createSuccessResponse(summary));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 }

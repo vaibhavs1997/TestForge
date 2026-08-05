@@ -1,6 +1,7 @@
 // ProjectContextController - Controller for Project Context endpoint
 import { Request, Response } from 'express';
 import { ProjectContextService } from '../../application/context/ProjectContextService';
+import { createSuccessResponse, createErrorResponse } from '../types/ApiResponse';
 
 export class ProjectContextController {
   constructor(private readonly projectContextService: ProjectContextService) {}
@@ -9,9 +10,9 @@ export class ProjectContextController {
     try {
       const { projectId } = req.params;
       const context = await this.projectContextService.buildContext(projectId);
-      res.status(200).json({ success: true, data: context });
+      res.status(200).json(createSuccessResponse(context));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 }

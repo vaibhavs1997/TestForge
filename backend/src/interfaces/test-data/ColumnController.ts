@@ -6,6 +6,7 @@ import { DeleteColumn } from '../../application/test-data/DeleteColumn';
 import { GetColumn } from '../../application/test-data/GetColumn';
 import { ListColumns } from '../../application/test-data/ListColumns';
 import { SuggestColumns } from '../../application/test-data/SuggestColumns';
+import { createSuccessResponse, createErrorResponse } from '../types/ApiResponse';
 
 export class ColumnController {
   constructor(
@@ -23,9 +24,9 @@ export class ColumnController {
       const columns = await this.listColumnsUseCase.execute({
         datasetId: datasetId as string | undefined,
       });
-      res.status(200).json({ success: true, data: columns });
+      res.status(200).json(createSuccessResponse(columns));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -44,14 +45,14 @@ export class ColumnController {
         description,
       });
 
-      res.status(201).json({ success: true, data: column });
+      res.status(201).json(createSuccessResponse(column));
     } catch (error: any) {
       if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else if (error.message.includes('already exists')) {
-        res.status(409).json({ success: false, message: error.message, details: null });
+        res.status(409).json(createErrorResponse(error.message, 'CONFLICT'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -60,12 +61,12 @@ export class ColumnController {
     try {
       const { columnId } = req.params;
       const column = await this.getColumnUseCase.execute(columnId);
-      res.status(200).json({ success: true, data: column });
+      res.status(200).json(createSuccessResponse(column));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -86,16 +87,16 @@ export class ColumnController {
         description,
       });
 
-      res.status(200).json({ success: true, data: column });
+      res.status(200).json(createSuccessResponse(column));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else if (error.message.includes('already exists')) {
-        res.status(409).json({ success: false, message: error.message, details: null });
+        res.status(409).json(createErrorResponse(error.message, 'CONFLICT'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -107,9 +108,9 @@ export class ColumnController {
       res.status(204).send();
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -124,9 +125,9 @@ export class ColumnController {
         datasetName: datasetName as string,
       });
 
-      res.status(200).json({ success: true, data: result });
+      res.status(200).json(createSuccessResponse(result));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 }

@@ -1,6 +1,7 @@
 // PluginController - Controller for Plugin Module endpoints
 import { Request, Response } from 'express';
 import { PluginService } from '../../application/plugin/PluginService';
+import { createSuccessResponse, createErrorResponse } from '../types/ApiResponse';
 
 export class PluginController {
   constructor(private readonly pluginService: PluginService) {}
@@ -20,9 +21,9 @@ export class PluginController {
         plugins = await this.pluginService.listPlugins();
       }
       
-      res.status(200).json({ success: true, data: plugins });
+      res.status(200).json(createSuccessResponse(plugins));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -30,9 +31,9 @@ export class PluginController {
     try {
       const { pluginId } = req.params;
       const plugin = await this.pluginService.getPlugin(pluginId);
-      res.status(200).json({ success: true, data: plugin });
+      res.status(200).json(createSuccessResponse(plugin));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -49,9 +50,9 @@ export class PluginController {
         enabled,
         projectId,
       });
-      res.status(201).json({ success: true, data: plugin });
+      res.status(201).json(createSuccessResponse(plugin));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -59,9 +60,9 @@ export class PluginController {
     try {
       const { pluginId } = req.params;
       const plugin = await this.pluginService.enablePlugin(pluginId);
-      res.status(200).json({ success: true, data: plugin });
+      res.status(200).json(createSuccessResponse(plugin));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -69,9 +70,9 @@ export class PluginController {
     try {
       const { pluginId } = req.params;
       const plugin = await this.pluginService.disablePlugin(pluginId);
-      res.status(200).json({ success: true, data: plugin });
+      res.status(200).json(createSuccessResponse(plugin));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -80,9 +81,9 @@ export class PluginController {
       const { pluginId } = req.params;
       const { configuration } = req.body;
       const plugin = await this.pluginService.updateConfiguration(pluginId, configuration);
-      res.status(200).json({ success: true, data: plugin });
+      res.status(200).json(createSuccessResponse(plugin));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -92,7 +93,7 @@ export class PluginController {
       await this.pluginService.deletePlugin(pluginId);
       res.status(204).send();
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -100,9 +101,9 @@ export class PluginController {
     try {
       const { pluginId } = req.params;
       const health = await this.pluginService.checkHealth(pluginId);
-      res.status(200).json({ success: true, data: health });
+      res.status(200).json(createSuccessResponse(health));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -113,9 +114,9 @@ export class PluginController {
         category as any,
         capability
       );
-      res.status(200).json({ success: true, data: plugins });
+      res.status(200).json(createSuccessResponse(plugins));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 }

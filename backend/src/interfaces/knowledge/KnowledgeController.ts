@@ -9,6 +9,7 @@ import { ManageBusinessRules } from '../../application/knowledge/ManageBusinessR
 import { ManageRuntimeVariables } from '../../application/knowledge/ManageRuntimeVariables';
 import { ManageDependencies } from '../../application/knowledge/ManageDependencies';
 import { ManageDocumentation } from '../../application/knowledge/ManageDocumentation';
+import { createSuccessResponse, createErrorResponse } from '../types/ApiResponse';
 
 export class KnowledgeController {
   constructor(
@@ -28,9 +29,9 @@ export class KnowledgeController {
     try {
       const projectId = req.params.projectId;
       const flows = await this.listKnowledgeFlows.execute({ projectId });
-      res.status(200).json({ success: true, data: flows });
+      res.status(200).json(createSuccessResponse(flows));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -48,14 +49,14 @@ export class KnowledgeController {
         steps,
       });
 
-      res.status(201).json({ success: true, data: flow });
+      res.status(201).json(createSuccessResponse(flow));
     } catch (error: any) {
       if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else if (error.message.includes('already exists')) {
-        res.status(409).json({ success: false, message: error.message, details: null });
+        res.status(409).json(createErrorResponse(error.message, 'CONFLICT'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -64,12 +65,12 @@ export class KnowledgeController {
     try {
       const { flowId } = req.params;
       const flow = await this.getKnowledgeFlow.execute(flowId);
-      res.status(200).json({ success: true, data: flow });
+      res.status(200).json(createSuccessResponse(flow));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -88,16 +89,16 @@ export class KnowledgeController {
         steps,
       });
 
-      res.status(200).json({ success: true, data: flow });
+      res.status(200).json(createSuccessResponse(flow));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else if (error.message.includes('already exists')) {
-        res.status(409).json({ success: false, message: error.message, details: null });
+        res.status(409).json(createErrorResponse(error.message, 'CONFLICT'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -109,9 +110,9 @@ export class KnowledgeController {
       res.status(204).send();
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -121,9 +122,9 @@ export class KnowledgeController {
     try {
       const projectId = req.params.projectId;
       const rules = await this.manageBusinessRules.list(projectId);
-      res.status(200).json({ success: true, data: rules });
+      res.status(200).json(createSuccessResponse(rules));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -146,14 +147,14 @@ export class KnowledgeController {
         isActive: body.isActive ?? true,
       });
 
-      res.status(201).json({ success: true, data: rule });
+      res.status(201).json(createSuccessResponse(rule));
     } catch (error: any) {
       if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else if (error.message.includes('already exists')) {
-        res.status(409).json({ success: false, message: error.message, details: null });
+        res.status(409).json(createErrorResponse(error.message, 'CONFLICT'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -162,12 +163,12 @@ export class KnowledgeController {
     try {
       const { ruleId } = req.params;
       const rule = await this.manageBusinessRules.get(ruleId);
-      res.status(200).json({ success: true, data: rule });
+      res.status(200).json(createSuccessResponse(rule));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -178,16 +179,16 @@ export class KnowledgeController {
       const body = req.body;
 
       const rule = await this.manageBusinessRules.update(ruleId, body);
-      res.status(200).json({ success: true, data: rule });
+      res.status(200).json(createSuccessResponse(rule));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else if (error.message.includes('already exists')) {
-        res.status(409).json({ success: false, message: error.message, details: null });
+        res.status(409).json(createErrorResponse(error.message, 'CONFLICT'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -199,9 +200,9 @@ export class KnowledgeController {
       res.status(204).send();
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -211,9 +212,9 @@ export class KnowledgeController {
     try {
       const projectId = req.params.projectId;
       const variables = await this.manageRuntimeVariables.list(projectId);
-      res.status(200).json({ success: true, data: variables });
+      res.status(200).json(createSuccessResponse(variables));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -234,14 +235,14 @@ export class KnowledgeController {
         tags: body.tags || [],
       });
 
-      res.status(201).json({ success: true, data: variable });
+      res.status(201).json(createSuccessResponse(variable));
     } catch (error: any) {
       if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else if (error.message.includes('already exists')) {
-        res.status(409).json({ success: false, message: error.message, details: null });
+        res.status(409).json(createErrorResponse(error.message, 'CONFLICT'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -250,12 +251,12 @@ export class KnowledgeController {
     try {
       const { variableId } = req.params;
       const variable = await this.manageRuntimeVariables.get(variableId);
-      res.status(200).json({ success: true, data: variable });
+      res.status(200).json(createSuccessResponse(variable));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -266,16 +267,16 @@ export class KnowledgeController {
       const body = req.body;
 
       const variable = await this.manageRuntimeVariables.update(variableId, body);
-      res.status(200).json({ success: true, data: variable });
+      res.status(200).json(createSuccessResponse(variable));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else if (error.message.includes('already exists')) {
-        res.status(409).json({ success: false, message: error.message, details: null });
+        res.status(409).json(createErrorResponse(error.message, 'CONFLICT'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -287,9 +288,9 @@ export class KnowledgeController {
       res.status(204).send();
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -299,9 +300,9 @@ export class KnowledgeController {
     try {
       const projectId = req.params.projectId;
       const dependencies = await this.manageDependencies.list(projectId);
-      res.status(200).json({ success: true, data: dependencies });
+      res.status(200).json(createSuccessResponse(dependencies));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -323,14 +324,14 @@ export class KnowledgeController {
         tags: body.tags || [],
       });
 
-      res.status(201).json({ success: true, data: dependency });
+      res.status(201).json(createSuccessResponse(dependency));
     } catch (error: any) {
       if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else if (error.message.includes('already exists')) {
-        res.status(409).json({ success: false, message: error.message, details: null });
+        res.status(409).json(createErrorResponse(error.message, 'CONFLICT'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -339,12 +340,12 @@ export class KnowledgeController {
     try {
       const { dependencyId } = req.params;
       const dependency = await this.manageDependencies.get(dependencyId);
-      res.status(200).json({ success: true, data: dependency });
+      res.status(200).json(createSuccessResponse(dependency));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -355,16 +356,16 @@ export class KnowledgeController {
       const body = req.body;
 
       const dependency = await this.manageDependencies.update(dependencyId, body);
-      res.status(200).json({ success: true, data: dependency });
+      res.status(200).json(createSuccessResponse(dependency));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else if (error.message.includes('already exists')) {
-        res.status(409).json({ success: false, message: error.message, details: null });
+        res.status(409).json(createErrorResponse(error.message, 'CONFLICT'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -376,9 +377,9 @@ export class KnowledgeController {
       res.status(204).send();
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -388,9 +389,9 @@ export class KnowledgeController {
     try {
       const projectId = req.params.projectId;
       const docs = await this.manageDocumentation.list(projectId);
-      res.status(200).json({ success: true, data: docs });
+      res.status(200).json(createSuccessResponse(docs));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -411,12 +412,12 @@ export class KnowledgeController {
         version: body.version || '1.0.0',
       });
 
-      res.status(201).json({ success: true, data: doc });
+      res.status(201).json(createSuccessResponse(doc));
     } catch (error: any) {
       if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -425,12 +426,12 @@ export class KnowledgeController {
     try {
       const { docId } = req.params;
       const doc = await this.manageDocumentation.get(docId);
-      res.status(200).json({ success: true, data: doc });
+      res.status(200).json(createSuccessResponse(doc));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -441,14 +442,14 @@ export class KnowledgeController {
       const body = req.body;
 
       const doc = await this.manageDocumentation.update(docId, body);
-      res.status(200).json({ success: true, data: doc });
+      res.status(200).json(createSuccessResponse(doc));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -460,9 +461,9 @@ export class KnowledgeController {
       res.status(204).send();
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }

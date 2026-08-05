@@ -1,6 +1,7 @@
 // AuditLogController - Controller for Audit Log Module endpoints
 import { Request, Response } from 'express';
 import { AuditLogService } from '../../application/audit/AuditLogService';
+import { createSuccessResponse, createErrorResponse } from '../types/ApiResponse';
 
 export class AuditLogController {
   constructor(private readonly auditLogService: AuditLogService) {}
@@ -19,9 +20,9 @@ export class AuditLogController {
         endDate: endDate ? Number(endDate) : undefined,
       });
 
-      res.status(200).json({ success: true, data: logs });
+      res.status(200).json(createSuccessResponse(logs));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -29,9 +30,9 @@ export class AuditLogController {
     try {
       const { logId } = req.params;
       const log = await this.auditLogService.getLogById(logId);
-      res.status(200).json({ success: true, data: log });
+      res.status(200).json(createSuccessResponse(log));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 }

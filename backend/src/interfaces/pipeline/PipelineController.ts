@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import { OrchestratePipeline } from '../../application/pipeline/OrchestratePipeline';
 import { RunAIPipeline } from '../../application/pipeline/RunAIPipeline';
 import { PipelineEntity, PipelineStage } from '../../domain/pipeline/PipelineEntity';
+import { createSuccessResponse } from '../types/ApiResponse';
 
 export class PipelineController {
   constructor(
@@ -99,7 +100,7 @@ export class PipelineController {
         autoApprove: !!autoApprove,
       });
 
-      res.status(200).json({ success: true, data: result });
+      res.status(200).json(createSuccessResponse(result));
     } catch (error) {
       res.status(500).json({
         error: error instanceof Error ? error.message : 'Failed to run AI pipeline'

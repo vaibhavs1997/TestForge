@@ -1,6 +1,7 @@
 // PromptController - Controller for Prompt Builder endpoints
 import { Request, Response } from 'express';
 import { PromptBuilderService } from '../../application/prompt/PromptBuilderService';
+import { createSuccessResponse, createErrorResponse } from '../types/ApiResponse';
 
 export class PromptController {
   constructor(private readonly promptBuilderService: PromptBuilderService) {}
@@ -10,9 +11,9 @@ export class PromptController {
     try {
       const { projectId } = req.params;
       const prompts = await this.promptBuilderService.listPrompts(projectId);
-      res.status(200).json({ success: true, data: prompts });
+      res.status(200).json(createSuccessResponse(prompts));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -21,9 +22,9 @@ export class PromptController {
     try {
       const { projectId } = req.params;
       const templates = await this.promptBuilderService.listTemplates(projectId);
-      res.status(200).json({ success: true, data: templates });
+      res.status(200).json(createSuccessResponse(templates));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -33,7 +34,7 @@ export class PromptController {
       const { projectId } = req.params;
       const { templateId, customVariables, createdBy } = req.body;
       if (!templateId) {
-        res.status(400).json({ success: false, message: 'templateId is required', details: null });
+        res.status(400).json(createErrorResponse('templateId is required', 'VALIDATION_ERROR'));
         return;
       }
       const prompt = await this.promptBuilderService.buildPrompt({
@@ -42,9 +43,9 @@ export class PromptController {
         customVariables,
         createdBy,
       });
-      res.status(201).json({ success: true, data: prompt });
+      res.status(201).json(createSuccessResponse(prompt));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -54,7 +55,7 @@ export class PromptController {
       const { projectId } = req.params;
       const { templateId, systemPromptOverride, userPromptOverride, variableOverrides } = req.body;
       if (!templateId) {
-        res.status(400).json({ success: false, message: 'templateId is required', details: null });
+        res.status(400).json(createErrorResponse('templateId is required', 'VALIDATION_ERROR'));
         return;
       }
       const preview = await this.promptBuilderService.previewPrompt({
@@ -64,9 +65,9 @@ export class PromptController {
         userPromptOverride,
         variableOverrides,
       });
-      res.status(200).json({ success: true, data: preview });
+      res.status(200).json(createSuccessResponse(preview));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -75,9 +76,9 @@ export class PromptController {
     try {
       const { promptId } = req.params;
       const prompt = await this.promptBuilderService.getPrompt(promptId);
-      res.status(200).json({ success: true, data: prompt });
+      res.status(200).json(createSuccessResponse(prompt));
     } catch (error: any) {
-      res.status(404).json({ success: false, message: error.message || 'Not Found', details: null });
+      res.status(404).json(createErrorResponse(error.message || 'Not Found', 'NOT_FOUND'));
     }
   }
 
@@ -88,7 +89,7 @@ export class PromptController {
       await this.promptBuilderService.deletePrompt(promptId);
       res.status(204).send();
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 }

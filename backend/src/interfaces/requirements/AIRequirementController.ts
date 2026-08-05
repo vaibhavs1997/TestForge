@@ -5,6 +5,7 @@ import { GenerateTestStrategyWithAI } from '../../application/requirements/Gener
 import { GenerateTestDesignWithAI } from '../../application/requirements/GenerateTestDesignWithAI';
 import { GenerateAssertionsWithAI } from '../../application/assertion/GenerateAssertionsWithAI';
 import { GenerateExecutionPlanWithAI } from '../../application/requirements/GenerateExecutionPlanWithAI';
+import { createErrorResponse } from '../types/ApiResponse';
 
 export class AIRequirementController {
   constructor(
@@ -21,7 +22,7 @@ export class AIRequirementController {
       const { providerId, previewOnly } = req.body;
 
       if (!providerId) {
-        res.status(400).json({ success: false, message: 'providerId is required', details: null });
+        res.status(400).json(createErrorResponse('providerId is required', 'VALIDATION_ERROR'));
         return;
       }
 
@@ -38,9 +39,9 @@ export class AIRequirementController {
       });
     } catch (error: any) {
       if (error.message.includes('not found') || error.message.includes('could not be resolved')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -51,7 +52,7 @@ export class AIRequirementController {
       const { providerId, previewOnly } = req.body;
 
       if (!providerId) {
-        res.status(400).json({ success: false, message: 'providerId is required', details: null });
+        res.status(400).json(createErrorResponse('providerId is required', 'VALIDATION_ERROR'));
         return;
       }
 
@@ -69,9 +70,9 @@ export class AIRequirementController {
       });
     } catch (error: any) {
       if (error.message.includes('not found') || error.message.includes('could not be resolved')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -81,7 +82,7 @@ export class AIRequirementController {
       const { providerId, previewOnly } = req.body;
 
       if (!providerId) {
-        res.status(400).json({ success: false, message: 'providerId is required', details: null });
+        res.status(400).json(createErrorResponse('providerId is required', 'VALIDATION_ERROR'));
         return;
       }
 
@@ -99,9 +100,9 @@ export class AIRequirementController {
       });
     } catch (error: any) {
       if (error.message.includes('not found') || error.message.includes('could not be resolved')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -112,7 +113,7 @@ export class AIRequirementController {
       const { providerId, previewOnly } = req.body;
 
       if (!providerId) {
-        res.status(400).json({ success: false, message: 'providerId is required', details: null });
+        res.status(400).json(createErrorResponse('providerId is required', 'VALIDATION_ERROR'));
         return;
       }
 
@@ -130,9 +131,9 @@ export class AIRequirementController {
       });
     } catch (error: any) {
       if (error.message.includes('not found') || error.message.includes('could not be resolved')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -143,7 +144,7 @@ export class AIRequirementController {
       const { providerId, previewOnly } = req.body;
 
       if (!providerId) {
-        res.status(400).json({ success: false, message: 'providerId is required', details: null });
+        res.status(400).json(createErrorResponse('providerId is required', 'VALIDATION_ERROR'));
         return;
       }
 
@@ -161,9 +162,9 @@ export class AIRequirementController {
       });
     } catch (error: any) {
       if (error.message.includes('not found') || error.message.includes('could not be resolved')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }

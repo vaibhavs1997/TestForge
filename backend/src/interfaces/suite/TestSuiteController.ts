@@ -2,6 +2,7 @@
 import { Request, Response } from 'express';
 import { ManageTestSuites } from '../../application/suite/ManageTestSuites';
 import { GenerateTestSuiteWithAI } from '../../application/suite/GenerateTestSuiteWithAI';
+import { createSuccessResponse, createErrorResponse } from '../types/ApiResponse';
 
 export class TestSuiteController {
   constructor(
@@ -13,9 +14,9 @@ export class TestSuiteController {
     try {
       const projectId = req.params.projectId;
       const items = await this.manageTestSuites.list(projectId);
-      res.status(200).json({ success: true, data: items });
+      res.status(200).json(createSuccessResponse(items));
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+      res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
     }
   }
 
@@ -36,12 +37,12 @@ export class TestSuiteController {
         status,
       });
 
-      res.status(201).json({ success: true, data: suite });
+      res.status(201).json(createSuccessResponse(suite));
     } catch (error: any) {
       if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -50,12 +51,12 @@ export class TestSuiteController {
     try {
       const { suiteId } = req.params;
       const suite = await this.manageTestSuites.get(suiteId);
-      res.status(200).json({ success: true, data: suite });
+      res.status(200).json(createSuccessResponse(suite));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -77,14 +78,14 @@ export class TestSuiteController {
         status,
       });
 
-      res.status(200).json({ success: true, data: suite });
+      res.status(200).json(createSuccessResponse(suite));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else if (error.message.includes('required') || error.message.includes('cannot be empty')) {
-        res.status(400).json({ success: false, message: error.message, details: null });
+        res.status(400).json(createErrorResponse(error.message, 'VALIDATION_ERROR'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -96,9 +97,9 @@ export class TestSuiteController {
       res.status(204).send();
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -108,12 +109,12 @@ export class TestSuiteController {
       const { suiteId } = req.params;
       const { executionPlanId } = req.body;
       const suite = await this.manageTestSuites.addExecutionPlan(suiteId, executionPlanId);
-      res.status(200).json({ success: true, data: suite });
+      res.status(200).json(createSuccessResponse(suite));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -122,12 +123,12 @@ export class TestSuiteController {
     try {
       const { suiteId, executionPlanId } = req.params;
       const suite = await this.manageTestSuites.removeExecutionPlan(suiteId, executionPlanId);
-      res.status(200).json({ success: true, data: suite });
+      res.status(200).json(createSuccessResponse(suite));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -138,7 +139,7 @@ export class TestSuiteController {
       const { providerId, previewOnly } = req.body;
 
       if (!providerId) {
-        res.status(400).json({ success: false, message: 'providerId is required', details: null });
+        res.status(400).json(createErrorResponse('providerId is required', 'VALIDATION_ERROR'));
         return;
       }
 
@@ -155,9 +156,9 @@ export class TestSuiteController {
       });
     } catch (error: any) {
       if (error.message.includes('not found') || error.message.includes('could not be resolved')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }
@@ -167,12 +168,12 @@ export class TestSuiteController {
       const { suiteId } = req.params;
       const { orderedPlanIds } = req.body;
       const suite = await this.manageTestSuites.reorderExecutionPlans(suiteId, orderedPlanIds);
-      res.status(200).json({ success: true, data: suite });
+      res.status(200).json(createSuccessResponse(suite));
     } catch (error: any) {
       if (error.message.includes('not found')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
+        res.status(404).json(createErrorResponse(error.message, 'NOT_FOUND'));
       } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+        res.status(500).json(createErrorResponse(error.message || 'Internal Server Error', 'INTERNAL_SERVER_ERROR'));
       }
     }
   }

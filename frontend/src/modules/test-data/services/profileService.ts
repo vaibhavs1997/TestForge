@@ -1,7 +1,6 @@
 // Profile service functions for Population Profiles
 import axios from 'axios';
-
-const API_BASE = '/api';
+import { API_BASE_URL } from '../../../constants/api';
 
 export interface PopulationProfileDto {
   id: string;
@@ -16,12 +15,12 @@ export interface PopulationProfileDto {
 export const profileService = {
   listProfiles: async (projectId: string, datasetId?: string): Promise<PopulationProfileDto[]> => {
     const params = datasetId ? { datasetId } : {};
-    const { data } = await axios.get(`${API_BASE}/projects/${projectId}/test-data/profiles`, { params });
+    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/test-data/profiles`, { params });
     return data.data;
   },
 
   getProfile: async (projectId: string, profileId: string): Promise<PopulationProfileDto> => {
-    const { data } = await axios.get(`${API_BASE}/projects/${projectId}/test-data/profiles/${profileId}`);
+    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/test-data/profiles/${profileId}`);
     return data.data;
   },
 
@@ -31,7 +30,7 @@ export const profileService = {
     strategyType: string;
     configuration?: Record<string, any>;
   }): Promise<PopulationProfileDto> => {
-    const { data } = await axios.post(`${API_BASE}/projects/${projectId}/test-data/profiles`, payload);
+    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/test-data/profiles`, payload);
     return data.data;
   },
 
@@ -39,12 +38,12 @@ export const profileService = {
     strategyType?: string;
     configuration?: Record<string, any>;
   }): Promise<PopulationProfileDto> => {
-    const { data } = await axios.patch(`${API_BASE}/projects/${projectId}/test-data/profiles/${profileId}`, payload);
+    const { data } = await axios.patch(`${API_BASE_URL}/projects/${projectId}/test-data/profiles/${profileId}`, payload);
     return data.data;
   },
 
   deleteProfile: async (projectId: string, profileId: string): Promise<void> => {
-    await axios.delete(`${API_BASE}/projects/${projectId}/test-data/profiles/${profileId}`);
+    await axios.delete(`${API_BASE_URL}/projects/${projectId}/test-data/profiles/${profileId}`);
   },
 };
 

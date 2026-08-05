@@ -2,6 +2,7 @@
 import React from 'react';
 import { CheckCircle, X, Info, AlertCircle, AlertTriangle } from 'lucide-react';
 import { cn } from '../../utils/cn';
+import { TOAST_DURATION_MS } from '../../constants/timeouts';
 
 export type ToastType = 'success' | 'warning' | 'error' | 'info';
 
@@ -20,7 +21,7 @@ const iconMap: Record<ToastType, React.ReactNode> = {
   info: <Info className='h-5 w-5 text-blue-600' />,
 };
 
-export const Toast = ({ message, open, onClose, duration = 3000, type = 'success' }: ToastProps) => {
+export const Toast = ({ message, open, onClose, duration = TOAST_DURATION_MS, type = 'success' }: ToastProps) => {
   React.useEffect(() => {
     if (open && duration > 0) {
       const timer = setTimeout(onClose, duration);

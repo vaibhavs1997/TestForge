@@ -1,12 +1,11 @@
 // Recommendation service functions
 import axios from 'axios';
 import type { Recommendation } from '../types';
-
-const API_BASE = '/api';
+import { API_BASE_URL } from '../../../constants/api';
 
 export const recommendationService = {
   async analyzeProject(projectId: string): Promise<Recommendation[]> {
-    const { data } = await axios.get(`${API_BASE}/projects/${projectId}/analyze`);
+    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/analyze`);
     return data.data;
   },
 };

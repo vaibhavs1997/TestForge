@@ -15,6 +15,7 @@ import type {
 } from '../../domain/ai-provider';
 import { AIProviderRegistry } from './AIProviderRegistry';
 import { AIProviderResolutionService } from './AIProviderResolutionService';
+import { DEFAULT_TIMEOUT_MS, DEFAULT_MAX_TOKENS } from '../../constants/defaults';
 
 export interface CreateAIProviderInput {
   projectId: string;
@@ -72,8 +73,8 @@ export class ManageAIProviders {
       input.organization || null,
       input.temperature ?? 0.7,
       input.topP ?? 1,
-      input.maxTokens ?? 2048,
-      input.timeout ?? 30000,
+      input.maxTokens ?? DEFAULT_MAX_TOKENS,
+      input.timeout ?? DEFAULT_TIMEOUT_MS,
       input.enabled ?? true,
       input.default ?? false,
       now,

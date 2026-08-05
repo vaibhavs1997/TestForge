@@ -1,6 +1,7 @@
 // UpdateKnowledgeFlow - Application Use Case
 import { KnowledgeFlowRepository } from '../../domain/knowledge/KnowledgeFlowRepository';
 import { KnowledgeFlowEntity, FlowStatus, FlowStep } from '../../domain/knowledge/KnowledgeFlowEntity';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export class UpdateKnowledgeFlow {
   constructor(private readonly knowledgeFlowRepository: KnowledgeFlowRepository) {}
@@ -18,21 +19,30 @@ export class UpdateKnowledgeFlow {
       throw new Error(`Flow with id ${params.id} not found`);
     }
 
-    if (params.name !== undefined && !params.name.trim()) {
-      throw new Error('Flow Name cannot be empty');
+    if (params.name !== undefined) {
+      ValidationHelpers.validateNotEmpty(params.name, 'Flow Name');
     }
 
     if (params.name && params.name.trim() !== existing.name) {
-      const exists = await this.knowledgeFlowRepository.existsByName(params.name.trim(), existing.projectId);
-      if (exists) {
-        throw new Error(`Flow with name "${params.name}" already exists in this project`);
+      try {
+        await ValidationHelpers.validateUniqueName(
+          this.knowledgeFlowRepository,
+          params.name,
+          existing.projectId,
+          existing.name
+        );
+      } catch (error) {
+        if (error instanceof Error && error.message === `Resource with name "${params.name}" already exists in this project`) {
+          throw new Error(`Flow with name "${params.name}" already exists in this project`);
+        }
+        throw error;
       }
     }
 
     const updateData: any = {};
-    if (params.name !== undefined) updateData.name = params.name.trim();
-    if (params.description !== undefined) updateData.description = params.description.trim();
-    if (params.tags !== undefined) updateData.tags = params.tags.map((t: string) => t.trim()).filter((t: string) => t.length > 0);
+    if (params.name !== undefined) updateData.name = ValidationHelpers.trimString(params.name);
+    if (params.description !== undefined) updateData.description = ValidationHelpers.trimString(params.description);
+    if (params.tags !== undefined) updateData.tags = ValidationHelpers.trimStringArray(params.tags);
     if (params.status !== undefined) updateData.status = params.status;
     if (params.steps !== undefined) updateData.steps = params.steps;
 

@@ -1,5 +1,6 @@
 // UpdateColumn - Application Use Case
 import { ColumnRepository } from '../../domain/test-data/ColumnRepository';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export class UpdateColumn {
   constructor(private readonly columnRepository: ColumnRepository) {}
@@ -19,29 +20,40 @@ export class UpdateColumn {
       throw new Error(`Column with id ${params.id} not found`);
     }
 
-    if (params.name !== undefined && !params.name.trim()) {
-      throw new Error('Column name cannot be empty');
+    let dataType: string | undefined;
+
+    if (params.name !== undefined) {
+      ValidationHelpers.validateNotEmpty(params.name, 'Column name');
     }
 
-    if (params.dataType !== undefined && !params.dataType.trim()) {
-      throw new Error('Data type is required');
+    if (params.dataType !== undefined) {
+      dataType = ValidationHelpers.validateRequired(params.dataType, 'Data type');
     }
 
     if (params.name && params.name.trim() !== existing.name) {
-      const exists = await this.columnRepository.existsByName(params.name.trim(), existing.datasetId);
-      if (exists) {
-        throw new Error(`Column with name "${params.name}" already exists in this dataset`);
+      try {
+        await ValidationHelpers.validateUniqueNameInContext(
+          this.columnRepository,
+          params.name,
+          existing.datasetId,
+          'Column'
+        );
+      } catch (error) {
+        if (error instanceof Error && error.message === `Column with name "${params.name}" already exists in this column`) {
+          throw new Error(`Column with name "${params.name}" already exists in this dataset`);
+        }
+        throw error;
       }
     }
 
     const updateData: any = {};
-    if (params.name !== undefined) updateData.name = params.name.trim();
+    if (params.name !== undefined) updateData.name = ValidationHelpers.trimString(params.name);
     if (params.displayName !== undefined) updateData.displayName = params.displayName.trim();
-    if (params.dataType !== undefined) updateData.dataType = params.dataType.trim();
+    if (dataType !== undefined) updateData.dataType = dataType;
     if (params.required !== undefined) updateData.required = params.required;
     if (params.unique !== undefined) updateData.unique = params.unique;
     if (params.nullable !== undefined) updateData.nullable = params.nullable;
-    if (params.description !== undefined) updateData.description = params.description.trim();
+    if (params.description !== undefined) updateData.description = ValidationHelpers.trimString(params.description);
 
     return this.columnRepository.update(params.id, updateData);
   }

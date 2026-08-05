@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { ScheduleEntity } from '../../domain/scheduler/ScheduleEntity';
 import type { ScheduleRepository } from '../../domain/scheduler/ScheduleRepository';
 import { TestSuiteRepository } from '../../domain/suite/TestSuiteRepository';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 import { CronExpression } from './CronExpression';
 
 export interface CreateScheduleInput {
@@ -24,32 +25,31 @@ export class CreateSchedule {
   ) {}
 
   async execute(input: CreateScheduleInput): Promise<ScheduleEntity> {
-    if (!input.name || !input.name.trim()) {
-      throw new Error('Schedule name is required');
-    }
-    if (!input.suiteId) {
-      throw new Error('Test Suite is required');
-    }
-    if (!input.executionProfileId) {
-      throw new Error('Execution Profile is required');
-    }
-    if (!input.cronExpression || !input.cronExpression.trim()) {
-      throw new Error('Cron expression is required');
-    }
+    const name = ValidationHelpers.validateRequired(input.name, 'Schedule name');
+    const suiteId = ValidationHelpers.validateRequired(input.suiteId, 'Test Suite');
+    const executionProfileId = ValidationHelpers.validateRequired(input.executionProfileId, 'Execution Profile');
+    const cronExpression = ValidationHelpers.validateRequired(input.cronExpression, 'Cron expression');
+
     if (!CronExpression.validate(input.cronExpression)) {
       throw new Error(`Invalid cron expression "${input.cronExpression}"`);
     }
 
-    // Prevent duplicate schedule names within a project
-    const exists = await this.scheduleRepository.existsByName(input.name.trim(), input.projectId);
-    if (exists) {
-      throw new Error(`Schedule with name "${input.name}" already exists in this project`);
+    try {
+      await ValidationHelpers.validateUniqueName(
+        this.scheduleRepository,
+        input.name,
+        input.projectId
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message === `Resource with name "${input.name}" already exists in this project`) {
+        throw new Error(`Schedule with name "${input.name}" already exists in this project`);
+      }
+      throw error;
     }
 
-    // Validate the suite exists and is active
-    const suite = await this.suiteRepository.findById(input.suiteId);
+    const suite = await this.suiteRepository.findById(suiteId);
     if (!suite) {
-      throw new Error(`Test Suite with id ${input.suiteId} not found`);
+      throw new Error(`Test Suite with id ${suiteId} not found`);
     }
     if (suite.status !== 'Active') {
       throw new Error(`Cannot schedule disabled suite "${suite.name}" - suite must be Active`);
@@ -58,25 +58,23 @@ export class CreateSchedule {
     const now = Date.now();
     const timezone = input.timezone || 'UTC';
 
-    // Compute next run
     let nextRun: number | null = null;
     try {
       const cron = new CronExpression(input.cronExpression);
       nextRun = cron.nextRun(new Date());
     } catch {
-      // If we can't compute, still allow creation but nextRun stays null
     }
 
     const schedule = new ScheduleEntity(
       randomUUID(),
       input.projectId,
-      input.name.trim(),
+      name,
       input.description || '',
       input.enabled !== undefined ? input.enabled : true,
-      input.suiteId,
-      input.executionProfileId,
+      suiteId,
+      executionProfileId,
       input.environmentId ?? null,
-      input.cronExpression.trim(),
+      cronExpression,
       timezone,
       nextRun,
       null,

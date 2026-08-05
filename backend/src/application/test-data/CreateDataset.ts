@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { DatasetRepository } from '../../domain/test-data/DatasetRepository';
 import { DatasetEntity } from '../../domain/test-data/DatasetEntity';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export class CreateDataset {
   constructor(private readonly datasetRepository: DatasetRepository) {}
@@ -12,23 +13,21 @@ export class CreateDataset {
     description?: string;
     category?: string;
   }): Promise<DatasetEntity> {
-    if (!params.name || !params.name.trim()) {
-      throw new Error('Dataset Name is required');
-    }
+    const name = ValidationHelpers.validateRequired(params.name, 'Dataset Name');
 
-    const trimmedName = params.name.trim();
-    const exists = await this.datasetRepository.existsByName(trimmedName, params.projectId);
-    if (exists) {
-      throw new Error(`Dataset with name "${params.name}" already exists in this project`);
-    }
+    await ValidationHelpers.validateUniqueName(
+      this.datasetRepository,
+      name,
+      params.projectId
+    );
 
     const now = Date.now();
     const dataset = new DatasetEntity(
       randomUUID(),
       params.projectId,
-      trimmedName,
-      params.description?.trim() || '',
-      params.category?.trim() || 'Custom',
+      name,
+      ValidationHelpers.trimString(params.description),
+      ValidationHelpers.trimString(params.category) || 'Custom',
       0,
       now,
       now

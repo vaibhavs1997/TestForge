@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { PopulationProfileRepository } from '../../domain/test-data/PopulationProfileRepository';
 import { PopulationProfileEntity } from '../../domain/test-data/PopulationProfileEntity';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export class CreatePopulationProfile {
   constructor(private readonly profileRepository: PopulationProfileRepository) {}
@@ -12,13 +13,8 @@ export class CreatePopulationProfile {
     strategyType: string;
     configuration?: Record<string, any>;
   }): Promise<PopulationProfileEntity> {
-    if (!params.columnId || !params.columnId.trim()) {
-      throw new Error('Column ID is required');
-    }
-
-    if (!params.strategyType || !params.strategyType.trim()) {
-      throw new Error('Strategy type is required');
-    }
+    ValidationHelpers.validateRequired(params.columnId, 'Column ID');
+    ValidationHelpers.validateRequired(params.strategyType, 'Strategy type');
 
     // Check if profile already exists for this column
     const existing = await this.profileRepository.findByColumn(params.columnId);

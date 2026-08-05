@@ -1,43 +1,48 @@
-// Execution Profile service functions
+// Execution Profile service
 
-import axios from 'axios';
+import { ApiClient } from '../../../services/ApiClient';
 import type { ExecutionProfile, CreateProfileInput } from '../types/profile';
-import { API_BASE_URL } from '../../../constants/api';
 
-export const profileService = {
-  listByProject: async (projectId: string): Promise<ExecutionProfile[]> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/execution-profiles`);
-    return data.data;
-  },
+class ExecutionProfileService extends ApiClient<ExecutionProfile> {
+  constructor() {
+    super('/projects/:projectId/execution-profiles');
+  }
 
-  getDefault: async (projectId: string): Promise<ExecutionProfile | null> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/execution-profiles/default`);
-    return data.data;
-  },
+  async listByProject(projectId: string): Promise<ExecutionProfile[]> {
+    return this.list(projectId);
+  }
 
-  getById: async (projectId: string, profileId: string): Promise<ExecutionProfile> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/execution-profiles/${profileId}`);
-    return data.data;
-  },
+  async getDefault(projectId: string): Promise<ExecutionProfile | null> {
+    const path = `/projects/${projectId}/execution-profiles/default`;
+    return this.getCustom(path);
+  }
 
-  create: async (projectId: string, input: CreateProfileInput): Promise<ExecutionProfile> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/execution-profiles`, input);
-    return data.data;
-  },
+  async getById(projectId: string, profileId: string): Promise<ExecutionProfile> {
+    return this.get(projectId, profileId);
+  }
 
-  update: async (projectId: string, profileId: string, updates: Partial<CreateProfileInput>): Promise<ExecutionProfile> => {
-    const { data } = await axios.patch(`${API_BASE_URL}/projects/${projectId}/execution-profiles/${profileId}`, updates);
-    return data.data;
-  },
+  async createProfile(projectId: string, input: CreateProfileInput): Promise<ExecutionProfile> {
+    return this.create(projectId, input);
+  }
 
-  delete: async (projectId: string, profileId: string): Promise<void> => {
-    await axios.delete(`${API_BASE_URL}/projects/${projectId}/execution-profiles/${profileId}`);
-  },
+  async updateProfile(projectId: string, profileId: string, updates: Partial<CreateProfileInput>): Promise<ExecutionProfile> {
+    return this.patch(projectId, profileId, updates);
+  }
 
-  duplicate: async (projectId: string, profileId: string, newName: string): Promise<ExecutionProfile> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/execution-profiles/${profileId}/duplicate`, { name: newName });
-    return data.data;
-  },
-};
+  async deleteProfile(projectId: string, profileId: string): Promise<void> {
+    return this.delete(projectId, profileId);
+  }
+
+  async duplicateProfile(projectId: string, profileId: string, newName: string): Promise<ExecutionProfile> {
+    const path = `/projects/${projectId}/execution-profiles/${profileId}/duplicate`;
+    return this.post(path, { name: newName });
+  }
+
+  async duplicate(projectId: string, profileId: string, newName: string): Promise<ExecutionProfile> {
+    return this.duplicateProfile(projectId, profileId, newName);
+  }
+}
+
+export const profileService = new ExecutionProfileService();
 
 export default profileService;

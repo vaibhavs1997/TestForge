@@ -1,83 +1,84 @@
-// Requirement service functions for Requirement Workspace
-import axios from 'axios';
+// Requirement service for Requirement Workspace
+import { ApiClient } from '../../../services/ApiClient';
 import type { Requirement, RequirementFormData, ValidationReport, TestStrategy, TestDesign, ExecutionPlan } from '../types';
-import { API_BASE_URL } from '../../../constants/api';
 
-export const requirementService = {
-  listRequirements: async (projectId: string, approvalStatus?: string): Promise<Requirement[]> => {
+class RequirementService extends ApiClient<Requirement> {
+  constructor() {
+    super('/projects/:projectId/requirements');
+  }
+
+  async listRequirements(projectId: string, approvalStatus?: string): Promise<Requirement[]> {
     const params = approvalStatus ? { approvalStatus } : {};
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/requirements`, { params });
-    return data.data;
-  },
+    return this.list(projectId, params);
+  }
 
-  getRequirement: async (projectId: string, requirementId: string): Promise<Requirement> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/requirements/${requirementId}`);
-    return data.data;
-  },
+  async getRequirement(projectId: string, requirementId: string): Promise<Requirement> {
+    return this.get(projectId, requirementId);
+  }
 
-  createRequirement: async (projectId: string, payload: RequirementFormData): Promise<Requirement> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/requirements`, payload);
-    return data.data;
-  },
+  async createRequirement(projectId: string, payload: RequirementFormData): Promise<Requirement> {
+    return this.create(projectId, payload);
+  }
 
-  updateRequirement: async (projectId: string, requirementId: string, payload: Partial<RequirementFormData>): Promise<Requirement> => {
-    const { data } = await axios.patch(`${API_BASE_URL}/projects/${projectId}/requirements/${requirementId}`, payload);
-    return data.data;
-  },
+  async updateRequirement(projectId: string, requirementId: string, payload: Partial<RequirementFormData>): Promise<Requirement> {
+    return this.patch(projectId, requirementId, payload);
+  }
 
-  deleteRequirement: async (projectId: string, requirementId: string): Promise<void> => {
-    await axios.delete(`${API_BASE_URL}/projects/${projectId}/requirements/${requirementId}`);
-  },
+  async deleteRequirement(projectId: string, requirementId: string): Promise<void> {
+    return this.delete(projectId, requirementId);
+  }
 
-  generateFromAnalysis: async (projectId: string, analysisId: string): Promise<Requirement[]> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/requirements/from-analysis/${analysisId}`);
-    return data.data;
-  },
+  async generateFromAnalysis(projectId: string, analysisId: string): Promise<Requirement[]> {
+    const path = `/projects/${projectId}/requirements/from-analysis/${analysisId}`;
+    return this.post(path);
+  }
 
-  generateWithAI: async (projectId: string, body: { providerId: string; previewOnly?: boolean }): Promise<any> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/requirements/generate-ai`, body);
-    return data;
-  },
+  async generateWithAI(projectId: string, body: { providerId: string; previewOnly?: boolean }): Promise<any> {
+    const path = `/projects/${projectId}/requirements/generate-ai`;
+    return this.post(path, body);
+  }
 
-  generateStrategyWithAI: async (projectId: string, requirementId: string, body: { providerId: string; previewOnly?: boolean }): Promise<any> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/requirements/${requirementId}/strategy-ai`, body);
-    return data;
-  },
+  async generateStrategyWithAI(projectId: string, requirementId: string, body: { providerId: string; previewOnly?: boolean }): Promise<any> {
+    const path = `/projects/${projectId}/requirements/${requirementId}/strategy-ai`;
+    return this.post(path, body);
+  }
 
-  generateDesignWithAI: async (projectId: string, requirementId: string, body: { providerId: string; previewOnly?: boolean }): Promise<any> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/requirements/${requirementId}/designs-ai`, body);
-    return data;
-  },
+  async generateDesignWithAI(projectId: string, requirementId: string, body: { providerId: string; previewOnly?: boolean }): Promise<any> {
+    const path = `/projects/${projectId}/requirements/${requirementId}/designs-ai`;
+    return this.post(path, body);
+  }
 
-  generateAssertionsWithAI: async (projectId: string, testDesignId: string, body: { providerId: string; previewOnly?: boolean }): Promise<any> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/test-designs/${testDesignId}/assertions-ai`, body);
-    return data;
-  },
+  async generateAssertionsWithAI(projectId: string, testDesignId: string, body: { providerId: string; previewOnly?: boolean }): Promise<any> {
+    const path = `/projects/${projectId}/test-designs/${testDesignId}/assertions-ai`;
+    return this.post(path, body);
+  }
 
-  generateExecutionPlanWithAI: async (projectId: string, requirementId: string, body: { providerId: string; previewOnly?: boolean }): Promise<any> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/requirements/${requirementId}/execution-plans-ai`, body);
-    return data;
-  },
+  async generateExecutionPlanWithAI(projectId: string, requirementId: string, body: { providerId: string; previewOnly?: boolean }): Promise<any> {
+    const path = `/projects/${projectId}/requirements/${requirementId}/execution-plans-ai`;
+    return this.post(path, body);
+  }
 
-  validateReadiness: async (projectId: string, requirementId: string): Promise<ValidationReport> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/requirements/${requirementId}/validate`);
-    return data.data;
-  },
+  async validateReadiness(projectId: string, requirementId: string): Promise<ValidationReport> {
+    const path = `/projects/${projectId}/requirements/${requirementId}/validate`;
+    return this.getCustom(path);
+  }
 
-  planTestStrategy: async (projectId: string, requirementId: string): Promise<TestStrategy> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/requirements/${requirementId}/strategy`);
-    return data.data;
-  },
+  async planTestStrategy(projectId: string, requirementId: string): Promise<TestStrategy> {
+    const path = `/projects/${projectId}/requirements/${requirementId}/strategy`;
+    return this.post(path);
+  }
 
-  generateTestDesigns: async (projectId: string, requirementId: string): Promise<TestDesign[]> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/requirements/${requirementId}/designs`);
-    return data.data;
-  },
+  async generateTestDesigns(projectId: string, requirementId: string): Promise<TestDesign[]> {
+    const path = `/projects/${projectId}/requirements/${requirementId}/designs`;
+    return this.post(path);
+  }
 
-  planExecution: async (projectId: string, requirementId: string): Promise<ExecutionPlan[]> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/requirements/${requirementId}/execution-plans`);
-    return data.data;
-  },
-};
+  async planExecution(projectId: string, requirementId: string): Promise<ExecutionPlan[]> {
+    const path = `/projects/${projectId}/requirements/${requirementId}/execution-plans`;
+    return this.post(path);
+  }
+}
+
+export const requirementService = new RequirementService();
 
 export default requirementService;

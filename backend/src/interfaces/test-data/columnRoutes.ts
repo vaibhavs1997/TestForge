@@ -17,6 +17,7 @@ import { DeleteColumn } from '../../application/test-data/DeleteColumn';
 import { GetColumn } from '../../application/test-data/GetColumn';
 import { ListColumns } from '../../application/test-data/ListColumns';
 import { SuggestColumns } from '../../application/test-data/SuggestColumns';
+import { asyncHandler } from '../middleware/AsyncHandler';
 
 const createColumn = new CreateColumn(columnRepository);
 const updateColumn = new UpdateColumn(columnRepository);
@@ -38,12 +39,12 @@ const columnController = new ColumnController(
 const router = Router();
 
 // Column routes
-router.get('/projects/:projectId/test-data/columns', (req, res) => columnController.listColumns(req, res));
-router.post('/projects/:projectId/test-data/columns', (req, res) => columnController.createColumn(req, res));
-router.get('/projects/:projectId/test-data/columns/:columnId', (req, res) => columnController.getColumn(req, res));
-router.patch('/projects/:projectId/test-data/columns/:columnId', (req, res) => columnController.updateColumn(req, res));
-router.delete('/projects/:projectId/test-data/columns/:columnId', (req, res) => columnController.deleteColumn(req, res));
-router.get('/projects/:projectId/test-data/columns/suggest', (req, res) => columnController.suggestColumns(req, res));
+router.get('/projects/:projectId/test-data/columns', asyncHandler((req, res) => columnController.listColumns(req, res)));
+router.post('/projects/:projectId/test-data/columns', asyncHandler((req, res) => columnController.createColumn(req, res)));
+router.get('/projects/:projectId/test-data/columns/:columnId', asyncHandler((req, res) => columnController.getColumn(req, res)));
+router.patch('/projects/:projectId/test-data/columns/:columnId', asyncHandler((req, res) => columnController.updateColumn(req, res)));
+router.delete('/projects/:projectId/test-data/columns/:columnId', asyncHandler((req, res) => columnController.deleteColumn(req, res)));
+router.get('/projects/:projectId/test-data/columns/suggest', asyncHandler((req, res) => columnController.suggestColumns(req, res)));
 
 export { router as columnRoutes };
 export default router;

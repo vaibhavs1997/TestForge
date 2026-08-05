@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import { ExecutionController } from './ExecutionController';
 import { container } from '../../application/ApplicationContainer';
+import { asyncHandler } from '../middleware/AsyncHandler';
 
 // Reuse the ExecutePlan instance from ApplicationContainer — it is already
 // wired with EventPublisher (Sprint 3 cross-cutting integration).
@@ -19,10 +20,10 @@ const executionController = new ExecutionController(
 const router = Router();
 
 // Execution routes
-router.post('/projects/:projectId/executions/:executionPlanId/start', (req, res) => executionController.startExecution(req, res));
-router.get('/projects/:projectId/executions', (req, res) => executionController.listExecutions(req, res));
-router.get('/projects/:projectId/executions/:runId', (req, res) => executionController.getExecution(req, res));
-router.post('/projects/:projectId/executions/:runId/cancel', (req, res) => executionController.cancelExecution(req, res));
+router.post('/projects/:projectId/executions/:executionPlanId/start', asyncHandler((req, res) => executionController.startExecution(req, res)));
+router.get('/projects/:projectId/executions', asyncHandler((req, res) => executionController.listExecutions(req, res)));
+router.get('/projects/:projectId/executions/:runId', asyncHandler((req, res) => executionController.getExecution(req, res)));
+router.post('/projects/:projectId/executions/:runId/cancel', asyncHandler((req, res) => executionController.cancelExecution(req, res)));
 
 export { router as executionRoutes };
 export default router;

@@ -12,6 +12,7 @@ import { UpdateDataset } from '../../application/test-data/UpdateDataset';
 import { DeleteDataset } from '../../application/test-data/DeleteDataset';
 import { GetDataset } from '../../application/test-data/GetDataset';
 import { ListDatasets } from '../../application/test-data/ListDatasets';
+import { asyncHandler } from '../middleware/AsyncHandler';
 
 const createDataset = new CreateDataset(datasetRepository);
 const updateDataset = new UpdateDataset(datasetRepository);
@@ -31,10 +32,10 @@ const datasetController = new DatasetController(
 const router = Router();
 
 // Dataset routes
-router.get('/projects/:projectId/test-data/datasets', (req, res) => datasetController.listDatasets(req, res));
-router.post('/projects/:projectId/test-data/datasets', (req, res) => datasetController.createDataset(req, res));
-router.get('/projects/:projectId/test-data/datasets/:datasetId', (req, res) => datasetController.getDataset(req, res));
-router.patch('/projects/:projectId/test-data/datasets/:datasetId', (req, res) => datasetController.updateDataset(req, res));
-router.delete('/projects/:projectId/test-data/datasets/:datasetId', (req, res) => datasetController.deleteDataset(req, res));
+router.get('/projects/:projectId/test-data/datasets', asyncHandler((req, res) => datasetController.listDatasets(req, res)));
+router.post('/projects/:projectId/test-data/datasets', asyncHandler((req, res) => datasetController.createDataset(req, res)));
+router.get('/projects/:projectId/test-data/datasets/:datasetId', asyncHandler((req, res) => datasetController.getDataset(req, res)));
+router.patch('/projects/:projectId/test-data/datasets/:datasetId', asyncHandler((req, res) => datasetController.updateDataset(req, res)));
+router.delete('/projects/:projectId/test-data/datasets/:datasetId', asyncHandler((req, res) => datasetController.deleteDataset(req, res)));
 
 export { router as datasetRoutes };

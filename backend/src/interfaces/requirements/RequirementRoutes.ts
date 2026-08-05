@@ -35,6 +35,7 @@ import { ValidateRequirementReadiness } from '../../application/requirements/Val
 import { PlanTestStrategy } from '../../application/requirements/PlanTestStrategy';
 import { GenerateTestDesigns } from '../../application/requirements/GenerateTestDesigns';
 import { PlanExecution } from '../../application/requirements/PlanExecution';
+import { asyncHandler } from '../middleware/AsyncHandler';
 
 const createRequirement = new CreateRequirement(requirementRepository);
 const updateRequirement = new UpdateRequirement(requirementRepository, eventPublisher);
@@ -105,21 +106,21 @@ const requirementController = new RequirementController(
 const router = Router();
 
 // Requirement routes
-router.get('/projects/:projectId/requirements', (req, res) => requirementController.listRequirements(req, res));
-router.post('/projects/:projectId/requirements', (req, res) => requirementController.createRequirement(req, res));
-router.get('/projects/:projectId/requirements/:requirementId', (req, res) => requirementController.getRequirement(req, res));
-router.patch('/projects/:projectId/requirements/:requirementId', (req, res) => requirementController.updateRequirement(req, res));
-router.delete('/projects/:projectId/requirements/:requirementId', (req, res) => requirementController.deleteRequirement(req, res));
-router.post('/projects/:projectId/requirements/generate-ai', (req, res) => aiRequirementController.generateWithAI(req, res));
-router.post('/projects/:projectId/requirements/:requirementId/strategy-ai', (req, res) => aiRequirementController.generateStrategyWithAI(req, res));
-router.post('/projects/:projectId/requirements/:requirementId/designs-ai', (req, res) => aiRequirementController.generateDesignWithAI(req, res));
-router.post('/projects/:projectId/requirements/:requirementId/execution-plans-ai', (req, res) => aiRequirementController.generateExecutionPlanAI(req, res));
-router.post('/projects/:projectId/test-designs/:testDesignId/assertions-ai', (req, res) => aiRequirementController.generateAssertionsWithAI(req, res));
-router.post('/projects/:projectId/requirements/from-analysis/:analysisId', (req, res) => requirementController.generateFromAnalysis(req, res));
-router.get('/projects/:projectId/requirements/:requirementId/validate', (req, res) => requirementController.validateReadiness(req, res));
-router.post('/projects/:projectId/requirements/:requirementId/strategy', (req, res) => requirementController.planTestStrategy(req, res));
-router.post('/projects/:projectId/requirements/:requirementId/designs', (req, res) => requirementController.generateTestDesigns(req, res));
-router.post('/projects/:projectId/requirements/:requirementId/execution-plans', (req, res) => requirementController.planExecution(req, res));
+router.get('/projects/:projectId/requirements', asyncHandler((req, res) => requirementController.listRequirements(req, res)));
+router.post('/projects/:projectId/requirements', asyncHandler((req, res) => requirementController.createRequirement(req, res)));
+router.get('/projects/:projectId/requirements/:requirementId', asyncHandler((req, res) => requirementController.getRequirement(req, res)));
+router.patch('/projects/:projectId/requirements/:requirementId', asyncHandler((req, res) => requirementController.updateRequirement(req, res)));
+router.delete('/projects/:projectId/requirements/:requirementId', asyncHandler((req, res) => requirementController.deleteRequirement(req, res)));
+router.post('/projects/:projectId/requirements/generate-ai', asyncHandler((req, res) => aiRequirementController.generateWithAI(req, res)));
+router.post('/projects/:projectId/requirements/:requirementId/strategy-ai', asyncHandler((req, res) => aiRequirementController.generateStrategyWithAI(req, res)));
+router.post('/projects/:projectId/requirements/:requirementId/designs-ai', asyncHandler((req, res) => aiRequirementController.generateDesignWithAI(req, res)));
+router.post('/projects/:projectId/requirements/:requirementId/execution-plans-ai', asyncHandler((req, res) => aiRequirementController.generateExecutionPlanAI(req, res)));
+router.post('/projects/:projectId/test-designs/:testDesignId/assertions-ai', asyncHandler((req, res) => aiRequirementController.generateAssertionsWithAI(req, res)));
+router.post('/projects/:projectId/requirements/from-analysis/:analysisId', asyncHandler((req, res) => requirementController.generateFromAnalysis(req, res)));
+router.get('/projects/:projectId/requirements/:requirementId/validate', asyncHandler((req, res) => requirementController.validateReadiness(req, res)));
+router.post('/projects/:projectId/requirements/:requirementId/strategy', asyncHandler((req, res) => requirementController.planTestStrategy(req, res)));
+router.post('/projects/:projectId/requirements/:requirementId/designs', asyncHandler((req, res) => requirementController.generateTestDesigns(req, res)));
+router.post('/projects/:projectId/requirements/:requirementId/execution-plans', asyncHandler((req, res) => requirementController.planExecution(req, res)));
 
 export { router as requirementRoutes };
 export default router;

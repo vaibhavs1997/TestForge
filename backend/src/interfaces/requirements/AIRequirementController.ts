@@ -5,168 +5,78 @@ import { GenerateTestStrategyWithAI } from '../../application/requirements/Gener
 import { GenerateTestDesignWithAI } from '../../application/requirements/GenerateTestDesignWithAI';
 import { GenerateAssertionsWithAI } from '../../application/assertion/GenerateAssertionsWithAI';
 import { GenerateExecutionPlanWithAI } from '../../application/requirements/GenerateExecutionPlanWithAI';
-
+import { createSuccessResponse } from "../../shared/ApiResponse";
 export class AIRequirementController {
-  constructor(
-    private readonly generateRequirementsWithAI: GenerateRequirementsWithAI,
-    private readonly generateTestStrategyWithAI: GenerateTestStrategyWithAI,
-    private readonly generateTestDesignWithAI: GenerateTestDesignWithAI,
-    private readonly generateAssertionsUseCase: GenerateAssertionsWithAI,
-    private readonly generateExecutionPlanWithAI: GenerateExecutionPlanWithAI
-  ) {}
-
-  async generateWithAI(req: Request, res: Response): Promise<void> {
-    try {
-      const { projectId } = req.params;
-      const { providerId, previewOnly } = req.body;
-
-      if (!providerId) {
-        res.status(400).json({ success: false, message: 'providerId is required', details: null });
-        return;
-      }
-
-      const result = await this.generateRequirementsWithAI.execute({
-        projectId,
-        providerId,
-        previewOnly: !!previewOnly,
-      });
-
-      res.status(200).json({
-        success: true,
-        data: result,
-        warnings: result.warnings,
-      });
-    } catch (error: any) {
-      if (error.message.includes('not found') || error.message.includes('could not be resolved')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
-      } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
-      }
+    constructor(private readonly generateRequirementsWithAI: GenerateRequirementsWithAI, private readonly generateTestStrategyWithAI: GenerateTestStrategyWithAI, private readonly generateTestDesignWithAI: GenerateTestDesignWithAI, private readonly generateAssertionsUseCase: GenerateAssertionsWithAI, private readonly generateExecutionPlanWithAI: GenerateExecutionPlanWithAI) { }
+    async generateWithAI(req: Request, res: Response): Promise<void> {
+        const { projectId } = req.params;
+        const { providerId, previewOnly } = req.body;
+        if (!providerId) {
+            throw new Error('providerId is required');
+        }
+        const result = await this.generateRequirementsWithAI.execute({
+            projectId,
+            providerId,
+            previewOnly: !!previewOnly,
+        });
+        res.status(200).json(createSuccessResponse(result));
     }
-  }
-
-  async generateStrategyWithAI(req: Request, res: Response): Promise<void> {
-    try {
-      const { projectId, requirementId } = req.params;
-      const { providerId, previewOnly } = req.body;
-
-      if (!providerId) {
-        res.status(400).json({ success: false, message: 'providerId is required', details: null });
-        return;
-      }
-
-      const result = await this.generateTestStrategyWithAI.execute({
-        projectId,
-        requirementId,
-        providerId,
-        previewOnly: !!previewOnly,
-      });
-
-      res.status(200).json({
-        success: true,
-        data: result,
-        warnings: result.warnings,
-      });
-    } catch (error: any) {
-      if (error.message.includes('not found') || error.message.includes('could not be resolved')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
-      } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
-      }
+    async generateStrategyWithAI(req: Request, res: Response): Promise<void> {
+        const { projectId, requirementId } = req.params;
+        const { providerId, previewOnly } = req.body;
+        if (!providerId) {
+            throw new Error('providerId is required');
+        }
+        const result = await this.generateTestStrategyWithAI.execute({
+            projectId,
+            requirementId,
+            providerId,
+            previewOnly: !!previewOnly,
+        });
+        res.status(200).json(createSuccessResponse(result));
     }
-  }
-  async generateDesignWithAI(req: Request, res: Response): Promise<void> {
-    try {
-      const { projectId, requirementId } = req.params;
-      const { providerId, previewOnly } = req.body;
-
-      if (!providerId) {
-        res.status(400).json({ success: false, message: 'providerId is required', details: null });
-        return;
-      }
-
-      const result = await this.generateTestDesignWithAI.execute({
-        projectId,
-        requirementId,
-        providerId,
-        previewOnly: !!previewOnly,
-      });
-
-      res.status(200).json({
-        success: true,
-        data: result,
-        warnings: result.warnings,
-      });
-    } catch (error: any) {
-      if (error.message.includes('not found') || error.message.includes('could not be resolved')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
-      } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
-      }
+    async generateDesignWithAI(req: Request, res: Response): Promise<void> {
+        const { projectId, requirementId } = req.params;
+        const { providerId, previewOnly } = req.body;
+        if (!providerId) {
+            throw new Error('providerId is required');
+        }
+        const result = await this.generateTestDesignWithAI.execute({
+            projectId,
+            requirementId,
+            providerId,
+            previewOnly: !!previewOnly,
+        });
+        res.status(200).json(createSuccessResponse(result));
     }
-  }
-
-  async generateExecutionPlanAI(req: Request, res: Response): Promise<void> {
-    try {
-      const { projectId, requirementId } = req.params;
-      const { providerId, previewOnly } = req.body;
-
-      if (!providerId) {
-        res.status(400).json({ success: false, message: 'providerId is required', details: null });
-        return;
-      }
-
-      const result = await this.generateExecutionPlanWithAI.execute({
-        projectId,
-        requirementId,
-        providerId,
-        previewOnly: !!previewOnly,
-      });
-
-      res.status(200).json({
-        success: true,
-        data: result,
-        warnings: result.warnings,
-      });
-    } catch (error: any) {
-      if (error.message.includes('not found') || error.message.includes('could not be resolved')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
-      } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
-      }
+    async generateExecutionPlanAI(req: Request, res: Response): Promise<void> {
+        const { projectId, requirementId } = req.params;
+        const { providerId, previewOnly } = req.body;
+        if (!providerId) {
+            throw new Error('providerId is required');
+        }
+        const result = await this.generateExecutionPlanWithAI.execute({
+            projectId,
+            requirementId,
+            providerId,
+            previewOnly: !!previewOnly,
+        });
+        res.status(200).json(createSuccessResponse(result));
     }
-  }
-
-  async generateAssertionsWithAI(req: Request, res: Response): Promise<void> {
-    try {
-      const { projectId, testDesignId } = req.params;
-      const { providerId, previewOnly } = req.body;
-
-      if (!providerId) {
-        res.status(400).json({ success: false, message: 'providerId is required', details: null });
-        return;
-      }
-
-      const result = await this.generateAssertionsUseCase.execute({
-        projectId,
-        testDesignId,
-        providerId,
-        previewOnly: !!previewOnly,
-      });
-
-      res.status(200).json({
-        success: true,
-        data: result,
-        warnings: result.warnings,
-      });
-    } catch (error: any) {
-      if (error.message.includes('not found') || error.message.includes('could not be resolved')) {
-        res.status(404).json({ success: false, message: error.message, details: null });
-      } else {
-        res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
-      }
+    async generateAssertionsWithAI(req: Request, res: Response): Promise<void> {
+        const { projectId, testDesignId } = req.params;
+        const { providerId, previewOnly } = req.body;
+        if (!providerId) {
+            throw new Error('providerId is required');
+        }
+        const result = await this.generateAssertionsUseCase.execute({
+            projectId,
+            testDesignId,
+            providerId,
+            previewOnly: !!previewOnly,
+        });
+        res.status(200).json(createSuccessResponse(result));
     }
-  }
 }
-
 export default AIRequirementController;
+

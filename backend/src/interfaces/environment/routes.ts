@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import { EnvironmentController } from './EnvironmentController';
 import { container } from '../../application/ApplicationContainer';
+import { asyncHandler } from '../middleware/AsyncHandler';
 
 // Reuse shared repository from the ApplicationContainer
 const { environmentRepository } = container;
@@ -31,11 +32,11 @@ const environmentController = new EnvironmentController(
 const router = Router();
 
 // Environment routes
-router.get('/projects/:projectId/environments', (req, res) => environmentController.listEnvironments(req, res));
-router.post('/projects/:projectId/environments', (req, res) => environmentController.createEnvironment(req, res));
-router.get('/projects/:projectId/environments/:environmentId', (req, res) => environmentController.getEnvironment(req, res));
-router.patch('/projects/:projectId/environments/:environmentId', (req, res) => environmentController.updateEnvironment(req, res));
-router.delete('/projects/:projectId/environments/:environmentId', (req, res) => environmentController.deleteEnvironment(req, res));
+router.get('/projects/:projectId/environments', asyncHandler((req, res) => environmentController.listEnvironments(req, res)));
+router.post('/projects/:projectId/environments', asyncHandler((req, res) => environmentController.createEnvironment(req, res)));
+router.get('/projects/:projectId/environments/:environmentId', asyncHandler((req, res) => environmentController.getEnvironment(req, res)));
+router.patch('/projects/:projectId/environments/:environmentId', asyncHandler((req, res) => environmentController.updateEnvironment(req, res)));
+router.delete('/projects/:projectId/environments/:environmentId', asyncHandler((req, res) => environmentController.deleteEnvironment(req, res)));
 
 export { router as environmentRoutes };
 export default router;

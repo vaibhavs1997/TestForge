@@ -38,6 +38,7 @@ import { AuditLogController } from './interfaces/audit/AuditLogController';
 import { validateConfig } from './config';
 import { BackupService } from './interfaces/backup/BackupService';
 import { createBackupRoutes } from './interfaces/backup/BackupRoutes';
+import { errorHandler, notFoundHandler } from './interfaces/middleware/ErrorHandler';
 
 dotenv.config();
 
@@ -125,6 +126,14 @@ app.use('/api', createAuditLogRoutes(auditLogController));
 // Initialize Backup & Restore module
 const backupService = new BackupService();
 app.use('/api', createBackupRoutes(backupService));
+
+// ── 404 Not Found Handler ───────────────────────────────────────────────────
+// Must be before error handler middleware
+app.use(notFoundHandler);
+
+// ── Error Handler Middleware ────────────────────────────────────────────────
+// Must be registered LAST, after all routes and middleware
+app.use(errorHandler);
 
 const server = app.listen(port, () => {
   console.log(`Server running on port ${port} (${config.nodeEnv})`);

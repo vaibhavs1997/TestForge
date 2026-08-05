@@ -2,59 +2,32 @@
 import { Request, Response } from 'express';
 import { ExecutePlan } from '../../application/execution/ExecutePlan';
 import { ExecutionRunRepository } from '../../infrastructure/execution/ExecutionRunRepository';
-
+import { createSuccessResponse } from "../../shared/ApiResponse";
 export class ExecutionController {
-  constructor(
-    private readonly executePlanUseCase: ExecutePlan,
-    private readonly executionRunRepository: ExecutionRunRepository
-  ) {}
-
-  async startExecution(req: Request, res: Response): Promise<void> {
-    try {
-      const { executionPlanId } = req.params;
-      const { failureMode = 'StopOnFailure', executionProfileId } = req.body;
-      
-      const run = await this.executePlanUseCase.execute(executionPlanId, failureMode as any, executionProfileId);
-      res.status(201).json({ success: true, data: run });
-    } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+    constructor(private readonly executePlanUseCase: ExecutePlan, private readonly executionRunRepository: ExecutionRunRepository) { }
+    async startExecution(req: Request, res: Response): Promise<void> {
+        const { executionPlanId } = req.params;
+        const { failureMode = 'StopOnFailure', executionProfileId } = req.body;
+        const run = await this.executePlanUseCase.execute(executionPlanId, failureMode as any, executionProfileId);
+        res.status(201).json(createSuccessResponse(run));
     }
-  }
-
-  async getExecution(req: Request, res: Response): Promise<void> {
-    try {
-      const { runId } = req.params;
-      const run = await this.executionRunRepository.findById(runId);
-      
-      if (!run) {
-        res.status(404).json({ success: false, message: 'Execution run not found', details: null });
-        return;
-      }
-      
-      res.status(200).json({ success: true, data: run });
-    } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+    async getExecution(req: Request, res: Response): Promise<void> {
+        const { runId } = req.params;
+        const run = await this.executionRunRepository.findById(runId);
+        if (!run) {
+            throw new Error('Execution run not found');
+        }
+        res.status(200).json(createSuccessResponse(run));
     }
-  }
-
-  async listExecutions(req: Request, res: Response): Promise<void> {
-    try {
-      const projectId = req.params.projectId;
-      const runs = await this.executionRunRepository.findByProject(projectId);
-      res.status(200).json({ success: true, data: runs });
-    } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+    async listExecutions(req: Request, res: Response): Promise<void> {
+        const projectId = req.params.projectId;
+        const runs = await this.executionRunRepository.findByProject(projectId);
+        res.status(200).json(createSuccessResponse(runs));
     }
-  }
-
-  async cancelExecution(req: Request, res: Response): Promise<void> {
-    try {
-      const { runId } = req.params;
-      res.status(501).json({ success: false, message: 'Cancel execution not yet implemented', details: null });
-    } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message || 'Internal Server Error', details: null });
+    async cancelExecution(req: Request, res: Response): Promise<void> {
+        const { runId } = req.params;
+        throw new Error('Cancel execution not yet implemented');
     }
-  }
 }
-
 export default ExecutionController;
+

@@ -9,6 +9,7 @@ const { assertionRepository } = container;
 
 // Initialize use case
 import { ManageAssertions } from '../../application/assertion/ManageAssertions';
+import { asyncHandler } from '../middleware/AsyncHandler';
 
 const manageAssertions = new ManageAssertions(assertionRepository);
 
@@ -18,14 +19,14 @@ const assertionController = new AssertionController(manageAssertions);
 const router = Router();
 
 // Assertion routes
-router.post('/projects/:projectId/assertions', (req, res) => assertionController.createAssertion(req, res));
-router.put('/projects/:projectId/assertions/:id', (req, res) => assertionController.updateAssertion(req, res));
-router.delete('/projects/:projectId/assertions/:id', (req, res) => assertionController.deleteAssertion(req, res));
-router.get('/projects/:projectId/assertions/:id', (req, res) => assertionController.getAssertion(req, res));
-router.get('/projects/:projectId/assertions', (req, res) => assertionController.listAssertions(req, res));
-router.get('/projects/:projectId/assertions/search', (req, res) => assertionController.searchAssertions(req, res));
-router.patch('/projects/:projectId/assertions/:id/toggle', (req, res) => assertionController.toggleAssertion(req, res));
-router.post('/projects/:projectId/assertions/:id/duplicate', (req, res) => assertionController.duplicateAssertion(req, res));
+router.post('/projects/:projectId/assertions', asyncHandler((req, res) => assertionController.createAssertion(req, res)));
+router.put('/projects/:projectId/assertions/:id', asyncHandler((req, res) => assertionController.updateAssertion(req, res)));
+router.delete('/projects/:projectId/assertions/:id', asyncHandler((req, res) => assertionController.deleteAssertion(req, res)));
+router.get('/projects/:projectId/assertions/:id', asyncHandler((req, res) => assertionController.getAssertion(req, res)));
+router.get('/projects/:projectId/assertions', asyncHandler((req, res) => assertionController.listAssertions(req, res)));
+router.get('/projects/:projectId/assertions/search', asyncHandler((req, res) => assertionController.searchAssertions(req, res)));
+router.patch('/projects/:projectId/assertions/:id/toggle', asyncHandler((req, res) => assertionController.toggleAssertion(req, res)));
+router.post('/projects/:projectId/assertions/:id/duplicate', asyncHandler((req, res) => assertionController.duplicateAssertion(req, res)));
 
 export { router as assertionRoutes };
 export default router;

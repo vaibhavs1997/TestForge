@@ -13,6 +13,7 @@ const {
 
 // Initialize use case
 import { ImportDatasetData } from '../../application/test-data/ImportDatasetData';
+import { asyncHandler } from '../middleware/AsyncHandler';
 
 const importDatasetData = new ImportDatasetData(
   datasetRepository,
@@ -27,8 +28,8 @@ const importController = new ImportController(importDatasetData);
 const router = Router();
 
 // Import routes
-router.post('/projects/:projectId/test-data/datasets/:datasetId/import', (req, res) => importController.importData(req, res));
-router.get('/projects/:projectId/test-data/datasets/:datasetId/import/template', (req, res) => importController.getImportTemplate(req, res));
+router.post('/projects/:projectId/test-data/datasets/:datasetId/import', asyncHandler((req, res) => importController.importData(req, res)));
+router.get('/projects/:projectId/test-data/datasets/:datasetId/import/template', asyncHandler((req, res) => importController.getImportTemplate(req, res)));
 
 export { router as importRoutes };
 export default router;

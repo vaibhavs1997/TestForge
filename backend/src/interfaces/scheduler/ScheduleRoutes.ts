@@ -26,6 +26,7 @@ const {
 import { CreateSchedule } from '../../application/scheduler/CreateSchedule';
 import { UpdateSchedule } from '../../application/scheduler/UpdateSchedule';
 import { GetSchedule, ListSchedules, DeleteSchedule } from '../../application/scheduler/ManageSchedules';
+import { asyncHandler } from '../middleware/AsyncHandler';
 
 const createSchedule = new CreateSchedule(scheduleRepository, testSuiteRepository);
 const updateSchedule = new UpdateSchedule(scheduleRepository, testSuiteRepository);
@@ -46,14 +47,14 @@ const scheduleController = new ScheduleController(
 const router = Router();
 
 // Schedule routes
-router.get('/projects/:projectId/schedules', (req, res) => scheduleController.listSchedules(req, res));
-router.post('/projects/:projectId/schedules', (req, res) => scheduleController.createSchedule(req, res));
-router.get('/projects/:projectId/schedules/:scheduleId', (req, res) => scheduleController.getSchedule(req, res));
-router.patch('/projects/:projectId/schedules/:scheduleId', (req, res) => scheduleController.updateSchedule(req, res));
-router.delete('/projects/:projectId/schedules/:scheduleId', (req, res) => scheduleController.deleteSchedule(req, res));
-router.post('/projects/:projectId/schedules/:scheduleId/run', (req, res) => scheduleController.runNow(req, res));
-router.post('/projects/:projectId/schedules/:scheduleId/enable', (req, res) => scheduleController.enableSchedule(req, res));
-router.post('/projects/:projectId/schedules/:scheduleId/disable', (req, res) => scheduleController.disableSchedule(req, res));
+router.get('/projects/:projectId/schedules', asyncHandler((req, res) => scheduleController.listSchedules(req, res)));
+router.post('/projects/:projectId/schedules', asyncHandler((req, res) => scheduleController.createSchedule(req, res)));
+router.get('/projects/:projectId/schedules/:scheduleId', asyncHandler((req, res) => scheduleController.getSchedule(req, res)));
+router.patch('/projects/:projectId/schedules/:scheduleId', asyncHandler((req, res) => scheduleController.updateSchedule(req, res)));
+router.delete('/projects/:projectId/schedules/:scheduleId', asyncHandler((req, res) => scheduleController.deleteSchedule(req, res)));
+router.post('/projects/:projectId/schedules/:scheduleId/run', asyncHandler((req, res) => scheduleController.runNow(req, res)));
+router.post('/projects/:projectId/schedules/:scheduleId/enable', asyncHandler((req, res) => scheduleController.enableSchedule(req, res)));
+router.post('/projects/:projectId/schedules/:scheduleId/disable', asyncHandler((req, res) => scheduleController.disableSchedule(req, res)));
 
 export { router as scheduleRoutes };
 export default router;

@@ -1,8 +1,7 @@
+import { createSuccessResponse } from "../../shared/ApiResponse";
 // ProjectController - Controller
 // Implementation to be added
-
 export class ProjectController {
-  // Implementation
 }
-
 export default ProjectController;
+

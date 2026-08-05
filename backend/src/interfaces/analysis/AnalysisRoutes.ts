@@ -19,6 +19,7 @@ import { DeleteAnalysis } from '../../application/analysis/DeleteAnalysis';
 import { GetAnalysis } from '../../application/analysis/GetAnalysis';
 import { ListAnalysis } from '../../application/analysis/ListAnalysis';
 import { AnalyzeProject } from '../../application/analysis/AnalyzeProject';
+import { asyncHandler } from '../middleware/AsyncHandler';
 
 const createAnalysis = new CreateAnalysis(analysisRepository);
 const updateAnalysis = new UpdateAnalysis(analysisRepository);
@@ -46,12 +47,12 @@ const analysisController = new AnalysisController(
 const router = Router();
 
 // Analysis routes
-router.get('/projects/:projectId/analysis', (req, res) => analysisController.listAnalysis(req, res));
-router.post('/projects/:projectId/analysis', (req, res) => analysisController.createAnalysis(req, res));
-router.get('/projects/:projectId/analysis/:analysisId', (req, res) => analysisController.getAnalysis(req, res));
-router.patch('/projects/:projectId/analysis/:analysisId', (req, res) => analysisController.updateAnalysis(req, res));
-router.delete('/projects/:projectId/analysis/:analysisId', (req, res) => analysisController.deleteAnalysis(req, res));
-router.post('/projects/:projectId/analysis/run', (req, res) => analysisController.analyzeProject(req, res));
+router.get('/projects/:projectId/analysis', asyncHandler((req, res) => analysisController.listAnalysis(req, res)));
+router.post('/projects/:projectId/analysis', asyncHandler((req, res) => analysisController.createAnalysis(req, res)));
+router.get('/projects/:projectId/analysis/:analysisId', asyncHandler((req, res) => analysisController.getAnalysis(req, res)));
+router.patch('/projects/:projectId/analysis/:analysisId', asyncHandler((req, res) => analysisController.updateAnalysis(req, res)));
+router.delete('/projects/:projectId/analysis/:analysisId', asyncHandler((req, res) => analysisController.deleteAnalysis(req, res)));
+router.post('/projects/:projectId/analysis/run', asyncHandler((req, res) => analysisController.analyzeProject(req, res)));
 
 export { router as analysisRoutes };
 export default router;

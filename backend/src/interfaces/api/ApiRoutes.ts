@@ -24,6 +24,7 @@ import { DeleteApiOperation } from '../../application/api/DeleteApiOperation';
 import { GetApiOperation } from '../../application/api/GetApiOperation';
 import { ListApiOperations } from '../../application/api/ListApiOperations';
 import { ImportApiContract } from '../../application/api/ImportApiContract';
+import { asyncHandler } from '../middleware/AsyncHandler';
 
 const createApiService = new CreateApiService(apiServiceRepository, eventPublisher);
 const updateApiService = new UpdateApiService(apiServiceRepository, eventPublisher);
@@ -71,21 +72,21 @@ const upload = multer({
 const router = Router();
 
 // Service routes
-router.get('/projects/:projectId/services', (req, res) => apiController.listServices(req, res));
-router.post('/projects/:projectId/services', (req, res) => apiController.createService(req, res));
-router.get('/projects/:projectId/services/:serviceId', (req, res) => apiController.getService(req, res));
-router.patch('/projects/:projectId/services/:serviceId', (req, res) => apiController.updateService(req, res));
-router.delete('/projects/:projectId/services/:serviceId', (req, res) => apiController.deleteService(req, res));
+router.get('/projects/:projectId/services', asyncHandler((req, res) => apiController.listServices(req, res)));
+router.post('/projects/:projectId/services', asyncHandler((req, res) => apiController.createService(req, res)));
+router.get('/projects/:projectId/services/:serviceId', asyncHandler((req, res) => apiController.getService(req, res)));
+router.patch('/projects/:projectId/services/:serviceId', asyncHandler((req, res) => apiController.updateService(req, res)));
+router.delete('/projects/:projectId/services/:serviceId', asyncHandler((req, res) => apiController.deleteService(req, res)));
 
 // Operation routes
-router.get('/projects/:projectId/services/:serviceId/apis', (req, res) => apiController.listOperations(req, res));
-router.post('/projects/:projectId/services/:serviceId/apis', (req, res) => apiController.createOperation(req, res));
-router.get('/projects/:projectId/services/:serviceId/apis/:apiId', (req, res) => apiController.getOperation(req, res));
-router.patch('/projects/:projectId/services/:serviceId/apis/:apiId', (req, res) => apiController.updateOperation(req, res));
-router.delete('/projects/:projectId/services/:serviceId/apis/:apiId', (req, res) => apiController.deleteOperation(req, res));
+router.get('/projects/:projectId/services/:serviceId/apis', asyncHandler((req, res) => apiController.listOperations(req, res)));
+router.post('/projects/:projectId/services/:serviceId/apis', asyncHandler((req, res) => apiController.createOperation(req, res)));
+router.get('/projects/:projectId/services/:serviceId/apis/:apiId', asyncHandler((req, res) => apiController.getOperation(req, res)));
+router.patch('/projects/:projectId/services/:serviceId/apis/:apiId', asyncHandler((req, res) => apiController.updateOperation(req, res)));
+router.delete('/projects/:projectId/services/:serviceId/apis/:apiId', asyncHandler((req, res) => apiController.deleteOperation(req, res)));
 
 // Import route (multipart file upload)
-router.post('/projects/:projectId/import', upload.single('file'), (req, res) => apiController.importContract(req, res));
+router.post('/projects/:projectId/import', upload.single('file'), asyncHandler((req, res) => apiController.importContract(req, res)));
 
 export { router as apiRoutes };
 export default router;

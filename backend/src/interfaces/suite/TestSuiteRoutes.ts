@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { TestSuiteController } from './TestSuiteController';
 import { ManageTestSuites } from '../../application/suite/ManageTestSuites';
 import { container } from '../../application/ApplicationContainer';
+import { asyncHandler } from '../middleware/AsyncHandler';
 
 // Reuse shared use cases from the ApplicationContainer
 const {
@@ -22,15 +23,15 @@ const testSuiteController = new TestSuiteController(
 const router = Router();
 
 // Test Suite routes
-router.get('/projects/:projectId/suites', (req, res) => testSuiteController.listSuites(req, res));
-router.post('/projects/:projectId/suites', (req, res) => testSuiteController.createSuite(req, res));
-router.get('/projects/:projectId/suites/:suiteId', (req, res) => testSuiteController.getSuite(req, res));
-router.patch('/projects/:projectId/suites/:suiteId', (req, res) => testSuiteController.updateSuite(req, res));
-router.delete('/projects/:projectId/suites/:suiteId', (req, res) => testSuiteController.deleteSuite(req, res));
-router.post('/projects/:projectId/suites/:suiteId/execution-plans', (req, res) => testSuiteController.addExecutionPlan(req, res));
-router.delete('/projects/:projectId/suites/:suiteId/execution-plans/:executionPlanId', (req, res) => testSuiteController.removeExecutionPlan(req, res));
-router.put('/projects/:projectId/suites/:suiteId/execution-plans/reorder', (req, res) => testSuiteController.reorderExecutionPlans(req, res));
-router.post('/projects/:projectId/suites/generate-ai', (req, res) => testSuiteController.generateWithAI(req, res));
+router.get('/projects/:projectId/suites', asyncHandler((req, res) => testSuiteController.listSuites(req, res)));
+router.post('/projects/:projectId/suites', asyncHandler((req, res) => testSuiteController.createSuite(req, res)));
+router.get('/projects/:projectId/suites/:suiteId', asyncHandler((req, res) => testSuiteController.getSuite(req, res)));
+router.patch('/projects/:projectId/suites/:suiteId', asyncHandler((req, res) => testSuiteController.updateSuite(req, res)));
+router.delete('/projects/:projectId/suites/:suiteId', asyncHandler((req, res) => testSuiteController.deleteSuite(req, res)));
+router.post('/projects/:projectId/suites/:suiteId/execution-plans', asyncHandler((req, res) => testSuiteController.addExecutionPlan(req, res)));
+router.delete('/projects/:projectId/suites/:suiteId/execution-plans/:executionPlanId', asyncHandler((req, res) => testSuiteController.removeExecutionPlan(req, res)));
+router.put('/projects/:projectId/suites/:suiteId/execution-plans/reorder', asyncHandler((req, res) => testSuiteController.reorderExecutionPlans(req, res)));
+router.post('/projects/:projectId/suites/generate-ai', asyncHandler((req, res) => testSuiteController.generateWithAI(req, res)));
 
 export { router as testSuiteRoutes };
 export default router;

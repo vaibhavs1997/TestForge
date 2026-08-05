@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import { VersionController } from './VersionController';
 import { container } from '../../application/ApplicationContainer';
+import { asyncHandler } from '../middleware/AsyncHandler';
 
 // Reuse shared service from the ApplicationContainer
 const { versionService } = container;
@@ -12,8 +13,8 @@ const versionController = new VersionController(versionService);
 export function createVersionRoutes(versionController: VersionController): Router {
   const router = Router();
 
-router.get('/versions/entities/:entityType/:entityId', versionController.getEntityVersions.bind(versionController));
-router.post('/versions/:versionId/restore', versionController.restoreVersion.bind(versionController));
+router.get('/versions/entities/:entityType/:entityId', asyncHandler(versionController.getEntityVersions.bind(versionController)));
+router.post('/versions/:versionId/restore', asyncHandler(versionController.restoreVersion.bind(versionController)));
 
   return router;
 }

@@ -1,30 +1,22 @@
-// Audit Log hooks
-import { useState, useEffect, useCallback } from 'react';
+// Audit Log hooks - migrated to TanStack Query
+import { useQuery } from '@tanstack/react-query';
 import { auditService } from '../services';
 import type { AuditLog, AuditLogFilters } from '../types';
+import { queryKeys } from '../../../constants';
 
 export function useAuditLogs(projectId: string | null, filters?: AuditLogFilters) {
-  const [logs, setLogs] = useState<AuditLog[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  return useQuery({
+    queryKey: queryKeys.auditLogs(projectId || ''),
+    queryFn: () => auditService.getAuditLogs(projectId || '', filters),
+    enabled: !!projectId,
+  });
+}
 
-  const fetchLogs = useCallback(async () => {
-    if (!projectId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await auditService.getAuditLogs(projectId, filters);
-      setLogs(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch audit logs');
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId, filters]);
-
-  useEffect(() => {
-    fetchLogs();
-  }, [fetchLogs]);
-
-  return { logs, loading, error, refetch: fetchLogs };
+export function useAuditLog(projectId: string | null, auditLogId: string) {
+  return useQuery({
+    queryKey: queryKeys.auditLog(projectId || '', auditLogId),
+    queryFn: () => auditService.getAuditLogs(projectId || '', {}),
+    enabled: !!projectId && !!auditLogId,
+    select: (logs: AuditLog[]) => logs.find((log) => log.id === auditLogId) || null,
+  });
 }

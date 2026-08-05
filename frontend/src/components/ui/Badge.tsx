@@ -26,6 +26,10 @@ const badgeVariants = cva(
         outline: 'text-text border-border',
         success: 'border-transparent bg-success text-white hover:bg-success/80',
         warning: 'border-transparent bg-warning text-white hover:bg-warning/80',
+        // Standardized status variants
+        running: 'border-transparent bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
+        pending: 'border-transparent bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300',
+        disabled: 'border-transparent bg-surface text-text-secondary',
       },
     },
     defaultVariants: {

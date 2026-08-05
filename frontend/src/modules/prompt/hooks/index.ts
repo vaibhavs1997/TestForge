@@ -1,99 +1,77 @@
-// Prompt Builder hooks
-import { useState, useEffect, useCallback } from 'react';
+// Prompt Builder hooks - migrated to TanStack Query
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { promptService } from '../services';
 import type { PromptTemplate, Prompt, BuiltPrompt, BuildPromptRequest, PreviewPromptRequest } from '../types';
+import { queryKeys } from '../../../constants';
 
 export function useTemplates(projectId: string | null) {
-  const [templates, setTemplates] = useState<PromptTemplate[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryKey = queryKeys.promptTemplates(projectId || '');
 
-  const fetchTemplates = useCallback(async () => {
-    if (!projectId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await promptService.listTemplates(projectId);
-      setTemplates(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch templates');
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
+  const { data: templates = [], isLoading: loading, isError, error, refetch } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      if (!projectId) return [];
+      return promptService.listTemplates(projectId);
+    },
+    enabled: !!projectId,
+  });
 
-  useEffect(() => {
-    fetchTemplates();
-  }, [fetchTemplates]);
-
-  return { templates, loading, error, refetch: fetchTemplates };
+  return { templates, loading, isLoading: loading, isError, error, refetch };
 }
 
 export function usePrompts(projectId: string | null) {
-  const [prompts, setPrompts] = useState<Prompt[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryKey = queryKeys.prompts(projectId || '');
 
-  const fetchPrompts = useCallback(async () => {
-    if (!projectId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await promptService.listPrompts(projectId);
-      setPrompts(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch prompts');
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
+  const { data: prompts = [], isLoading: loading, isError, error, refetch } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      if (!projectId) return [];
+      return promptService.listPrompts(projectId);
+    },
+    enabled: !!projectId,
+  });
 
-  useEffect(() => {
-    fetchPrompts();
-  }, [fetchPrompts]);
-
-  return { prompts, loading, error, refetch: fetchPrompts };
+  return { prompts, loading, isLoading: loading, isError, error, refetch };
 }
 
 export function usePromptBuilder(projectId: string | null) {
-  const [preview, setPreview] = useState<BuiltPrompt | null>(null);
-  const [building, setBuilding] = useState(false);
-  const [buildError, setBuildError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const promptsKey = queryKeys.prompts(projectId || '');
 
-  const previewPrompt = useCallback(
-    async (request: PreviewPromptRequest) => {
-      if (!projectId) return;
-      setBuilding(true);
-      setBuildError(null);
-      try {
-        const data = await promptService.previewPrompt(projectId, request);
-        setPreview(data);
-      } catch (err: any) {
-        setBuildError(err.message || 'Failed to preview prompt');
-      } finally {
-      setBuilding(false);
-      }
+  const previewMutation = useMutation({
+    mutationFn: (request: PreviewPromptRequest) => {
+      if (!projectId) throw new Error('Missing projectId');
+      return promptService.previewPrompt(projectId, request);
     },
-    [projectId]
-  );
+  });
 
-  const buildPrompt = useCallback(
-    async (request: BuildPromptRequest): Promise<Prompt | null> => {
-      if (!projectId) return null;
-      setBuilding(true);
-      setBuildError(null);
-      try {
-        const data = await promptService.buildPrompt(projectId, request);
-        return data;
-      } catch (err: any) {
-        setBuildError(err.message || 'Failed to build prompt');
-        return null;
-      } finally {
-        setBuilding(false);
-      }
+  const buildMutation = useMutation({
+    mutationFn: (request: BuildPromptRequest) => {
+      if (!projectId) throw new Error('Missing projectId');
+      return promptService.buildPrompt(projectId, request);
     },
-    [projectId]
-  );
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: promptsKey }),
+  });
 
-  return { preview, building, buildError, previewPrompt, buildPrompt };
+  const deleteMutation = useMutation({
+    mutationFn: ({ promptId }: { promptId: string }) => {
+      if (!projectId) throw new Error('Missing projectId');
+      return promptService.deletePrompt(projectId, promptId);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: promptsKey }),
+  });
+
+  return {
+    preview: previewMutation.data ?? null,
+    building: previewMutation.isPending || buildMutation.isPending,
+    buildError: previewMutation.error
+      ? (previewMutation.error as Error).message
+      : buildMutation.error
+      ? (buildMutation.error as Error).message
+      : null,
+    previewPrompt: previewMutation.mutate,
+    buildPrompt: buildMutation.mutateAsync,
+    deletePrompt: deleteMutation.mutateAsync,
+    isDeleting: deleteMutation.isPending,
+  };
 }

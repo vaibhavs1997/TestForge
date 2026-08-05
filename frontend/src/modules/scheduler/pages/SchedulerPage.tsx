@@ -17,6 +17,7 @@ import { profileService } from '../../execution/services/profileService';
 import { projectStore } from '../../../store/projectStore';
 import { useFormValidation } from '../../../hooks/useFormValidation';
 import { validateCron, FormErrors } from '../../../utils/validation';
+import { ErrorAlert } from '../../../components/shared/ErrorAlert';
 import type { Schedule, ScheduleFormData, ScheduleStatus } from '../types';
 import type { TestSuite } from '../../suite/types';
 import type { ExecutionProfile } from '../../execution/types/profile';
@@ -56,6 +57,12 @@ export const SchedulerPage: React.FC = () => {
   const selectedProjectId = projectStore((state) => state.selectedProjectId);
   const projectId = selectedProjectId || '1';
   const { schedules, isLoading, create, update, remove, runNow, enable, disable } = useSchedules(projectId);
+
+  const breadcrumbItems = [
+    { label: 'Projects', to: '/projects' },
+    { label: 'Project', to: `/projects/${projectId}/overview` },
+    { label: 'Schedules' },
+  ];
   const { suites } = useSuites(projectId);
   const { environments } = useEnvironments(projectId);
 
@@ -244,20 +251,48 @@ export const SchedulerPage: React.FC = () => {
 
   const activeSuites = React.useMemo(() => suites.filter(s => s.status === 'Active'), [suites]);
 
+  const [queryError] = React.useState<string | null>(null);
+
+  if (queryError) {
+    return (
+      <div className='mx-auto max-w-7xl px-4 py-8'>
+        <ErrorAlert
+          title='Failed to load schedules'
+          message={queryError}
+          onRetry={() => window.location.reload()}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className='mx-auto max-w-7xl px-4 py-8'>
       {/* Page Header */}
-      <div className='mb-6 flex items-center justify-between'>
-        <div>
-          <h1 className='text-2xl font-bold text-text'>Schedules</h1>
-          <p className='mt-1 text-sm text-text-secondary'>Automate execution of test suites on a recurring basis.</p>
-        </div>
-        <div className='flex items-center gap-3'>
-          <SearchBar value={search} onChange={setSearch} placeholder='Search schedules...' className='sm:w-80' />
-          <Button onClick={openCreateEditor}>
-            <Plus className='mr-2 h-4 w-4' />
-            Create Schedule
-          </Button>
+      <div className='mb-6'>
+        <nav className='flex items-center gap-2 text-sm text-text-secondary'>
+          {breadcrumbItems.map((item, idx) => (
+            <React.Fragment key={idx}>
+              {idx > 0 && <span>/</span>}
+              {item.to ? (
+                <a href={item.to} className='hover:text-text'>{item.label}</a>
+              ) : (
+                <span className='text-text'>{item.label}</span>
+              )}
+            </React.Fragment>
+          ))}
+        </nav>
+        <div className='mt-4 flex items-center justify-between'>
+          <div>
+            <h1 className='text-2xl font-bold text-text'>Schedules</h1>
+            <p className='mt-1 text-sm text-text-secondary'>Automate execution of test suites on a recurring basis.</p>
+          </div>
+          <div className='flex items-center gap-3'>
+            <SearchBar value={search} onChange={setSearch} placeholder='Search schedules...' className='sm:w-80' />
+            <Button onClick={openCreateEditor}>
+              <Plus className='mr-2 h-4 w-4' />
+              Create Schedule
+            </Button>
+          </div>
         </div>
       </div>
 

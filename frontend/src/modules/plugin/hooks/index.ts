@@ -1,53 +1,108 @@
-// Plugin hooks
-import { useState, useEffect, useCallback } from 'react';
+// Plugin hooks - migrated to TanStack Query
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { pluginService } from '../services';
 import type { Plugin, PluginCategory, PluginHealth } from '../types';
+import { queryKeys } from '../../../constants';
 
 export function usePlugins(filters?: { category?: PluginCategory; projectId?: string; enabled?: boolean }) {
-  const [plugins, setPlugins] = useState<Plugin[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const queryKey = queryKeys.plugins(filters as { category?: string; projectId?: string; enabled?: boolean } | undefined);
 
-  const fetchPlugins = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await pluginService.listPlugins(filters);
-      setPlugins(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch plugins');
-    } finally {
-      setLoading(false);
-    }
-  }, [filters]);
+  const { data: plugins = [], isLoading: loading, isError, error } = useQuery({
+    queryKey,
+    queryFn: () => pluginService.listPlugins(filters),
+  });
 
-  useEffect(() => {
-    fetchPlugins();
-  }, [fetchPlugins]);
+  const createMutation = useMutation({
+    mutationFn: (payload: Parameters<typeof pluginService.createPlugin>[0]) =>
+      pluginService.createPlugin(payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['plugins'] }),
+  });
 
-  return { plugins, loading, error, refetch: fetchPlugins };
+  // Optimistic enable (safe, non-destructive)
+  const enableMutation = useMutation({
+    mutationFn: (pluginId: string) => pluginService.enablePlugin(pluginId),
+    onMutate: async (pluginId) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<Plugin[]>(queryKey);
+      if (previous) {
+        queryClient.setQueryData<Plugin[]>(queryKey, (old) =>
+          (old || []).map((p) => (p.id === pluginId ? { ...p, enabled: true } : p))
+        );
+      }
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['plugins'] }),
+  });
+
+  // Optimistic disable (safe, non-destructive)
+  const disableMutation = useMutation({
+    mutationFn: (pluginId: string) => pluginService.disablePlugin(pluginId),
+    onMutate: async (pluginId) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<Plugin[]>(queryKey);
+      if (previous) {
+        queryClient.setQueryData<Plugin[]>(queryKey, (old) =>
+          (old || []).map((p) => (p.id === pluginId ? { ...p, enabled: false } : p))
+        );
+      }
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['plugins'] }),
+  });
+
+  const updateConfigurationMutation = useMutation({
+    mutationFn: ({ pluginId, configuration }: { pluginId: string; configuration: Record<string, any> }) =>
+      pluginService.updateConfiguration(pluginId, configuration),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['plugins'] }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (pluginId: string) => pluginService.deletePlugin(pluginId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['plugins'] }),
+  });
+
+  return {
+    plugins,
+    loading,
+    isLoading: loading,
+    isError,
+    error,
+    refetch: () => queryClient.invalidateQueries({ queryKey: ['plugins'] }),
+    createPlugin: createMutation.mutateAsync,
+    enablePlugin: enableMutation.mutateAsync,
+    disablePlugin: disableMutation.mutateAsync,
+    updateConfiguration: updateConfigurationMutation.mutateAsync,
+    deletePlugin: deleteMutation.mutateAsync,
+    isCreating: createMutation.isPending,
+    isEnabling: enableMutation.isPending,
+    isDisabling: disableMutation.isPending,
+    isUpdatingConfig: updateConfigurationMutation.isPending,
+    isDeleting: deleteMutation.isPending,
+  };
 }
 
 export function usePluginHealth(pluginId: string | null) {
-  const [health, setHealth] = useState<PluginHealth | null>(null);
-  const [loading, setLoading] = useState(false);
+  const queryKey = queryKeys.pluginHealth(pluginId || '');
 
-  const checkHealth = useCallback(async () => {
-    if (!pluginId) return;
-    setLoading(true);
-    try {
-      const data = await pluginService.checkHealth(pluginId);
-      setHealth(data);
-    } catch (err: any) {
-      setHealth({ status: 'unhealthy', message: err.message || 'Failed to check health' });
-    } finally {
-      setLoading(false);
-    }
-  }, [pluginId]);
+  const { data: health = null, isLoading: loading, refetch } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      if (!pluginId) return null;
+      try {
+        return await pluginService.checkHealth(pluginId);
+      } catch (err: any) {
+        return { status: 'unhealthy' as const, message: err?.message || 'Failed to check health' };
+      }
+    },
+    enabled: !!pluginId,
+  });
 
-  useEffect(() => {
-    checkHealth();
-  }, [checkHealth]);
-
-  return { health, loading, checkHealth };
+  return { health, loading, checkHealth: refetch };
 }

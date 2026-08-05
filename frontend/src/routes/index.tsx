@@ -1,12 +1,20 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppShell } from '../layouts/AppShell';
-import { ShowcasePage } from '../app/ShowcasePage';
 import { ProjectRoutes } from '../modules/project';
-import { DashboardPage } from '../modules/dashboard/pages/DashboardPage';
-import { ImportCenterPage } from '../modules/import/pages/ImportCenterPage';
 import { SettingsRoutes } from '../modules/settings';
 import { projectStore } from '../store/projectStore';
+// Simple loading fallback for lazy routes
+const PageLoader = () => (
+  <div className="flex h-screen items-center justify-center">
+    <div className="text-lg">Loading...</div>
+  </div>
+);
+
+// Lazy load pages for route-based code splitting
+const DashboardPage = lazy(() => import('../modules/dashboard/pages/DashboardPage'));
+const ImportCenterPage = lazy(() => import('../modules/import/pages/ImportCenterPage'));
+const ShowcasePage = lazy(() => import('../app/ShowcasePage'));
 
 /**
  * Redirects a top-level module URL (e.g. /apis) into the active project
@@ -24,11 +32,23 @@ export const AppRoutes = () => (
   <Routes>
     <Route element={<AppShell />}>
       <Route path='/' element={<Navigate to='/projects' replace />} />
-      <Route path='/dashboard' element={<DashboardPage />} />
+      <Route path='/dashboard' element={
+        <Suspense fallback={<PageLoader />}>
+          <DashboardPage />
+        </Suspense>
+      } />
       <Route path='/projects/*' element={<ProjectRoutes />} />
-      <Route path='/import' element={<ImportCenterPage />} />
+      <Route path='/import' element={
+        <Suspense fallback={<PageLoader />}>
+          <ImportCenterPage />
+        </Suspense>
+      } />
       <Route path='/settings' element={<SettingsRoutes />} />
-      <Route path='/showcase' element={<ShowcasePage />} />
+      <Route path='/showcase' element={
+        <Suspense fallback={<PageLoader />}>
+          <ShowcasePage />
+        </Suspense>
+      } />
 
       {/*
         Backward-compatible top-level module routes.

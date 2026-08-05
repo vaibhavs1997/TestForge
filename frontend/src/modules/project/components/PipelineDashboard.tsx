@@ -286,7 +286,7 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
         countLabel: suiteCount === 0 ? 'No suites' : `${suiteCount} Suite${suiteCount > 1 ? 's' : ''}`,
         lastUpdated: suiteUpdated,
         actionLabel: suiteCount === 0 ? 'Create Suite' : 'Open',
-        actionPath: `/projects/${projectId}/suites`,
+        actionPath: `/projects/${projectId}/execution/suites`,
         disabled: false,
       },
       {

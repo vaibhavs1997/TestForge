@@ -1,5 +1,5 @@
 // Test Data Library - Production Quality UI
-import React from 'react';
+import React, { Suspense, useMemo } from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
@@ -27,16 +27,89 @@ import {
   FileUp,
   Wand2,
 } from 'lucide-react';
-import { DatasetDialog, type DatasetDialogData } from '../components/DatasetDialog';
-import { ColumnProfileDialog, type ColumnProfileData } from '../components/ColumnProfileDialog';
 import { DataTabContent } from '../components/DataTabContent';
-import { RelationshipDialog } from '../components/RelationshipDialog';
 import { ProvidersSection } from '../components/ProvidersSection';
+import { VirtualizedTable } from '../../../components/tables/VirtualizedTable';
+import { Pagination } from '../../../components/tables/Pagination';
+
+// Lazy load heavy dialogs for better initial bundle size
+const DatasetDialog = React.lazy(() => import('../components/DatasetDialog').then(m => ({ default: m.DatasetDialog })));
+const ColumnProfileDialog = React.lazy(() => import('../components/ColumnProfileDialog').then(m => ({ default: m.ColumnProfileDialog })));
+const RelationshipDialog = React.lazy(() => import('../components/RelationshipDialog').then(m => ({ default: m.RelationshipDialog })));
+
+// Import types directly
+import type { DatasetDialogData } from '../components/DatasetDialog';
+import type { ColumnProfileData } from '../components/ColumnProfileDialog';
 import type { ColumnSuggestion } from '../services/columnService';
 import { rowService } from '../services/rowService';
 import { relationshipService } from '../services/relationshipService';
 import { Check, X as XIcon, ArrowUp, ArrowDown, Plus as PlusIcon, Upload, FileSpreadsheet, FileJson } from 'lucide-react';
 import { logger } from '../../../utils/logger';
+
+// Memoized category badge to avoid re-renders
+const CategoryBadge = React.memo<{ category: string }>(({ category }) => {
+  const variants: Record<string, 'default' | 'secondary' | 'outline' | 'destructive'> = {
+    General: 'default',
+    Customer: 'secondary',
+    Product: 'outline',
+    Order: 'default',
+    Payment: 'destructive',
+    User: 'secondary',
+    Custom: 'outline',
+  };
+  return <Badge variant={variants[category] || 'outline'}>{category}</Badge>;
+});
+CategoryBadge.displayName = 'CategoryBadge';
+
+// Memoized dataset card for list rendering
+const DatasetCard = React.memo<{ dataset: any; onView: (d: any) => void; onEdit: (d: any) => void; onDuplicate: (d: any) => void; onDelete: (d: any) => void; }>(({ dataset, onView, onEdit, onDuplicate, onDelete }) => (
+  <Card key={dataset.id} className='transition-shadow hover:shadow-lg'>
+    <CardHeader>
+      <div className='flex items-start justify-between'>
+        <div className='flex items-center gap-2'>
+          <Database className='h-5 w-5 text-primary' />
+          <div>
+            <CardTitle className='text-base'>{dataset.name}</CardTitle>
+            <div className='mt-1'><CategoryBadge category={dataset.category} /></div>
+          </div>
+        </div>
+      </div>
+    </CardHeader>
+    <CardContent>
+      <div className='space-y-3'>
+        <div>
+          <p className='text-xs font-medium text-text-secondary'>Description</p>
+          <p className='text-xs text-text'>{dataset.description}</p>
+        </div>
+        <div className='flex items-center justify-between text-xs'>
+          <span className='text-text-secondary'>Rows</span>
+          <span className='font-medium text-text'>{dataset.rows.toLocaleString()}</span>
+        </div>
+        <div className='flex items-center justify-between text-xs'>
+          <span className='text-text-secondary'>Columns</span>
+          <span className='font-medium text-text'>{dataset.columns}</span>
+        </div>
+        <div className='flex items-center justify-between text-xs'>
+          <span className='text-text-secondary'>Relationships</span>
+          <span className='font-medium text-text'>{dataset.relationships}</span>
+        </div>
+        <div className='flex items-center justify-between text-xs'>
+          <span className='text-text-secondary'>Last Updated</span>
+          <span className='font-medium text-text'>{dataset.lastUpdated}</span>
+        </div>
+        <div className='flex gap-2 pt-2'>
+          <Button variant='outline' size='sm' className='flex-1' onClick={() => onView(dataset)}>View</Button>
+          <Button variant='outline' size='sm' className='flex-1' onClick={() => onEdit(dataset)}>
+            <Edit className='mr-1 h-3 w-3' /> Edit
+          </Button>
+          <Button variant='ghost' size='sm' onClick={() => onDuplicate(dataset)}><Copy className='h-3 w-3' /></Button>
+          <Button variant='ghost' size='sm' onClick={() => onDelete(dataset)}><Trash2 className='h-3 w-3' /></Button>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+));
+DatasetCard.displayName = 'DatasetCard';
 
 // Types
 interface Dataset {
@@ -100,6 +173,8 @@ export const TestDataLibraryPage = () => {
   const [datasets, setDatasets] = React.useState<Dataset[]>([]);
   const [isLoadingDatasets, setIsLoadingDatasets] = React.useState(true);
   const [datasetsError, setDatasetsError] = React.useState<string | null>(null);
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const [pageSize, setPageSize] = React.useState(25);
 
   // Load datasets on mount
   React.useEffect(() => {
@@ -299,6 +374,14 @@ export const TestDataLibraryPage = () => {
     { id: 'providers' as NavSection, label: 'Providers', icon: Sparkles, active: activeNav === 'providers' },
     { id: 'relationships' as NavSection, label: 'Relationships', icon: Network, active: activeNav === 'relationships' },
   ];
+
+  // Memoized handlers for dataset cards to prevent re-renders
+  const handlers = useMemo(() => ({
+    onView: (dataset: Dataset) => openDatasetDetails(dataset),
+    onEdit: (dataset: Dataset) => { setSelectedDataset(dataset); setEditOpen(true); },
+    onDuplicate: (dataset: Dataset) => handleDuplicate(dataset),
+    onDelete: (dataset: Dataset) => { setSelectedDataset(dataset); setDeleteOpen(true); },
+  }), [openDatasetDetails, handleDuplicate]);
 
   return (
     <div className='flex h-screen'>
@@ -512,49 +595,48 @@ export const TestDataLibraryPage = () => {
               {/* Table View */}
               {viewMode === 'table' && filteredDatasets.length > 0 && (
                 <Card>
-                  <div className='overflow-x-auto'>
-                    <table className='w-full text-sm'>
-                      <thead className='border-b border-border bg-surface'>
-                        <tr>
-                          <th className='px-4 py-3 text-left'>Name</th>
-                          <th className='px-4 py-3 text-left'>Category</th>
-                          <th className='px-4 py-3 text-left'>Rows</th>
-                          <th className='px-4 py-3 text-left'>Columns</th>
-                          <th className='px-4 py-3 text-left'>Relationships</th>
-                          <th className='px-4 py-3 text-left'>Last Updated</th>
-                          <th className='px-4 py-3 text-right'>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredDatasets.map((dataset) => (
-                          <tr key={dataset.id} className='border-b border-border last:border-b-0 hover:bg-surface/50'>
-                            <td className='px-4 py-3 font-medium'>{dataset.name}</td>
-                            <td className='px-4 py-3'>{getCategoryBadge(dataset.category)}</td>
-                            <td className='px-4 py-3'>{dataset.rows.toLocaleString()}</td>
-                            <td className='px-4 py-3'>{dataset.columns}</td>
-                            <td className='px-4 py-3'>{dataset.relationships}</td>
-                            <td className='px-4 py-3 text-text-secondary'>{dataset.lastUpdated}</td>
-                            <td className='px-4 py-3'>
-                              <div className='flex items-center justify-end gap-1'>
-                                <Button variant='ghost' size='sm' onClick={() => openDatasetDetails(dataset)}>
-                                  <ChevronRight className='h-4 w-4' />
-                                </Button>
-                                <Button variant='ghost' size='sm' onClick={() => { setSelectedDataset(dataset); setEditOpen(true); }}>
-                                  <Edit className='h-4 w-4' />
-                                </Button>
-                                <Button variant='ghost' size='sm' onClick={() => handleDuplicate(dataset)}>
-                                  <Copy className='h-3 w-3' />
-                                </Button>
-                                <Button variant='ghost' size='sm' onClick={() => { setSelectedDataset(dataset); setDeleteOpen(true); }}>
-                                  <Trash2 className='h-3 w-3' />
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <VirtualizedTable
+                    data={filteredDatasets}
+                    columns={[
+                      { key: 'name', header: 'Name', render: (row: any) => <span className='font-medium'>{row.name}</span> },
+                      { key: 'category', header: 'Category', render: (row: any) => getCategoryBadge(row.category) },
+                      { key: 'rows', header: 'Rows', render: (row: any) => row.rows.toLocaleString() },
+                      { key: 'columns', header: 'Columns', render: (row: any) => row.columns },
+                      { key: 'relationships', header: 'Relationships', render: (row: any) => row.relationships },
+                      { key: 'lastUpdated', header: 'Last Updated', render: (row: any) => <span className='text-text-secondary'>{row.lastUpdated}</span> },
+                      {
+                        key: 'actions',
+                        header: 'Actions',
+                        render: (row: any) => (
+                          <div className='flex items-center justify-end gap-1'>
+                            <Button variant='ghost' size='sm' onClick={() => openDatasetDetails(row)}>
+                              <ChevronRight className='h-4 w-4' />
+                            </Button>
+                            <Button variant='ghost' size='sm' onClick={() => { setSelectedDataset(row); setEditOpen(true); }}>
+                              <Edit className='h-4 w-4' />
+                            </Button>
+                            <Button variant='ghost' size='sm' onClick={() => handleDuplicate(row)}>
+                              <Copy className='h-3 w-3' />
+                            </Button>
+                            <Button variant='ghost' size='sm' onClick={() => { setSelectedDataset(row); setDeleteOpen(true); }}>
+                              <Trash2 className='h-3 w-3' />
+                            </Button>
+                          </div>
+                        ),
+                      },
+                    ]}
+                    totalCount={filteredDatasets.length}
+                    rowHeight={56}
+                    overscan={5}
+                  />
+                  <Pagination
+                    page={currentPage}
+                    totalPages={Math.max(1, Math.ceil(filteredDatasets.length / pageSize))}
+                    pageSize={pageSize}
+                    totalItems={filteredDatasets.length}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={setPageSize}
+                  />
                 </Card>
               )}
 
@@ -949,17 +1031,21 @@ export const TestDataLibraryPage = () => {
               )}
 
               {/* Unified Column + Population Editor */}
-              <ColumnProfileDialog
-                open={editorOpen}
-                onClose={() => setEditorOpen(false)}
-                onSubmit={(data) => {
-                  setEditorOpen(false);
-                  setToastMessage(selectedColumn ? 'Column updated successfully' : 'Column added successfully');
-                  setToastOpen(true);
-                }}
-                column={selectedColumn}
-                isSubmitting={false}
-              />
+              {editorOpen && (
+                <Suspense fallback={<div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'><div className='text-sm text-text-secondary'>Loading editor...</div></div>}>
+                  <ColumnProfileDialog
+                    open={editorOpen}
+                    onClose={() => setEditorOpen(false)}
+                    onSubmit={(data) => {
+                      setEditorOpen(false);
+                      setToastMessage(selectedColumn ? 'Column updated successfully' : 'Column added successfully');
+                      setToastOpen(true);
+                    }}
+                    column={selectedColumn}
+                    isSubmitting={false}
+                  />
+                </Suspense>
+              )}
 
               {/* Delete Confirmation */}
               <ConfirmDialog

@@ -15,6 +15,8 @@ import { useAIProviders } from '../../ai-provider/hooks';
 import { requirementService } from '../services/requirementService';
 import type { Requirement, ApprovalStatus, ValidationCategory, TestStrategy, StrategyCategorySection, StrategyItem, TestDesign, Assertion, RuntimeBinding, ExecutionPlan, CleanupStep, AssertionReference } from '../types';
 import type { Assertion as ReusableAssertion } from '../../assertion/types';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../../../constants';
 
 export interface RequirementsPageProps {}
 
@@ -85,6 +87,13 @@ const STRATEGY_CATEGORIES: StrategyCategorySection['category'][] = [
 export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const projectId = routeProjectId || '1';
+  const queryClient = useQueryClient();
+
+  const breadcrumbItems = [
+    { label: 'Projects', to: '/projects' },
+    { label: 'Project', to: `/projects/${projectId}/overview` },
+    { label: 'Requirements' },
+  ];
 
   const { suggested, approved, archived, isLoading, isError, error, generateFromAnalysisAsync, isGenerating, update, remove, validateReadinessAsync, isValidating, validationResult, planTestStrategyAsync, isPlanningStrategy, testStrategy, generateTestDesignsAsync, isGeneratingDesigns, testDesigns, planExecutionAsync, isPlanningExecution, executionPlans } = useRequirements(projectId);
   const { analysisCards, runAnalysisAsync, isAnalyzing } = useAnalysis(projectId);
@@ -1387,7 +1396,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
               <div className='space-y-4'>
                 <div className='flex items-center justify-between'>
                   <h4 className='font-semibold text-text'>Generated Requirements ({aiGeneratedRequirements.length})</h4>
-                  <Button variant='outline' size='sm' onClick={() => { setAiModalOpen(false); window.location.reload(); }}>
+                  <Button variant='outline' size='sm' onClick={() => { setAiModalOpen(false); queryClient.invalidateQueries({ queryKey: queryKeys.requirements(projectId) }); }}>
                     Close & Refresh
                   </Button>
                 </div>
@@ -1536,7 +1545,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
               <div className='space-y-4'>
                 <div className='flex items-center justify-between'>
                   <h4 className='font-semibold text-text'>Generated Test Strategy</h4>
-                  <Button variant='outline' size='sm' onClick={() => { setAiStrategyModalOpen(false); window.location.reload(); }}>
+                  <Button variant='outline' size='sm' onClick={() => { setAiStrategyModalOpen(false); queryClient.invalidateQueries({ queryKey: queryKeys.requirements(projectId) }); }}>
                     Close & Refresh
                   </Button>
                 </div>
@@ -1669,7 +1678,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
               <div className='space-y-4'>
                 <div className='flex items-center justify-between'>
                   <h4 className='font-semibold text-text'>Generated Test Designs ({Array.isArray(aiDesignResult) ? aiDesignResult.length : 0})</h4>
-                  <Button variant='outline' size='sm' onClick={() => { setAiDesignModalOpen(false); window.location.reload(); }}>
+                  <Button variant='outline' size='sm' onClick={() => { setAiDesignModalOpen(false); queryClient.invalidateQueries({ queryKey: queryKeys.requirements(projectId) }); }}>
                     Close & Refresh
                   </Button>
                 </div>
@@ -1810,7 +1819,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
               <div className='space-y-4'>
                 <div className='flex items-center justify-between'>
                   <h4 className='font-semibold text-text'>Generated Execution Plans ({Array.isArray(aiExecutionPlanResult) ? aiExecutionPlanResult.length : 0})</h4>
-                  <Button variant='outline' size='sm' onClick={() => { setAiExecutionPlanModalOpen(false); window.location.reload(); }}>
+                  <Button variant='outline' size='sm' onClick={() => { setAiExecutionPlanModalOpen(false); queryClient.invalidateQueries({ queryKey: queryKeys.requirements(projectId) }); }}>
                     Close & Refresh
                   </Button>
                 </div>
@@ -1968,7 +1977,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
               <div className='space-y-4'>
                 <div className='flex items-center justify-between'>
                   <h4 className='font-semibold text-text'>Generated Assertions ({Array.isArray(aiAssertionResult) ? aiAssertionResult.length : 0})</h4>
-                  <Button variant='outline' size='sm' onClick={() => { setAiAssertionModalOpen(false); window.location.reload(); }}>
+                  <Button variant='outline' size='sm' onClick={() => { setAiAssertionModalOpen(false); queryClient.invalidateQueries({ queryKey: queryKeys.requirements(projectId) }); }}>
                     Close & Refresh
                   </Button>
                 </div>

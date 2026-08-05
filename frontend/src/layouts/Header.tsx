@@ -3,6 +3,7 @@ import React from 'react';
 import { Sun, Moon } from 'lucide-react';
 
 // Shared constants
+import { APP_NAME } from '../constants';
 
 // Shared types
 
@@ -21,7 +22,7 @@ export const Header: React.FC = () => {
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-surface px-6">
       <div className="flex items-center gap-4">
-        <h2 className="text-lg font-semibold text-text">TestForge Platform</h2>
+        <h2 className="text-lg font-semibold text-text">{APP_NAME}</h2>
       </div>
       <div className="flex items-center gap-4">
         <button

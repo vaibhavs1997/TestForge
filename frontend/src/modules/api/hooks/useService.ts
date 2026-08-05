@@ -3,12 +3,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../services/apiService';
 import type { ServiceFormData, OperationFormData, Operation, ImportSummary } from '../types';
 import type { AxiosProgressEvent } from 'axios';
+import { queryKeys } from '../../../constants';
 
 // ─── Services ────────────────────────────────────────────────
 
 export const useServices = (projectId?: string) => {
   const queryClient = useQueryClient();
-  const queryKey = ['services', projectId];
+  const queryKey = queryKeys.services(projectId || '');
 
   const { data: services = [], isLoading, isError, error } = useQuery({
     queryKey,
@@ -99,14 +100,16 @@ const mapOperation = (raw: any, serviceName?: string): Operation => ({
 
 export const useApiOperations = (projectId?: string, serviceIds?: string[]) => {
   const queryClient = useQueryClient();
-  const servicesQueryKey = ['services', projectId];
-  const queryKey = ['operations', projectId];
+  const servicesQueryKey = queryKeys.services(projectId || '');
+  const queryKey = queryKeys.operations(projectId || '');
 
   const { data: operations = [], isLoading, isError, error } = useQuery({
     queryKey,
     queryFn: async () => {
       if (!projectId || !serviceIds || serviceIds.length === 0) return [];
       // Fetch operations for every service in parallel, then flatten + map.
+      // Note: Parallel calls are intentional here to minimize total load time.
+      // If serviceIds array becomes very large (>20), consider implementing pagination.
       const results = await Promise.all(
         serviceIds.map(async (sid) => {
           const service = await apiService.getService(projectId, sid).catch(() => null);
@@ -181,8 +184,8 @@ export const useApiOperations = (projectId?: string, serviceIds?: string[]) => {
 
 export const useImportApiContract = (projectId?: string) => {
   const queryClient = useQueryClient();
-  const servicesQueryKey = ['services', projectId];
-  const operationsQueryKey = ['operations', projectId];
+  const servicesQueryKey = queryKeys.services(projectId || '');
+  const operationsQueryKey = queryKeys.operations(projectId || '');
 
   const importMutation = useMutation({
     mutationFn: ({

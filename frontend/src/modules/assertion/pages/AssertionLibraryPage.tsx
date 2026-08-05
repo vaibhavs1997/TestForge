@@ -17,7 +17,7 @@ export interface AssertionLibraryPageProps {}
 export const AssertionLibraryPage: React.FC<AssertionLibraryPageProps> = () => {
   const selectedProjectId = projectStore((state) => state.selectedProjectId);
   const projectId = selectedProjectId || '1';
-  const { assertions, isLoading, createAssertion, updateAssertion, deleteAssertion, toggleAssertion, duplicateAssertion, search } = useAssertions(projectId);
+  const { assertions, isLoading, createAssertion, updateAssertion, deleteAssertion, toggleAssertion, duplicateAssertion, refetch } = useAssertions(projectId);
 
   const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedAssertion, setSelectedAssertion] = React.useState<Assertion | null>(null);
@@ -48,7 +48,6 @@ export const AssertionLibraryPage: React.FC<AssertionLibraryPageProps> = () => {
 
   const handleSearch = (value: string) => {
     setSearchQuery(value);
-    if (value.trim()) search(value);
   };
 
   const filteredAssertions = React.useMemo(() => {

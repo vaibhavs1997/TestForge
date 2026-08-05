@@ -16,14 +16,20 @@ import { Button } from './Button';
 // Styles
 import { cn } from '../../utils/cn';
 
+export interface EmptyStateAction {
+  label: string;
+  onClick: () => void;
+  variant?: 'default' | 'secondary' | 'outline' | 'ghost' | 'link' | 'destructive';
+}
+
 export interface EmptyStateProps {
   icon?: React.ReactNode;
   title: string;
   description?: string;
-  action?: {
-    label: string;
-    onClick: () => void;
-  };
+  /** Primary action shown in the empty state */
+  action?: EmptyStateAction;
+  /** Optional secondary action shown next to the primary action */
+  secondaryAction?: EmptyStateAction;
   className?: string;
 }
 
@@ -32,6 +38,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   title,
   description,
   action,
+  secondaryAction,
   className,
 }) => {
   return (
@@ -43,10 +50,19 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       {description && (
         <p className="mt-1 text-sm text-text-secondary max-w-sm">{description}</p>
       )}
-      {action && (
-        <Button onClick={action.onClick} className="mt-4">
-          {action.label}
-        </Button>
+      {(action || secondaryAction) && (
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+          {action && (
+            <Button onClick={action.onClick} variant={action.variant}>
+              {action.label}
+            </Button>
+          )}
+          {secondaryAction && (
+            <Button onClick={secondaryAction.onClick} variant={secondaryAction.variant || 'outline'}>
+              {secondaryAction.label}
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );

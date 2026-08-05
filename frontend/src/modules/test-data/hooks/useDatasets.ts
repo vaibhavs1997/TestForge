@@ -2,12 +2,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { datasetService } from '../services/datasetService';
 import type { DatasetDto } from '../services/datasetService';
+import { queryKeys } from '../../../constants';
 
 // ─── Datasets ──────────────────────────────────────────────────
 
 export const useDatasets = (projectId?: string) => {
   const queryClient = useQueryClient();
-  const queryKey = ['datasets', projectId];
+  const queryKey = queryKeys.datasets(projectId || '');
 
   const { data: datasets = [], isLoading, isError, error } = useQuery({
     queryKey,

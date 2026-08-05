@@ -148,7 +148,7 @@ export function PromptBuilderPage({ projectId }: PromptBuilderPageProps) {
               Select Template
             </h2>
             {templatesError && (
-              <div className='mb-2 text-sm text-red-500'>{templatesError}</div>
+              <div className='mb-2 text-sm text-red-500'>{templatesError ? String(templatesError) : ''}</div>
             )}
             {templates.length === 0 ? (
               <div className='py-4 text-center text-sm text-text-secondary'>

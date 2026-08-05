@@ -35,14 +35,48 @@ import { PluginController } from './interfaces/plugin/PluginController';
 import { NotificationController } from './interfaces/notification/NotificationController';
 import { VersionController } from './interfaces/versioning/VersionController';
 import { AuditLogController } from './interfaces/audit/AuditLogController';
+import { validateConfig } from './config';
+import { BackupService } from './interfaces/backup/BackupService';
+import { createBackupRoutes } from './interfaces/backup/BackupRoutes';
 
 dotenv.config();
 
-const app = express();
-const port = process.env.PORT || 3000;
+// Validate configuration at startup with readable errors
+let config;
+try {
+  config = validateConfig();
+} catch (err) {
+  console.error(err instanceof Error ? err.message : 'Configuration validation failed');
+  process.exit(1);
+}
 
-app.use(cors());
+const app = express();
+const port = config.port;
+
+app.use(cors({ origin: config.corsOrigin === '*' ? true : config.corsOrigin.split(',') }));
 app.use(express.json());
+
+const serverStartTime = Date.now();
+
+// ── Health Endpoints ─────────────────────────────────────────────────────
+app.get('/health', (_req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    uptime: Math.round((Date.now() - serverStartTime) / 1000),
+    version: config.version,
+    build: config.buildTimestamp,
+    gitCommit: config.gitCommit,
+  });
+});
+
+app.get('/ready', (_req, res) => {
+  res.status(200).json({
+    status: 'ready',
+    uptime: Math.round((Date.now() - serverStartTime) / 1000),
+    version: config.version,
+    build: config.buildTimestamp,
+  });
+});
 
 app.use('/api', apiRoutes);
 app.use('/api', environmentRoutes);
@@ -88,6 +122,30 @@ app.use('/api', createVersionRoutes(versionController));
 const auditLogController = new AuditLogController(container.auditLogService);
 app.use('/api', createAuditLogRoutes(auditLogController));
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+// Initialize Backup & Restore module
+const backupService = new BackupService();
+app.use('/api', createBackupRoutes(backupService));
+
+const server = app.listen(port, () => {
+  console.log(`Server running on port ${port} (${config.nodeEnv})`);
+  console.log(`Version: ${config.version}, Build: ${config.buildTimestamp}, Commit: ${config.gitCommit}`);
 });
+
+// ── Graceful Shutdown ────────────────────────────────────────────────────
+const shutdown = (signal: string) => {
+  console.log(`\nReceived ${signal}. Shutting down gracefully...`);
+
+  server.close(() => {
+    console.log('HTTP server closed.');
+    process.exit(0);
+  });
+
+  // Force exit after 10s if connections hang
+  setTimeout(() => {
+    console.error('Forced shutdown after timeout.');
+    process.exit(1);
+  }, 10000).unref();
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

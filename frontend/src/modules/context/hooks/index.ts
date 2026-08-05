@@ -1,30 +1,19 @@
-// Project Context hooks
-import { useState, useEffect, useCallback } from 'react';
+// Project Context hooks - migrated to TanStack Query
+import { useQuery } from '@tanstack/react-query';
 import { projectContextService } from '../services';
-import type { ProjectContext } from '../types';
+import { queryKeys } from '../../../constants';
 
 export function useProjectContext(projectId: string | null) {
-  const [context, setContext] = useState<ProjectContext | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryKey = queryKeys.projectContext(projectId || '');
 
-  const fetchContext = useCallback(async () => {
-    if (!projectId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await projectContextService.getProjectContext(projectId);
-      setContext(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch project context');
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
+  const { data: context = null, isLoading: loading, isError, error, refetch } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      if (!projectId) return null;
+      return projectContextService.getProjectContext(projectId);
+    },
+    enabled: !!projectId,
+  });
 
-  useEffect(() => {
-    fetchContext();
-  }, [fetchContext]);
-
-  return { context, loading, error, refetch: fetchContext };
+  return { context, loading, isLoading: loading, isError, error, refetch };
 }

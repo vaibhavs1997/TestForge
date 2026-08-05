@@ -7,7 +7,7 @@ import React from 'react';
 import { logger } from '../../../utils/logger';
 
 // Hooks
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 // Services
 import { projectService } from '../../../services/ProjectService';
@@ -21,6 +21,7 @@ import { ErrorAlert } from '../../../components/shared/ErrorAlert';
 import { EmptyState } from '../../../components/ui/EmptyState';
 
 // Styles
+import { queryKeys } from '../../../constants';
 
 export interface DashboardPageProps {}
 
@@ -41,34 +42,28 @@ interface ActivityItem {
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = () => {
-  const [summaryCards, setSummaryCards] = React.useState<SummaryCard[]>([]);
-  const [recentActivity, setRecentActivity] = React.useState<ActivityItem[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const queryKey = queryKeys.projectDashboard('1');
 
-  React.useEffect(() => {
-    const loadDashboardData = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        // TODO: Replace with real API call when dashboard endpoint is available
-        // const data = await projectService.getDashboardData(projectId);
-        // setSummaryCards(data.summaryCards);
-        // setRecentActivity(data.recentActivity);
-        
-        // For now, show empty state - no mock data
-        setSummaryCards([]);
-        setRecentActivity([]);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
-        logger.error('Failed to load dashboard', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const { data: dashboardData, isLoading, isError, error, refetch } = useQuery<{
+    summaryCards: SummaryCard[];
+    recentActivity: ActivityItem[];
+  }>({
+    queryKey,
+    queryFn: async () => {
+      // TODO: Replace with real API call when dashboard endpoint is available
+      // const data = await projectService.getDashboardData(projectId);
+      // return data;
+      return {
+        summaryCards: [],
+        recentActivity: [],
+      };
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-    loadDashboardData();
-  }, []);
+  const summaryCards: SummaryCard[] = dashboardData?.summaryCards || [];
+  const recentActivity: ActivityItem[] = dashboardData?.recentActivity || [];
 
   const quickActions = [
     {
@@ -107,6 +102,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = () => {
     return <Badge variant={variants[status] || 'secondary'}>{status}</Badge>;
   };
 
+  const handleRetry = () => {
+    queryClient.invalidateQueries({ queryKey });
+  };
+
   if (isLoading) {
     return (
       <div className='mx-auto max-w-7xl px-4 py-8'>
@@ -118,7 +117,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = () => {
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
       <div className='mx-auto max-w-7xl px-4 py-8'>
         <div className='mb-6'>
@@ -126,8 +125,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = () => {
         </div>
         <ErrorAlert
           title='Failed to load dashboard data'
-          message={error}
-          onRetry={() => window.location.reload()}
+          message={error?.message || 'An unexpected error occurred while loading dashboard data.'}
+          onRetry={handleRetry}
         />
       </div>
     );

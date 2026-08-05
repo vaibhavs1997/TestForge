@@ -7,7 +7,8 @@ import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
-import { Play, Square, Clock, CheckCircle, XCircle, AlertCircle, Copy, Download, RefreshCw, Eye, MoreVertical, ChevronDown, Shield, Database, Settings } from 'lucide-react';
+import { ErrorAlert } from '../../../components/shared/ErrorAlert';
+import { Play, Clock, CheckCircle, XCircle, AlertCircle, Copy, Download, RefreshCw, Eye, MoreVertical, ChevronDown, Shield, Database, Settings } from 'lucide-react';
 import { profileService } from '../services/profileService';
 import type { ExecutionProfile } from '../types/profile';
 import { useNavigate } from 'react-router-dom';
@@ -22,11 +23,11 @@ import { logger } from '../../../utils/logger';
 export interface ExecutionPageProps {}
 
 const getStatusBadge = (status: ExecutionRun['status']) => {
-  const variants: Record<ExecutionRun['status'], 'success' | 'destructive' | 'warning' | 'secondary'> = {
+  const variants: Record<ExecutionRun['status'], 'success' | 'destructive' | 'running' | 'pending' | 'secondary'> = {
     'Completed': 'success',
     'Failed': 'destructive',
-    'Running': 'warning',
-    'Pending': 'secondary',
+    'Running': 'running',
+    'Pending': 'pending',
     'Cancelled': 'secondary',
   };
   return <Badge variant={variants[status]}>{status}</Badge>;
@@ -115,39 +116,42 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
   const totalRunning = runs.filter(e => e.status === 'Running').length;
   const totalPending = runs.filter(e => e.status === 'Pending').length;
 
+  const breadcrumbItems = [
+    { label: 'Projects', to: '/projects' },
+    { label: 'Project', to: `/projects/${projectId}/overview` },
+    { label: 'Execution' },
+  ];
+
   return (
     <div className='mx-auto max-w-7xl px-4 py-8'>
-      {/* Page Header */}
-      <div className='mb-6 flex items-center justify-between'>
-        <div>
-          <h1 className='text-2xl font-bold text-text'>Executions</h1>
-          <p className='mt-1 text-sm text-text-secondary'>View and monitor all test executions.</p>
-        </div>
-        <div className='flex items-center gap-3'>
-          <Button variant='outline' onClick={() => navigate('profiles')}>
-            <Settings className='mr-2 h-4 w-4' />
-            Manage Profiles
-          </Button>
-          <select
-            value={selectedProfileId}
-            onChange={(e) => setSelectedProfileId(e.target.value)}
-            className='rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text'
-          >
-            {profiles.filter(p => p.enabled).map((profile) => (
-              <option key={profile.id} value={profile.id}>
-                {profile.name}{profile.isDefault ? ' (Default)' : ''}
-              </option>
-            ))}
-          </select>
-          <Button
-            onClick={() => selectedProfileId && handleStartExecution(selectedProfileId)}
-            disabled={!selectedProfileId || isStarting}
-          >
-            <Play className='mr-2 h-4 w-4' />
-            Start Execution
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title='Executions'
+        description='View and monitor all test executions.'
+        breadcrumb={breadcrumbItems}
+      >
+        <Button variant='outline' onClick={() => navigate('profiles')}>
+          <Settings className='mr-2 h-4 w-4' />
+          Manage Profiles
+        </Button>
+        <select
+          value={selectedProfileId}
+          onChange={(e) => setSelectedProfileId(e.target.value)}
+          className='rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text'
+        >
+          {profiles.filter(p => p.enabled).map((profile) => (
+            <option key={profile.id} value={profile.id}>
+              {profile.name}{profile.isDefault ? ' (Default)' : ''}
+            </option>
+          ))}
+        </select>
+        <Button
+          onClick={() => selectedProfileId && handleStartExecution(selectedProfileId)}
+          disabled={!selectedProfileId || isStarting}
+        >
+          <Play className='mr-2 h-4 w-4' />
+          Start Execution
+        </Button>
+      </PageHeader>
 
       {/* Profile Summary */}
       {selectedProfile && (
@@ -293,14 +297,6 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
             <option value='Pending'>Pending</option>
             <option value='Cancelled'>Cancelled</option>
           </select>
-          <input 
-            type='text' 
-            placeholder='Date Range' 
-            className='rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text'
-          />
-          <Button variant='outline' size='sm'>
-            <ChevronDown className='h-4 w-4' />
-          </Button>
         </div>
       </div>
 
@@ -314,9 +310,11 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
                 <p className='text-sm text-text-secondary'>Loading executions...</p>
               </div>
             ) : isError ? (
-              <div className='flex items-center justify-center py-8'>
-                <p className='text-sm text-error'>Error: {error?.message || 'Unknown error'}</p>
-              </div>
+              <ErrorAlert
+                title='Failed to load executions'
+                message={error?.message || 'An unexpected error occurred while loading executions.'}
+                onRetry={() => window.location.reload()}
+              />
             ) : filteredRuns.length === 0 ? (
               <EmptyState
                 icon={<Play className='h-8 w-8' />}

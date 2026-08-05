@@ -2,12 +2,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { columnService } from '../services/columnService';
 import type { ColumnDto, ColumnSuggestion } from '../services/columnService';
+import { queryKeys } from '../../../constants';
 
 // ─── Columns ───────────────────────────────────────────────────
 
 export const useColumns = (projectId?: string, datasetId?: string) => {
   const queryClient = useQueryClient();
-  const queryKey = ['columns', projectId, datasetId];
+  const queryKey = queryKeys.columns(projectId || '', datasetId || '');
 
   const { data: columns = [], isLoading, isError, error } = useQuery({
     queryKey,
@@ -71,7 +72,7 @@ export const useColumns = (projectId?: string, datasetId?: string) => {
 // ─── Column Suggestions ────────────────────────────────────────
 
 export const useColumnSuggestions = (projectId?: string, datasetName?: string) => {
-  const queryKey = ['column-suggestions', projectId, datasetName];
+  const queryKey = queryKeys.columnSuggestions(projectId || '', datasetName || '');
 
   const { data: suggestions = [], isLoading, isError, error } = useQuery({
     queryKey,

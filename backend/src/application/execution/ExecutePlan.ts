@@ -25,6 +25,7 @@ import { ExecutionProfileEntity } from '../../domain/execution/ExecutionProfileE
 import { ProviderRepository } from '../../domain/providers/ProviderRepository';
 import { ProviderResolutionService } from '../../infrastructure/providers/ProviderResolutionService';
 import { EventPublisher } from '../EventPublisher';
+import { DEFAULT_TIMEOUT_MS } from '../../constants/defaults';
 
 export class ExecutePlan {
   private loadedProfile: ExecutionProfileEntity | null = null;
@@ -380,7 +381,7 @@ export class ExecutePlan {
 
     // Execute HTTP request
     const requestStart = Date.now();
-    const timeout = this.loadedProfile?.timeout || 30000;
+    const timeout = this.loadedProfile?.timeout || DEFAULT_TIMEOUT_MS;
 
     try {
       const response = await axios({

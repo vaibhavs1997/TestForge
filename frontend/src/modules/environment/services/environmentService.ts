@@ -1,7 +1,6 @@
 // Environment service functions for Environment Management
 import axios from 'axios';
-
-const API_BASE = '/api';
+import { API_BASE_URL } from '../../../constants/api';
 
 export interface EnvironmentDto {
   id: string;
@@ -18,7 +17,7 @@ export interface EnvironmentDto {
 
 export const environmentService = {
   listEnvironments: async (projectId: string): Promise<EnvironmentDto[]> => {
-    const { data } = await axios.get(`${API_BASE}/projects/${projectId}/environments`);
+    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/environments`);
     return data.data;
   },
 
@@ -30,7 +29,7 @@ export const environmentService = {
     variables?: Record<string, string>;
     timeout?: number;
   }): Promise<EnvironmentDto> => {
-    const { data } = await axios.post(`${API_BASE}/projects/${projectId}/environments`, payload);
+    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/environments`, payload);
     return data.data;
   },
 
@@ -43,12 +42,12 @@ export const environmentService = {
     timeout?: number;
     isDefault?: boolean;
   }): Promise<EnvironmentDto> => {
-    const { data } = await axios.patch(`${API_BASE}/projects/${projectId}/environments/${environmentId}`, payload);
+    const { data } = await axios.patch(`${API_BASE_URL}/projects/${projectId}/environments/${environmentId}`, payload);
     return data.data;
   },
 
   deleteEnvironment: async (projectId: string, environmentId: string): Promise<void> => {
-    await axios.delete(`${API_BASE}/projects/${projectId}/environments/${environmentId}`);
+    await axios.delete(`${API_BASE_URL}/projects/${projectId}/environments/${environmentId}`);
   },
 };
 

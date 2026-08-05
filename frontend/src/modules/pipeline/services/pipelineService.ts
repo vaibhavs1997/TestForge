@@ -1,7 +1,6 @@
 // PipelineService - API service for Pipeline operations
 import { PipelineEntity, StartPipelineRequest, RestartStageRequest } from '../types';
-
-const API_BASE_URL = '/api';
+import { API_BASE_URL } from '../../../constants/api';
 
 export class PipelineService {
   async startPipeline(projectId: string): Promise<PipelineEntity> {

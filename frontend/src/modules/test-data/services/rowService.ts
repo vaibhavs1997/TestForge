@@ -2,34 +2,33 @@
 import axios from 'axios';
 import type { DatasetRow, CreateRowInput } from '../types';
 import type { ImportResult, ImportTemplate, ColumnMapping } from '../types/import';
-
-const API_BASE = '/api';
+import { API_BASE_URL } from '../../../constants/api';
 
 export const rowService = {
   listRows: async (projectId: string, datasetId: string): Promise<DatasetRow[]> => {
-    const { data } = await axios.get(`${API_BASE}/projects/${projectId}/test-data/rows`, {
+    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/test-data/rows`, {
       params: { datasetId },
     });
     return data.data;
   },
 
   getRow: async (projectId: string, rowId: string): Promise<DatasetRow> => {
-    const { data } = await axios.get(`${API_BASE}/projects/${projectId}/test-data/rows/${rowId}`);
+    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/test-data/rows/${rowId}`);
     return data.data;
   },
 
   createRow: async (projectId: string, input: CreateRowInput): Promise<DatasetRow> => {
-    const { data } = await axios.post(`${API_BASE}/projects/${projectId}/test-data/rows`, input);
+    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/test-data/rows`, input);
     return data.data;
   },
 
   updateRow: async (projectId: string, rowId: string, values: Record<string, any>): Promise<DatasetRow> => {
-    const { data } = await axios.patch(`${API_BASE}/projects/${projectId}/test-data/rows/${rowId}`, { values });
+    const { data } = await axios.patch(`${API_BASE_URL}/projects/${projectId}/test-data/rows/${rowId}`, { values });
     return data.data;
   },
 
   deleteRow: async (projectId: string, rowId: string): Promise<void> => {
-    await axios.delete(`${API_BASE}/projects/${projectId}/test-data/rows/${rowId}`);
+    await axios.delete(`${API_BASE_URL}/projects/${projectId}/test-data/rows/${rowId}`);
   },
 
   importData: async (
@@ -49,7 +48,7 @@ export const rowService = {
     formData.append('skipEmptyRows', String(options.skipEmptyRows));
 
     const { data } = await axios.post(
-      `${API_BASE}/projects/${projectId}/test-data/datasets/${datasetId}/import`,
+      `${API_BASE_URL}/projects/${projectId}/test-data/datasets/${datasetId}/import`,
       formData,
       {
         headers: {
@@ -63,7 +62,7 @@ export const rowService = {
 
   getImportTemplate: async (projectId: string, datasetId: string): Promise<ImportTemplate> => {
     const { data } = await axios.get(
-      `${API_BASE}/projects/${projectId}/test-data/datasets/${datasetId}/import/template`
+      `${API_BASE_URL}/projects/${projectId}/test-data/datasets/${datasetId}/import/template`
     );
     return data.data;
   },

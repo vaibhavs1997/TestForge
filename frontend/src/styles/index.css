@@ -42,3 +42,117 @@
     min-height: 100vh;
   }
 }
+
+/* Landing page animations */
+@keyframes landing-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes landing-progress {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+@keyframes landing-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes landing-particle-drift {
+  0%,
+  100% {
+    transform: translate(0, 0);
+    opacity: 0.2;
+  }
+  50% {
+    transform: translate(12px, -18px);
+    opacity: 0.5;
+  }
+}
+
+@keyframes landing-line-opacity {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.landing-fade-up {
+  animation: landing-fade-up 0.8s ease-out forwards;
+}
+
+.landing-fade-up-delay {
+  animation: landing-fade-up 0.8s ease-out 0.15s forwards;
+  opacity: 0;
+}
+
+.landing-float-card {
+  animation: landing-float 5s ease-in-out infinite;
+}
+
+.landing-float-card-delay {
+  animation: landing-float 5.5s ease-in-out 0.8s infinite;
+}
+
+.landing-progress-bar {
+  background-size: 200% 100%;
+  animation: landing-progress 3s linear infinite;
+}
+
+.landing-particle {
+  animation: landing-particle-drift 8s ease-in-out infinite;
+}
+
+.landing-line-draw {
+  animation: landing-line-opacity 4s ease-in-out infinite;
+}
+
+.landing-line-delay {
+  animation-delay: 1.5s;
+}
+
+.landing-node-pulse {
+  animation: landing-line-opacity 2.5s ease-in-out infinite;
+}
+
+.landing-dashboard-glow::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 16px;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.35), transparent, rgba(124, 58, 237, 0.25));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.landing-shimmer-text {
+  background: linear-gradient(90deg, #94a3b8, #e2e8f0, #94a3b8);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: landing-progress 4s linear infinite;
+}

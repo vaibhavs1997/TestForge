@@ -5,14 +5,17 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { AssertionEntity } from '../../domain/assertion/AssertionEntity';
 import { EventPublisher } from '../../application/EventPublisher';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
 
-const DATA_ROOT = path.join(process.cwd(), 'data', 'assertions');
+function getDataRoot(): string {
+  return path.join(process.cwd(), 'data', 'assertions');
+}
 
 export class AssertionRepository {
   constructor(private readonly eventPublisher?: EventPublisher) {}
 
   private getProjectDir(projectId: string): string {
-    return path.join(DATA_ROOT, projectId);
+    return path.join(getDataRoot(), projectId);
   }
 
   private getAssertionsFilePath(projectId: string): string {
@@ -39,7 +42,7 @@ export class AssertionRepository {
     };
     
     assertions.push(newAssertion);
-    fs.writeFileSync(filePath, JSON.stringify(assertions, null, 2));
+    await writeJsonArray(filePath, assertions);
 
     // Publish CREATED event through central EventPublisher
     if (this.eventPublisher) {
@@ -63,7 +66,7 @@ export class AssertionRepository {
         };
         assertions[index] = updated;
         const filePath = this.getAssertionsFilePath(projectId);
-        fs.writeFileSync(filePath, JSON.stringify(assertions, null, 2));
+        await writeJsonArray(filePath, assertions);
 
         // Publish UPDATED event through central EventPublisher
         if (this.eventPublisher) {
@@ -84,7 +87,7 @@ export class AssertionRepository {
       if (assertion) {
         const filtered = assertions.filter(a => a.id !== id);
         const filePath = this.getAssertionsFilePath(projectId);
-        fs.writeFileSync(filePath, JSON.stringify(filtered, null, 2));
+        await writeJsonArray(filePath, filtered);
 
         // Publish DELETED event through central EventPublisher
         if (this.eventPublisher) {
@@ -136,18 +139,16 @@ export class AssertionRepository {
   }
 
   private listProjectIds(): string[] {
-    if (!fs.existsSync(DATA_ROOT)) return [];
-    return fs.readdirSync(DATA_ROOT).filter(name => {
-      const fullPath = path.join(DATA_ROOT, name);
+    if (!fs.existsSync(getDataRoot())) return [];
+    return fs.readdirSync(getDataRoot()).filter(name => {
+      const fullPath = path.join(getDataRoot(), name);
       return fs.statSync(fullPath).isDirectory();
     });
   }
 
-  private readAssertions(projectId: string): AssertionEntity[] {
+  private async readAssertions(projectId: string): Promise<AssertionEntity[]> {
     const filePath = this.getAssertionsFilePath(projectId);
-    if (!fs.existsSync(filePath)) return [];
-    const data = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(data);
+    return readJsonArray(filePath);
   }
 }
 

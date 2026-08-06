@@ -3,14 +3,17 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { TestDesignEntity } from '../../domain/requirements/TestDesignEntity';
 import { EventPublisher } from '../../application/EventPublisher';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
 
-const DATA_ROOT = path.join(process.cwd(), 'data', 'test-designs');
+function getDataRoot(): string {
+  return path.join(process.cwd(), 'data', 'test-designs');
+}
 
 export class TestDesignRepository {
   constructor(private readonly eventPublisher?: EventPublisher) {}
 
   private getProjectDir(projectId: string): string {
-    return path.join(DATA_ROOT, projectId);
+    return path.join(getDataRoot(), projectId);
   }
 
   private getDesignsFilePath(projectId: string): string {
@@ -29,7 +32,7 @@ export class TestDesignRepository {
     const filePath = this.getDesignsFilePath(design.projectId);
     const items = await this.readDesigns(design.projectId);
     items.push(design);
-    fs.writeFileSync(filePath, JSON.stringify(items, null, 2));
+    await writeJsonArray(filePath, items);
 
     // Publish CREATED event through central EventPublisher
     if (this.eventPublisher) {
@@ -49,7 +52,7 @@ export class TestDesignRepository {
         const updated = { ...items[index], ...data, updatedAt: Date.now() };
         items[index] = updated;
         const filePath = this.getDesignsFilePath(projectId);
-        fs.writeFileSync(filePath, JSON.stringify(items, null, 2));
+        await writeJsonArray(filePath, items);
 
         // Publish UPDATED event through central EventPublisher
         if (this.eventPublisher) {
@@ -70,7 +73,7 @@ export class TestDesignRepository {
       if (design) {
         const filtered = items.filter(d => d.id !== id);
         const filePath = this.getDesignsFilePath(projectId);
-        fs.writeFileSync(filePath, JSON.stringify(filtered, null, 2));
+        await writeJsonArray(filePath, filtered);
 
         // Publish DELETED event through central EventPublisher
         if (this.eventPublisher) {
@@ -128,18 +131,16 @@ export class TestDesignRepository {
   }
 
   private listProjectIds(): string[] {
-    if (!fs.existsSync(DATA_ROOT)) return [];
-    return fs.readdirSync(DATA_ROOT).filter(name => {
-      const fullPath = path.join(DATA_ROOT, name);
+    if (!fs.existsSync(getDataRoot())) return [];
+    return fs.readdirSync(getDataRoot()).filter(name => {
+      const fullPath = path.join(getDataRoot(), name);
       return fs.statSync(fullPath).isDirectory();
     });
   }
 
-  private readDesigns(projectId: string): TestDesignEntity[] {
+  private async readDesigns(projectId: string): Promise<TestDesignEntity[]> {
     const filePath = this.getDesignsFilePath(projectId);
-    if (!fs.existsSync(filePath)) return [];
-    const data = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(data);
+    return readJsonArray(filePath);
   }
 }
 

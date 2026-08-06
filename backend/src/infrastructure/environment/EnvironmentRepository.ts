@@ -2,12 +2,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { EnvironmentEntity } from '../../domain/environment/EnvironmentEntity';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
 
-const DATA_ROOT = path.join(process.cwd(), 'data', 'environments');
+function getDataRoot(): string {
+  return path.join(process.cwd(), 'data', 'environments');
+}
 
 export class EnvironmentRepository {
   private getProjectDir(projectId: string): string {
-    return path.join(DATA_ROOT, projectId);
+    return path.join(getDataRoot(), projectId);
   }
 
   private getEnvironmentsFilePath(projectId: string): string {
@@ -26,7 +29,7 @@ export class EnvironmentRepository {
     const filePath = this.getEnvironmentsFilePath(environment.projectId);
     const environments = await this.readEnvironments(environment.projectId);
     environments.push(environment);
-    fs.writeFileSync(filePath, JSON.stringify(environments, null, 2));
+    await writeJsonArray(filePath, environments);
     return environment;
   }
 
@@ -39,7 +42,7 @@ export class EnvironmentRepository {
         const updated = { ...environments[index], ...data, updatedAt: Date.now() };
         environments[index] = updated;
         const filePath = this.getEnvironmentsFilePath(projectId);
-        fs.writeFileSync(filePath, JSON.stringify(environments, null, 2));
+        await writeJsonArray(filePath, environments);
         return updated;
       }
     }
@@ -53,7 +56,7 @@ export class EnvironmentRepository {
       const filtered = environments.filter(e => e.id !== id);
       if (filtered.length !== environments.length) {
         const filePath = this.getEnvironmentsFilePath(projectId);
-        fs.writeFileSync(filePath, JSON.stringify(filtered, null, 2));
+        await writeJsonArray(filePath, filtered);
         return;
       }
     }
@@ -94,18 +97,16 @@ export class EnvironmentRepository {
   }
 
   private listProjectIds(): string[] {
-    if (!fs.existsSync(DATA_ROOT)) return [];
-    return fs.readdirSync(DATA_ROOT).filter(name => {
-      const fullPath = path.join(DATA_ROOT, name);
+    if (!fs.existsSync(getDataRoot())) return [];
+    return fs.readdirSync(getDataRoot()).filter(name => {
+      const fullPath = path.join(getDataRoot(), name);
       return fs.statSync(fullPath).isDirectory();
     });
   }
 
-  private readEnvironments(projectId: string): EnvironmentEntity[] {
+  private async readEnvironments(projectId: string): Promise<EnvironmentEntity[]> {
     const filePath = this.getEnvironmentsFilePath(projectId);
-    if (!fs.existsSync(filePath)) return [];
-    const data = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(data);
+    return readJsonArray(filePath);
   }
 }
 

@@ -2,12 +2,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { DatasetEntity } from '../../domain/test-data/DatasetEntity';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
 
-const DATA_ROOT = path.join(process.cwd(), 'data', 'test-data');
+function getDataRoot(): string {
+  return path.join(process.cwd(), 'data', 'test-data');
+}
 
 export class DatasetRepository {
   private getProjectDir(projectId: string): string {
-    return path.join(DATA_ROOT, projectId);
+    return path.join(getDataRoot(), projectId);
   }
 
   private getDatasetsFilePath(projectId: string): string {
@@ -26,7 +29,7 @@ export class DatasetRepository {
     const filePath = this.getDatasetsFilePath(dataset.projectId);
     const datasets = await this.readDatasets(dataset.projectId);
     datasets.push(dataset);
-    fs.writeFileSync(filePath, JSON.stringify(datasets, null, 2));
+    await writeJsonArray(filePath, datasets);
     return dataset;
   }
 
@@ -39,7 +42,7 @@ export class DatasetRepository {
         const updated = { ...datasets[index], ...data, updatedAt: Date.now() };
         datasets[index] = updated;
         const filePath = this.getDatasetsFilePath(projectId);
-        fs.writeFileSync(filePath, JSON.stringify(datasets, null, 2));
+        await writeJsonArray(filePath, datasets);
         return updated;
       }
     }
@@ -53,7 +56,7 @@ export class DatasetRepository {
       const filtered = datasets.filter(d => d.id !== id);
       if (filtered.length !== datasets.length) {
         const filePath = this.getDatasetsFilePath(projectId);
-        fs.writeFileSync(filePath, JSON.stringify(filtered, null, 2));
+        await writeJsonArray(filePath, filtered);
         return;
       }
     }
@@ -89,18 +92,16 @@ export class DatasetRepository {
   }
 
   private listProjectIds(): string[] {
-    if (!fs.existsSync(DATA_ROOT)) return [];
-    return fs.readdirSync(DATA_ROOT).filter(name => {
-      const fullPath = path.join(DATA_ROOT, name);
+    if (!fs.existsSync(getDataRoot())) return [];
+    return fs.readdirSync(getDataRoot()).filter(name => {
+      const fullPath = path.join(getDataRoot(), name);
       return fs.statSync(fullPath).isDirectory();
     });
   }
 
-  private readDatasets(projectId: string): DatasetEntity[] {
+  private async readDatasets(projectId: string): Promise<DatasetEntity[]> {
     const filePath = this.getDatasetsFilePath(projectId);
-    if (!fs.existsSync(filePath)) return [];
-    const data = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(data);
+    return readJsonArray(filePath);
   }
 }
 

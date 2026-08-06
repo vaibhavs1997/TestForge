@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppShell } from '../layouts/AppShell';
 import { ProjectRoutes } from '../modules/project';
 import { SettingsRoutes } from '../modules/settings';
+import { LandingPage } from '../modules/landing';
 import { projectStore } from '../store/projectStore';
 // Simple loading fallback for lazy routes
 const PageLoader = () => (
@@ -30,8 +31,8 @@ const ProjectModuleRedirect: React.FC<{ module: string }> = ({ module }) => {
 
 export const AppRoutes = () => (
   <Routes>
+    <Route path="/" element={<LandingPage />} />
     <Route element={<AppShell />}>
-      <Route path='/' element={<Navigate to='/projects' replace />} />
       <Route path='/dashboard' element={
         <Suspense fallback={<PageLoader />}>
           <DashboardPage />

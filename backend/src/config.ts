@@ -9,6 +9,23 @@ export interface AppConfig {
   version: string;
   buildTimestamp: string;
   gitCommit: string;
+  auth: AuthConfig;
+}
+
+export interface AuthConfig {
+  enabled: boolean;
+  apiKey?: string;
+  jwtSecret?: string;
+}
+
+export function getAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfig {
+  const apiKey = env.TESTFORGE_API_KEY?.trim() || undefined;
+  const jwtSecret = env.TESTFORGE_JWT_SECRET?.trim() || undefined;
+  return {
+    enabled: Boolean(apiKey || jwtSecret),
+    apiKey,
+    jwtSecret,
+  };
 }
 
 export const APP_VERSION = process.env.npm_package_version || '0.1.0';
@@ -39,5 +56,6 @@ export function validateConfig(env: NodeJS.ProcessEnv = process.env): AppConfig 
     version: env.npm_package_version || APP_VERSION,
     buildTimestamp: env.BUILD_TIMESTAMP || BUILD_TIMESTAMP,
     gitCommit: env.GIT_COMMIT || GIT_COMMIT,
+    auth: getAuthConfig(env),
   };
 }

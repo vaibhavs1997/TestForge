@@ -3,14 +3,17 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ExecutionPlanEntity } from '../../domain/requirements/ExecutionPlanEntity';
 import { EventPublisher } from '../../application/EventPublisher';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
 
-const DATA_ROOT = path.join(process.cwd(), 'data', 'execution-plans');
+function getDataRoot(): string {
+  return path.join(process.cwd(), 'data', 'execution-plans');
+}
 
 export class ExecutionPlanRepository {
   constructor(private readonly eventPublisher?: EventPublisher) {}
 
   private getProjectDir(projectId: string): string {
-    return path.join(DATA_ROOT, projectId);
+    return path.join(getDataRoot(), projectId);
   }
 
   private getPlansFilePath(projectId: string): string {
@@ -29,7 +32,7 @@ export class ExecutionPlanRepository {
     const filePath = this.getPlansFilePath(plan.projectId);
     const items = await this.readPlans(plan.projectId);
     items.push(plan);
-    fs.writeFileSync(filePath, JSON.stringify(items, null, 2));
+    await writeJsonArray(filePath, items);
 
     // Publish CREATED event through central EventPublisher
     if (this.eventPublisher) {
@@ -49,7 +52,7 @@ export class ExecutionPlanRepository {
         const updated = { ...items[index], ...data, updatedAt: Date.now() };
         items[index] = updated;
         const filePath = this.getPlansFilePath(projectId);
-        fs.writeFileSync(filePath, JSON.stringify(items, null, 2));
+        await writeJsonArray(filePath, items);
 
         // Publish UPDATED event through central EventPublisher
         if (this.eventPublisher) {
@@ -70,7 +73,7 @@ export class ExecutionPlanRepository {
       if (plan) {
         const filtered = items.filter(p => p.id !== id);
         const filePath = this.getPlansFilePath(projectId);
-        fs.writeFileSync(filePath, JSON.stringify(filtered, null, 2));
+        await writeJsonArray(filePath, filtered);
 
         // Publish DELETED event through central EventPublisher
         if (this.eventPublisher) {
@@ -128,18 +131,16 @@ export class ExecutionPlanRepository {
   }
 
   private listProjectIds(): string[] {
-    if (!fs.existsSync(DATA_ROOT)) return [];
-    return fs.readdirSync(DATA_ROOT).filter(name => {
-      const fullPath = path.join(DATA_ROOT, name);
+    if (!fs.existsSync(getDataRoot())) return [];
+    return fs.readdirSync(getDataRoot()).filter(name => {
+      const fullPath = path.join(getDataRoot(), name);
       return fs.statSync(fullPath).isDirectory();
     });
   }
 
-  private readPlans(projectId: string): ExecutionPlanEntity[] {
+  private async readPlans(projectId: string): Promise<ExecutionPlanEntity[]> {
     const filePath = this.getPlansFilePath(projectId);
-    if (!fs.existsSync(filePath)) return [];
-    const data = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(data);
+    return readJsonArray(filePath);
   }
 }
 

@@ -2,12 +2,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { RuntimeVariable } from '../../domain/knowledge/RuntimeVariableEntity';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
 
-const DATA_ROOT = path.join(process.cwd(), 'data', 'knowledge');
+function getDataRoot(): string {
+  return path.join(process.cwd(), 'data', 'knowledge');
+}
 
 export class RuntimeVariableRepository {
   private getProjectDir(projectId: string): string {
-    return path.join(DATA_ROOT, projectId);
+    return path.join(getDataRoot(), projectId);
   }
 
   private getFilePath(projectId: string): string {
@@ -26,7 +29,7 @@ export class RuntimeVariableRepository {
     const filePath = this.getFilePath(variable.projectId);
     const items = await this.readItems(filePath);
     items.push(variable);
-    fs.writeFileSync(filePath, JSON.stringify(items, null, 2));
+    await writeJsonArray(filePath, items);
     return variable;
   }
 
@@ -39,7 +42,7 @@ export class RuntimeVariableRepository {
       if (index !== -1) {
         const updated = { ...items[index], ...data, updatedAt: Date.now() };
         items[index] = updated;
-        fs.writeFileSync(filePath, JSON.stringify(items, null, 2));
+        await writeJsonArray(filePath, items);
         return updated;
       }
     }
@@ -53,7 +56,7 @@ export class RuntimeVariableRepository {
       const items = await this.readItems(filePath);
       const filtered = items.filter((v: RuntimeVariable) => v.id !== id);
       if (filtered.length !== items.length) {
-        fs.writeFileSync(filePath, JSON.stringify(filtered, null, 2));
+        await writeJsonArray(filePath, filtered);
         return;
       }
     }
@@ -93,17 +96,15 @@ export class RuntimeVariableRepository {
   }
 
   private listProjectIds(): string[] {
-    if (!fs.existsSync(DATA_ROOT)) return [];
-    return fs.readdirSync(DATA_ROOT).filter((name) => {
-      const fullPath = path.join(DATA_ROOT, name);
+    if (!fs.existsSync(getDataRoot())) return [];
+    return fs.readdirSync(getDataRoot()).filter((name) => {
+      const fullPath = path.join(getDataRoot(), name);
       return fs.statSync(fullPath).isDirectory();
     });
   }
 
   private async readItems(filePath: string): Promise<RuntimeVariable[]> {
-    if (!fs.existsSync(filePath)) return [];
-    const data = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(data);
+    return readJsonArray(filePath);
   }
 }
 

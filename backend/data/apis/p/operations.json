@@ -1,0 +1,25 @@
+[
+  {
+    "id": "f5f3a4ba-6f49-4765-a9c0-31ea2cddf068",
+    "projectId": "p",
+    "name": "Pet Store",
+    "description": "",
+    "version": "1.0.0",
+    "tags": [],
+    "createdAt": 1785998024465,
+    "updatedAt": 1785998024465
+  },
+  {
+    "id": "747b78d2-fb6c-4c18-bbd6-a0303534c5a1",
+    "projectId": "p",
+    "serviceId": "f5f3a4ba-6f49-4765-a9c0-31ea2cddf068",
+    "name": "listPets",
+    "method": "GET",
+    "path": "/pets",
+    "description": "List pets.",
+    "authenticationType": "None",
+    "status": "Active",
+    "createdAt": 1785998024475,
+    "updatedAt": 1785998024475
+  }
+]

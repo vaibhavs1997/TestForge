@@ -28,6 +28,9 @@ jobs:
       - name: Build
         run: npm run build:frontend && npm run build:backend
       
+      - name: Test
+        run: npm test
+      
       - name: Lint
         run: npm run lint
         continue-on-error: true

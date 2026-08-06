@@ -2,12 +2,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { TestSuiteEntity } from '../../domain/suite/TestSuiteEntity';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
 
-const DATA_ROOT = path.join(process.cwd(), 'data', 'test-suites');
+function getDataRoot(): string {
+  return path.join(process.cwd(), 'data', 'test-suites');
+}
 
 export class TestSuiteRepository {
   private getProjectDir(projectId: string): string {
-    return path.join(DATA_ROOT, projectId);
+    return path.join(getDataRoot(), projectId);
   }
 
   private getSuitesFilePath(projectId: string): string {
@@ -26,7 +29,7 @@ export class TestSuiteRepository {
     const filePath = this.getSuitesFilePath(suite.projectId);
     const items = await this.readSuites(suite.projectId);
     items.push(suite);
-    fs.writeFileSync(filePath, JSON.stringify(items, null, 2));
+    await writeJsonArray(filePath, items);
     return suite;
   }
 
@@ -39,7 +42,7 @@ export class TestSuiteRepository {
         const updated = { ...items[index], ...data, updatedAt: Date.now() };
         items[index] = updated;
         const filePath = this.getSuitesFilePath(projectId);
-        fs.writeFileSync(filePath, JSON.stringify(items, null, 2));
+        await writeJsonArray(filePath, items);
         return updated;
       }
     }
@@ -53,7 +56,7 @@ export class TestSuiteRepository {
       const filtered = items.filter(s => s.id !== id);
       if (filtered.length !== items.length) {
         const filePath = this.getSuitesFilePath(projectId);
-        fs.writeFileSync(filePath, JSON.stringify(filtered, null, 2));
+        await writeJsonArray(filePath, filtered);
         return;
       }
     }
@@ -84,18 +87,16 @@ export class TestSuiteRepository {
   }
 
   private listProjectIds(): string[] {
-    if (!fs.existsSync(DATA_ROOT)) return [];
-    return fs.readdirSync(DATA_ROOT).filter(name => {
-      const fullPath = path.join(DATA_ROOT, name);
+    if (!fs.existsSync(getDataRoot())) return [];
+    return fs.readdirSync(getDataRoot()).filter(name => {
+      const fullPath = path.join(getDataRoot(), name);
       return fs.statSync(fullPath).isDirectory();
     });
   }
 
-  private readSuites(projectId: string): TestSuiteEntity[] {
+  private async readSuites(projectId: string): Promise<TestSuiteEntity[]> {
     const filePath = this.getSuitesFilePath(projectId);
-    if (!fs.existsSync(filePath)) return [];
-    const data = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(data);
+    return readJsonArray(filePath);
   }
 }
 

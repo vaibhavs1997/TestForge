@@ -39,6 +39,7 @@ import { validateConfig } from './config';
 import { BackupService } from './interfaces/backup/BackupService';
 import { createBackupRoutes } from './interfaces/backup/BackupRoutes';
 import { errorHandler, notFoundHandler } from './interfaces/middleware/ErrorHandler';
+import { authenticate, authorizeProject } from './interfaces/middleware/auth';
 
 dotenv.config();
 
@@ -56,6 +57,9 @@ const port = config.port;
 
 app.use(cors({ origin: config.corsOrigin === '*' ? true : config.corsOrigin.split(',') }));
 app.use(express.json());
+
+app.use('/api', authenticate);
+app.use('/api/projects/:projectId', authorizeProject);
 
 const serverStartTime = Date.now();
 

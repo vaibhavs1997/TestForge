@@ -18,12 +18,21 @@ export class HttpClient {
     this.baseUrl = baseUrl;
   }
 
+  private buildHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    const apiKey = import.meta.env.VITE_API_KEY;
+    if (typeof apiKey === 'string' && apiKey.length > 0) {
+      headers.Authorization = `Bearer ${apiKey}`;
+    }
+    return headers;
+  }
+
   async get<T>(path: string): Promise<T> {
     const response = await fetch(`${this.baseUrl}${path}`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.buildHeaders(),
     });
 
     if (!response.ok) {
@@ -36,9 +45,7 @@ export class HttpClient {
   async post<T>(path: string, body: any): Promise<T> {
     const response = await fetch(`${this.baseUrl}${path}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.buildHeaders(),
       body: JSON.stringify(body),
     });
 
@@ -52,9 +59,7 @@ export class HttpClient {
   async patch<T>(path: string, body: any): Promise<T> {
     const response = await fetch(`${this.baseUrl}${path}`, {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.buildHeaders(),
       body: JSON.stringify(body),
     });
 
@@ -68,9 +73,7 @@ export class HttpClient {
   async put<T>(path: string, body: any): Promise<T> {
     const response = await fetch(`${this.baseUrl}${path}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.buildHeaders(),
       body: JSON.stringify(body),
     });
 
@@ -84,9 +87,7 @@ export class HttpClient {
   async delete<T>(path: string): Promise<T> {
     const response = await fetch(`${this.baseUrl}${path}`, {
       method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.buildHeaders(),
     });
 
     if (!response.ok) {

@@ -4,12 +4,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ScheduleEntity } from '../../domain/scheduler/ScheduleEntity';
 import type { ScheduleRepository as ScheduleRepositoryInterface } from '../../domain/scheduler/ScheduleRepository';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
 
-const DATA_ROOT = path.join(process.cwd(), 'data', 'schedules');
+function getDataRoot(): string {
+  return path.join(process.cwd(), 'data', 'schedules');
+}
 
 export class ScheduleRepository implements ScheduleRepositoryInterface {
   private getProjectDir(projectId: string): string {
-    return path.join(DATA_ROOT, projectId);
+    return path.join(getDataRoot(), projectId);
   }
 
   private getSchedulesFilePath(projectId: string): string {
@@ -28,7 +31,7 @@ export class ScheduleRepository implements ScheduleRepositoryInterface {
     const filePath = this.getSchedulesFilePath(schedule.projectId);
     const items = await this.readSchedules(schedule.projectId);
     items.push(schedule);
-    fs.writeFileSync(filePath, JSON.stringify(items, null, 2));
+    await writeJsonArray(filePath, items);
     return schedule;
   }
 
@@ -41,7 +44,7 @@ export class ScheduleRepository implements ScheduleRepositoryInterface {
         const updated = { ...items[index], ...data, updatedAt: Date.now() };
         items[index] = updated;
         const filePath = this.getSchedulesFilePath(projectId);
-        fs.writeFileSync(filePath, JSON.stringify(items, null, 2));
+        await writeJsonArray(filePath, items);
         return updated;
       }
     }
@@ -55,7 +58,7 @@ export class ScheduleRepository implements ScheduleRepositoryInterface {
       const filtered = items.filter(s => s.id !== id);
       if (filtered.length !== items.length) {
         const filePath = this.getSchedulesFilePath(projectId);
-        fs.writeFileSync(filePath, JSON.stringify(filtered, null, 2));
+        await writeJsonArray(filePath, filtered);
         return;
       }
     }
@@ -91,18 +94,16 @@ export class ScheduleRepository implements ScheduleRepositoryInterface {
   }
 
   private listProjectIds(): string[] {
-    if (!fs.existsSync(DATA_ROOT)) return [];
-    return fs.readdirSync(DATA_ROOT).filter(name => {
-      const fullPath = path.join(DATA_ROOT, name);
+    if (!fs.existsSync(getDataRoot())) return [];
+    return fs.readdirSync(getDataRoot()).filter(name => {
+      const fullPath = path.join(getDataRoot(), name);
       return fs.statSync(fullPath).isDirectory();
     });
   }
 
-  private readSchedules(projectId: string): ScheduleEntity[] {
+  private async readSchedules(projectId: string): Promise<ScheduleEntity[]> {
     const filePath = this.getSchedulesFilePath(projectId);
-    if (!fs.existsSync(filePath)) return [];
-    const data = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(data);
+    return readJsonArray(filePath);
   }
 }
 

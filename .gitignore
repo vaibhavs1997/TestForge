@@ -23,3 +23,7 @@ npm-debug.log*
 # OS files
 .DS_Store
 Thumbs.db
+
+# Graphify (local codebase knowledge graph for Cursor MCP)
+graphify-out/
+**/graphify-out/

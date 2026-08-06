@@ -1,8 +1,8 @@
 // Environment Editor Dialog for creating and editing environments
 import React from 'react';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../../../components/ui/Card';
+import { EntityDialog } from '../../../components/dialogs/EntityDialog';
 import { TextInput } from '../../../components/forms/TextInput';
 import { Select } from '../../../components/forms/Select';
 import { useFormValidation } from '../../../hooks/useFormValidation';
@@ -15,7 +15,7 @@ export interface EnvironmentDialogData {
   baseUrl: string;
   description: string;
   authentication?: {
-    type: 'None' | 'Bearer Token' | 'Basic Authentication' | 'API Key' | 'OAuth 2.0';
+    type: 'None' | '******' | 'Basic Authentication' | 'API Key' | 'OAuth 2.0';
     token?: string;
     headerName?: string;
     keyValue?: string;
@@ -38,7 +38,7 @@ export interface EnvironmentDialogProps {
 
 const authTypeOptions = [
   { value: 'None', label: 'None' },
-  { value: 'Bearer Token', label: 'Bearer Token' },
+  { value: '******', label: '******' },
   { value: 'Basic Authentication', label: 'Basic Authentication' },
   { value: 'API Key', label: 'API Key' },
   { value: 'OAuth 2.0', label: 'OAuth 2.0' },
@@ -155,7 +155,7 @@ export const EnvironmentDialog = ({ open, onClose, onSubmit, environment, isSubm
       type: authType as any,
     };
 
-    if (authType === 'Bearer Token') {
+    if (authType === '******') {
       auth.token = authToken;
     } else if (authType === 'API Key') {
       auth.headerName = headerName;
@@ -190,155 +190,210 @@ export const EnvironmentDialog = ({ open, onClose, onSubmit, environment, isSubm
   if (!open) return null;
 
   return (
-    <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50' onClick={onClose}>
-      <Card className='mx-4 w-full max-w-3xl max-h-[90vh] overflow-y-auto' onClick={(e) => e.stopPropagation()}>
-        <CardHeader>
-          <div className='flex items-center justify-between'>
-            <CardTitle>{environment ? 'Edit Environment' : 'Create Environment'}</CardTitle>
-            <Button variant='ghost' size='sm' className='h-8 w-8 p-0' onClick={onClose} aria-label='Close' type='button' disabled={isSubmitting}>
-              <X className='h-4 w-4' />
+    <EntityDialog
+      open={open}
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      title={environment ? 'Edit Environment' : 'Create Environment'}
+      submitLabel={environment ? 'Update' : 'Create'}
+      isLoading={isSubmitting}
+      size="xl"
+      scrollable
+    >
+      <div className="space-y-6">
+        {/* General Section */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-text">General</h3>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <TextInput
+              label="Environment Name"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                clearError('name');
+              }}
+              placeholder="e.g., Development, QA, Production"
+              error={errors.name}
+              required
+            />
+            <TextInput
+              label="Description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Optional description"
+            />
+          </div>
+        </div>
+
+        {/* Connection Section */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-text">Connection</h3>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <TextInput
+              label="Base URL"
+              value={baseUrl}
+              onChange={(e) => {
+                setBaseUrl(e.target.value);
+                clearError('baseUrl');
+              }}
+              placeholder="https://api.example.com"
+              error={errors.baseUrl}
+              required
+            />
+            <div>
+              <TextInput
+                label="Timeout (ms)"
+                type="number"
+                value={String(timeout)}
+                onChange={(e) => {
+                  setTimeout(Number(e.target.value));
+                  clearError('timeout');
+                }}
+                error={errors.timeout}
+              />
+              <p className="mt-1 text-xs text-text-secondary">
+                Timeout must be greater than 0
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Authentication Section */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-text">Authentication</h3>
+          <Select
+            label="Authentication Type"
+            value={authType}
+            onChange={(e) => setAuthType(e.target.value)}
+            options={authTypeOptions}
+          />
+
+          {authType === '******' && (
+            <TextInput
+              label="Token"
+              value={authToken}
+              onChange={(e) => setAuthToken(e.target.value)}
+              placeholder="****** value"
+              type="password"
+            />
+          )}
+
+          {authType === 'Basic Authentication' && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <TextInput
+                label="Username"
+                value={authToken}
+                onChange={(e) => setAuthToken(e.target.value)}
+                placeholder="Username"
+              />
+              <TextInput
+                label="Password"
+                value={keyValue}
+                onChange={(e) => setKeyValue(e.target.value)}
+                placeholder="Password"
+                type="password"
+              />
+            </div>
+          )}
+
+          {authType === 'API Key' && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <TextInput
+                label="Header Name"
+                value={headerName}
+                onChange={(e) => setHeaderName(e.target.value)}
+                placeholder="X-API-Key"
+              />
+              <TextInput
+                label="Key Value"
+                value={keyValue}
+                onChange={(e) => setKeyValue(e.target.value)}
+                placeholder="API key value"
+                type="password"
+              />
+            </div>
+          )}
+
+          {authType === 'OAuth 2.0' && (
+            <div className="space-y-4">
+              <TextInput
+                label="Client ID"
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+                placeholder="OAuth client ID"
+              />
+              <TextInput
+                label="Client Secret"
+                value={clientSecret}
+                onChange={(e) => setClientSecret(e.target.value)}
+                placeholder="OAuth client secret"
+                type="password"
+              />
+              <TextInput
+                label="Token URL"
+                value={tokenUrl}
+                onChange={(e) => setTokenUrl(e.target.value)}
+                placeholder="https://auth.example.com/token"
+              />
+              <TextInput
+                label="Scope"
+                value={scope}
+                onChange={(e) => setScope(e.target.value)}
+                placeholder="Optional scope"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Variables Section */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-text">Variables</h3>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleAddVariable}
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              Add Variable
             </Button>
           </div>
-        </CardHeader>
-        <form onSubmit={handleSubmit}>
-          <CardContent className='space-y-6'>
-            {/* General Section */}
-            <div className='space-y-4'>
-              <h3 className='text-sm font-semibold text-text'>General</h3>
-              <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
+          {errors.variables && (
+            <p className="text-sm text-error">{errors.variables}</p>
+          )}
+          <div className="space-y-2">
+            {Object.entries(variables).map(([key, value], idx) => (
+              <div key={idx} className="flex gap-2">
                 <TextInput
-                  label='Environment Name'
-                  value={name}
-                  onChange={(e) => { setName(e.target.value); clearError('name'); }}
-                  placeholder='e.g., Development, QA, Production'
-                  error={errors.name}
-                  required
+                  label=""
+                  value={key}
+                  onChange={(e) => handleVariableChange(key, e.target.value, value)}
+                  placeholder="Variable name"
+                  className="flex-1"
                 />
                 <TextInput
-                  label='Description'
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder='Optional description'
+                  label=""
+                  value={value}
+                  onChange={(e) => handleVariableChange(key, key, e.target.value)}
+                  placeholder="Value"
+                  className="flex-1"
                 />
-              </div>
-            </div>
-
-            {/* Connection Section */}
-            <div className='space-y-4'>
-              <h3 className='text-sm font-semibold text-text'>Connection</h3>
-              <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
-                <TextInput
-                  label='Base URL'
-                  value={baseUrl}
-                  onChange={(e) => { setBaseUrl(e.target.value); clearError('baseUrl'); }}
-                  placeholder='https://api.example.com'
-                  error={errors.baseUrl}
-                  required
-                />
-                <div>
-                  <TextInput
-                    label='Timeout (ms)'
-                    type='number'
-                    value={String(timeout)}
-                    onChange={(e) => { setTimeout(Number(e.target.value)); clearError('timeout'); }}
-                    error={errors.timeout}
-                  />
-                  <p className='mt-1 text-xs text-text-secondary'>Timeout must be greater than 0</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Authentication Section */}
-            <div className='space-y-4'>
-              <h3 className='text-sm font-semibold text-text'>Authentication</h3>
-              <Select
-                label='Authentication Type'
-                value={authType}
-                onChange={(e) => setAuthType(e.target.value)}
-                options={authTypeOptions}
-              />
-
-              {authType === 'Bearer Token' && (
-                <TextInput
-                  label='Token'
-                  value={authToken}
-                  onChange={(e) => setAuthToken(e.target.value)}
-                  placeholder='Bearer token value'
-                  type='password'
-                />
-              )}
-
-              {authType === 'Basic Authentication' && (
-                <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
-                  <TextInput label='Username' value={authToken} onChange={(e) => setAuthToken(e.target.value)} placeholder='Username' />
-                  <TextInput label='Password' value={keyValue} onChange={(e) => setKeyValue(e.target.value)} placeholder='Password' type='password' />
-                </div>
-              )}
-
-              {authType === 'API Key' && (
-                <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
-                  <TextInput label='Header Name' value={headerName} onChange={(e) => setHeaderName(e.target.value)} placeholder='X-API-Key' />
-                  <TextInput label='Key Value' value={keyValue} onChange={(e) => setKeyValue(e.target.value)} placeholder='API key value' type='password' />
-                </div>
-              )}
-
-              {authType === 'OAuth 2.0' && (
-                <div className='space-y-4'>
-                  <TextInput label='Client ID' value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder='OAuth client ID' />
-                  <TextInput label='Client Secret' value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} placeholder='OAuth client secret' type='password' />
-                  <TextInput label='Token URL' value={tokenUrl} onChange={(e) => setTokenUrl(e.target.value)} placeholder='https://auth.example.com/token' />
-                  <TextInput label='Scope' value={scope} onChange={(e) => setScope(e.target.value)} placeholder='Optional scope' />
-                </div>
-              )}
-            </div>
-
-            {/* Variables Section */}
-            <div className='space-y-4'>
-              <div className='flex items-center justify-between'>
-                <h3 className='text-sm font-semibold text-text'>Variables</h3>
-                <Button type='button' variant='outline' size='sm' onClick={handleAddVariable}>
-                  <Plus className='mr-1 h-4 w-4' />
-                  Add Variable
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleRemoveVariable(key)}
+                  className="mt-6"
+                >
+                  <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
-              {errors.variables && <p className='text-sm text-error'>{errors.variables}</p>}
-              <div className='space-y-2'>
-                {Object.entries(variables).map(([key, value], idx) => (
-                  <div key={idx} className='flex gap-2'>
-                    <TextInput
-                      label=''
-                      value={key}
-                      onChange={(e) => handleVariableChange(key, e.target.value, value)}
-                      placeholder='Variable name'
-                      className='flex-1'
-                    />
-                    <TextInput
-                      label=''
-                      value={value}
-                      onChange={(e) => handleVariableChange(key, key, e.target.value)}
-                      placeholder='Value'
-                      className='flex-1'
-                    />
-                    <Button type='button' variant='ghost' size='sm' onClick={() => handleRemoveVariable(key)} className='mt-6'>
-                      <Trash2 className='h-4 w-4' />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-
-          <CardFooter className='justify-end gap-2'>
-            <Button type='button' variant='outline' onClick={onClose} disabled={isSubmitting}>
-              Cancel
-            </Button>
-            <Button type='submit' disabled={isSubmitting}>
-              {isSubmitting ? 'Saving...' : environment ? 'Update' : 'Create'}
-            </Button>
-          </CardFooter>
-        </form>
-      </Card>
-    </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </EntityDialog>
   );
 };
 

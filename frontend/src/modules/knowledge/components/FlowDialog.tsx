@@ -1,8 +1,8 @@
 // Flow Dialog for creating and editing business flows with ordered steps
 import React from 'react';
-import { X, Plus, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Trash2, ArrowUp, ArrowDown, X } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../../../components/ui/Card';
+import { EntityDialog } from '../../../components/dialogs/EntityDialog';
 import { TextInput } from '../../../components/forms/TextInput';
 import { TextArea } from '../../../components/forms/TextArea';
 import { Select } from '../../../components/forms/Select';
@@ -152,18 +152,17 @@ export const FlowDialog = ({ open, onClose, onSubmit, flow, projectId, isSubmitt
   };
 
   return (
-    <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50' onClick={onClose}>
-      <Card className='mx-4 w-full max-w-4xl max-h-[90vh] overflow-y-auto' onClick={(e) => e.stopPropagation()}>
-        <CardHeader className='sticky top-0 bg-background z-10 border-b border-border'>
-          <div className='flex items-center justify-between'>
-            <CardTitle>{flow ? 'Edit Business Flow' : 'Create Business Flow'}</CardTitle>
-            <Button variant='ghost' size='sm' className='h-8 w-8 p-0' onClick={onClose} aria-label='Close' type='button' disabled={isSubmitting}>
-              <X className='h-4 w-4' />
-            </Button>
-          </div>
-        </CardHeader>
-        <form onSubmit={handleSubmit}>
-          <CardContent className='space-y-6'>
+    <EntityDialog
+      open={open}
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      title={flow ? 'Edit Business Flow' : 'Create Business Flow'}
+      submitLabel={flow ? 'Update Flow' : 'Create Flow'}
+      isLoading={isSubmitting}
+      size="xl"
+      scrollable
+    >
+      <div className="space-y-6">
             {/* General Section */}
             <div className='space-y-4'>
               <h3 className='text-sm font-semibold text-text'>General</h3>
@@ -336,20 +335,9 @@ export const FlowDialog = ({ open, onClose, onSubmit, flow, projectId, isSubmitt
                 </div>
               )}
             </div>
-          </CardContent>
-
-          <CardFooter className='sticky bottom-0 bg-background border-t border-border justify-end gap-2'>
-            <Button type='button' variant='outline' onClick={onClose} disabled={isSubmitting}>
-              Cancel
-            </Button>
-            <Button type='submit' disabled={isSubmitting}>
-              {isSubmitting ? 'Saving...' : flow ? 'Update Flow' : 'Create Flow'}
-            </Button>
-          </CardFooter>
-        </form>
-      </Card>
-    </div>
-  );
+          </div>
+        </EntityDialog>
+      );
 };
 
 export default FlowDialog;

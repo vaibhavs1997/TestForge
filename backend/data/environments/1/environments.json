@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "id": "1ed3c2d3-405f-4238-94ac-82c48834da8f",
+    "projectId": "1",
+    "name": "Server 1",
+    "baseUrl": "https://api.example.test/v1",
+    "description": "",
+    "authentication": null,
+    "variables": {},
+    "timeout": 30000,
+    "createdAt": 1785693070701,
+    "updatedAt": 1785693070701
+  }
+]

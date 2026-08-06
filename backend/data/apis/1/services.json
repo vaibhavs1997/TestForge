@@ -1,12 +1,32 @@
 [
   {
-    "id": "17036742-edaa-43d1-b23b-52b3815dfe68",
+    "id": "521483df-9bf7-4ce8-8a29-eb84def9ef42",
     "projectId": "1",
-    "name": "ZITADEL with Postman",
+    "name": "JSONPlaceholder Posts API - E2E Validation",
     "description": "",
-    "version": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0",
     "tags": [],
-    "createdAt": 1786023541721,
-    "updatedAt": 1786023541721
+    "createdAt": 1785686877509,
+    "updatedAt": 1785686877509
+  },
+  {
+    "id": "8a76e581-ccba-4a03-ab04-d076ca23e189",
+    "projectId": "1",
+    "name": "User Account API",
+    "description": "Sample OpenAPI collection for validating API Validator upload functionality.",
+    "version": "1.0.0",
+    "tags": [],
+    "createdAt": 1785692454657,
+    "updatedAt": 1785692454657
+  },
+  {
+    "id": "a019188d-2617-4185-9bca-baee807a99bb",
+    "projectId": "1",
+    "name": "E-Commerce Order Management API - QA Validation",
+    "description": "",
+    "version": "1.0.0",
+    "tags": [],
+    "createdAt": 1785692479355,
+    "updatedAt": 1785692479355
   }
 ]

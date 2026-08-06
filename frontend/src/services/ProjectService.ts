@@ -7,6 +7,7 @@ export interface Project {
   name: string;
   projectKey: string;
   description?: string;
+  status?: 'active' | 'archived';
   createdAt: number;
   updatedAt: number;
 }
@@ -32,27 +33,27 @@ export interface DashboardData {
 
 export class ProjectService {
   async listProjects(): Promise<Project[]> {
-    return httpClient.get<Project[]>('/api/projects');
+    return httpClient.get<Project[]>('/projects');
   }
 
   async getProject(projectId: string): Promise<Project> {
-    return httpClient.get<Project>(`/api/projects/${projectId}`);
+    return httpClient.get<Project>(`/projects/${projectId}`);
   }
 
   async createProject(data: Partial<Project>): Promise<Project> {
-    return httpClient.post<Project>('/api/projects', data);
+    return httpClient.post<Project>('/projects', data);
   }
 
   async updateProject(projectId: string, data: Partial<Project>): Promise<Project> {
-    return httpClient.patch<Project>(`/api/projects/${projectId}`, data);
+    return httpClient.patch<Project>(`/projects/${projectId}`, data);
   }
 
   async deleteProject(projectId: string): Promise<void> {
-    await httpClient.delete(`/api/projects/${projectId}`);
+    await httpClient.delete(`/projects/${projectId}`);
   }
 
   async getDashboardData(projectId: string): Promise<DashboardData> {
-    return httpClient.get<DashboardData>(`/api/projects/${projectId}/dashboard`);
+    return httpClient.get<DashboardData>(`/projects/${projectId}/dashboard`);
   }
 }
 

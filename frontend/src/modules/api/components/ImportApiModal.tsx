@@ -47,6 +47,9 @@ export const ImportApiModal = ({ open, onClose, onImport, isImporting, uploadPro
       setUrl('');
       setFormat('openapi');
       setError(undefined);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   }, [open]);
 
@@ -91,6 +94,10 @@ export const ImportApiModal = ({ open, onClose, onImport, isImporting, uploadPro
       url: source === 'url' ? url.trim() : undefined,
       format,
     });
+
+    if (source === 'file' && fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   return (

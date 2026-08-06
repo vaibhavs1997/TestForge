@@ -12,12 +12,17 @@ import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity';
 import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
 import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
 import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
+import { EventPublisher } from '../EventPublisher';
 
 // ─── DTOs ────────────────────────────────────────────────
 
 export interface ImportSummary {
   servicesImported: number;
+  servicesUpdated: number;
   operationsImported: number;
+  operationsUpdated: number;
+  operationsRemoved: number;
+  /** @deprecated Kept for API compatibility; always 0 when upsert/replace is used */
   duplicatesSkipped: number;
   warnings: string[];
   detectedEnvironments: DetectedEnvironment[];
@@ -334,6 +339,31 @@ function normalizeBaseUrl(value: string): string {
   return `https://${trimmed}`;
 }
 
+/** Filters Postman/OAuth variable noise (e.g. token_url paths) from environment suggestions. */
+function isPlausibleEnvironmentUrl(raw: string, key: string): boolean {
+  const value = raw.trim();
+  if (!value || value.includes('{{') || /\s/.test(value)) return false;
+  if (value.includes('=') || value.startsWith('/oauth') || value.startsWith('/api/')) return false;
+
+  const lower = key.toLowerCase();
+  const hasHttp = /^https?:\/\//i.test(value);
+  const hostLike = /^[\w.-]+\.[a-z]{2,}/i.test(value) && !value.includes('/');
+
+  if (lower.endsWith('_url') && !hasHttp) return false;
+  if (lower.includes('token') && !hasHttp) return false;
+
+  if (lower === 'issuer' || lower.includes('baseurl') || lower === 'host') {
+    return hasHttp || hostLike;
+  }
+  if (lower.includes('url') || lower.includes('host') || lower.includes('base')) {
+    return hasHttp;
+  }
+  if (lower === 'domain') {
+    return hostLike;
+  }
+  return false;
+}
+
 function openApiPrimaryBaseUrl(spec: any): string {
   if (Array.isArray(spec?.servers) && spec.servers[0]?.url) {
     return normalizeBaseUrl(String(spec.servers[0].url));
@@ -520,20 +550,12 @@ function detectEnvironments(spec: any): DetectedEnvironment[] {
     const variables = readPostmanVariables(spec);
     for (const [key, value] of variables) {
       if (!value || value.includes('{{')) continue;
-      const lower = key.toLowerCase();
-      if (
-        lower.includes('url')
-        || lower.includes('host')
-        || lower === 'issuer'
-        || lower === 'domain'
-        || lower.includes('base')
-      ) {
-        const baseUrl = normalizeBaseUrl(value);
-        const envKey = `${key.toLowerCase()}-${baseUrl.toLowerCase()}`;
-        if (!seen.has(envKey)) {
-          seen.add(envKey);
-          environments.push({ name: key, baseUrl });
-        }
+      if (!isPlausibleEnvironmentUrl(value, key)) continue;
+      const baseUrl = normalizeBaseUrl(value);
+      const envKey = `${key.toLowerCase()}-${baseUrl.toLowerCase()}`;
+      if (!seen.has(envKey)) {
+        seen.add(envKey);
+        environments.push({ name: key, baseUrl });
       }
     }
     const collectionBase = inferPostmanCollectionBaseUrl(spec);
@@ -672,7 +694,8 @@ function extractFromGraphQLIntrospection(spec: any, warnings: string[]): ParsedS
 export class ImportApiContract {
   constructor(
     private readonly apiServiceRepository: ApiServiceRepository,
-    private readonly apiOperationRepository: ApiOperationRepository
+    private readonly apiOperationRepository: ApiOperationRepository,
+    private readonly eventPublisher?: EventPublisher,
   ) {}
 
   async execute(params: {
@@ -719,7 +742,16 @@ export class ImportApiContract {
       }
     } catch (e) {
       warnings.push(`Failed to parse file: ${e instanceof Error ? e.message : 'Parse error'}`);
-      return { servicesImported: 0, operationsImported: 0, duplicatesSkipped: 0, warnings, detectedEnvironments: [] };
+      return {
+        servicesImported: 0,
+        servicesUpdated: 0,
+        operationsImported: 0,
+        operationsUpdated: 0,
+        operationsRemoved: 0,
+        duplicatesSkipped: 0,
+        warnings,
+        detectedEnvironments: [],
+      };
     }
 
     // Detect environments from spec
@@ -731,10 +763,15 @@ export class ImportApiContract {
       }
     }
 
-    // 3. Persist — skip duplicates
+    // 3. Persist — upsert services and replace operations for matching contracts
     let servicesImported = 0;
+    let servicesUpdated = 0;
     let operationsImported = 0;
-    let duplicatesSkipped = 0;
+    let operationsUpdated = 0;
+    let operationsRemoved = 0;
+
+    const operationKey = (method: string, path: string) =>
+      `${method.toUpperCase()}:${path}`;
 
     for (const svc of parsedServices) {
       let serviceEntity: ApiServiceEntity | null = null;
@@ -763,20 +800,35 @@ export class ImportApiContract {
           warnings.push(`Service "${svc.name}" exists but could not be retrieved. Skipping its operations.`);
           continue;
         }
-        if (serviceBaseUrl) {
-          serviceEntity = await this.apiServiceRepository.update(serviceEntity.id, { baseUrl: serviceBaseUrl });
-        }
+        serviceEntity = await this.apiServiceRepository.update(serviceEntity.id, {
+          description: svc.description,
+          version: svc.version,
+          tags: svc.tags,
+          ...(serviceBaseUrl ? { baseUrl: serviceBaseUrl } : {}),
+        });
+        servicesUpdated++;
       }
 
-      // Check for duplicate operations (same service + method + path)
-      const existingOps = await this.apiOperationRepository.findByService(serviceEntity!.id);
+      const existingOps = await this.apiOperationRepository.findByProjectAndService(
+        params.projectId,
+        serviceEntity!.id,
+      );
+      const importedKeys = new Set<string>();
 
       for (const op of svc.operations) {
-        const isDuplicate = existingOps.some(
-          (e: any) => e.method === op.method && e.path === op.path
+        importedKeys.add(operationKey(op.method, op.path));
+        const match = existingOps.find(
+          (e) =>
+            e.method.toUpperCase() === op.method.toUpperCase() && e.path === op.path,
         );
-        if (isDuplicate) {
-          duplicatesSkipped++;
+        if (match) {
+          await this.apiOperationRepository.update(match.id, {
+            name: op.name,
+            description: op.description,
+            authenticationType: op.authenticationType,
+            status: op.status,
+          });
+          operationsUpdated++;
         } else {
           const now = Date.now();
           const operation = new ApiOperationEntity(
@@ -796,13 +848,57 @@ export class ImportApiContract {
           operationsImported++;
         }
       }
+
+      for (const existingOp of existingOps) {
+        if (!importedKeys.has(operationKey(existingOp.method, existingOp.path))) {
+          await this.apiOperationRepository.delete(existingOp.id);
+          operationsRemoved++;
+        }
+      }
     }
 
-    if (servicesImported === 0 && warnings.length === 0 && parsedServices.length === 0) {
+    if (servicesImported === 0 && servicesUpdated === 0 && warnings.length === 0 && parsedServices.length === 0) {
       warnings.push('No services or operations were found in the uploaded file.');
     }
 
-    return { servicesImported, operationsImported, duplicatesSkipped, warnings, detectedEnvironments };
+    const summary = {
+      servicesImported,
+      servicesUpdated,
+      operationsImported,
+      operationsUpdated,
+      operationsRemoved,
+      duplicatesSkipped: 0,
+      warnings,
+      detectedEnvironments,
+    };
+
+    const hadChanges =
+      servicesImported > 0
+      || servicesUpdated > 0
+      || operationsImported > 0
+      || operationsUpdated > 0
+      || operationsRemoved > 0;
+
+    if (this.eventPublisher && hadChanges) {
+      await this.eventPublisher.publish({
+        type: 'IMPORTED',
+        module: 'api',
+        entityId: randomUUID(),
+        projectId: params.projectId,
+        entityType: 'ApiContract',
+        newValue: { fileName: params.fileName },
+        metadata: {
+          status: 'Completed',
+          servicesImported,
+          servicesUpdated,
+          operationsImported,
+          operationsUpdated,
+          operationsRemoved,
+        },
+      });
+    }
+
+    return summary;
   }
 }
 

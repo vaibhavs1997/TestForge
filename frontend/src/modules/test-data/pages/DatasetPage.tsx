@@ -45,6 +45,8 @@ import { rowService } from '../services/rowService';
 import { relationshipService } from '../services/relationshipService';
 import { Check, X as XIcon, ArrowUp, ArrowDown, Plus as PlusIcon, Upload, FileSpreadsheet, FileJson } from 'lucide-react';
 import { logger } from '../../../utils/logger';
+import { useParams } from 'react-router-dom';
+import { datasetService } from '../services/datasetService';
 
 // Memoized category badge to avoid re-renders
 const CategoryBadge = React.memo<{ category: string }>(({ category }) => {
@@ -137,6 +139,7 @@ type NavSection = 'datasets' | 'datasources' | 'generators' | 'providers' | 'rel
 const CATEGORY_OPTIONS = ['General', 'Customer', 'Product', 'Order', 'Payment', 'User', 'Custom'];
 
 export const TestDataLibraryPage = () => {
+  const { projectId } = useParams<{ projectId: string }>();
   const [search, setSearch] = React.useState('');
   const [categoryFilter, setCategoryFilter] = React.useState<string>('All');
   const [viewMode, setViewMode] = React.useState<ViewMode>('card');
@@ -179,15 +182,30 @@ export const TestDataLibraryPage = () => {
   // Load datasets on mount
   React.useEffect(() => {
     const loadDatasets = async () => {
+      if (!projectId) {
+        setDatasets([]);
+        setIsLoadingDatasets(false);
+        return;
+      }
       try {
         setIsLoadingDatasets(true);
         setDatasetsError(null);
-        // TODO: Replace with real API call
-        // const data = await datasetService.listDatasets(projectId);
-        // setDatasets(data);
-        
-        // For now, show empty state - no mock data
-        setDatasets([]);
+        const data = await datasetService.listDatasets(projectId);
+        setDatasets(
+          data.map((d) => ({
+            id: d.id,
+            projectId: d.projectId,
+            name: d.name,
+            description: d.description || '',
+            category: d.category || 'General',
+            rows: d.rowCount ?? 0,
+            columns: 0,
+            relationships: 0,
+            lastUpdated: new Date(d.updatedAt).toLocaleString(),
+            created: new Date(d.createdAt).toLocaleString(),
+            usedBy: { requirements: 0, suites: 0, apis: 0, knowledge: 0 },
+          })),
+        );
       } catch (err) {
         setDatasetsError(err instanceof Error ? err.message : 'Failed to load datasets');
         logger.error('Failed to load datasets', err);
@@ -196,8 +214,8 @@ export const TestDataLibraryPage = () => {
       }
     };
 
-    loadDatasets();
-  }, []);
+    void loadDatasets();
+  }, [projectId]);
 
   const filteredDatasets = React.useMemo(() => {
     const term = search.trim().toLowerCase();

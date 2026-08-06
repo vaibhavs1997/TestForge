@@ -7,10 +7,21 @@ import { auditService } from '../../audit/services';
 import { mapAuditLogsToInbox } from '../utils/mapAuditToInbox';
 import type { NotificationInboxItem } from '../types/inbox';
 
+import { NOTIFICATION_INBOX_POLL_INTERVAL_MS } from '../../../constants/timeouts';
+import { useActivityStream } from '../../../hooks/useActivityStream';
+
 const INBOX_QUERY_KEY = ['notification-inbox'] as const;
 const INBOX_LIMIT = 50;
 
-export function useNotificationInbox() {
+export function notificationInboxQueryKey() {
+  return INBOX_QUERY_KEY;
+}
+
+export function useNotificationInbox(options?: { pollIntervalMs?: number; enabled?: boolean }) {
+  const pollIntervalMs = options?.pollIntervalMs ?? NOTIFICATION_INBOX_POLL_INTERVAL_MS;
+  const enabled = options?.enabled !== false;
+  useActivityStream(enabled);
+
   return useQuery({
     queryKey: INBOX_QUERY_KEY,
     queryFn: async (): Promise<NotificationInboxItem[]> => {
@@ -25,7 +36,11 @@ export function useNotificationInbox() {
         .sort((a, b) => b.timestamp - a.timestamp)
         .slice(0, INBOX_LIMIT);
     },
-    staleTime: 30_000,
+    enabled,
+    staleTime: 0,
+    refetchInterval: pollIntervalMs,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
 }
 

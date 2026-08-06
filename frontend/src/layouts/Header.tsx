@@ -3,10 +3,9 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Sun, Moon, Home, FolderKanban } from 'lucide-react';
 
-// Shared constants
-import { APP_NAME } from '../constants';
-
-// Hooks
+// Components
+import { NotificationBell } from '../components/shared/NotificationBell';
+import { BrandLogo } from '../components/brand/BrandLogo';
 import { useThemeStore } from '../store/themeStore';
 
 export const Header: React.FC = () => {
@@ -16,12 +15,12 @@ export const Header: React.FC = () => {
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-surface px-6">
-      <div className="flex items-center gap-4">
-        <Link to="/" className="text-lg font-semibold text-text transition-opacity hover:opacity-80">
-          {APP_NAME}
-        </Link>
+      <div className="flex min-w-0 flex-1 items-center md:hidden">
+        <BrandLogo variant="compact" />
       </div>
+      <div className="hidden flex-1 md:block" aria-hidden />
       <div className="flex items-center gap-3">
+        <NotificationBell />
         {isOnProjectsArea ? (
           <Link
             to="/"

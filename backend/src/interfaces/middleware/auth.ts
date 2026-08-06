@@ -38,6 +38,10 @@ function extractBearerToken(req: Request): string | undefined {
   if (typeof apiKey === 'string' && apiKey.length > 0) {
     return apiKey;
   }
+  const queryToken = req.query?.token;
+  if (typeof queryToken === 'string' && queryToken.length > 0) {
+    return queryToken;
+  }
   return undefined;
 }
 

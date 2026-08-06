@@ -1,212 +1,220 @@
 // External libraries
 import React from 'react';
-
-// Shared constants
-
-// Shared types
-
-// Hooks
+import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 
 // Services
+import { projectService } from '../../../services/ProjectService';
+import { auditService } from '../../audit/services';
+import type { AuditLog } from '../../audit/types';
+import { projectStore } from '../../../store/projectStore';
 
 // Components
-import { PageHeader } from '../../../components/layout/PageHeader';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/Card';
+import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
-import { Upload, FileText, CheckCircle, XCircle, Clock } from 'lucide-react';
-import { logger } from '../../../utils/logger';
-
-// Styles
+import { Upload, FileText, CheckCircle, XCircle } from 'lucide-react';
+import { UnifiedImportWizard } from '../components/UnifiedImportWizard';
 
 export interface ImportCenterPageProps {}
 
 interface ImportJob {
   id: string;
   fileName: string;
-  status: 'completed' | 'failed' | 'processing' | 'queued';
+  status: 'completed' | 'failed';
   progress: number;
   recordsImported: number;
   timestamp: string;
+  projectId: string;
+}
+
+function auditToImportJob(log: AuditLog): ImportJob | null {
+  if (log.module !== 'API' || log.entityType !== 'ApiContract') return null;
+  const fileName =
+    (log.newValue?.fileName as string | undefined) ||
+    (log.metadata?.fileName as string | undefined) ||
+    'API contract';
+  const records =
+    Number(log.newValue?.operationsImported ?? log.metadata?.operationsImported ?? 0) +
+    Number(log.newValue?.servicesImported ?? log.metadata?.servicesImported ?? 0);
+
+  return {
+    id: log.id,
+    fileName,
+    status: log.action === 'CREATE' || log.action === 'UPDATE' ? 'completed' : 'failed',
+    progress: 100,
+    recordsImported: records,
+    timestamp: new Date(log.timestamp).toISOString(),
+    projectId: log.projectId,
+  };
 }
 
 export const ImportCenterPage: React.FC<ImportCenterPageProps> = () => {
+  const navigate = useNavigate();
+  const selectedProjectId = projectStore((s) => s.selectedProjectId);
   const [search, setSearch] = React.useState('');
-  const [loading, setLoading] = React.useState(false);
-  const [importJobs, setImportJobs] = React.useState<ImportJob[]>([]);
-  const [isLoadingJobs, setIsLoadingJobs] = React.useState(true);
-  const [jobsError, setJobsError] = React.useState<string | null>(null);
 
-  // Load import jobs on mount
-  React.useEffect(() => {
-    const loadImportJobs = async () => {
-      try {
-        setIsLoadingJobs(true);
-        setJobsError(null);
-        // TODO: Replace with real API call
-        // const data = await importService.listJobs(projectId);
-        // setImportJobs(data);
-        
-        // For now, show empty state - no mock data
-        setImportJobs([]);
-      } catch (err) {
-        setJobsError(err instanceof Error ? err.message : 'Failed to load import jobs');
-        logger.error('Failed to load import jobs', err);
-      } finally {
-        setIsLoadingJobs(false);
-      }
-    };
-
-    loadImportJobs();
-  }, []);
+  const { data: importJobs = [], isLoading: isLoadingJobs, isError, error } = useQuery({
+    queryKey: ['import-center', 'audit-imports'],
+    queryFn: async () => {
+      const projects = await projectService.listProjects();
+      const logs = await Promise.all(
+        projects.map((p) =>
+          auditService
+            .getAuditLogs(p.id, { module: 'API', entityType: 'ApiContract' })
+            .catch(() => [] as AuditLog[]),
+        ),
+      );
+      return logs
+        .flat()
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .map(auditToImportJob)
+        .filter((j): j is ImportJob => j !== null);
+    },
+    staleTime: 60_000,
+  });
 
   const filteredJobs = React.useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return importJobs;
     return importJobs.filter((job) => job.fileName.toLowerCase().includes(term));
-  }, [search]);
+  }, [search, importJobs]);
+
+  const completed = importJobs.filter((j) => j.status === 'completed').length;
+  const failed = importJobs.filter((j) => j.status === 'failed').length;
+  const successRate =
+    importJobs.length > 0 ? `${Math.round((completed / importJobs.length) * 100)}%` : '—';
+
+  const goToApis = () => {
+    const pid = selectedProjectId ?? importJobs[0]?.projectId;
+    if (pid) navigate(`/projects/${pid}/apis`);
+    else navigate('/projects');
+  };
 
   const getStatusBadge = (status: ImportJob['status']) => {
-    const variants: Record<ImportJob['status'], 'success' | 'destructive' | 'warning' | 'secondary'> = {
+    const variants: Record<ImportJob['status'], 'success' | 'destructive'> = {
       completed: 'success',
       failed: 'destructive',
-      processing: 'warning',
-      queued: 'secondary',
     };
     return <Badge variant={variants[status]}>{status}</Badge>;
   };
 
-  const getStatusIcon = (status: ImportJob['status']) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle className='h-5 w-5 text-green-600' />;
-      case 'failed':
-        return <XCircle className='h-5 w-5 text-red-600' />;
-      case 'processing':
-        return <Clock className='h-5 w-5 text-blue-600' />;
-      case 'queued':
-        return <Clock className='h-5 w-5 text-gray-600' />;
-    }
-  };
-
-  if (loading) {
+  if (isLoadingJobs) {
     return (
-      <div className='mx-auto max-w-7xl px-4 py-8'>
-        <PageHeader title='Import Center' description='Import test data and configurations' />
-        <div className='grid grid-cols-1 gap-4 sm:grid-cols-3'>
-          {[...Array(3)].map((_, i) => (
-            <Card key={i}>
-              <CardContent className='pt-6'>
-                <div className='h-8 w-8 animate-pulse rounded-full bg-gray-200' />
-                <div className='mt-4 h-4 w-24 animate-pulse rounded bg-gray-200' />
-                <div className='mt-2 h-8 w-16 animate-pulse rounded bg-gray-200' />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+      <div className="mx-auto max-w-7xl px-4 py-8">
+        <h1 className="text-2xl font-bold text-text">Import Center</h1>
+        <p className="mt-1 text-sm text-text-secondary">Loading import history…</p>
       </div>
     );
   }
 
   return (
-    <div className='mx-auto max-w-7xl px-4 py-8'>
-      <div className='mb-6 flex items-center justify-between'>
+    <div className="mx-auto max-w-7xl px-4 py-8">
+      <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className='text-2xl font-bold text-text'>Import Center</h1>
-          <p className='mt-1 text-sm text-text-secondary'>Import test data and configurations</p>
+          <h1 className="text-2xl font-bold text-text">Import Center</h1>
+          <p className="mt-1 text-sm text-text-secondary">
+            Import API contracts and environments in one place, or review past contract imports
+          </p>
         </div>
-        <div className='flex items-center gap-2'>
-          <Button>
-            <Upload className='mr-2 h-4 w-4' />
-            Upload File
-          </Button>
-        </div>
+        <Button variant="outline" onClick={goToApis}>
+          Open APIs in project
+        </Button>
       </div>
 
-      {/* Summary Cards */}
-      <div className='mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3'>
+      <UnifiedImportWizard />
+
+      <h2 className="mb-4 text-lg font-semibold text-text">Import history</h2>
+
+      {isError && (
+        <p className="mb-4 text-sm text-error">
+          {error instanceof Error ? error.message : 'Failed to load import history'}
+        </p>
+      )}
+
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>
-          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium text-text-secondary'>Total Imports</CardTitle>
-            <FileText className='h-4 w-4 text-blue-600' />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-text-secondary">Total Imports</CardTitle>
+            <FileText className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className='text-2xl font-bold text-text'>—</div>
-            <p className='text-xs text-text-secondary'>No data available</p>
+            <div className="text-2xl font-bold text-text">{importJobs.length || '—'}</div>
+            <p className="text-xs text-text-secondary">Recorded API contract events</p>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium text-text-secondary'>Success Rate</CardTitle>
-            <CheckCircle className='h-4 w-4 text-green-600' />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-text-secondary">Success Rate</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className='text-2xl font-bold text-text'>—</div>
-            <p className='text-xs text-text-secondary'>No data available</p>
+            <div className="text-2xl font-bold text-text">{successRate}</div>
+            <p className="text-xs text-text-secondary">Based on audit actions</p>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium text-text-secondary'>Failed Imports</CardTitle>
-            <XCircle className='h-4 w-4 text-red-600' />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-text-secondary">Failed Imports</CardTitle>
+            <XCircle className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className='text-2xl font-bold text-text'>—</div>
-            <p className='text-xs text-text-secondary'>No data available</p>
+            <div className="text-2xl font-bold text-text">{importJobs.length ? failed : '—'}</div>
+            <p className="text-xs text-text-secondary">Non create/update events</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Search */}
-      <div className='mb-4'>
-        <SearchBar value={search} onChange={setSearch} placeholder='Search import jobs...' className='sm:w-80' />
+      <div className="mb-4">
+        <SearchBar value={search} onChange={setSearch} placeholder="Search import jobs..." className="sm:w-80" />
       </div>
 
-      {/* Import Jobs */}
       {filteredJobs.length === 0 ? (
         <EmptyState
-          icon={<Upload className='h-12 w-12' />}
-          title='No import jobs found'
-          description={search ? 'Try adjusting your search criteria.' : 'Upload a file to start importing data.'}
-          action={search ? undefined : { label: 'Upload File', onClick: () => logger.info('Upload clicked') }}
+          icon={<Upload className="h-12 w-12" />}
+          title="No import jobs found"
+          description={
+            search
+              ? 'Try adjusting your search criteria.'
+              : 'Use the wizard above to import contracts and environments, or import from a project APIs page.'
+          }
+          action={search ? undefined : { label: 'Go to APIs', onClick: goToApis }}
         />
       ) : (
-        <div className='space-y-4'>
+        <div className="space-y-4">
           {filteredJobs.map((job) => (
             <Card key={job.id}>
-              <CardContent className='pt-6'>
-                <div className='flex items-start gap-4'>
-                  <div className='flex-shrink-0'>{getStatusIcon(job.status)}</div>
-                  <div className='flex-1 min-w-0'>
-                    <div className='flex items-center justify-between'>
-                      <h4 className='text-sm font-medium text-text truncate'>{job.fileName}</h4>
+              <CardContent className="pt-6">
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0">
+                    {job.status === 'completed' ? (
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    ) : (
+                      <XCircle className="h-5 w-5 text-red-600" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="truncate text-sm font-medium text-text">{job.fileName}</h4>
                       {getStatusBadge(job.status)}
                     </div>
-                    {job.status === 'processing' && (
-                      <div className='mt-2'>
-                        <div className='h-2 w-full rounded-full bg-gray-200'>
-                          <div className='h-2 rounded-full bg-blue-600' style={{ width: `${job.progress}%` }} />
-                        </div>
-                        <p className='mt-1 text-xs text-text-secondary'>{job.progress}% complete</p>
-                      </div>
-                    )}
-                    {job.status === 'completed' && (
-                      <p className='mt-1 text-sm text-text-secondary'>
-                        {job.recordsImported} records imported successfully
-                      </p>
-                    )}
-                    {job.status === 'failed' && (
-                      <p className='mt-1 text-sm text-red-600'>Import failed. Click to view error details.</p>
-                    )}
-                    <p className='mt-1 text-xs text-text-secondary'>{new Date(job.timestamp).toLocaleString()}</p>
+                    <p className="mt-1 text-sm text-text-secondary">
+                      Project {job.projectId}
+                      {job.recordsImported > 0 ? ` · ${job.recordsImported} records` : ''}
+                    </p>
+                    <p className="mt-1 text-xs text-text-secondary">
+                      {new Date(job.timestamp).toLocaleString()}
+                    </p>
                   </div>
-                  <div className='flex-shrink-0'>
-                    <Button variant='outline' size='sm'>
-                      {job.status === 'queued' || job.status === 'processing' ? 'Cancel' : 'View Details'}
-                    </Button>
-                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate(`/projects/${job.projectId}/audit`)}
+                  >
+                    View audit
+                  </Button>
                 </div>
               </CardContent>
             </Card>

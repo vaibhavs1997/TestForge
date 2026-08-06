@@ -32,7 +32,7 @@ import { TestSuiteRepository } from '../../infrastructure/suite/TestSuiteReposit
 import { ExecutionProfileRepository } from '../../infrastructure/execution/ExecutionProfileRepository';
 import ProviderRepository from '../../infrastructure/providers/ProviderRepository';
 import VersionRepository from '../../infrastructure/versioning/VersionRepository';
-import AuditLogRepository from '../../infrastructure/audit/AuditLogRepository';
+import type { AuditLogRepository } from '../../domain/audit';
 import PluginRepository from '../../infrastructure/plugin/PluginRepository';
 import { RecommendationEngine } from '../recommendation/RecommendationEngine';
 

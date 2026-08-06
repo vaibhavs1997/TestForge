@@ -58,13 +58,6 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
     });
   }, [search, filter, environments]);
 
-
-  const breadcrumbItems = [
-    { label: 'Projects', to: '/projects' },
-    { label: 'Project', to: `/projects/${projectId}/overview` },
-    { label: 'Environment' },
-  ];
-
   const handleDelete = async () => {
     if (!selectedEnvironment) return;
     try {
@@ -218,7 +211,6 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
         <PageHeader
           title='Environments'
           description='Manage reusable execution environments for this project.'
-          breadcrumb={breadcrumbItems}
         />
         <div className='flex items-center justify-center py-12'>
           <p className='text-sm text-text-secondary'>Loading environments...</p>
@@ -233,7 +225,6 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
         <PageHeader
           title='Environments'
           description='Manage reusable execution environments for this project.'
-          breadcrumb={breadcrumbItems}
         />
         <ErrorAlert
           title='Failed to load environments'
@@ -252,7 +243,6 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
       <PageHeader
         title='Environments'
         description='Manage reusable execution environments for this project.'
-        breadcrumb={breadcrumbItems}
       >
         {headerActions}
       </PageHeader>

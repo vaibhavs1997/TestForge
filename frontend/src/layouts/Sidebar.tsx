@@ -3,8 +3,7 @@ import React, { useState } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
 
 // Assets
-import logoLight from '../assets/images/logo-light.svg';
-import logoDark from '../assets/images/logo-dark.svg';
+import { BrandLogo } from '../components/brand/BrandLogo';
 import {
   Settings,
   FolderKanban,
@@ -152,15 +151,8 @@ export const Sidebar: React.FC = () => {
 
   return (
     <aside className="flex w-64 flex-col border-r border-border bg-surface">
-      <div className='flex h-16 items-center border-b border-border px-6'>
-        <Link
-          to="/"
-          className='transition-opacity hover:opacity-80'
-          aria-label='TestForge home'
-        >
-          <img src={logoLight} alt='TestForge' className='block h-8 w-auto dark:hidden' />
-          <img src={logoDark} alt='TestForge' className='hidden h-8 w-auto dark:block' />
-        </Link>
+      <div className='flex h-[4.5rem] items-center border-b border-border px-4'>
+        <BrandLogo variant="sidebar" className="w-full max-w-none" />
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto p-4">
         {!isInsideProject && primaryNavigationItems.map((item) => {
@@ -185,9 +177,6 @@ export const Sidebar: React.FC = () => {
 
         {isInsideProject && activeProjectId && (
           <div className="pt-4">
-            <div className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-text-secondary">
-              Project
-            </div>
             <div className="space-y-1">
               {PRIMARY_NAV_ITEMS.map(renderNavItem)}
 

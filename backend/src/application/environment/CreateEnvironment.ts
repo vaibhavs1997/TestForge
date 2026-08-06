@@ -4,9 +4,13 @@ import { EnvironmentRepository } from '../../domain/environment/EnvironmentRepos
 import { EnvironmentEntity } from '../../domain/environment/EnvironmentEntity';
 import { DEFAULT_TIMEOUT_MS } from '../../constants/defaults';
 import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { EventPublisher } from '../EventPublisher';
 
 export class CreateEnvironment {
-  constructor(private readonly environmentRepository: EnvironmentRepository) {}
+  constructor(
+    private readonly environmentRepository: EnvironmentRepository,
+    private readonly eventPublisher?: EventPublisher,
+  ) {}
 
   async execute(params: {
     projectId: string;
@@ -40,7 +44,19 @@ export class CreateEnvironment {
       now
     );
 
-    return this.environmentRepository.create(environment);
+    const created = await this.environmentRepository.create(environment);
+
+    if (this.eventPublisher) {
+      await this.eventPublisher.created(
+        'environment',
+        created.id,
+        created.projectId,
+        'Environment',
+        created as unknown as Record<string, unknown>,
+      );
+    }
+
+    return created;
   }
 }
 

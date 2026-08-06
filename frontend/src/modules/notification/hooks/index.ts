@@ -2,6 +2,32 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notificationService } from '../services';
 import { queryKeys } from '../../../constants';
+import { projectService } from '../../../services/ProjectService';
+import { auditService } from '../../audit/services';
+import { mapAuditLogsToInbox } from '../utils/mapAuditToInbox';
+import type { NotificationInboxItem } from '../types/inbox';
+
+const INBOX_QUERY_KEY = ['notification-inbox'] as const;
+const INBOX_LIMIT = 50;
+
+export function useNotificationInbox() {
+  return useQuery({
+    queryKey: INBOX_QUERY_KEY,
+    queryFn: async (): Promise<NotificationInboxItem[]> => {
+      const projects = await projectService.listProjects();
+      const logsByProject = await Promise.all(
+        projects.map((project) =>
+          auditService.getAuditLogs(project.id).catch(() => []),
+        ),
+      );
+      const merged = logsByProject.flat();
+      return mapAuditLogsToInbox(merged)
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, INBOX_LIMIT);
+    },
+    staleTime: 30_000,
+  });
+}
 
 export function useNotifications(projectId: string | null) {
   const queryKey = queryKeys.notifications(projectId || '');

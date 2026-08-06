@@ -16,6 +16,7 @@ export class UpdateApiService {
     description?: string;
     version?: string;
     tags?: string[];
+    baseUrl?: string;
   }): Promise<ApiServiceEntity> {
     const existing = await this.apiServiceRepository.findById(params.id);
     if (!existing) {
@@ -47,6 +48,7 @@ export class UpdateApiService {
     if (params.description !== undefined) updateData.description = ValidationHelpers.trimString(params.description);
     if (params.version !== undefined) updateData.version = ValidationHelpers.trimString(params.version) || 'v1';
     if (params.tags !== undefined) updateData.tags = ValidationHelpers.trimStringArray(params.tags);
+    if (params.baseUrl !== undefined) updateData.baseUrl = ValidationHelpers.trimString(params.baseUrl);
 
     const updated = await this.apiServiceRepository.update(params.id, updateData);
 

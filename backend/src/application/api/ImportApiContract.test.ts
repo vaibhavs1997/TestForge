@@ -48,4 +48,35 @@ describe('ImportApiContract', () => {
     const operations = await new ApiOperationRepository().findByService(services[0].id);
     expect(operations.some((op) => op.method === 'GET' && op.path.includes('/pets'))).toBe(true);
   });
+
+  it('stores Postman collection base URL from collection variables', async () => {
+    const postmanSpec = JSON.stringify({
+      info: {
+        name: 'ZITADEL with Postman',
+        schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
+      },
+      variable: [{ key: 'issuer', value: 'https://my-instance.zitadel.cloud' }],
+      item: [
+        {
+          name: 'Add Project',
+          request: {
+            method: 'POST',
+            url: '{{issuer}}/management/v1/projects',
+          },
+        },
+      ],
+    });
+
+    const useCase = new ImportApiContract(new ApiServiceRepository(), new ApiOperationRepository());
+    const summary = await useCase.execute({
+      projectId: 'project-a',
+      fileName: 'ZITADEL_TEST.postman_collection.json',
+      content: postmanSpec,
+    });
+
+    expect(summary.detectedEnvironments.length).toBeGreaterThan(0);
+    const services = await new ApiServiceRepository().findByProject('project-a');
+    const zitadel = services.find((s) => s.name.includes('ZITADEL'));
+    expect(zitadel?.baseUrl).toBe('https://my-instance.zitadel.cloud');
+  });
 });

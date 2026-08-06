@@ -17,6 +17,7 @@ export class CreateApiService {
     description?: string;
     version?: string;
     tags?: string[];
+    baseUrl?: string;
   }): Promise<ApiServiceEntity> {
     const name = ValidationHelpers.validateRequired(params.name, 'Service Name');
 
@@ -34,6 +35,7 @@ export class CreateApiService {
       ValidationHelpers.trimString(params.description),
       ValidationHelpers.trimString(params.version) || 'v1',
       ValidationHelpers.trimStringArray(params.tags),
+      ValidationHelpers.trimString(params.baseUrl),
       now,
       now
     );

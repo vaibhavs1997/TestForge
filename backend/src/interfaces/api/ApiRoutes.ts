@@ -28,7 +28,7 @@ import { asyncHandler } from '../middleware/AsyncHandler';
 
 const createApiService = new CreateApiService(apiServiceRepository, eventPublisher);
 const updateApiService = new UpdateApiService(apiServiceRepository, eventPublisher);
-const deleteApiService = new DeleteApiService(apiServiceRepository, eventPublisher);
+const deleteApiService = new DeleteApiService(apiServiceRepository, apiOperationRepository, eventPublisher);
 const getApiService = new GetApiService(apiServiceRepository);
 const listApiServices = new ListApiServices(apiServiceRepository);
 const createApiOperation = new CreateApiOperation(apiOperationRepository, apiServiceRepository);

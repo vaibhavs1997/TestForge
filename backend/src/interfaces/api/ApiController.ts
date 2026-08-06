@@ -25,13 +25,14 @@ export class ApiController {
     }
     async createService(req: Request, res: Response): Promise<void> {
         const projectId = req.params.projectId;
-        const { name, description, version, tags } = req.body;
+        const { name, description, version, tags, baseUrl } = req.body;
         const service = await this.createApiService.execute({
             projectId,
             name,
             description,
             version,
             tags,
+            baseUrl,
         });
         res.status(201).json(createSuccessResponse(service));
     }
@@ -42,24 +43,25 @@ export class ApiController {
     }
     async updateService(req: Request, res: Response): Promise<void> {
         const { serviceId } = req.params;
-        const { name, description, version, tags } = req.body;
+        const { name, description, version, tags, baseUrl } = req.body;
         const service = await this.updateApiService.execute({
             id: serviceId,
             name,
             description,
             version,
             tags,
+            baseUrl,
         });
         res.status(200).json(createSuccessResponse(service));
     }
     async deleteService(req: Request, res: Response): Promise<void> {
-        const { serviceId } = req.params;
-        await this.deleteApiService.execute(serviceId);
+        const { projectId, serviceId } = req.params;
+        await this.deleteApiService.execute(projectId, serviceId);
         res.status(204).send();
     }
     async listOperations(req: Request, res: Response): Promise<void> {
-        const { serviceId } = req.params;
-        const operations = await this.listApiOperations.execute(serviceId);
+        const { projectId, serviceId } = req.params;
+        const operations = await this.listApiOperations.execute(projectId, serviceId);
         res.status(200).json(createSuccessResponse(operations));
     }
     async createOperation(req: Request, res: Response): Promise<void> {

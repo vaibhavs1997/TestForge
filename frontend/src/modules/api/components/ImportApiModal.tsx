@@ -58,8 +58,18 @@ export const ImportApiModal = ({ open, onClose, onImport, isImporting, uploadPro
       setFileName(f.name);
       setFile(f);
       setError(undefined);
+      const lower = f.name.toLowerCase();
+      if (lower.includes('postman') || lower.endsWith('.postman_collection.json')) {
+        setFormat('postman');
+      } else if (lower.endsWith('.graphql') || lower.endsWith('.gql')) {
+        setFormat('graphql');
+      } else if (lower.endsWith('.yaml') || lower.endsWith('.yml') || lower.endsWith('.json')) {
+        setFormat('openapi');
+      }
     }
   };
+
+  const hasFile = Boolean(fileName && file);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,19 +149,36 @@ export const ImportApiModal = ({ open, onClose, onImport, isImporting, uploadPro
               <div>
                 <label className='mb-1.5 block text-sm font-medium text-text'>API Spec File</label>
                 <div
-                  className='flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-6 cursor-pointer hover:bg-surface'
-                  onClick={() => fileInputRef.current?.click()}
+                  className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 cursor-pointer transition-colors ${
+                    hasFile
+                      ? 'border-primary/50 bg-primary/5 hover:bg-primary/10'
+                      : 'border-border hover:bg-surface'
+                  }`}
+                  onClick={() => !isImporting && fileInputRef.current?.click()}
                 >
-                  <Upload className='mb-2 h-8 w-8 text-text-secondary' />
-                  <p className='text-sm text-text-secondary'>
-                    {fileName ? fileName : 'Click to select a file'}
-                  </p>
-                  <p className='mt-1 text-xs text-text-secondary'>Supported Specifications</p>
-                  <p className='mt-0.5 text-xs text-text-secondary'>• OpenAPI 3.x (.json, .yaml, .yml)</p>
-                  <p className='text-xs text-text-secondary'>• Swagger 2.0</p>
-                  <p className='text-xs text-text-secondary'>• Postman Collection v2.1</p>
-                  <p className='text-xs text-text-secondary'>• GraphQL Schema (.graphql)</p>
-                  <p className='text-xs text-text-secondary'>• GraphQL Introspection (.json)</p>
+                  <Upload
+                    className={`mb-2 h-8 w-8 ${hasFile ? 'text-primary' : 'text-text-secondary'}`}
+                  />
+                  {hasFile ? (
+                    <>
+                      <p className='text-center text-sm font-semibold text-primary break-all px-2'>
+                        {fileName}
+                      </p>
+                      <p className='mt-2 text-xs text-text-secondary'>Click to choose a different file</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className='text-sm font-medium text-text'>Click to select a file</p>
+                      <p className='mt-3 text-xs font-medium text-text-secondary'>Supported specifications</p>
+                      <ul className='mt-1 space-y-0.5 text-center text-xs text-text-secondary'>
+                        <li>OpenAPI 3.x (.json, .yaml, .yml)</li>
+                        <li>Swagger 2.0</li>
+                        <li>Postman Collection v2.1</li>
+                        <li>GraphQL Schema (.graphql)</li>
+                        <li>GraphQL Introspection (.json)</li>
+                      </ul>
+                    </>
+                  )}
                   <input
                     ref={fileInputRef}
                     type='file'

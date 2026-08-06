@@ -72,11 +72,26 @@ export class ApiOperationRepository {
     return null;
   }
 
+  async findByProjectAndService(projectId: string, serviceId: string): Promise<ApiOperationEntity[]> {
+    const operations = await this.readOperations(projectId);
+    return operations.filter(
+      (o) => o.serviceId === serviceId && Boolean(o.method) && Boolean(o.path),
+    );
+  }
+
+  async deleteByServiceId(projectId: string, serviceId: string): Promise<void> {
+    const filePath = this.getOperationsFilePath(projectId);
+    const operations = await this.readOperations(projectId);
+    const filtered = operations.filter((o) => o.serviceId !== serviceId);
+    if (filtered.length !== operations.length) {
+      await writeJsonArray(filePath, filtered);
+    }
+  }
+
   async findByService(serviceId: string): Promise<ApiOperationEntity[]> {
     const projectIds = this.listProjectIds();
     for (const projectId of projectIds) {
-      const operations = await this.readOperations(projectId);
-      const filtered = operations.filter((o: any) => o.serviceId === serviceId);
+      const filtered = await this.findByProjectAndService(projectId, serviceId);
       if (filtered.length > 0) return filtered;
     }
     return [];
@@ -102,7 +117,10 @@ export class ApiOperationRepository {
 
   private async readOperations(projectId: string): Promise<ApiOperationEntity[]> {
     const filePath = this.getOperationsFilePath(projectId);
-    return readJsonArray(filePath);
+    const raw = await readJsonArray<ApiOperationEntity>(filePath);
+    return raw.filter(
+      (o) => Boolean(o?.serviceId) && typeof o.method === 'string' && typeof o.path === 'string',
+    );
   }
 }
 

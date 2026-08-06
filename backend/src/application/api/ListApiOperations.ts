@@ -5,11 +5,8 @@ import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
 export class ListApiOperations {
   constructor(private readonly apiOperationRepository: ApiOperationRepository) {}
 
-  async execute(serviceId?: string): Promise<ApiOperationEntity[]> {
-    if (serviceId) {
-      return this.apiOperationRepository.findByService(serviceId);
-    }
-    return this.apiOperationRepository.list();
+  async execute(projectId: string, serviceId: string): Promise<ApiOperationEntity[]> {
+    return this.apiOperationRepository.findByProjectAndService(projectId, serviceId);
   }
 }
 

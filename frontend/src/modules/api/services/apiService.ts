@@ -10,6 +10,7 @@ export interface ApiServiceDto {
   description: string;
   version: string;
   tags: string[];
+  baseUrl?: string;
   createdAt: number;
   updatedAt: number;
 }

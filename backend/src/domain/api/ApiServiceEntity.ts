@@ -8,6 +8,7 @@ export class ApiServiceEntity {
     public description: string,
     public version: string,
     public readonly tags: string[],
+    public baseUrl: string,
     public readonly createdAt: number,
     public updatedAt: number
   ) {}

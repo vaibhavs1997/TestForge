@@ -9,7 +9,20 @@ import { queryKeys } from '../../../constants';
 // ─── Services ────────────────────────────────────────────────
 
 export const useServices = (projectId?: string) => {
-  const { data, isLoading, isError, error, create, update, remove, isCreating, isUpdating, isDeleting } = useCRUD({
+  const queryClient = useQueryClient();
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    create,
+    update,
+    remove,
+    refetch,
+    isCreating,
+    isUpdating,
+    isDeleting,
+  } = useCRUD({
     queryKey: queryKeys.services(projectId || ''),
     service: {
       list: () => (projectId ? apiService.listServices(projectId) : Promise.resolve([])),
@@ -30,6 +43,11 @@ export const useServices = (projectId?: string) => {
       delete: (id: string) => apiService.deleteService(projectId || '', id),
     },
     enabled: !!projectId,
+    onMutateSuccess: () => {
+      if (projectId) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.operations(projectId) });
+      }
+    },
   });
 
   return {
@@ -46,6 +64,7 @@ export const useServices = (projectId?: string) => {
     remove,
     removeAsync: remove,
     isDeleting,
+    refetch,
   };
 };
 
@@ -62,6 +81,7 @@ export const useService = (projectId?: string) => {
     updateAsync: services.updateAsync,
     remove: services.remove,
     removeAsync: services.removeAsync,
+    refetchServices: services.refetch,
   };
 };
 

@@ -43,6 +43,7 @@ interface ParsedService {
   description: string;
   version: string;
   tags: string[];
+  baseUrl?: string;
   operations: ParsedOperation[];
 }
 
@@ -217,6 +218,12 @@ function extractFromOpenApi(spec: any, warnings: string[]): ParsedService[] {
   }
 
   const result = Array.from(servicesByTag.values());
+  const specBaseUrl = openApiPrimaryBaseUrl(spec);
+  if (specBaseUrl) {
+    for (const svc of result) {
+      if (!svc.baseUrl) svc.baseUrl = specBaseUrl;
+    }
+  }
 
   if (allTags.length === 0 && result.length === 0) {
     result.push({
@@ -224,6 +231,7 @@ function extractFromOpenApi(spec: any, warnings: string[]): ParsedService[] {
       description: specDescription,
       version: specVersion,
       tags: [],
+      baseUrl: specBaseUrl,
       operations: [],
     });
     warnings.push('No operations found in the specification.');
@@ -244,6 +252,7 @@ function extractFromPostman(spec: any, warnings: string[]): ParsedService[] {
     description: String(info.description || ''),
     version: collectionVersion,
     tags: [],
+    baseUrl: inferPostmanCollectionBaseUrl(spec),
     operations: [],
   };
 
@@ -318,6 +327,147 @@ function mapPostmanAuth(auth: any): string {
 
 // ─── Environment detection ──────────────────────────────
 
+function normalizeBaseUrl(value: string): string {
+  const trimmed = value.trim().replace(/\/$/, '');
+  if (!trimmed) return '';
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+  return `https://${trimmed}`;
+}
+
+function openApiPrimaryBaseUrl(spec: any): string {
+  if (Array.isArray(spec?.servers) && spec.servers[0]?.url) {
+    return normalizeBaseUrl(String(spec.servers[0].url));
+  }
+  const host = String(spec?.host || '').trim();
+  if (host) {
+    const basePath = String(spec?.basePath || '').trim();
+    const scheme = Array.isArray(spec?.schemes) && spec.schemes[0] ? String(spec.schemes[0]) : 'https';
+    return normalizeBaseUrl(`${scheme}://${host}${basePath}`);
+  }
+  return '';
+}
+
+function readPostmanVariables(spec: any): Map<string, string> {
+  const map = new Map<string, string>();
+  const add = (entries: unknown) => {
+    if (!Array.isArray(entries)) return;
+    for (const entry of entries) {
+      if (entry && typeof entry === 'object' && 'key' in entry) {
+        const key = String((entry as { key: unknown }).key);
+        const value = String((entry as { value?: unknown }).value ?? '').trim();
+        if (key) map.set(key, value);
+      }
+    }
+  };
+  add(spec?.variable);
+  add(spec?.auth?.apikey);
+  return map;
+}
+
+function firstHttpUrlInVariableValues(variables: Map<string, string>): string {
+  for (const value of variables.values()) {
+    if (!value || value.includes('{{')) continue;
+    if (/^https?:\/\//i.test(value)) {
+      return normalizeBaseUrl(value);
+    }
+  }
+  return '';
+}
+
+function resolvePostmanVariableRef(value: string, variables: Map<string, string>): string {
+  const match = value.trim().match(/^\{\{([^}]+)\}\}$/);
+  if (!match) return value;
+  return variables.get(match[1].trim()) ?? value;
+}
+
+function inferPostmanCollectionBaseUrl(spec: any): string {
+  const variables = readPostmanVariables(spec);
+
+  const fromAnyUrl = firstHttpUrlInVariableValues(variables);
+  if (fromAnyUrl) return fromAnyUrl;
+
+  const preferredKeys = [
+    'baseurl',
+    'base_url',
+    'url',
+    'host',
+    'domain',
+    'issuer',
+    'apiurl',
+    'api_url',
+    'custom-url',
+    'custom_url',
+    'zitadel',
+  ];
+
+  for (const preferred of preferredKeys) {
+    for (const [key, value] of variables) {
+      if (!value || value.includes('{{')) continue;
+      if (key.toLowerCase() === preferred || key.toLowerCase().includes(preferred)) {
+        return normalizeBaseUrl(value);
+      }
+    }
+  }
+
+  let originFromRequest = '';
+  const visitItems = (items: any[]) => {
+    for (const item of items) {
+      if (originFromRequest) return;
+      if (item.item && Array.isArray(item.item)) {
+        visitItems(item.item);
+        continue;
+      }
+      const url = item.request?.url;
+      if (!url) continue;
+      if (typeof url === 'string') {
+        const abs = url.match(/^(https?:\/\/[^\s/]+)/i);
+        if (abs) {
+          originFromRequest = abs[1];
+          return;
+        }
+        const resolved = resolvePostmanVariableRef(url.split('/')[0], variables);
+        if (/^https?:\/\//i.test(resolved)) {
+          originFromRequest = normalizeBaseUrl(resolved);
+          return;
+        }
+      }
+      if (typeof url === 'object') {
+        const raw = url.raw ? String(url.raw) : '';
+        if (raw) {
+          const abs = raw.match(/^(https?:\/\/[^\s/]+)/i);
+          if (abs) {
+            originFromRequest = abs[1];
+            return;
+          }
+          const varPrefix = raw.match(/^\{\{([^}]+)\}\}/);
+          if (varPrefix) {
+            const resolved = variables.get(varPrefix[1].trim());
+            if (resolved && /^https?:\/\//i.test(resolved)) {
+              originFromRequest = normalizeBaseUrl(resolved);
+              return;
+            }
+          }
+        }
+        if (url.protocol && url.host) {
+          const protocol = Array.isArray(url.protocol) ? url.protocol[0] : url.protocol;
+          const hostParts = Array.isArray(url.host) ? url.host : [url.host];
+          const host = hostParts.map((p: string) => resolvePostmanVariableRef(String(p), variables)).join('.');
+          if (host && /^https?:\/\//i.test(host)) {
+            originFromRequest = normalizeBaseUrl(host);
+            return;
+          }
+          if (host && !host.includes('{{') && !host.includes(' ')) {
+            originFromRequest = `${protocol}://${host}`;
+            return;
+          }
+        }
+      }
+    }
+  };
+  visitItems(spec.item || []);
+  return originFromRequest ? normalizeBaseUrl(originFromRequest) : '';
+}
+
 function detectEnvironments(spec: any): DetectedEnvironment[] {
   const environments: DetectedEnvironment[] = [];
   const seen = new Set<string>();
@@ -362,6 +512,37 @@ function detectEnvironments(spec: any): DetectedEnvironment[] {
     if (host) {
       const baseUrl = `https://${host}${basePath}`;
       environments.push({ name: 'Default', baseUrl });
+    }
+  }
+
+  // Postman collection variables (common for base URL / issuer)
+  if (spec?.item || spec?.info?.schema?.includes?.('postman')) {
+    const variables = readPostmanVariables(spec);
+    for (const [key, value] of variables) {
+      if (!value || value.includes('{{')) continue;
+      const lower = key.toLowerCase();
+      if (
+        lower.includes('url')
+        || lower.includes('host')
+        || lower === 'issuer'
+        || lower === 'domain'
+        || lower.includes('base')
+      ) {
+        const baseUrl = normalizeBaseUrl(value);
+        const envKey = `${key.toLowerCase()}-${baseUrl.toLowerCase()}`;
+        if (!seen.has(envKey)) {
+          seen.add(envKey);
+          environments.push({ name: key, baseUrl });
+        }
+      }
+    }
+    const collectionBase = inferPostmanCollectionBaseUrl(spec);
+    if (collectionBase) {
+      const envKey = `collection-${collectionBase.toLowerCase()}`;
+      if (!seen.has(envKey)) {
+        seen.add(envKey);
+        environments.push({ name: 'Collection default', baseUrl: collectionBase });
+      }
     }
   }
 
@@ -543,6 +724,12 @@ export class ImportApiContract {
 
     // Detect environments from spec
     const detectedEnvironments = spec ? detectEnvironments(spec) : [];
+    const fallbackBaseUrl = detectedEnvironments[0]?.baseUrl || '';
+    for (const svc of parsedServices) {
+      if (!svc.baseUrl && fallbackBaseUrl) {
+        svc.baseUrl = fallbackBaseUrl;
+      }
+    }
 
     // 3. Persist — skip duplicates
     let servicesImported = 0;
@@ -553,6 +740,7 @@ export class ImportApiContract {
       let serviceEntity: ApiServiceEntity | null = null;
 
       const exists = await this.apiServiceRepository.existsByName(svc.name, params.projectId);
+      const serviceBaseUrl = svc.baseUrl || fallbackBaseUrl || '';
       if (!exists) {
         const now = Date.now();
         serviceEntity = new ApiServiceEntity(
@@ -562,6 +750,7 @@ export class ImportApiContract {
           svc.description,
           svc.version,
           svc.tags,
+          serviceBaseUrl,
           now,
           now
         );
@@ -573,6 +762,9 @@ export class ImportApiContract {
         if (!serviceEntity) {
           warnings.push(`Service "${svc.name}" exists but could not be retrieved. Skipping its operations.`);
           continue;
+        }
+        if (serviceBaseUrl) {
+          serviceEntity = await this.apiServiceRepository.update(serviceEntity.id, { baseUrl: serviceBaseUrl });
         }
       }
 

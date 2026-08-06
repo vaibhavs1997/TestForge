@@ -1,0 +1,15 @@
+[
+  {
+    "id": "2ddf534e-f3e9-473f-90b2-048032421719",
+    "projectId": "Project 04",
+    "serviceId": "09926cf2-74bb-4bc2-b0f3-c3fd2ea5a00f",
+    "name": "listPets",
+    "method": "GET",
+    "path": "/pets",
+    "description": "List pets.",
+    "authenticationType": "None",
+    "status": "Active",
+    "createdAt": 1786020122507,
+    "updatedAt": 1786020122507
+  }
+]

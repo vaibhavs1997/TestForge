@@ -8,6 +8,12 @@ function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'apis');
 }
 
+function isServiceRecord(record: unknown): record is ApiServiceEntity {
+  if (!record || typeof record !== 'object') return false;
+  const r = record as Record<string, unknown>;
+  return typeof r.name === 'string' && !('serviceId' in r && 'method' in r);
+}
+
 export class ApiServiceRepository {
   private getProjectDir(projectId: string): string {
     return path.join(getDataRoot(), projectId);
@@ -53,14 +59,24 @@ export class ApiServiceRepository {
   async delete(id: string): Promise<void> {
     const projectIds = this.listProjectIds();
     for (const projectId of projectIds) {
-      const services = await this.readServices(projectId);
-      const filtered = services.filter(s => s.id !== id);
-      if (filtered.length !== services.length) {
-        const filePath = this.getServicesFilePath(projectId);
-        await writeJsonArray(filePath, filtered);
+      if (await this.deleteInProject(projectId, id)) {
         return;
       }
     }
+    throw new Error(`Service with id ${id} not found`);
+  }
+
+  /** Delete a service within a specific project (used by the API route). */
+  async deleteInProject(projectId: string, id: string): Promise<boolean> {
+    const filePath = this.getServicesFilePath(projectId);
+    const raw = await readJsonArray<unknown>(filePath);
+    const filtered = raw.filter((s) => (s as { id?: string })?.id !== id);
+    if (filtered.length === raw.length) {
+      return false;
+    }
+    const sanitized = filtered.filter(isServiceRecord);
+    await writeJsonArray(filePath, sanitized);
+    return true;
   }
 
   async findById(id: string): Promise<ApiServiceEntity | null> {
@@ -102,7 +118,8 @@ export class ApiServiceRepository {
 
   private async readServices(projectId: string): Promise<ApiServiceEntity[]> {
     const filePath = this.getServicesFilePath(projectId);
-    return readJsonArray<ApiServiceEntity>(filePath);
+    const raw = await readJsonArray<unknown>(filePath);
+    return raw.filter(isServiceRecord);
   }
 }
 

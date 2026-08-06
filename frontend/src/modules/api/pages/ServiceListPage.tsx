@@ -20,19 +20,13 @@ import { ChevronRight, Plus, Import, MoreVertical, Play, Edit, Trash2, FolderOpe
 type SortField = 'name' | 'protocol' | 'version' | 'status' | 'updatedDate';
 type SortDir = 'asc' | 'desc';
 
-const protocolOptions = [
+const methodFilterOptions = [
   { value: '', label: 'All Methods' },
   { value: 'REST', label: 'REST' },
   { value: 'GraphQL', label: 'GraphQL' },
   { value: 'SOAP', label: 'SOAP' },
   { value: 'gRPC', label: 'gRPC' },
   { value: 'Other', label: 'Other' },
-];
-
-const statusOptions = [
-  { value: '', label: 'All Tags' },
-  { value: 'Active', label: 'Active' },
-  { value: 'Inactive', label: 'Inactive' },
 ];
 
 // Local Operation interface for UI use — mirrors what ServiceListPage expects.
@@ -69,7 +63,7 @@ const toOperationLocal = (op: Operation, serviceName: string): OperationLocal =>
 export const ServiceListPage = ({ projectId: propProjectId, projectName }: { projectId?: string; projectName?: string }) => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const projectId = propProjectId ?? routeProjectId ?? '1';
-  const { services, create, createAsync, update, remove } = useService(projectId);
+  const { services, create, createAsync, update, remove, refetchServices } = useService(projectId);
   const { importContractAsync, isImporting } = useImportApiContract(projectId);
 
   // Fetch all operations for every service in this project
@@ -80,7 +74,7 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
   const [selectedService, setSelectedService] = React.useState<ServiceWithOperations | null>(null);
   const [selectedOperation, setSelectedOperation] = React.useState<OperationLocal | null>(null);
   const [activeTab, setActiveTab] = React.useState('overview');
-  const [protocol, setProtocol] = React.useState('');
+  const [methodFilter, setMethodFilter] = React.useState('');
   const [createOpen, setCreateOpen] = React.useState(false);
   const [addApiOpen, setAddApiOpen] = React.useState(false);
   const [editService, setEditService] = React.useState<Service | undefined>(undefined);
@@ -130,6 +124,36 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
     }
   }, [servicesWithOperations, selectedService]);
 
+  // Clear selection when the service was deleted or list refreshed
+  React.useEffect(() => {
+    if (!selectedService) return;
+    if (!services.some((s) => s.id === selectedService.id)) {
+      setSelectedService(null);
+      setSelectedOperation(null);
+    }
+  }, [services, selectedService]);
+
+  // Keep selected service in sync after import/refetch (e.g. baseUrl populated)
+  React.useEffect(() => {
+    if (!selectedService?.id) return;
+    const latest = servicesWithOperations.find((s) => s.id === selectedService.id);
+    if (!latest) return;
+    if (
+      latest.baseUrl !== selectedService.baseUrl
+      || latest.operations.length !== selectedService.operations.length
+      || latest.name !== selectedService.name
+    ) {
+      setSelectedService(latest);
+      if (
+        selectedOperation
+        && !latest.operations.some((op) => op.id === selectedOperation.id)
+        && latest.operations.length > 0
+      ) {
+        setSelectedOperation(latest.operations[0]);
+      }
+    }
+  }, [servicesWithOperations, selectedService, selectedOperation]);
+
   const handleServiceClick = (service: ServiceWithOperations) => {
     setExpandedServices((prev) => {
       const next = new Set(prev);
@@ -164,12 +188,51 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
     }
   };
 
-  const handleDelete = () => {
-    if (deleteService) {
-      remove(deleteService.id);
+  const handleDelete = async () => {
+    if (!deleteService) return;
+    const name = deleteService.name;
+    try {
+      await remove(deleteService.id);
+      if (selectedService?.id === deleteService.id) {
+        setSelectedService(null);
+        setSelectedOperation(null);
+      }
+      setExpandedServices((prev) => {
+        const next = new Set(prev);
+        next.delete(deleteService.id);
+        return next;
+      });
+      await refetchServices();
+      setSummaryMessage(`Deleted service "${name}".`);
+      setSummaryToastOpen(true);
+    } catch (error: any) {
+      setErrorMessage(error?.message || 'Failed to delete service.');
+      setErrorToastOpen(true);
+    } finally {
       setDeleteOpen(false);
+      setDeleteService(undefined);
     }
   };
+
+  const openDeleteServiceDialog = (
+    event: React.MouseEvent,
+    service: ServiceWithOperations,
+  ) => {
+    event.stopPropagation();
+    setDeleteService(service);
+    setDeleteOpen(true);
+  };
+
+  const openEditServiceDialog = (event: React.MouseEvent, service: Service) => {
+    event.stopPropagation();
+    setEditService(service);
+    setEditOpen(true);
+  };
+
+  const deleteServiceOperationCount =
+    deleteService
+      ? servicesWithOperations.find((s) => s.id === deleteService.id)?.operations.length ?? 0
+      : 0;
 
   const handleImportApi = (data: ImportApiModalData) => {
     if (data.source === 'file' && data.file) {
@@ -351,14 +414,20 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
         </div>
       </div>
 
-      {/* Search and Filters */}
-      <div className='mb-6 flex flex-col gap-3 sm:flex-row sm:items-center'>
-        <SearchBar value={search} onChange={setSearch} placeholder='Search services or endpoints...' className='sm:w-96' />
-        <Select options={protocolOptions} value={protocol} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setProtocol(e.target.value)} className='sm:w-40' />
-        <Select options={statusOptions} value={protocol} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setProtocol(e.target.value)} className='sm:w-40' />
-        <Button variant='outline' size='sm'>
-          Filters
-        </Button>
+      {/* Search (left) and method filter (right) */}
+      <div className='mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+        <SearchBar
+          value={search}
+          onChange={setSearch}
+          placeholder='Search services or endpoints...'
+          className='w-full sm:max-w-xl lg:max-w-2xl'
+        />
+        <Select
+          options={methodFilterOptions}
+          value={methodFilter}
+          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setMethodFilter(e.target.value)}
+          className='h-10 w-full sm:w-44 sm:shrink-0'
+        />
       </div>
 
       {/* Main Content - Two Column Layout */}
@@ -380,23 +449,52 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
             ) : (
               <div className='space-y-1'>
                 {servicesWithOperations.map((service) => (
-                  <div key={service.id} className='space-y-1'>
-                    <button
-                      onClick={() => handleServiceClick(service)}
-                      className={`w-full flex items-center justify-between rounded-lg px-3 py-2 text-left transition-colors ${
-                        selectedService?.id === service.id
-                          ? 'bg-primary text-white'
-                          : 'hover:bg-surface text-text'
+                  <div key={service.id} className='group space-y-1'>
+                    <div
+                      className={`flex items-center gap-1 rounded-lg pr-1 transition-colors ${
+                        selectedService?.id === service.id ? 'bg-primary text-white' : 'hover:bg-surface text-text'
                       }`}
                     >
-                      <div className='flex items-center gap-2'>
-                        <ChevronRight className={`h-4 w-4 transition-transform ${expandedServices.has(service.id) ? 'rotate-90' : ''}`} />
-                        <div>
-                          <div className='text-sm font-medium'>{service.name}</div>
-                          <div className='text-xs opacity-75'>{service.operations.length} operations</div>
+                      <button
+                        type='button'
+                        onClick={() => handleServiceClick(service)}
+                        className='flex min-w-0 flex-1 items-center px-3 py-2 text-left'
+                      >
+                        <div className='flex min-w-0 items-center gap-2'>
+                          <ChevronRight
+                            className={`h-4 w-4 shrink-0 transition-transform ${expandedServices.has(service.id) ? 'rotate-90' : ''}`}
+                          />
+                          <div className='min-w-0'>
+                            <div className='truncate text-sm font-medium'>{service.name}</div>
+                            <div className='text-xs opacity-75'>
+                              {service.operations.length} operation{service.operations.length === 1 ? '' : 's'}
+                            </div>
+                          </div>
                         </div>
+                      </button>
+                      <div className='flex shrink-0 items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100'>
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          size='sm'
+                          className={`h-8 w-8 p-0 ${selectedService?.id === service.id ? 'text-white hover:bg-white/20' : ''}`}
+                          aria-label={`Edit ${service.name}`}
+                          onClick={(e) => openEditServiceDialog(e, service)}
+                        >
+                          <Edit className='h-4 w-4' />
+                        </Button>
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          size='sm'
+                          className={`h-8 w-8 p-0 ${selectedService?.id === service.id ? 'text-white hover:bg-white/20 hover:text-white' : 'text-red-600 hover:text-red-700 dark:text-red-400'}`}
+                          aria-label={`Delete ${service.name}`}
+                          onClick={(e) => openDeleteServiceDialog(e, service)}
+                        >
+                          <Trash2 className='h-4 w-4' />
+                        </Button>
                       </div>
-                    </button>
+                    </div>
                     {expandedServices.has(service.id) && (
                       <div className='ml-4 space-y-1'>
                         {service.operations.map((operation) => (
@@ -535,7 +633,17 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
                       </div>
                       <div>
                         <h3 className='text-sm font-semibold text-text mb-1'>Base URL</h3>
-                        <code className='text-sm text-text-secondary'>{selectedService?.baseUrl || '—'}</code>
+                        <code className='text-sm text-text-secondary break-all'>
+                          {selectedService?.baseUrl?.trim() || '—'}
+                        </code>
+                        {selectedService?.baseUrl && selectedOperation?.path ? (
+                          <p className='mt-2 text-xs text-text-secondary'>
+                            Full URL:{' '}
+                            <code className='break-all'>
+                              {`${selectedService.baseUrl.replace(/\/$/, '')}${selectedOperation.path.startsWith('/') ? selectedOperation.path : `/${selectedOperation.path}`}`}
+                            </code>
+                          </p>
+                        ) : null}
                       </div>
                       <div>
                         <h3 className='text-sm font-semibold text-text mb-1'>Authentication</h3>
@@ -634,13 +742,20 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
       <ServiceDialog open={editOpen} mode='edit' service={editService} onSubmit={handleUpdate} onCancel={() => setEditOpen(false)} />
       <ConfirmDialog
         open={deleteOpen}
-        title='Delete Service'
-        message={`Deleting "${deleteService?.name}" cannot be undone.`}
+        title='Delete service'
+        message={
+          deleteServiceOperationCount > 0
+            ? `Delete "${deleteService?.name}" and all ${deleteServiceOperationCount} operation${deleteServiceOperationCount === 1 ? '' : 's'}? This cannot be undone.`
+            : `Delete "${deleteService?.name}"? This cannot be undone.`
+        }
         confirmLabel='Delete'
         cancelLabel='Cancel'
         variant='destructive'
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteOpen(false)}
+        onConfirm={() => void handleDelete()}
+        onCancel={() => {
+          setDeleteOpen(false);
+          setDeleteService(undefined);
+        }}
       />
 
       <ImportApiModal

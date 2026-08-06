@@ -9,7 +9,7 @@ export interface Service {
   description: string;
   /** Frontend UI field – not persisted by the backend */
   protocol?: ServiceProtocol;
-  /** Frontend UI field – not persisted by the backend */
+  /** Optional API base URL (from import or manual entry) */
   baseUrl?: string;
   version: string;
   /** Frontend UI field – not persisted by the backend */

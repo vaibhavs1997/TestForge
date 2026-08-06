@@ -100,8 +100,11 @@ export function useCRUD<T, CreateInput = any, UpdateInput = any>(
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: (id: string) => service.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKey as any[] });
+    onSuccess: async (_data, deletedId) => {
+      queryClient.setQueryData<T[]>(queryKey as any[], (current) =>
+        (current ?? []).filter((item) => (item as { id?: string }).id !== deletedId),
+      );
+      await queryClient.refetchQueries({ queryKey: queryKey as any[] });
       onMutateSuccess?.();
     },
     ...deleteOptions,

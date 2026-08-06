@@ -9,9 +9,10 @@ import { isValidUrl } from '../../../utils/validation';
 
 export interface ImportEnvironmentModalData {
   source: 'file' | 'url';
+  file?: File;
   fileName?: string;
   url?: string;
-  format: string;
+  format?: string;
 }
 
 export interface ImportEnvironmentModalProps {
@@ -29,8 +30,9 @@ const formatOptions = [
 export const ImportEnvironmentModal = ({ open, onClose, onImport }: ImportEnvironmentModalProps) => {
   const [source, setSource] = React.useState<'file' | 'url'>('file');
   const [fileName, setFileName] = React.useState('');
+  const [file, setFile] = React.useState<File | null>(null);
   const [url, setUrl] = React.useState('');
-  const [format, setFormat] = React.useState('json');
+  const [format, setFormat] = React.useState('auto');
   const [error, setError] = React.useState<string | undefined>(undefined);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -38,8 +40,9 @@ export const ImportEnvironmentModal = ({ open, onClose, onImport }: ImportEnviro
     if (open) {
       setSource('file');
       setFileName('');
+      setFile(null);
       setUrl('');
-      setFormat('json');
+      setFormat('auto');
       setError(undefined);
     }
   }, [open]);
@@ -50,14 +53,20 @@ export const ImportEnvironmentModal = ({ open, onClose, onImport }: ImportEnviro
     const file = e.target.files?.[0];
     if (file) {
       setFileName(file.name);
+      setFile(file);
       setError(undefined);
+      const lower = file.name.toLowerCase();
+      if (lower.endsWith('.env')) setFormat('env');
+      else if (lower.endsWith('.yaml') || lower.endsWith('.yml')) setFormat('yaml');
+      else if (lower.includes('postman_environment') || lower.endsWith('.json')) setFormat('auto');
+      else setFormat('auto');
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (source === 'file' && !fileName) {
+    if (source === 'file' && !file) {
       setError('Please select a file to upload');
       return;
     }
@@ -75,9 +84,10 @@ export const ImportEnvironmentModal = ({ open, onClose, onImport }: ImportEnviro
 
     onImport({
       source,
+      file: source === 'file' ? file ?? undefined : undefined,
       fileName: source === 'file' ? fileName : undefined,
       url: source === 'url' ? url.trim() : undefined,
-      format,
+      format: format === 'auto' ? undefined : format,
     });
   };
 
@@ -138,10 +148,12 @@ export const ImportEnvironmentModal = ({ open, onClose, onImport }: ImportEnviro
                   onClick={() => fileInputRef.current?.click()}
                 >
                   <Upload className='mb-2 h-8 w-8 text-text-secondary' />
-                  <p className='text-sm text-text-secondary'>
+                  <p className={fileName ? 'text-sm font-medium text-text' : 'text-sm text-text-secondary'}>
                     {fileName ? fileName : 'Click to select a file'}
                   </p>
-                  <p className='mt-1 text-xs text-text-secondary'>Supports JSON, YAML, .env</p>
+                  {!fileName && (
+                    <p className='mt-1 text-xs text-text-secondary'>Supports JSON, YAML, .env</p>
+                  )}
                   <input
                     ref={fileInputRef}
                     type='file'
@@ -165,11 +177,17 @@ export const ImportEnvironmentModal = ({ open, onClose, onImport }: ImportEnviro
 
             {/* Format select */}
             <Select
-              label='File Format'
+              label='File format (optional)'
               value={format}
               onChange={(e) => setFormat(e.target.value)}
-              options={formatOptions}
+              options={[
+                { value: 'auto', label: 'Auto-detect' },
+                ...formatOptions,
+              ]}
             />
+            <p className='text-xs text-text-secondary'>
+              Format is detected from the file contents. Override only if auto-detect is wrong.
+            </p>
 
             {error && (
               <p className='text-sm text-error' role='alert'>{error}</p>

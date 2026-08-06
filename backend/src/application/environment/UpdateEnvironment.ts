@@ -2,9 +2,13 @@
 import { EnvironmentRepository } from '../../domain/environment/EnvironmentRepository';
 import { EnvironmentEntity } from '../../domain/environment/EnvironmentEntity';
 import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { EventPublisher } from '../EventPublisher';
 
 export class UpdateEnvironment {
-  constructor(private readonly environmentRepository: EnvironmentRepository) {}
+  constructor(
+    private readonly environmentRepository: EnvironmentRepository,
+    private readonly eventPublisher?: EventPublisher,
+  ) {}
 
   async execute(params: {
     id: string;
@@ -48,7 +52,20 @@ export class UpdateEnvironment {
     if (params.timeout !== undefined) updateData.timeout = params.timeout;
     if (params.isDefault !== undefined) updateData.isDefault = params.isDefault;
 
-    return this.environmentRepository.update(params.id, updateData);
+    const updated = await this.environmentRepository.update(params.id, updateData);
+
+    if (this.eventPublisher) {
+      await this.eventPublisher.updated(
+        'environment',
+        updated.id,
+        updated.projectId,
+        'Environment',
+        existing as unknown as Record<string, unknown>,
+        updated as unknown as Record<string, unknown>,
+      );
+    }
+
+    return updated;
   }
 }
 

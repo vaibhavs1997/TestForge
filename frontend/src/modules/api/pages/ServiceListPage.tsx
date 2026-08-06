@@ -15,6 +15,7 @@ import { AddApiModal, type AddApiModalData } from '../components/AddApiModal';
 import { useService, useApiOperations, useImportApiContract } from '../hooks/useService';
 import { environmentService } from '../../environment/services/environmentService';
 import type { Service, ServiceFormData, Operation, OperationStatus, ImportSummary, DetectedEnvironment } from '../types';
+import { applyImportSummaryToUi } from '../utils/importSummary';
 import { ChevronRight, Plus, Import, MoreVertical, Play, Edit, Trash2, FolderOpen } from 'lucide-react';
 
 type SortField = 'name' | 'protocol' | 'version' | 'status' | 'updatedDate';
@@ -235,15 +236,40 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
       : 0;
 
   const handleImportApi = (data: ImportApiModalData) => {
+    const onImportSuccess = (summary: ImportSummary) => {
+      setProgressToastOpen(false);
+      setUploadProgress(0);
+      applyImportSummaryToUi(summary, {
+        onEnvironments: (envs) => {
+          setDetectedEnvironments(envs);
+          setSelectedEnvIds(new Set(envs.map((e) => `${e.name}-${e.baseUrl}`)));
+          setEnvConfirmOpen(true);
+        },
+        onMessage: (message) => {
+          setSummaryMessage(message);
+          setSummaryToastOpen(true);
+        },
+      });
+    };
+
+    const onImportError = (error: unknown) => {
+      setProgressToastOpen(false);
+      setUploadProgress(0);
+      const err = error as { response?: { data?: { message?: string } }; message?: string };
+      const msg =
+        err?.response?.data?.message || err?.message || 'Import failed. Please try again.';
+      setErrorMessage(msg);
+      setErrorToastOpen(true);
+    };
+
     if (data.source === 'file' && data.file) {
-      const file = data.file;
       setUploadProgress(0);
       setProgressMessage('Starting upload…');
       setProgressToastOpen(true);
 
       importContractAsync({
-        file,
-        onUploadProgress: (e: any) => {
+        file: data.file,
+        onUploadProgress: (e: { total?: number; loaded: number }) => {
           if (e.total && e.total > 0) {
             const percent = Math.round((e.loaded / e.total) * 100);
             setUploadProgress(percent);
@@ -251,41 +277,22 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
           }
         },
       })
-        .then((summary: ImportSummary) => {
-          setProgressToastOpen(false);
-          setUploadProgress(0);
+        .then(onImportSuccess)
+        .catch(onImportError);
+    } else if (data.source === 'url' && data.url?.trim()) {
+      setUploadProgress(0);
+      setProgressMessage('Fetching contract from URL…');
+      setProgressToastOpen(true);
 
-          const lines: string[] = [];
-          lines.push(`✔ ${summary.servicesImported} Services Imported`);
-          lines.push(`✔ ${summary.operationsImported} Operations Imported`);
-          if (summary.duplicatesSkipped > 0) {
-            lines.push(`⚠ ${summary.duplicatesSkipped} Duplicate Operations Skipped`);
-          }
-          if (summary.warnings && summary.warnings.length > 0) {
-            summary.warnings.forEach((w) => lines.push(`⚠ ${w}`));
-          }
-          
-          // Check for detected environments
-          if (summary.detectedEnvironments && summary.detectedEnvironments.length > 0) {
-            setDetectedEnvironments(summary.detectedEnvironments);
-            setSelectedEnvIds(new Set(summary.detectedEnvironments.map(e => `${e.name}-${e.baseUrl}`)));
-            setEnvConfirmOpen(true);
-          } else {
-            setSummaryMessage(lines.join('\n'));
-            setSummaryToastOpen(true);
-          }
-        })
-        .catch((error: any) => {
-          setProgressToastOpen(false);
-          setUploadProgress(0);
-          const msg =
-            error?.response?.data?.message ||
-            error?.message ||
-            'Import failed. Please try again.';
-          setErrorMessage(msg);
-          setErrorToastOpen(true);
-        });
+      importContractAsync({ url: data.url.trim() })
+        .then(onImportSuccess)
+        .catch(onImportError);
+    } else {
+      setErrorMessage('Choose a file or enter a valid URL.');
+      setErrorToastOpen(true);
+      return;
     }
+
     setImportOpen(false);
   };
 
@@ -293,20 +300,25 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
     setIsCreatingEnvironments(true);
     try {
       const selected = detectedEnvironments.filter(e => selectedEnvIds.has(`${e.name}-${e.baseUrl}`));
-      await Promise.all(
-        selected.map(env =>
-          environmentService.createEnvironment(projectId, {
-            name: env.name,
-            baseUrl: env.baseUrl,
-            description: env.description,
-          })
-        )
-      );
+      let created = 0;
+      let updated = 0;
+      for (const env of selected) {
+        const result = await environmentService.upsertEnvironment(projectId, {
+          name: env.name,
+          baseUrl: env.baseUrl,
+          description: env.description,
+        });
+        if (result.action === 'created') created += 1;
+        else updated += 1;
+      }
       setEnvConfirmOpen(false);
-      setSummaryMessage(`✔ ${selected.length} environments created successfully.`);
+      const parts: string[] = [];
+      if (created > 0) parts.push(`${created} created`);
+      if (updated > 0) parts.push(`${updated} updated`);
+      setSummaryMessage(`✔ Environments synced (${parts.join(', ') || 'no changes'}).`);
       setSummaryToastOpen(true);
     } catch (error: any) {
-      setErrorMessage(error?.message || 'Failed to create environments');
+      setErrorMessage(error?.message || 'Failed to sync environments');
       setErrorToastOpen(true);
     } finally {
       setIsCreatingEnvironments(false);
@@ -789,7 +801,7 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
             </CardHeader>
             <CardContent className='space-y-4'>
               <p className='text-sm text-text-secondary'>
-                The imported API specification contains server definitions. Select the environments you would like to create.
+                The imported API specification contains server definitions. Select environments to create or update (existing names are replaced).
               </p>
               <div className='max-h-96 overflow-y-auto rounded-lg border border-border'>
                 <table className='w-full text-sm'>
@@ -838,7 +850,7 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
                 Skip
               </Button>
               <Button onClick={handleCreateSelectedEnvironments} disabled={isCreatingEnvironments || selectedEnvIds.size === 0}>
-                Create Selected ({selectedEnvIds.size})
+                Sync Selected ({selectedEnvIds.size})
               </Button>
             </CardFooter>
           </Card>

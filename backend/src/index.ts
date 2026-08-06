@@ -40,6 +40,8 @@ import { BackupService } from './interfaces/backup/BackupService';
 import { createBackupRoutes } from './interfaces/backup/BackupRoutes';
 import { errorHandler, notFoundHandler } from './interfaces/middleware/ErrorHandler';
 import { authenticate, authorizeProject } from './interfaces/middleware/auth';
+import { projectRoutes } from './interfaces/project/ProjectRoutes';
+import { createActivityStreamRoutes } from './interfaces/realtime/ActivityStreamRoutes';
 
 dotenv.config();
 
@@ -60,6 +62,10 @@ app.use(express.json());
 
 app.use('/api', authenticate);
 app.use('/api/projects/:projectId', authorizeProject);
+
+container.activityStreamHub.start();
+app.use('/api', createActivityStreamRoutes(container.activityStreamHub));
+app.use('/api', projectRoutes);
 
 const serverStartTime = Date.now();
 
@@ -149,6 +155,7 @@ const shutdown = (signal: string) => {
   console.log(`\nReceived ${signal}. Shutting down gracefully...`);
 
   server.close(() => {
+    container.activityStreamHub.stop();
     console.log('HTTP server closed.');
     process.exit(0);
   });

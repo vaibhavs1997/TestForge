@@ -10,5 +10,41 @@
     "timeout": 30000,
     "createdAt": 1785693070701,
     "updatedAt": 1785693070701
+  },
+  {
+    "id": "811c5a15-f9f7-4877-8941-43c232699f5b",
+    "projectId": "1",
+    "name": "auth_url",
+    "baseUrl": "https://your_domain.zitadel.cloud/oauth/v2/authorize",
+    "description": "",
+    "authentication": null,
+    "variables": {},
+    "timeout": 30000,
+    "createdAt": 1786036958670,
+    "updatedAt": 1786042478714
+  },
+  {
+    "id": "609ba200-aafd-4664-a5bd-42112465a7c7",
+    "projectId": "1",
+    "name": "Collection default",
+    "baseUrl": "https://your_domain.zitadel.cloud/oauth/v2/authorize",
+    "description": "",
+    "authentication": null,
+    "variables": {},
+    "timeout": 30000,
+    "createdAt": 1786036958735,
+    "updatedAt": 1786042478742
+  },
+  {
+    "id": "54c21260-bbe0-4fcd-9989-4bfff3afbdc6",
+    "projectId": "1",
+    "name": "token_url",
+    "baseUrl": "https://token_url",
+    "description": "",
+    "authentication": null,
+    "variables": {},
+    "timeout": 30000,
+    "createdAt": 1786036958842,
+    "updatedAt": 1786038304351
   }
 ]

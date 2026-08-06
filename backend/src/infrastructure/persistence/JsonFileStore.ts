@@ -14,19 +14,13 @@ function ensureParentDir(filePath: string): void {
 
 function ensureLockTarget(filePath: string): string {
   ensureParentDir(filePath);
-  if (fs.existsSync(filePath)) {
-    return filePath;
-  }
-  const stub = `${filePath}.lockstub`;
-  if (!fs.existsSync(stub)) {
-    fs.writeFileSync(stub, '');
-  }
-  return stub;
+  return filePath;
 }
 
 async function withFileLock<T>(filePath: string, fn: () => T | Promise<T>): Promise<T> {
   const lockTarget = ensureLockTarget(filePath);
   const release = await lockfile.lock(lockTarget, {
+    realpath: false,
     retries: {
       retries: 5,
       minTimeout: 50,

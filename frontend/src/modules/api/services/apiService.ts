@@ -135,6 +135,11 @@ class ApiService extends ApiClient<ApiServiceDto> {
       onUploadProgress,
     });
   }
+
+  async importContractFromUrl(projectId: string, url: string): Promise<ImportSummary> {
+    const path = `/projects/${projectId}/import/url`;
+    return this.post(path, { url });
+  }
 }
 
 export const apiService = new ApiService();

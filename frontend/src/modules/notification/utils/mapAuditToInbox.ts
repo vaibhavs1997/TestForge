@@ -19,6 +19,9 @@ function titleFor(log: AuditLog): string {
   if (log.module === 'Report') {
     return 'Report generated';
   }
+  if (log.module === 'API' && log.entityType === 'ApiContract') {
+    return log.action === 'CREATE' ? 'API contract imported' : 'API contract updated';
+  }
   return `${log.module} ${log.action.toLowerCase()}`;
 }
 
@@ -29,6 +32,9 @@ function messageFor(log: AuditLog): string {
   ];
   if (log.metadata?.status) {
     parts.push(String(log.metadata.status));
+  }
+  if (log.entityType === 'ApiContract' && log.newValue?.fileName) {
+    parts.push(String(log.newValue.fileName));
   }
   return parts.join(' · ');
 }

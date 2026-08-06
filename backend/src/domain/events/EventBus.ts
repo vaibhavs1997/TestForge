@@ -68,7 +68,21 @@ export class EventBus {
     for (const handler of handlers) {
       await handler(event);
     }
+
+    for (const handler of this.globalHandlers) {
+      await handler(event);
+    }
   }
+
+  /** Receive every published domain event (activity stream, metrics, etc.). */
+  subscribeAll(handler: EventHandler): () => void {
+    this.globalHandlers.push(handler);
+    return () => {
+      this.globalHandlers = this.globalHandlers.filter((h) => h !== handler);
+    };
+  }
+
+  private globalHandlers: EventHandler[] = [];
 
   private getKey(eventType: EventType, module: ModuleName): string {
     return `${eventType}:${module}`;

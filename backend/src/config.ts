@@ -4,6 +4,7 @@ export interface AppConfig {
   port: number;
   nodeEnv: string;
   dbPath: string;
+  persistenceDriver: PersistenceDriver;
   corsOrigin: string;
   logLevel: string;
   version: string;
@@ -11,6 +12,8 @@ export interface AppConfig {
   gitCommit: string;
   auth: AuthConfig;
 }
+
+export type PersistenceDriver = 'json' | 'memory' | 'sqlite';
 
 export interface AuthConfig {
   enabled: boolean;
@@ -47,10 +50,15 @@ export function validateConfig(env: NodeJS.ProcessEnv = process.env): AppConfig 
     throw new Error(`Configuration validation failed. PORT must be a valid port number, got: ${env.PORT}`);
   }
 
+  const driverRaw = (env.PERSISTENCE_DRIVER || 'json').toLowerCase();
+  const persistenceDriver: PersistenceDriver =
+    driverRaw === 'memory' || driverRaw === 'sqlite' ? driverRaw : 'json';
+
   return {
     port,
     nodeEnv: env.NODE_ENV || 'development',
     dbPath: env.DB_PATH || './data/testforge.db',
+    persistenceDriver,
     corsOrigin: env.CORS_ORIGIN || '*',
     logLevel: env.LOG_LEVEL || 'info',
     version: env.npm_package_version || APP_VERSION,

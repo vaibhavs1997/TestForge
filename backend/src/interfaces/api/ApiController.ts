@@ -16,6 +16,7 @@ import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository'
 import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity';
 import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
 import { createSuccessResponse } from "../../shared/ApiResponse";
+import { fetchContractFromUrl } from '../../infrastructure/http/fetchContractFromUrl';
 export class ApiController {
     constructor(private readonly createApiService: CreateApiService, private readonly updateApiService: UpdateApiService, private readonly deleteApiService: DeleteApiService, private readonly getApiService: GetApiService, private readonly listApiServices: ListApiServices, private readonly createApiOperation: CreateApiOperation, private readonly updateApiOperation: UpdateApiOperation, private readonly deleteApiOperation: DeleteApiOperation, private readonly getApiOperation: GetApiOperation, private readonly listApiOperations: ListApiOperations, private readonly importApiContract: ImportApiContract, private readonly apiServiceRepository: ApiServiceRepository, private readonly apiOperationRepository: ApiOperationRepository) { }
     async listServices(req: Request, res: Response): Promise<void> {
@@ -111,6 +112,20 @@ export class ApiController {
         }
         const content = file.buffer.toString('utf-8');
         const fileName = file.originalname;
+        const summary: ImportSummary = await this.importApiContract.execute({
+            projectId,
+            fileName,
+            content,
+        });
+        res.status(200).json(createSuccessResponse(summary));
+    }
+    async importContractFromUrl(req: Request, res: Response): Promise<void> {
+        const { projectId } = req.params;
+        const url = typeof req.body?.url === 'string' ? req.body.url.trim() : '';
+        if (!url) {
+            throw new Error('URL is required');
+        }
+        const { content, fileName } = await fetchContractFromUrl(url);
         const summary: ImportSummary = await this.importApiContract.execute({
             projectId,
             fileName,

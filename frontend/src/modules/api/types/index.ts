@@ -81,7 +81,10 @@ export interface OperationFormData {
 
 export interface ImportSummary {
   servicesImported: number;
+  servicesUpdated?: number;
   operationsImported: number;
+  operationsUpdated?: number;
+  operationsRemoved?: number;
   duplicatesSkipped: number;
   warnings: string[];
   detectedEnvironments: DetectedEnvironment[];

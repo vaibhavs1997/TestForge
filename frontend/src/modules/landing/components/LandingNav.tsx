@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Menu, X, Sparkles } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
+import { BrandLogo } from '../../../components/brand/BrandLogo';
 
 const NAV_LINKS = [
   { label: 'Features', href: '#features' },
@@ -16,12 +17,7 @@ export const LandingNav: React.FC = () => {
   return (
     <header className="relative z-50 border-b border-white/[0.06] bg-[#0B1120]/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link to="/" className="flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#2563EB] to-[#7C3AED] shadow-lg shadow-blue-500/20">
-            <Sparkles className="h-4 w-4 text-white" />
-          </span>
-          <span className="text-lg font-semibold tracking-tight text-white">TestForge</span>
-        </Link>
+        <BrandLogo variant="landing" linkTo="/" />
 
         <nav className="hidden items-center gap-8 md:flex">
           {NAV_LINKS.map((item) => (

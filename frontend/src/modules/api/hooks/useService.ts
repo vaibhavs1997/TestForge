@@ -5,6 +5,7 @@ import { apiService } from '../services/apiService';
 import type { ServiceFormData, OperationFormData, Operation, ImportSummary } from '../types';
 import type { AxiosProgressEvent } from 'axios';
 import { queryKeys } from '../../../constants';
+import { notificationInboxQueryKey } from '../../notification/hooks';
 
 // ─── Services ────────────────────────────────────────────────
 
@@ -199,18 +200,24 @@ export const useImportApiContract = (projectId?: string) => {
   const operationsQueryKey = queryKeys.operations(projectId || '');
 
   const importMutation = useMutation({
-    mutationFn: ({
-      file,
-      onUploadProgress,
-    }: {
-      file: File;
-      onUploadProgress?: (progressEvent: AxiosProgressEvent) => void;
-    }) =>
-      apiService.importContract(projectId || '', file, onUploadProgress),
+    mutationFn: (
+      input:
+        | {
+            file: File;
+            onUploadProgress?: (progressEvent: AxiosProgressEvent) => void;
+          }
+        | { url: string },
+    ) => {
+      if ('url' in input) {
+        return apiService.importContractFromUrl(projectId || '', input.url);
+      }
+      return apiService.importContract(projectId || '', input.file, input.onUploadProgress);
+    },
     onSuccess: () => {
       // Refresh services tree and operations after a successful import.
       queryClient.invalidateQueries({ queryKey: servicesQueryKey });
       queryClient.invalidateQueries({ queryKey: operationsQueryKey });
+      queryClient.invalidateQueries({ queryKey: notificationInboxQueryKey() });
     },
   });
 

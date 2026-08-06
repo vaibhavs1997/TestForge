@@ -79,4 +79,73 @@ describe('ImportApiContract', () => {
     const zitadel = services.find((s) => s.name.includes('ZITADEL'));
     expect(zitadel?.baseUrl).toBe('https://my-instance.zitadel.cloud');
   });
+
+  it('does not treat OAuth token_url paths as environments', async () => {
+    const postmanSpec = JSON.stringify({
+      info: {
+        name: 'OAuth sample',
+        schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
+      },
+      variable: [
+        { key: 'token_url', value: '/oauth/v2/token' },
+        { key: 'baseUrl', value: 'https://api.example.com' },
+      ],
+      item: [],
+    });
+
+    const useCase = new ImportApiContract(new ApiServiceRepository(), new ApiOperationRepository());
+    const summary = await useCase.execute({
+      projectId: 'project-a',
+      fileName: 'oauth.postman_collection.json',
+      content: postmanSpec,
+    });
+
+    const names = summary.detectedEnvironments.map((e) => e.name);
+    expect(names).not.toContain('token_url');
+    expect(names).toContain('baseUrl');
+  });
+
+  it('re-importing the same OpenAPI spec updates operations instead of skipping duplicates', async () => {
+    const useCase = new ImportApiContract(new ApiServiceRepository(), new ApiOperationRepository());
+    const projectId = 'project-a';
+
+    const first = await useCase.execute({
+      projectId,
+      fileName: 'pets.json',
+      content: OPENAPI_SPEC,
+    });
+    expect(first.operationsImported).toBeGreaterThanOrEqual(1);
+
+    const updatedSpec = JSON.stringify({
+      openapi: '3.0.0',
+      info: { title: 'Pet Store', version: '2.0.0' },
+      paths: {
+        '/pets': {
+          get: { operationId: 'listPets', summary: 'List all pets (updated)' },
+        },
+      },
+    });
+
+    const second = await useCase.execute({
+      projectId,
+      fileName: 'pets.json',
+      content: updatedSpec,
+    });
+
+    expect(second.servicesImported).toBe(0);
+    expect(second.servicesUpdated).toBeGreaterThanOrEqual(1);
+    expect(second.operationsUpdated).toBeGreaterThanOrEqual(1);
+    expect(second.duplicatesSkipped).toBe(0);
+
+    const services = await new ApiServiceRepository().findByProject(projectId);
+    const petStore = services.find((s) => s.name === 'Pet Store');
+    expect(petStore?.version).toBe('2.0.0');
+
+    const operations = await new ApiOperationRepository().findByProjectAndService(
+      projectId,
+      petStore!.id,
+    );
+    expect(operations).toHaveLength(1);
+    expect(operations[0].description).toContain('updated');
+  });
 });

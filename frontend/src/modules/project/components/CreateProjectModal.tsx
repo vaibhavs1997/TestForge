@@ -1,4 +1,4 @@
-// Create Project modal with Project name, Project Key, and Description fields.
+// Create Project modal — name and description; id and projectKey are assigned by the API.
 import React from 'react';
 import { X } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
@@ -6,11 +6,10 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../../../c
 import { TextInput } from '../../../components/forms/TextInput';
 import { TextArea } from '../../../components/forms/TextArea';
 import { useFormValidation } from '../../../hooks/useFormValidation';
-import { isDuplicateName, isDuplicateId, isValidProjectKey, FormErrors } from '../../../utils/validation';
+import { isDuplicateName, FormErrors } from '../../../utils/validation';
 
 export interface CreateProjectModalData {
   projectName: string;
-  projectId: string;
   description: string;
 }
 
@@ -28,13 +27,11 @@ export interface CreateProjectModalProps {
 
 export const CreateProjectModal = ({ open, onClose, onSave, existingProjects = [] }: CreateProjectModalProps) => {
   const [projectName, setProjectName] = React.useState('');
-  const [projectId, setProjectId] = React.useState('');
   const [description, setDescription] = React.useState('');
 
   const validate = React.useCallback((): FormErrors => {
     const newErrors: FormErrors = {};
     const trimmedName = projectName.trim();
-    const trimmedId = projectId.trim();
 
     if (!trimmedName) {
       newErrors.projectName = 'Project name is required';
@@ -42,24 +39,14 @@ export const CreateProjectModal = ({ open, onClose, onSave, existingProjects = [
       newErrors.projectName = 'A project with this name already exists';
     }
 
-    if (!trimmedId) {
-      newErrors.projectId = 'Project Key is required';
-    } else if (!isValidProjectKey(trimmedId)) {
-      newErrors.projectId = 'Project Key must start with a letter and contain only uppercase letters, numbers, and underscores (2-20 chars)';
-    } else if (isDuplicateId(trimmedId, existingProjects.map((p) => p.id))) {
-      newErrors.projectId = 'A project with this Key already exists';
-    }
-
     return newErrors;
-  }, [projectName, projectId, existingProjects]);
+  }, [projectName, existingProjects]);
 
   const { errors, validateForm, clearError } = useFormValidation({ validate });
 
-  // Reset form fields whenever the modal is opened.
   React.useEffect(() => {
     if (open) {
       setProjectName('');
-      setProjectId('');
       setDescription('');
     }
   }, [open]);
@@ -71,7 +58,6 @@ export const CreateProjectModal = ({ open, onClose, onSave, existingProjects = [
     if (validateForm()) {
       onSave({
         projectName: projectName.trim(),
-        projectId: projectId.trim(),
         description: description.trim(),
       });
     }
@@ -113,18 +99,6 @@ export const CreateProjectModal = ({ open, onClose, onSave, existingProjects = [
               }}
               placeholder='Enter project name'
               error={errors.projectName}
-              required
-            />
-            <TextInput
-              label='Project Key'
-              name='projectId'
-              value={projectId}
-              onChange={(e) => {
-                setProjectId(e.target.value);
-                clearError('projectId');
-              }}
-              placeholder='Enter project key'
-              error={errors.projectId}
               required
             />
             <TextArea

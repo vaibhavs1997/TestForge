@@ -2,6 +2,7 @@
 import React from 'react';
 import { Toast } from '../components/shared/Toast';
 import type { ToastType } from '../components/shared/Toast';
+import type { ToastProps } from '../components/shared/Toast';
 
 export interface ToastState {
   open: boolean;
@@ -18,7 +19,12 @@ export interface UseToastResult {
   showInfo: (message: string) => void;
 }
 
-export const useToast = (): UseToastResult => {
+export type UseToastOptions = {
+  position?: ToastProps['position'];
+};
+
+export const useToast = (options: UseToastOptions = {}): UseToastResult => {
+  const { position = 'top-right' } = options;
   const [state, setState] = React.useState<ToastState>({
     open: false,
     message: '',
@@ -55,6 +61,7 @@ export const useToast = (): UseToastResult => {
       open={state.open}
       onClose={handleClose}
       type={state.type}
+      position={position}
     />
   );
 

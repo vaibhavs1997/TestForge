@@ -12,6 +12,8 @@ export interface ToastProps {
   onClose: () => void;
   duration?: number;
   type?: ToastType;
+  /** Where the toast is anchored on the viewport. */
+  position?: 'bottom-right' | 'top-right' | 'top-center';
 }
 
 const iconMap: Record<ToastType, React.ReactNode> = {
@@ -21,7 +23,20 @@ const iconMap: Record<ToastType, React.ReactNode> = {
   info: <Info className='h-5 w-5 text-blue-600' />,
 };
 
-export const Toast = ({ message, open, onClose, duration = TOAST_DURATION_MS, type = 'success' }: ToastProps) => {
+const positionClasses: Record<NonNullable<ToastProps['position']>, string> = {
+  'bottom-right': 'bottom-4 right-4 slide-in-from-bottom-2',
+  'top-right': 'top-4 right-4 slide-in-from-top-2',
+  'top-center': 'top-4 left-1/2 -translate-x-1/2 slide-in-from-top-2',
+};
+
+export const Toast = ({
+  message,
+  open,
+  onClose,
+  duration = TOAST_DURATION_MS,
+  type = 'success',
+  position = 'top-right',
+}: ToastProps) => {
   React.useEffect(() => {
     if (open && duration > 0) {
       const timer = setTimeout(onClose, duration);
@@ -34,7 +49,12 @@ export const Toast = ({ message, open, onClose, duration = TOAST_DURATION_MS, ty
   const Icon = iconMap[type];
 
   return (
-    <div className='fixed bottom-4 right-4 z-[60] animate-in fade-in slide-in-from-bottom-2'>
+    <div
+      className={cn(
+        'fixed z-[60] animate-in fade-in',
+        positionClasses[position],
+      )}
+    >
       <div
         className={cn(
           'flex max-h-[min(70vh,28rem)] max-w-lg items-start gap-3 rounded-lg border border-border bg-background px-4 py-3 shadow-lg',

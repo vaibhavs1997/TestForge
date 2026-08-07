@@ -29,6 +29,7 @@ export interface LoginResponse {
   accessToken: string;
   expiresIn: string;
   user: AuthUser;
+  welcomeEmailSent?: boolean;
 }
 
 export const authApi = {

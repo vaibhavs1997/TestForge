@@ -5,6 +5,7 @@ import { getAuthConfig, getEnterpriseAuthConfig } from '../../config';
 import type { AuthService } from '../../application/auth/AuthService';
 import { AppError } from '../middleware/ErrorHandler';
 import { ERROR_CODES } from '../../shared/ApiResponse';
+import { normalizeEmail } from '../../domain/auth/normalizeEmail';
 
 export function createAuthRoutes(authService: AuthService): Router {
   const router = Router();
@@ -30,7 +31,7 @@ export function createAuthRoutes(authService: AuthService): Router {
       const { email, password, displayName, organizationName, firstName, lastName } = req.body ?? {};
       try {
         const result = await authService.register({
-          email: String(email ?? ''),
+          email: normalizeEmail(String(email ?? '')),
           password: String(password ?? ''),
           displayName: displayName ? String(displayName) : undefined,
           organizationName: organizationName ? String(organizationName) : '',
@@ -56,7 +57,10 @@ export function createAuthRoutes(authService: AuthService): Router {
       }
       const { email, password } = req.body ?? {};
       try {
-        const result = await authService.login(String(email ?? ''), String(password ?? ''));
+        const result = await authService.login(
+          normalizeEmail(String(email ?? '')),
+          String(password ?? ''),
+        );
         res.status(200).json(createSuccessResponse(result));
       } catch (err) {
         throw new AppError(

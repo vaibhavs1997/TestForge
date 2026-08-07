@@ -18,7 +18,7 @@ export const SessionBadge: React.FC = () => {
 
   const onLogout = () => {
     logout();
-    navigate('/?auth=login');
+    navigate('/', { replace: true });
   };
 
   return (

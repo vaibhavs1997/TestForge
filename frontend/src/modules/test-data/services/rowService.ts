@@ -46,11 +46,8 @@ class RowService extends ApiClient<DatasetRow> {
     formData.append('skipEmptyRows', String(options.skipEmptyRows));
 
     const path = `/projects/${projectId}/test-data/datasets/${datasetId}/import`;
-    return this.post(path, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    // Let the browser set multipart boundary (do not set Content-Type manually).
+    return this.post(path, formData);
   }
 
   async getImportTemplate(projectId: string, datasetId: string): Promise<ImportTemplate> {

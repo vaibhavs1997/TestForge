@@ -1,6 +1,8 @@
 import bcrypt from 'bcrypt';
 import { getMongoDb, getUsersCollectionName } from './mongoClient';
 import type { PublicUser, UserAuthenticationDocument, UserRole } from '../../domain/auth/types';
+import { normalizeEmail } from '../../domain/auth/normalizeEmail';
+import { formatMongoDocumentValidationError } from './mongoErrors';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -29,13 +31,13 @@ export class AuthRepository {
   }
 
   async findUserByEmail(email: string): Promise<UserAuthenticationDocument | null> {
-    const normalized = email.trim().toLowerCase();
+    const normalized = normalizeEmail(email);
     const doc = await this.collection().findOne({ id: normalized });
     return doc ?? null;
   }
 
   async findUserById(userId: string): Promise<UserAuthenticationDocument | null> {
-    const doc = await this.collection().findOne({ id: userId.trim().toLowerCase() });
+    const doc = await this.collection().findOne({ id: normalizeEmail(userId) });
     return doc ?? null;
   }
 
@@ -46,7 +48,7 @@ export class AuthRepository {
     lastName: string;
     organizationName: string;
   }): Promise<PublicUser> {
-    const email = input.email.trim().toLowerCase();
+    const email = normalizeEmail(input.email);
     if (!email.includes('@')) {
       throw new Error('A valid email address is required');
     }
@@ -84,7 +86,11 @@ export class AuthRepository {
       tenantId,
     };
 
-    await this.collection().insertOne(user);
+    try {
+      await this.collection().insertOne(user);
+    } catch (err) {
+      throw formatMongoDocumentValidationError(err);
+    }
     return toPublicUser(user);
   }
 

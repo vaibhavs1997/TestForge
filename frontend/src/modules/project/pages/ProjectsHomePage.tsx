@@ -16,6 +16,7 @@ import { CreateProjectModal, type CreateProjectModalData } from '../components/C
 import { RenameProjectModal } from '../components/RenameProjectModal';
 import { ProjectCardMenu } from '../components/ProjectCardMenu';
 import { Plus, LayoutGrid, Clock, User, FolderPlus } from 'lucide-react';
+import { consumeAuthFlash } from '../../../utils/authFlash';
 
 export interface ProjectsHomePageProps {}
 
@@ -73,6 +74,15 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
   const { toast, showSuccess, showError } = useToast();
   const setSelectedProjectId = projectStore((state) => state.setSelectedProjectId);
   const selectedProjectId = projectStore((state) => state.selectedProjectId);
+
+  React.useEffect(() => {
+    const flash = consumeAuthFlash();
+    if (flash?.type === 'success') {
+      showSuccess(flash.message);
+    } else if (flash?.type === 'error') {
+      showError(flash.message);
+    }
+  }, [showSuccess, showError]);
 
   React.useEffect(() => {
     if (selectedProjectId) {
@@ -134,18 +144,17 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
 
   const handleCreateProject = async (data: CreateProjectModalData) => {
     try {
-      await createProjectAsync({
+      const created = await createProjectAsync({
         name: data.projectName,
-        id: data.projectId,
-        projectKey: data.projectId.toLowerCase(),
         description: data.description || undefined,
       });
-      touchProjectOpened(data.projectId);
+      touchProjectOpened(created.id);
       logActivity(`Created project "${data.projectName}"`, data.projectName);
       setCreateModalOpen(false);
       showSuccess(`Project "${data.projectName}" created successfully`);
     } catch (e) {
       console.error(e);
+      showError(e instanceof Error ? e.message : 'Failed to create project');
     }
   };
 

@@ -10,6 +10,7 @@ import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/Knowledg
 import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
 import { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository';
 import { TestStrategyEntity, StrategyCategory, StrategyItem, StrategyPriority, StrategyStatus } from '../../domain/requirements/TestStrategyEntity';
+import { rankOperationsForRequirement } from './RequirementOperationMatcher';
 
 interface StrategyPattern {
   category: StrategyCategory;
@@ -108,22 +109,33 @@ export class PlanTestStrategy {
       throw new Error(`Requirement with id ${requirementId} not found`);
     }
 
-    if (requirement.approvalStatus !== 'Approved') {
-      throw new Error('Only Approved requirements can have a test strategy');
+    if (requirement.approvalStatus === 'Rejected' || requirement.approvalStatus === 'Archived') {
+      throw new Error('Cannot plan strategy for rejected or archived requirements');
     }
+
+    const existing = await this.testStrategyRepository.findByRequirement(requirementId);
+    if (existing) {
+      return existing;
+    }
+
+    const operations = await this.apiOperationRepository.findByProject(requirement.projectId);
+    const rankedIds = rankOperationsForRequirement(requirement, operations).map((o) => o.id);
+    const matchedOpIds =
+      rankedIds.length > 0
+        ? rankedIds.slice(0, 5)
+        : requirement.relatedOperations.length > 0
+          ? requirement.relatedOperations
+          : [];
 
     // Gather related data
     const analysis = requirement.projectAnalysisId
       ? await this.analysisRepository.findById(requirement.projectAnalysisId)
       : null;
 
-    // Get API operations
-    const relatedApis: string[] = [];
+    // Get API operations (store operation IDs for test design mapping)
+    const relatedApis: string[] = [...matchedOpIds];
     for (const opId of requirement.relatedOperations) {
-      const op = await this.apiOperationRepository.findById(opId);
-      if (op) {
-        relatedApis.push(`${op.method} ${op.path}`);
-      }
+      if (!relatedApis.includes(opId)) relatedApis.push(opId);
     }
 
     // Get related datasets from requirement or analysis

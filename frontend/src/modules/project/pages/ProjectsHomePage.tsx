@@ -15,7 +15,7 @@ import { ErrorAlert } from '../../../components/shared/ErrorAlert';
 import { CreateProjectModal, type CreateProjectModalData } from '../components/CreateProjectModal';
 import { RenameProjectModal } from '../components/RenameProjectModal';
 import { ProjectCardMenu } from '../components/ProjectCardMenu';
-import { Plus, LayoutGrid, Clock, User, FolderPlus } from 'lucide-react';
+import { Plus, LayoutGrid, Clock, User, FolderPlus, ArrowRight, ListChecks } from 'lucide-react';
 import { consumeAuthFlash } from '../../../utils/authFlash';
 
 export interface ProjectsHomePageProps {}
@@ -56,6 +56,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
   const [archiveProject, setArchiveProject] = React.useState<UiProject | undefined>(undefined);
   const [archiveOpen, setArchiveOpen] = React.useState(false);
   const [recentActivity, setRecentActivity] = React.useState<Activity[]>([]);
+  const [showAllProjects, setShowAllProjects] = React.useState(false);
 
   const {
     projects: apiProjects,
@@ -117,8 +118,9 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
 
   const displayedProjects = React.useMemo(() => {
     const term = search.trim().toLowerCase();
-    return term ? filteredProjects : filteredProjects.slice(0, MAX_RECENT_PROJECTS);
-  }, [filteredProjects, search]);
+    if (term || showAllProjects) return filteredProjects;
+    return filteredProjects.slice(0, MAX_RECENT_PROJECTS);
+  }, [filteredProjects, search, showAllProjects]);
 
   const showViewAllProjects = projects.length > MAX_RECENT_PROJECTS;
 
@@ -152,6 +154,8 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
       logActivity(`Created project "${data.projectName}"`, data.projectName);
       setCreateModalOpen(false);
       showSuccess(`Project "${data.projectName}" created successfully`);
+      setSelectedProjectId(created.id);
+      navigate(`/projects/${created.id}/overview`);
     } catch (e) {
       console.error(e);
       showError(e instanceof Error ? e.message : 'Failed to create project');
@@ -233,9 +237,9 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
     <div className="mx-auto max-w-7xl px-4 py-8">
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-text">Select a Project</h1>
+          <h1 className="text-3xl font-bold text-text">Your projects</h1>
           <p className="mt-2 text-sm text-text-secondary">
-            Create a new project or continue working on an existing API validation workspace.
+            Open a workspace or create one — each project follows import → requirements → run → report.
           </p>
         </div>
         <Button onClick={() => setCreateModalOpen(true)}>
@@ -251,9 +255,9 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
       <div className="mb-8">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-text">Recent Projects</h2>
-          {showViewAllProjects && (
-            <Button variant="ghost" size="sm">
-              View All Projects →
+          {showViewAllProjects && !search.trim() && (
+            <Button variant="ghost" size="sm" onClick={() => setShowAllProjects((v) => !v)}>
+              {showAllProjects ? 'Show fewer' : `View all ${projects.length} projects →`}
             </Button>
           )}
         </div>
@@ -308,6 +312,10 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
                       <span className="text-text-secondary">Status</span>
                       {getStatusBadge(project.uiStatus)}
                     </div>
+                    <p className="mt-3 flex items-center gap-1 text-xs font-medium text-primary">
+                      Continue
+                      <ArrowRight className="h-3 w-3" />
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -350,15 +358,31 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Start a New API Validation Project</CardTitle>
+            <CardTitle>New project checklist</CardTitle>
             <CardDescription>
-              Create a project to organize API contracts, environments, test suites and execution reports.
+              After you create a project, use Get started inside the workspace.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Button className="w-full" size="lg" onClick={() => setCreateModalOpen(true)}>
+          <CardContent className="space-y-3 text-sm text-text-secondary">
+            <div className="flex gap-2">
+              <ListChecks className="h-4 w-4 shrink-0 text-primary" />
+              <span>Import API contract</span>
+            </div>
+            <div className="flex gap-2">
+              <ListChecks className="h-4 w-4 shrink-0 text-primary" />
+              <span>Set environment base URL</span>
+            </div>
+            <div className="flex gap-2">
+              <ListChecks className="h-4 w-4 shrink-0 text-primary" />
+              <span>Add requirements &amp; generate tests</span>
+            </div>
+            <div className="flex gap-2">
+              <ListChecks className="h-4 w-4 shrink-0 text-primary" />
+              <span>Run tests and review report</span>
+            </div>
+            <Button className="w-full mt-2" size="lg" onClick={() => setCreateModalOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
-              Create Project
+              Create project
             </Button>
           </CardContent>
         </Card>

@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 import { usePlugins, usePluginHealth } from '../hooks';
 import { pluginService } from '../services';
 import type { Plugin, PluginCategory } from '../types';
+import { AdminPageIntro } from '../../../components/shared/AdminPageIntro';
+import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
 
 export function PluginManagementPage() {
   const { plugins, loading, error, refetch } = usePlugins();
@@ -81,10 +83,14 @@ export function PluginManagementPage() {
   if (error) return <div className="p-4 text-red-500">Error: {String(error)}</div>;
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Plugin Management</h1>
-      </div>
+    <div className="mx-auto max-w-7xl p-6">
+      <WorkflowOptionalBanner
+        description="Extend the platform with optional integrations. Core API testing does not require plugins."
+      />
+      <AdminPageIntro
+        title="Plugins"
+        description="Enable, disable, and check health of installed extensions."
+      />
 
       {/* Filters */}
       <div className="bg-white shadow rounded-lg p-4 mb-6">

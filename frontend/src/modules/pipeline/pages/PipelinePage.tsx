@@ -1,8 +1,11 @@
 // PipelinePage - Project Pipeline Orchestration Page
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { usePipeline } from '../hooks/usePipeline';
 import { useAIProviders } from '../../ai-provider/hooks';
 import { PipelineStage, PipelineStatus } from '../types';
+import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
+import { Button } from '../../../components/ui/Button';
 
 interface PipelinePageProps {
   projectId: string;
@@ -54,6 +57,7 @@ const AI_STATUS_COLORS: Record<string, string> = {
 };
 
 export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
+  const navigate = useNavigate();
   const { pipeline, loading, error, startPipeline, restartStage, cancelPipeline, runAIPipeline } = usePipeline(projectId);
   const { providers: aiProviders } = useAIProviders(projectId);
 
@@ -111,9 +115,30 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
   };
 
   return (
-    <div className="pipeline-page p-6">
+    <div className="pipeline-page p-6 max-w-5xl mx-auto">
+      <WorkflowOptionalBanner
+        projectId={projectId}
+        description="Automated multi-stage orchestration (analysis, strategy, design, plans). Most teams use Requirements → Generate test cases → Run instead."
+        primaryLink={{
+          label: 'Open requirements',
+          path: `/projects/${projectId}/requirements`,
+        }}
+      />
+
       <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-4">Project Pipeline</h1>
+        <h1 className="text-2xl font-bold mb-1 text-text">Pipeline orchestration</h1>
+        <p className="text-sm text-text-secondary mb-4">
+          Run the full validation pipeline or an AI-assisted batch. For day-to-day work, prefer Get started on the project home.
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mb-4"
+          onClick={() => navigate(`/projects/${projectId}/overview`)}
+        >
+          ← Get started
+        </Button>
 
         {/* AI Pipeline Controls */}
         <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded">

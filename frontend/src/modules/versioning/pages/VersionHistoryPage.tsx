@@ -4,6 +4,8 @@ import { useVersions, useVersionComparison } from '../hooks';
 import { versioningService } from '../services';
 import type { Version, EntityType } from '../types';
 import { useParams } from 'react-router-dom';
+import { AdminPageIntro } from '../../../components/shared/AdminPageIntro';
+import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
 
 export function VersionHistoryPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -67,18 +69,24 @@ export function VersionHistoryPage() {
   if (error) return <div className="p-4 text-red-500">Error: {String(error)}</div>;
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Version History</h1>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setCompareMode(!compareMode)}
-            className="px-4 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600"
-          >
-            {compareMode ? 'Exit Compare Mode' : 'Compare Versions'}
-          </button>
-        </div>
-      </div>
+    <div className="mx-auto max-w-7xl p-6">
+      {projectId && (
+        <WorkflowOptionalBanner
+          description="Restore or compare historical snapshots of entities. Use when you need to roll back a change."
+          projectId={projectId}
+        />
+      )}
+      <AdminPageIntro
+        title="Version history"
+        description="Browse versions by entity type, compare two snapshots, or restore a prior state."
+      >
+        <button
+          onClick={() => setCompareMode(!compareMode)}
+          className="px-4 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600 text-sm"
+        >
+          {compareMode ? 'Exit compare mode' : 'Compare versions'}
+        </button>
+      </AdminPageIntro>
 
       {/* Filters */}
       <div className="bg-white shadow rounded-lg p-4 mb-6">

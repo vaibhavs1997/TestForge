@@ -12,7 +12,6 @@ import {
   Edit,
   Trash2,
   BookOpen,
-  Sparkles,
   Upload,
   ChevronDown,
 } from 'lucide-react';
@@ -29,6 +28,7 @@ import { RuleDialog } from '../components/RuleDialog';
 import { VariableDialog } from '../components/VariableDialog';
 import { DependencyDialog } from '../components/DependencyDialog';
 import { ImportKnowledgeModal } from '../components/ImportKnowledgeModal';
+import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
 import { useKnowledgeFlows, useBusinessRules, useRuntimeVariables, useDependencies, useDocumentation } from '../hooks';
 import { knowledgeService } from '../services';
 import { toUnifiedItems, type KnowledgeTypeFilter, type UnifiedKnowledgeItem } from '../utils/unifiedKnowledge';
@@ -422,7 +422,7 @@ export const KnowledgePage: React.FC = () => {
   if (!projectId) {
     return (
       <div className="mx-auto max-w-7xl px-6 py-16 text-center text-text-secondary">
-        Open a project to use the Knowledge Hub.
+        Open a project to manage project knowledge.
       </div>
     );
   }
@@ -430,18 +430,19 @@ export const KnowledgePage: React.FC = () => {
   return (
     <div className='min-h-screen'>
       <div className='mx-auto max-w-7xl px-6 py-8'>
+        <WorkflowOptionalBanner
+          description="Reference material for flows, rules, and docs. Most teams can skip this until they need shared context beyond requirements and APIs."
+          projectId={projectId}
+          primaryLink={{ label: 'Requirements', path: `/projects/${projectId}/requirements` }}
+        />
         <div className='mb-6 flex flex-wrap items-start justify-between gap-4'>
           <div>
-            <h1 className='text-2xl font-bold text-text'>Knowledge Hub</h1>
+            <h1 className='text-2xl font-bold text-text'>Knowledge</h1>
             <p className='mt-1 max-w-2xl text-sm text-text-secondary'>
-              One place for flows, rules, dependencies, variables, and documentation. Import multiple documents (PDF, Word, Markdown, JSON packs, and more) or add items manually.
+              Flows, rules, dependencies, variables, and documentation. Import documents or add items manually.
             </p>
           </div>
           <div className='flex flex-wrap items-center gap-2'>
-            <Button variant='outline' onClick={() => navigate(`/projects/${projectId}/requirements/analysis`)}>
-              <Sparkles className='mr-2 h-4 w-4' />
-              Analyze project
-            </Button>
             <Button variant='outline' onClick={() => setImportOpen(true)}>
               <Upload className='mr-2 h-4 w-4' />
               Import
@@ -525,7 +526,7 @@ export const KnowledgePage: React.FC = () => {
             description={
               search
                 ? 'Try a different search or clear the type filter.'
-                : 'Import project docs (Markdown or JSON) or add flows, rules, and other items manually.'
+                : 'Optional: document flows and business rules for richer AI test ideas. Not required for the main import → requirement → run path.'
             }
             action={
               search

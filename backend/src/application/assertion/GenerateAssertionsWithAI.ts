@@ -176,6 +176,7 @@ export class GenerateAssertionsWithAI {
       testDesign.projectId,
       testDesign.requirementId,
       testDesign.strategyItemId,
+      (testDesign as { title?: string }).title || '',
       testDesign.operationId,
       testDesign.environmentId,
       testDesign.datasetId,

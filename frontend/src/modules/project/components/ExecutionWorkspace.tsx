@@ -10,11 +10,10 @@ interface ExecutionWorkspaceProps {
 }
 
 const SUB_NAV_ITEMS = [
-  { key: '', label: 'Execute', path: '' },
+  { key: '', label: 'Runs', path: '' },
   { key: 'suites', label: 'Suites', path: '/suites' },
   { key: 'profiles', label: 'Profiles', path: '/profiles' },
-  { key: 'scheduler', label: 'Scheduler', path: '/scheduler' },
-  { key: 'history', label: 'Validation History', path: '/history' },
+  { key: 'scheduler', label: 'Schedule', path: '/scheduler' },
 ];
 
 export const ExecutionWorkspace: React.FC<ExecutionWorkspaceProps> = ({ projectId }) => {

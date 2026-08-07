@@ -23,6 +23,7 @@ export class UpdateRequirement {
     relatedFlows?: string[];
     relatedDatasets?: string[];
     acceptanceCriteria?: AcceptanceCriterion[];
+    jiraIssueKey?: string | null;
   }): Promise<RequirementEntity> {
     const existing = await this.requirementRepository.findById(params.id);
     if (!existing) {
@@ -46,6 +47,10 @@ export class UpdateRequirement {
     if (params.relatedFlows !== undefined) updateData.relatedFlows = params.relatedFlows;
     if (params.relatedDatasets !== undefined) updateData.relatedDatasets = params.relatedDatasets;
     if (params.acceptanceCriteria !== undefined) updateData.acceptanceCriteria = params.acceptanceCriteria;
+    if (params.jiraIssueKey !== undefined) {
+      const key = params.jiraIssueKey?.trim();
+      updateData.jiraIssueKey = key ? key.toUpperCase() : null;
+    }
 
     const updated = await this.requirementRepository.update(params.id, updateData);
 

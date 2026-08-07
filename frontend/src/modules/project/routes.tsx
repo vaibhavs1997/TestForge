@@ -14,7 +14,7 @@ import { TestDataWorkspace } from './components/TestDataWorkspace';
 import { ApiRoutes } from '../api';
 import { EnvironmentPage } from '../environment/pages/EnvironmentPage';
 import { KnowledgePage } from '../knowledge/pages/KnowledgePage';
-import { ReportPage } from '../report/pages/ReportPage';
+import { ReportRoutes } from '../report/routes';
 
 // Lazy load Administration and Developer Tools modules
 const RecommendationsPage = lazy(() => import('../recommendation/pages/RecommendationsPage').then(m => ({ default: m.RecommendationsPage })));
@@ -61,7 +61,7 @@ const ProjectWorkspace: React.FC = () => {
   // Wrapper components that pass projectId as a prop to pages that use useParams
   const ProjectEnvironmentPage = () => <EnvironmentPage />;
   const ProjectKnowledgePage = () => <KnowledgePage />;
-  const ProjectReportPage = () => <ReportPage />;
+  const ProjectReportPage = () => <ReportRoutes />;
   const ProjectRecommendationsPage = () => <RecommendationsPage />;
   const ProjectNotificationPage = () => <NotificationPage />;
   const ProjectVersionHistoryPage = () => <VersionHistoryPage />;

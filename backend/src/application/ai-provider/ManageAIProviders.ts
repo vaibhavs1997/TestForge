@@ -15,6 +15,7 @@ import type {
 } from '../../domain/ai-provider';
 import { AIProviderRegistry } from './AIProviderRegistry';
 import { AIProviderResolutionService } from './AIProviderResolutionService';
+import { getOllamaEnvConfig } from '../../config/ollamaEnv';
 import { DEFAULT_TIMEOUT_MS, DEFAULT_MAX_TOKENS } from '../../constants/defaults';
 
 export interface CreateAIProviderInput {
@@ -98,14 +99,17 @@ export class ManageAIProviders {
   }
 
   async listByProject(projectId: string): Promise<AIProviderEntity[]> {
+    await this.ensureOllamaFromEnv(projectId);
     return this.providerRepository.findByProject(projectId);
   }
 
   async listEnabled(projectId: string): Promise<AIProviderEntity[]> {
+    await this.ensureOllamaFromEnv(projectId);
     return this.providerRepository.findEnabled(projectId);
   }
 
   async getDefault(projectId: string): Promise<AIProviderEntity | null> {
+    await this.ensureOllamaFromEnv(projectId);
     return this.providerRepository.findDefault(projectId);
   }
 
@@ -227,6 +231,45 @@ export class ManageAIProviders {
         await this.providerRepository.update(provider.id, { isDefault: false });
       }
     }
+  }
+
+  /**
+   * When OLLAMA_BASE_URL is set in `.env`, ensure each project has a usable Ollama provider
+   * (in-memory store is empty after restart until users add one in the UI).
+   */
+  private async ensureOllamaFromEnv(projectId: string): Promise<void> {
+    const envOllama = getOllamaEnvConfig();
+    if (!envOllama) {
+      return;
+    }
+
+    const existing = await this.providerRepository.findByProjectAndType(projectId, 'Ollama');
+    const fromEnv = existing.find((p) => p.name === 'Ollama (from .env)');
+    if (fromEnv) {
+      await this.providerRepository.update(fromEnv.id, {
+        endpoint: envOllama.baseUrl,
+        model: envOllama.model,
+        timeout: envOllama.timeout,
+      });
+      return;
+    }
+    if (existing.length > 0) {
+      return;
+    }
+
+    const projectProviders = await this.providerRepository.findByProject(projectId);
+    const hasDefault = projectProviders.some((p) => p.isDefault);
+
+    await this.create({
+      projectId,
+      name: 'Ollama (from .env)',
+      provider: 'Ollama',
+      model: envOllama.model,
+      endpoint: envOllama.baseUrl,
+      timeout: envOllama.timeout,
+      enabled: true,
+      default: !hasDefault,
+    });
   }
 }
 

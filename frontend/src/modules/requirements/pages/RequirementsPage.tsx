@@ -1,7 +1,7 @@
-// Requirement Workspace page - displays Suggested, Approved, Archived sections
-import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { Plus, Eye, CheckCircle, XCircle, Archive, Sparkles, RefreshCw, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Edit2, Trash2, ToggleLeft, ToggleRight, Copy, FlaskConical, ArrowUp, ArrowDown, GitBranch, Clock } from 'lucide-react';
+// Requirements page - displays Suggested, Approved, Archived sections
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Plus, Eye, CheckCircle, XCircle, Archive, Sparkles, RefreshCw, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Edit2, Trash2, ToggleLeft, ToggleRight, Copy, FlaskConical, ArrowUp, ArrowDown, GitBranch, Clock, Upload, Play } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../components/ui/Card';
 import { Badge } from '../../../components/ui/Badge';
@@ -9,6 +9,7 @@ import { EmptyState } from '../../../components/ui/EmptyState';
 import { Toast } from '../../../components/shared/Toast';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
 import { useRequirements } from '../hooks';
+import { useRequirementArtifacts } from '../hooks/useRequirementArtifacts';
 import { useAnalysis } from '../../analysis/hooks';
 import { useAssertions } from '../../assertion/hooks/useAssertions';
 import { useAIProviders } from '../../ai-provider/hooks';
@@ -17,6 +18,12 @@ import type { Requirement, ApprovalStatus, ValidationCategory, TestStrategy, Str
 import type { Assertion as ReusableAssertion } from '../../assertion/types';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../../constants';
+import { RequirementFormDialog } from '../components/RequirementFormDialog';
+import { RequirementCaptureCard } from '../components/RequirementCaptureCard';
+import { JiraImportDialog } from '../components/JiraImportDialog';
+import { RequirementsMoreMenu } from '../components/RequirementsMoreMenu';
+import type { RequirementFormData } from '../types';
+import { getRequirementReviewDisplay, getTestCaseLabel } from '../utils/requirementReviewDisplay';
 
 export interface RequirementsPageProps {}
 
@@ -87,6 +94,7 @@ const STRATEGY_CATEGORIES: StrategyCategorySection['category'][] = [
 export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const projectId = routeProjectId || '1';
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const breadcrumbItems = [
@@ -95,7 +103,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
     { label: 'Requirements' },
   ];
 
-  const { suggested, approved, archived, isLoading, isError, error, generateFromAnalysisAsync, isGenerating, update, updateAsync, remove, removeAsync, validateReadinessAsync, isValidating, validationResult, planTestStrategyAsync, isPlanningStrategy, testStrategy, generateTestDesignsAsync, isGeneratingDesigns, testDesigns, planExecutionAsync, isPlanningExecution, executionPlans } = useRequirements(projectId);
+  const { suggested, approved, archived, isLoading, isError, error, generateFromAnalysisAsync, isGenerating, update, updateAsync, remove, removeAsync, validateReadinessAsync, isValidating, validationResult, planTestStrategyAsync, isPlanningStrategy, testStrategy, generateTestDesignsAsync, isGeneratingDesigns, testDesigns, planExecutionAsync, isPlanningExecution, executionPlans, createAsync, isCreating } = useRequirements(projectId);
   const { analysisCards, runAnalysisAsync, isAnalyzing } = useAnalysis(projectId);
   const { assertions: reusableAssertions } = useAssertions(projectId);
 
@@ -107,7 +115,8 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [requirementToReview, setRequirementToReview] = useState<Requirement | undefined>(undefined);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
-  const [strategyTab, setStrategyTab] = useState<'review' | 'strategy' | 'design' | 'execution'>('review');
+  const [isGeneratingTestCases, setIsGeneratingTestCases] = useState(false);
+  const [designCountByRequirement, setDesignCountByRequirement] = useState<Record<string, number>>({});
   const [attachAssertionOpen, setAttachAssertionOpen] = useState(false);
   const [selectedDesignId, setSelectedDesignId] = useState<string | null>(null);
   const [selectedAssertionIds, setSelectedAssertionIds] = useState<Set<string>>(new Set());
@@ -116,6 +125,13 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
   const { providers: aiProviders } = useAIProviders(projectId);
   const [aiModalOpen, setAiModalOpen] = useState(false);
   const [selectedAIProviderId, setSelectedAIProviderId] = useState<string>('');
+
+  useEffect(() => {
+    if (!aiModalOpen || selectedAIProviderId || aiProviders.length === 0) return;
+    const preferred =
+      aiProviders.find((p) => p.isDefault && p.enabled) ?? aiProviders.find((p) => p.enabled) ?? aiProviders[0];
+    if (preferred) setSelectedAIProviderId(preferred.id);
+  }, [aiModalOpen, aiProviders, selectedAIProviderId]);
   const [aiPreview, setAiPreview] = useState<any>(null);
   const [aiGeneratedRequirements, setAiGeneratedRequirements] = useState<Requirement[]>([]);
   const [aiWarnings, setAiWarnings] = useState<string[]>([]);
@@ -148,6 +164,199 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
   const [aiExecutionPlanWarnings, setAiExecutionPlanWarnings] = useState<string[]>([]);
   const [aiExecutionPlanStep, setAiExecutionPlanStep] = useState<'select' | 'preview' | 'result'>('select');
   const [aiExecutionPlanResult, setAiExecutionPlanResult] = useState<any>(null);
+
+  const [addRequirementOpen, setAddRequirementOpen] = useState(false);
+  const [jiraImportOpen, setJiraImportOpen] = useState(false);
+  const [jiraConfigured, setJiraConfigured] = useState(false);
+  const [jiraImporting, setJiraImporting] = useState(false);
+  const importRequirementsInputRef = React.useRef<HTMLInputElement>(null);
+
+  const reviewRequirementId = reviewOpen && requirementToReview ? requirementToReview.id : undefined;
+  const artifacts = useRequirementArtifacts(projectId, reviewRequirementId);
+
+  useEffect(() => {
+    requirementService
+      .getJiraStatus()
+      .then((s) => setJiraConfigured(Boolean(s?.configured)))
+      .catch(() => setJiraConfigured(false));
+  }, []);
+
+  const buildManualRequirementPayload = (
+    partial: Partial<RequirementFormData> & { title: string },
+  ): { projectId: string } & Omit<RequirementFormData, 'id'> => ({
+    projectId,
+    title: partial.title,
+    description: partial.description ?? '',
+    category: partial.category ?? 'General',
+    confidence: partial.confidence ?? 80,
+    source: partial.source ?? 'Manual',
+    projectAnalysisId: partial.projectAnalysisId ?? null,
+    reviewStatus: partial.reviewStatus ?? 'Pending',
+    approvalStatus: partial.approvalStatus ?? 'Suggested',
+    relatedOperations: partial.relatedOperations ?? [],
+    relatedFlows: partial.relatedFlows ?? [],
+    relatedDatasets: partial.relatedDatasets ?? [],
+    acceptanceCriteria: partial.acceptanceCriteria ?? [],
+  });
+
+  const handleCreateRequirement = async (data: Omit<RequirementFormData, 'id'>) => {
+    try {
+      const created = await createAsync(buildManualRequirementPayload(data));
+      setAddRequirementOpen(false);
+      setToastMessage('Requirement created successfully');
+      setToastType('success');
+      if (created?.id) {
+        setRequirementToReview(created);
+        setReviewOpen(true);
+      }
+    } catch (err: any) {
+      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to create requirement');
+      setToastType('error');
+    } finally {
+      setToastOpen(true);
+    }
+  };
+
+  const handleImportRequirementsFile = async (file: File | null) => {
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text());
+      const items: any[] = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed?.requirements)
+          ? parsed.requirements
+          : [parsed];
+
+      let created = 0;
+      for (const item of items) {
+        const title = typeof item?.title === 'string' ? item.title.trim() : '';
+        if (!title) continue;
+        await createAsync(
+          buildManualRequirementPayload({
+            title,
+            description: typeof item.description === 'string' ? item.description : '',
+            category: typeof item.category === 'string' ? item.category : 'General',
+            confidence: typeof item.confidence === 'number' ? item.confidence : 80,
+            acceptanceCriteria: Array.isArray(item.acceptanceCriteria) ? item.acceptanceCriteria : [],
+          }),
+        );
+        created += 1;
+      }
+
+      if (created === 0) {
+        setToastMessage('No valid requirements found. Each item needs a "title" field.');
+        setToastType('error');
+      } else {
+        setToastMessage(`Imported ${created} requirement${created === 1 ? '' : 's'}`);
+        setToastType('success');
+      }
+    } catch (err: any) {
+      setToastMessage(err?.message || 'Invalid JSON file');
+      setToastType('error');
+    } finally {
+      setToastOpen(true);
+      if (importRequirementsInputRef.current) {
+        importRequirementsInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleCaptureFromCriteria = async (payload: {
+    title: string;
+    description: string;
+    acceptanceCriteria: RequirementFormData['acceptanceCriteria'];
+  }) => {
+    try {
+      const created = await createAsync(
+        buildManualRequirementPayload({
+          title: payload.title,
+          description: payload.description,
+          acceptanceCriteria: payload.acceptanceCriteria,
+        }),
+      );
+      setToastMessage('Requirement created — generate test cases in the review flow');
+      setToastType('success');
+      setToastOpen(true);
+      if (created?.id) {
+        setRequirementToReview(created);
+        setReviewOpen(true);
+      }
+    } catch (err: any) {
+      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to create requirement');
+      setToastType('error');
+      setToastOpen(true);
+    }
+  };
+
+  const handleImportFromJira = async (issueKey: string) => {
+    setJiraImporting(true);
+    try {
+      const created = await requirementService.importFromJira(projectId, issueKey);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.requirements(projectId) });
+      setJiraImportOpen(false);
+      setToastMessage(`Imported ${issueKey} from Jira`);
+      setToastType('success');
+      setToastOpen(true);
+      if (created?.id) {
+        setRequirementToReview(created);
+        setReviewOpen(true);
+      }
+    } catch (err: any) {
+      setToastMessage(err?.response?.data?.message || err?.message || 'Jira import failed');
+      setToastType('error');
+      setToastOpen(true);
+    } finally {
+      setJiraImporting(false);
+    }
+  };
+
+  const displayDesigns: TestDesign[] =
+    artifacts.designs.length > 0
+      ? artifacts.designs
+      : (testDesigns as TestDesign[] | undefined) ?? [];
+
+  const displayExecutionPlans: ExecutionPlan[] =
+    artifacts.executionPlans.length > 0
+      ? artifacts.executionPlans
+      : (executionPlans as ExecutionPlan[] | undefined) ?? [];
+
+  useEffect(() => {
+    if (!requirementToReview?.id || artifacts.designs.length === 0) return;
+    setDesignCountByRequirement((prev) => ({
+      ...prev,
+      [requirementToReview.id]: artifacts.designs.length,
+    }));
+  }, [requirementToReview?.id, artifacts.designs.length]);
+
+  const reviewDisplay = requirementToReview ? getRequirementReviewDisplay(requirementToReview) : null;
+
+  const toggleDesignIncluded = async (design: TestDesign) => {
+    const nextStatus = design.status === 'Disabled' ? 'Ready' : 'Disabled';
+    try {
+      await artifacts.updateDesignStatus({ designId: design.id, status: nextStatus });
+      setToastMessage(nextStatus === 'Disabled' ? 'Test case excluded from execution' : 'Test case included in execution');
+      setToastType('success');
+      setToastOpen(true);
+    } catch (err: any) {
+      setToastMessage(err?.message || 'Failed to update test case');
+      setToastType('error');
+      setToastOpen(true);
+    }
+  };
+
+  const togglePlanIncluded = async (plan: ExecutionPlan) => {
+    const nextStatus = plan.status === 'Disabled' ? 'Ready' : 'Disabled';
+    try {
+      await artifacts.updatePlanStatus({ planId: plan.id, status: nextStatus });
+      setToastMessage(nextStatus === 'Disabled' ? 'Step excluded from execution' : 'Step included in execution');
+      setToastType('success');
+      setToastOpen(true);
+    } catch (err: any) {
+      setToastMessage(err?.message || 'Failed to update execution step');
+      setToastType('error');
+      setToastOpen(true);
+    }
+  };
 
   const handleGenerateFromAnalysis = async (analysisId: string) => {
     try {
@@ -190,14 +399,81 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
     }
   };
 
-  const handleReview = async (requirement: Requirement) => {
+  const closeReviewModal = () => {
+    setReviewOpen(false);
+    setRequirementToReview(undefined);
+  };
+
+  useEffect(() => {
+    if (!reviewOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeReviewModal();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [reviewOpen]);
+
+  const handleReview = (requirement: Requirement) => {
     setRequirementToReview(requirement);
     setReviewOpen(true);
-    setStrategyTab('review');
+  };
+
+  const handleGenerateTestCasesSmart = async (requirement: Requirement) => {
+    setIsGeneratingTestCases(true);
+    const aiProvider =
+      aiProviders.find((p) => p.isDefault && p.enabled) ?? aiProviders.find((p) => p.enabled);
+
     try {
-      await validateReadinessAsync({ projectId, requirementId: requirement.id });
+      const result = await requirementService.generateTestCases(projectId, requirement.id, {
+        providerId: aiProvider?.id,
+        useAi: Boolean(aiProvider),
+        replaceExisting: true,
+      });
+      await artifacts.invalidateArtifacts();
+      setDesignCountByRequirement((prev) => ({
+        ...prev,
+        [requirement.id]: result.designs.length,
+      }));
+      const warn = result.warnings?.length ? ` ${result.warnings[0]}` : '';
+      setToastMessage(
+        result.usedAi
+          ? `Test cases generated and mapped to your APIs.${warn}`
+          : `Test cases generated and mapped to your APIs (built-in).${warn}`,
+      );
+      setToastType('success');
     } catch (err: any) {
-      // Silently fail validation - it's optional
+      const msg = err?.response?.data?.message || err?.message || 'Failed to generate test cases';
+      setToastMessage(msg);
+      setToastType('error');
+    } finally {
+      setIsGeneratingTestCases(false);
+      setToastOpen(true);
+    }
+  };
+
+  const handleRunTestsFromRequirement = async (requirement: Requirement) => {
+    setIsGeneratingTestCases(true);
+    const aiProvider =
+      aiProviders.find((p) => p.isDefault && p.enabled) ?? aiProviders.find((p) => p.enabled);
+    try {
+      if (displayDesigns.length === 0) {
+        await requirementService.generateTestCases(projectId, requirement.id, {
+          providerId: aiProvider?.id,
+          useAi: Boolean(aiProvider),
+          replaceExisting: true,
+        });
+        await artifacts.invalidateArtifacts();
+      }
+      await planExecutionAsync({ projectId, requirementId: requirement.id });
+      await artifacts.invalidateArtifacts();
+      closeReviewModal();
+      navigate(`/projects/${projectId}/execution?requirementId=${encodeURIComponent(requirement.id)}`);
+    } catch (err: any) {
+      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to prepare execution');
+      setToastType('error');
+      setToastOpen(true);
+    } finally {
+      setIsGeneratingTestCases(false);
     }
   };
 
@@ -230,7 +506,8 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
   const handleGenerateDesigns = async (requirement: Requirement) => {
     try {
       await generateTestDesignsAsync({ projectId, requirementId: requirement.id });
-      setToastMessage('Test designs generated successfully');
+      await artifacts.invalidateArtifacts();
+      setToastMessage('Test cases generated — uncheck any you do not want to run');
       setToastType('success');
     } catch (err: any) {
       setToastMessage(err?.response?.data?.message || err?.message || 'Failed to generate test designs');
@@ -243,7 +520,8 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
   const handlePlanExecution = async (requirement: Requirement) => {
     try {
       await planExecutionAsync({ projectId, requirementId: requirement.id });
-      setToastMessage('Execution plans generated successfully');
+      await artifacts.invalidateArtifacts();
+      setToastMessage('Execution plans built for included test cases only');
       setToastType('success');
     } catch (err: any) {
       setToastMessage(err?.response?.data?.message || err?.message || 'Failed to generate execution plans');
@@ -529,6 +807,9 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
               <Badge className={getStatusBadgeVariant(requirement.approvalStatus)} variant='outline'>
                 {requirement.approvalStatus}
               </Badge>
+              {(designCountByRequirement[requirement.id] ?? 0) > 0 && (
+                <Badge variant='secondary'>{designCountByRequirement[requirement.id]} test cases</Badge>
+              )}
             </div>
             <p className='text-xs text-text-secondary mb-2'>{requirement.description}</p>
             <div className='flex items-center gap-3 text-xs text-text-secondary'>
@@ -569,8 +850,8 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
                 <Archive className='h-4 w-4' />
               </Button>
             )}
-            <Button variant='ghost' size='sm' onClick={() => { setRequirementToDelete(requirement); setDeleteOpen(true); }}>
-              <XCircle className='h-4 w-4 text-error' />
+            <Button variant='ghost' size='sm' onClick={() => { setRequirementToDelete(requirement); setDeleteOpen(true); }} aria-label='Delete requirement'>
+              <Trash2 className='h-4 w-4 text-text-secondary' />
             </Button>
           </div>
         </div>
@@ -747,7 +1028,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
                   <Button variant='ghost' size='sm' disabled={idx === sortedPlans.length - 1}>
                     <ArrowDown className='h-4 w-4' />
                   </Button>
-                  <Button variant='ghost' size='sm'>
+                  <Button variant='ghost' size='sm' onClick={() => void togglePlanIncluded(plan)} title='Include in execution'>
                     {plan.status === 'Ready' ? <ToggleRight className='h-4 w-4 text-green-600' /> : <ToggleLeft className='h-4 w-4 text-gray-400' />}
                   </Button>
                   <Button variant='ghost' size='sm'>
@@ -765,7 +1046,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
   if (isLoading) {
     return (
       <div className='mx-auto max-w-7xl px-6 py-8'>
-        <h1 className='text-2xl font-bold text-text mb-6'>Requirement Workspace</h1>
+        <h1 className='text-2xl font-bold text-text mb-6'>Requirements</h1>
         <div className='flex items-center justify-center py-16'>
           <p className='text-sm text-text-secondary'>Loading requirements...</p>
         </div>
@@ -776,7 +1057,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
   if (isError) {
     return (
       <div className='mx-auto max-w-7xl px-6 py-8'>
-        <h1 className='text-2xl font-bold text-text mb-6'>Requirement Workspace</h1>
+        <h1 className='text-2xl font-bold text-text mb-6'>Requirements</h1>
         <div className='flex items-center justify-center py-16'>
           <p className='text-sm text-error'>Error loading requirements: {error?.message || 'Unknown error'}</p>
         </div>
@@ -789,32 +1070,44 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
       {/* Page Header */}
       <div className='mb-6 flex flex-wrap items-center justify-between gap-3'>
         <div>
-          <h1 className='text-2xl font-bold text-text'>Requirement Workspace</h1>
+          <h1 className='text-2xl font-bold text-text'>Requirements</h1>
           <p className='mt-1 text-sm text-text-secondary'>
-            Review and approve requirements generated from Project Analysis or created manually.
+            Paste acceptance criteria, generate API test cases, curate what to run, then execute from the Execution workspace.
           </p>
         </div>
-        <div className='flex items-center gap-2'>
-          <Button variant='outline' onClick={handleRunAnalysis} disabled={isAnalyzing}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${isAnalyzing ? 'animate-spin' : ''}`} />
-            {isAnalyzing ? 'Analyzing...' : 'Re-analyze Project'}
-          </Button>
-          {analysisCards.length > 0 && (
-            <Button variant='outline' onClick={() => handleGenerateFromAnalysis(analysisCards[0].id)} disabled={isGenerating}>
-              <Sparkles className='mr-2 h-4 w-4' />
-              {isGenerating ? 'Generating...' : 'Generate from Analysis'}
-            </Button>
-          )}
-          <Button variant='outline' onClick={openAIGenerate}>
-            <Sparkles className='mr-2 h-4 w-4' />
-            Generate with AI
-          </Button>
-          <Button>
-            <Plus className='mr-2 h-4 w-4' />
-            Add Requirement
-          </Button>
-        </div>
+        <RequirementsMoreMenu
+          onReanalyze={handleRunAnalysis}
+          isAnalyzing={isAnalyzing}
+          showGenerateFromAnalysis={analysisCards.length > 0}
+          onGenerateFromAnalysis={
+            analysisCards.length > 0 ? () => void handleGenerateFromAnalysis(analysisCards[0].id) : undefined
+          }
+          isGeneratingFromAnalysis={isGenerating}
+          onGenerateWithAI={openAIGenerate}
+          onImportJson={() => importRequirementsInputRef.current?.click()}
+          onAddRequirement={() => setAddRequirementOpen(true)}
+        />
+        <input
+          ref={importRequirementsInputRef}
+          type='file'
+          accept='.json,application/json'
+          className='hidden'
+          onChange={(e) => void handleImportRequirementsFile(e.target.files?.[0] ?? null)}
+        />
       </div>
+
+      <RequirementCaptureCard
+        onCreateFromCriteria={handleCaptureFromCriteria}
+        onImportFromJira={() => setJiraImportOpen(true)}
+        isSubmitting={isCreating}
+      />
+      <JiraImportDialog
+        open={jiraImportOpen}
+        onClose={() => setJiraImportOpen(false)}
+        onImport={handleImportFromJira}
+        isSubmitting={jiraImporting}
+        jiraConfigured={jiraConfigured}
+      />
 
       {/* Suggested Section */}
       <div className='mb-8'>
@@ -827,7 +1120,11 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
             icon={<Sparkles className='h-8 w-8' />}
             title='No suggested requirements'
             description='Run project analysis to generate suggested requirements, or create them manually.'
-            action={analysisCards.length > 0 ? { label: 'Generate from Analysis', onClick: () => handleGenerateFromAnalysis(analysisCards[0].id) } : undefined}
+            action={
+              analysisCards.length > 0
+                ? { label: 'Generate from Analysis', onClick: () => handleGenerateFromAnalysis(analysisCards[0].id) }
+                : { label: 'Add Requirement', onClick: () => setAddRequirementOpen(true) }
+            }
           />
         ) : (
           suggested.map(renderRequirementCard)
@@ -865,304 +1162,115 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
       </div>
 
       {/* Review Dialog */}
-      {requirementToReview && (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50' onClick={() => setReviewOpen(false)}>
-          <div className='max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-white p-6 dark:bg-gray-800' onClick={(e) => e.stopPropagation()}>
-            <div className='mb-4 flex items-start justify-between'>
-              <div>
-                <h3 className='text-lg font-semibold text-text'>{requirementToReview.title}</h3>
-                <p className='text-sm text-text-secondary'>{requirementToReview.description}</p>
+      {reviewOpen && requirementToReview && (
+        <div
+          className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4'
+          onClick={closeReviewModal}
+          role='dialog'
+          aria-modal='true'
+          aria-labelledby='requirement-review-title'
+        >
+          <div
+            className='max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800'
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className='mb-4 flex items-start justify-between gap-4'>
+              <div className='min-w-0 flex-1'>
+                <h3 id='requirement-review-title' className='text-lg font-semibold text-text'>
+                  {requirementToReview.title}
+                </h3>
+                {reviewDisplay?.showDescription && (
+                  <p className='text-sm text-text-secondary'>{reviewDisplay.description}</p>
+                )}
               </div>
-              <button onClick={() => setReviewOpen(false)} className='text-text-secondary hover:text-text'>✕</button>
+              <Button type='button' variant='outline' size='sm' onClick={closeReviewModal} aria-label='Close'>
+                Close
+              </Button>
             </div>
 
-            {/* Tabs */}
-            <div className='flex gap-2 mb-4 border-b border-border'>
-              <button
-                className={`px-4 py-2 text-sm font-medium ${strategyTab === 'review' ? 'border-b-2 border-primary text-primary' : 'text-text-secondary'}`}
-                onClick={() => setStrategyTab('review')}
+            {reviewDisplay && reviewDisplay.criteria.length > 0 && (
+              <div className='mb-4 rounded-lg border border-border bg-surface/50 p-4'>
+                <h4 className='mb-2 text-sm font-medium text-text'>Acceptance criteria</h4>
+                <ul className='space-y-1'>
+                  {reviewDisplay.criteria.map((ac) => (
+                    <li key={ac.id} className='text-sm text-text-secondary'>
+                      • {ac.text}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className='mb-4 flex flex-wrap gap-2'>
+              <Button
+                onClick={() => void handleGenerateTestCasesSmart(requirementToReview)}
+                disabled={isGeneratingTestCases || isGeneratingDesigns}
               >
-                Readiness
-              </button>
-              <button
-                className={`px-4 py-2 text-sm font-medium ${strategyTab === 'strategy' ? 'border-b-2 border-primary text-primary' : 'text-text-secondary'}`}
-                onClick={() => setStrategyTab('strategy')}
+                <Sparkles className='mr-2 h-4 w-4' />
+                {isGeneratingTestCases || isGeneratingDesigns ? 'Generating test cases…' : 'Generate test cases'}
+              </Button>
+              <Button
+                variant='outline'
+                onClick={() => void handleRunTestsFromRequirement(requirementToReview)}
+                disabled={isGeneratingTestCases || isPlanningExecution}
               >
-                Test Strategy
-              </button>
-              <button
-                className={`px-4 py-2 text-sm font-medium ${strategyTab === 'design' ? 'border-b-2 border-primary text-primary' : 'text-text-secondary'}`}
-                onClick={() => setStrategyTab('design')}
-              >
-                Test Design
-              </button>
-              <button
-                className={`px-4 py-2 text-sm font-medium ${strategyTab === 'execution' ? 'border-b-2 border-primary text-primary' : 'text-text-secondary'}`}
-                onClick={() => setStrategyTab('execution')}
-              >
-                Execution Plan
-              </button>
+                <Play className='mr-2 h-4 w-4' />
+                Run tests
+              </Button>
             </div>
+            <p className='mb-4 text-xs text-text-secondary'>
+              Test cases are matched to imported API operations and payloads are adjusted for positive, negative, and security scenarios.
+            </p>
 
-            {/* Readiness Tab */}
-            {strategyTab === 'review' && (
-              <>
-                {/* Overall Status */}
-                {validationResult && validationResult.requirementId === requirementToReview.id && (
-                  <div className='mb-4 rounded-lg border-2 border-dashed p-4'>
-                    <div className='flex items-center gap-2 mb-2'>
-                      <span className='text-sm font-semibold text-text'>Overall Status:</span>
-                      <Badge className={validationResult.overallStatus === 'READY' ? 'bg-green-100 text-green-700' : validationResult.overallStatus === 'INCOMPLETE' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}>
-                        {validationResult.overallStatus}
-                      </Badge>
-                    </div>
-                  </div>
-                )}
-
-                {/* Validation Categories */}
-                {validationResult && validationResult.requirementId === requirementToReview.id && (
-                  <div className='space-y-3'>
-                    {validationResult.categories.map((category: ValidationCategory) => (
-                      <div key={category.name} className='rounded-lg border border-border p-4'>
-                        <div className='flex items-center gap-2 mb-2'>
-                          {category.status === 'READY' && <CheckCircle2 className='h-5 w-5 text-green-600' />}
-                          {category.status === 'MISSING' && <XCircle className='h-5 w-5 text-red-600' />}
-                          {category.status === 'WARNING' && <AlertTriangle className='h-5 w-5 text-yellow-600' />}
-                          <h4 className='font-semibold text-text'>{category.name}</h4>
-                          <Badge className={category.status === 'READY' ? 'bg-green-100 text-green-700' : category.status === 'MISSING' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}>
-                            {category.status}
-                          </Badge>
-                        </div>
-                        <ul className='space-y-1'>
-                          {category.details.map((detail: string, idx: number) => (
-                            <li key={idx} className='text-xs text-text-secondary'>• {detail}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Test Strategy Tab */}
-            {strategyTab === 'strategy' && (
-              <div>
-                <div className='flex items-center justify-between mb-4'>
-                  <h4 className='font-semibold text-text'>Test Strategy</h4>
-                  <div className='flex gap-2'>
-                    <Button size='sm' variant='outline' onClick={() => openAIStrategy(requirementToReview)}>
-                      <Sparkles className='mr-1 h-3 w-3' /> Generate Strategy with AI
-                    </Button>
-                    <Button size='sm' variant='outline'>Add Custom Item</Button>
-                  </div>
+            <div>
+              <h4 className='mb-3 text-sm font-medium text-text'>
+                Test cases {displayDesigns.length > 0 ? `(${displayDesigns.length})` : ''}
+              </h4>
+              {displayDesigns.length > 0 ? (
+                <div className='overflow-x-auto rounded-lg border border-border'>
+                  <table className='w-full text-sm'>
+                    <thead className='bg-surface text-left text-xs text-text-secondary'>
+                      <tr>
+                        <th className='px-3 py-2'>Keep</th>
+                        <th className='px-3 py-2'>Test case</th>
+                        <th className='px-3 py-2'>Priority</th>
+                      </tr>
+                    </thead>
+                    <tbody className='divide-y divide-border'>
+                      {displayDesigns.map((design: TestDesign, index: number) => (
+                        <tr key={design.id} className={design.status === 'Disabled' ? 'opacity-50' : ''}>
+                          <td className='px-3 py-2'>
+                            <input
+                              type='checkbox'
+                              checked={design.status !== 'Disabled'}
+                              onChange={() => void toggleDesignIncluded(design)}
+                              aria-label='Keep this test case'
+                            />
+                          </td>
+                          <td className='px-3 py-2 text-sm text-text'>
+                            {getTestCaseLabel(design, requirementToReview.title, index)}
+                          </td>
+                          <td className='px-3 py-2'>
+                            <Badge className={getPriorityBadgeVariant(design.priority)} variant='outline'>
+                              {design.priority}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-                {testStrategy && testStrategy.requirementId === requirementToReview.id ? (
-                  <div>
-                    {testStrategy.sections.map(renderStrategySection)}
-                  </div>
-                ) : (
-                  <div className='text-center py-8'>
-                    <p className='text-sm text-text-secondary mb-4'>No test strategy planned yet.</p>
-                    <Button onClick={() => handlePlanStrategy(requirementToReview)} disabled={isPlanningStrategy}>
-                      {isPlanningStrategy ? 'Planning...' : 'Plan Test Strategy'}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Test Design Tab */}
-            {strategyTab === 'design' && (
-              <div>
-                <div className='flex items-center justify-between mb-4'>
-                  <h4 className='font-semibold text-text'>Test Designs {testDesigns && testDesigns.length > 0 ? `(${testDesigns.length})` : ''}</h4>
-                  <Button size='sm' variant='outline' onClick={() => openAIDesign(requirementToReview)}>
-                    <Sparkles className='mr-1 h-3 w-3' /> Generate Designs with AI
-                  </Button>
-                </div>
-                {testDesigns && testDesigns.length > 0 ? (
-                  <div>
-                    {testDesigns.map((design: TestDesign) => (
-                      <div key={design.id} className='border border-border rounded-lg p-4 mb-3'>
-                        <div className='flex items-start justify-between mb-3'>
-                          <div className='flex-1'>
-                            <div className='flex items-center gap-2 mb-2'>
-                              <FlaskConical className='h-5 w-5 text-primary' />
-                              <h5 className='text-sm font-semibold text-text'>Design {design.id.slice(0, 8)}</h5>
-                              <Badge className={getPriorityBadgeVariant(design.priority)} variant='outline'>
-                                {design.priority}
-                              </Badge>
-                              <Badge variant='outline' className={design.status === 'Ready' ? 'bg-green-100 text-green-700' : design.status === 'Disabled' ? 'bg-gray-100 text-gray-700' : 'bg-yellow-100 text-yellow-700'}>
-                                {design.status}
-                              </Badge>
-                            </div>
-                          </div>
-                          <div className='ml-2 flex items-center gap-1'>
-                            <Button variant='ghost' size='sm'>
-                              <Edit2 className='h-4 w-4' />
-                            </Button>
-                            <Button variant='ghost' size='sm'>
-                              <Copy className='h-4 w-4' />
-                            </Button>
-                            <Button variant='ghost' size='sm'>
-                              {design.status === 'Ready' ? <ToggleRight className='h-4 w-4 text-green-600' /> : <ToggleLeft className='h-4 w-4 text-gray-400' />}
-                            </Button>
-                          </div>
-                        </div>
-                        <div className='grid grid-cols-2 gap-3 text-xs'>
-                          <div>
-                            <span className='font-medium text-text-secondary'>API:</span>
-                            <p className='text-text'>{design.operationId || 'N/A'}</p>
-                          </div>
-                          <div>
-                            <span className='font-medium text-text-secondary'>Environment:</span>
-                            <p className='text-text'>{design.environmentId || 'N/A'}</p>
-                          </div>
-                          <div>
-                            <span className='font-medium text-text-secondary'>Dataset:</span>
-                            <p className='text-text'>{design.datasetId || 'N/A'}</p>
-                          </div>
-                          <div>
-                            <span className='font-medium text-text-secondary'>Row Reference:</span>
-                            <p className='text-text'>{design.datasetRowReference || 'N/A'}</p>
-                          </div>
-                        </div>
-                         {/* Reusable Assertions */}
-                         {design.assertionIds && design.assertionIds.length > 0 && (
-                           <div className='mt-3'>
-                             <span className='text-xs font-medium text-text-secondary'>Reusable Assertions:</span>
-                             <ul className='mt-1 space-y-1'>
-                               {design.assertionIds.map((ref: AssertionReference, idx: number) => {
-                                 const reusableAssertion = reusableAssertions.find(a => a.id === ref.assertionId);
-                                 if (!reusableAssertion) {
-                                   return (
-                                     <li key={idx} className='text-xs text-red-600'>
-                                       • Missing Assertion (ID: {ref.assertionId.slice(0, 8)})
-                                     </li>
-                                   );
-                                 }
-                                 return (
-                                   <li key={idx} className='text-xs text-text-secondary flex items-center justify-between'>
-                                     <span>
-                                       • {reusableAssertion.name} ({reusableAssertion.type})
-                                     </span>
-                                     <button
-                                       onClick={(e) => {
-                                         e.stopPropagation();
-                                         // TODO: Detach assertion
-                                       }}
-                                       className='text-red-600 hover:text-red-700 ml-2'
-                                     >
-                                       ×
-                                     </button>
-                                   </li>
-                                 );
-                               })}
-                             </ul>
-                           </div>
-                         )}
-
-                         {/* Attach Assertion Button */}
-                         <div className='mt-3 flex gap-2'>
-                           <Button
-                             size='sm'
-                             variant='outline'
-                             onClick={() => {
-                               setSelectedDesignId(design.id);
-                               setSelectedAssertionIds(new Set(design.assertionIds?.map(a => a.assertionId) || []));
-                               setAttachAssertionOpen(true);
-                             }}
-                           >
-                             <Plus className='h-3 w-3 mr-1' />
-                             Attach Assertion
-                           </Button>
-                           <Button size='sm' variant='outline' onClick={() => openAIAssertions(design)}>
-                             <Sparkles className='h-3 w-3 mr-1' /> Generate Assertions with AI
-                           </Button>
-                         </div>
-                        {design.runtimeBindings.length > 0 && (
-                          <div className='mt-3'>
-                            <span className='text-xs font-medium text-text-secondary'>Runtime Variables:</span>
-                            <ul className='mt-1 space-y-1'>
-                              {design.runtimeBindings.map((binding: RuntimeBinding, idx: number) => (
-                                <li key={idx} className='text-xs text-text-secondary'>
-                                  • {binding.variable} ({binding.source}) {binding.path || ''}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className='text-center py-8'>
-                    <p className='text-sm text-text-secondary mb-4'>No test designs generated yet.</p>
-                    <Button onClick={() => handleGenerateDesigns(requirementToReview)} disabled={isGeneratingDesigns}>
-                      {isGeneratingDesigns ? 'Generating...' : 'Generate Test Designs'}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Execution Plan Tab */}
-            {strategyTab === 'execution' && (
-              <div>
-                <div className='flex items-center justify-between mb-4'>
-                  <div className='flex items-center gap-2'>
-                    <Clock className='h-5 w-5 text-primary' />
-                    <h4 className='font-semibold text-text'>
-                      {executionPlans && executionPlans.length > 0 ? `Execution Timeline (${executionPlans.length} steps)` : 'Execution Plans'}
-                    </h4>
-                  </div>
-                  <Button size='sm' variant='outline' onClick={() => openAIExecutionPlan(requirementToReview)}>
-                    <Sparkles className='mr-1 h-3 w-3' /> Generate Execution Plan with AI
-                  </Button>
-                </div>
-                {executionPlans && executionPlans.length > 0 ? (
-                  <div>
-                    {renderExecutionTimeline(executionPlans)}
-                  </div>
-                ) : (
-                  <div className='text-center py-8'>
-                    <p className='text-sm text-text-secondary mb-4'>No execution plans generated yet.</p>
-                    <Button onClick={() => handlePlanExecution(requirementToReview)} disabled={isPlanningExecution}>
-                      {isPlanningExecution ? 'Planning...' : 'Plan Execution'}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Acceptance Criteria */}
-            <div className='mt-4'>
-              <h4 className='font-semibold text-text mb-2'>Acceptance Criteria</h4>
-              <ul className='space-y-1'>
-                {requirementToReview.acceptanceCriteria.map((ac) => (
-                  <li key={ac.id} className='text-sm text-text-secondary'>• {ac.text}</li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Actions */}
-            <div className='mt-6 flex items-center gap-2'>
-              {requirementToReview.approvalStatus === 'Suggested' && (
-                <>
-                  <Button onClick={() => { handleStatusChange(requirementToReview.id, 'Approved'); setReviewOpen(false); }}>
-                    <CheckCircle className='mr-2 h-4 w-4' /> Approve
-                  </Button>
-                  <Button variant='outline' onClick={() => { handleStatusChange(requirementToReview.id, 'Rejected'); setReviewOpen(false); }}>
-                    <XCircle className='mr-2 h-4 w-4' /> Reject
-                  </Button>
-                </>
+              ) : (
+                <p className='rounded-lg border border-dashed border-border py-8 text-center text-sm text-text-secondary'>
+                  {isGeneratingTestCases || isGeneratingDesigns
+                    ? 'Creating test cases from your requirement…'
+                    : 'No test cases yet. Click Generate test cases above.'}
+                </p>
               )}
-              {(requirementToReview.approvalStatus === 'Approved' || requirementToReview.approvalStatus === 'Rejected') && (
-                <Button variant='outline' onClick={() => { handleStatusChange(requirementToReview.id, 'Archived'); setReviewOpen(false); }}>
-                  <Archive className='mr-2 h-4 w-4' /> Archive
-                </Button>
-              )}
+            </div>
+
+            <div className='mt-6 flex justify-end'>
+              <Button onClick={closeReviewModal}>Done</Button>
             </div>
           </div>
         </div>
@@ -1286,10 +1394,16 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
                 <Button variant='outline' onClick={() => setAttachAssertionOpen(false)}>Cancel</Button>
                 <Button
                   onClick={() => {
-                    // TODO: Save attached assertions
                     setAttachAssertionOpen(false);
                     setSelectedDesignId(null);
                     setSelectedAssertionIds(new Set());
+                    setToastMessage(
+                      selectedAssertionIds.size > 0
+                        ? `Selected ${selectedAssertionIds.size} assertion(s). Regenerate designs or use AI assertions to persist links.`
+                        : 'No assertions selected',
+                    );
+                    setToastType(selectedAssertionIds.size > 0 ? 'success' : 'error');
+                    setToastOpen(true);
                   }}
                 >
                   Attach Selected ({selectedAssertionIds.size})
@@ -1331,7 +1445,9 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
                   </select>
                   {aiProviders.length === 0 && (
                     <p className='mt-2 text-xs text-yellow-600'>
-                      No AI providers configured. Add one in the AI Providers tab first.
+                      No AI provider found. Set <code className='text-xs'>OLLAMA_BASE_URL</code> in backend{' '}
+                      <code className='text-xs'>.env</code> and restart the server, or add one under Administration → AI
+                      Providers.
                     </p>
                   )}
                 </div>
@@ -1480,7 +1596,9 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
                   </select>
                   {aiProviders.length === 0 && (
                     <p className='mt-2 text-xs text-yellow-600'>
-                      No AI providers configured. Add one in the AI Providers tab first.
+                      No AI provider found. Set <code className='text-xs'>OLLAMA_BASE_URL</code> in backend{' '}
+                      <code className='text-xs'>.env</code> and restart the server, or add one under Administration → AI
+                      Providers.
                     </p>
                   )}
                 </div>
@@ -1613,7 +1731,9 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
                   </select>
                   {aiProviders.length === 0 && (
                     <p className='mt-2 text-xs text-yellow-600'>
-                      No AI providers configured. Add one in the AI Providers tab first.
+                      No AI provider found. Set <code className='text-xs'>OLLAMA_BASE_URL</code> in backend{' '}
+                      <code className='text-xs'>.env</code> and restart the server, or add one under Administration → AI
+                      Providers.
                     </p>
                   )}
                 </div>
@@ -1757,7 +1877,10 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
                     ))}
                   </select>
                   {aiProviders.length === 0 && (
-                    <p className='mt-2 text-xs text-yellow-600'>No AI providers configured. Add one in the AI Providers tab first.</p>
+                    <p className='mt-2 text-xs text-yellow-600'>
+                      No AI provider found. Set OLLAMA_BASE_URL in backend .env and restart, or add one under
+                      Administration → AI Providers.
+                    </p>
                   )}
                 </div>
                 <div className='flex justify-end gap-2'>
@@ -1912,7 +2035,9 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
                   </select>
                   {aiProviders.length === 0 && (
                     <p className='mt-2 text-xs text-yellow-600'>
-                      No AI providers configured. Add one in the AI Providers tab first.
+                      No AI provider found. Set <code className='text-xs'>OLLAMA_BASE_URL</code> in backend{' '}
+                      <code className='text-xs'>.env</code> and restart the server, or add one under Administration → AI
+                      Providers.
                     </p>
                   )}
                 </div>
@@ -2028,6 +2153,14 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
       )}
 
       {/* Dialogs */}
+      <RequirementFormDialog
+        open={addRequirementOpen}
+        onClose={() => setAddRequirementOpen(false)}
+        onSubmit={handleCreateRequirement}
+        isSubmitting={isCreating}
+        projectId={projectId}
+      />
+
       <ConfirmDialog
         open={deleteOpen}
         title='Delete Requirement'

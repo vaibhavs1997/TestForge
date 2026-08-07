@@ -1,6 +1,9 @@
 // ApiOperationEntity - Domain Entity for API Operation
 
 export class ApiOperationEntity {
+  /** Example request JSON from OpenAPI / Postman import, used for scenario payloads. */
+  sampleRequestBody: Record<string, unknown> | null = null;
+
   constructor(
     public readonly id: string,
     public readonly projectId: string,

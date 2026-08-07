@@ -21,6 +21,7 @@ export class CreateRequirement {
     relatedFlows?: string[];
     relatedDatasets?: string[];
     acceptanceCriteria?: AcceptanceCriterion[];
+    jiraIssueKey?: string | null;
   }): Promise<RequirementEntity> {
     const title = ValidationHelpers.validateRequired(params.title, 'Requirement title');
 
@@ -43,6 +44,11 @@ export class CreateRequirement {
       now,
       now
     );
+
+    const jiraKey = ValidationHelpers.trimString(params.jiraIssueKey ?? '');
+    if (jiraKey) {
+      requirement.jiraIssueKey = jiraKey.toUpperCase();
+    }
 
     return this.requirementRepository.create(requirement);
   }

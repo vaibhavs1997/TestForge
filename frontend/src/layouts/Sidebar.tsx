@@ -15,18 +15,13 @@ import {
   ListChecks,
   Play,
   BarChart3,
-  Sparkles,
   Workflow,
-  Bell,
   History,
   ScrollText,
   Puzzle,
-  Boxes,
-  Send,
   Bot,
   ChevronDown,
   ChevronRight,
-  Wrench,
   Shield,
 } from 'lucide-react';
 import { projectStore } from '../store/projectStore';
@@ -41,7 +36,7 @@ interface NavItem {
 
 // Primary workflow navigation - 8 items
 const PRIMARY_NAV_ITEMS: NavItem[] = [
-  { key: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { key: 'overview', label: 'Get started', icon: LayoutDashboard },
   { key: 'apis', label: 'APIs', icon: FolderOpen },
   { key: 'environment', label: 'Environment', icon: Globe },
   { key: 'testdata', label: 'Test Data', icon: Database },
@@ -53,19 +48,11 @@ const PRIMARY_NAV_ITEMS: NavItem[] = [
 
 // Administration section - collapsible
 const ADMIN_NAV_ITEMS: NavItem[] = [
-  { key: 'recommendations', label: 'Recommendations', icon: Sparkles },
   { key: 'pipeline', label: 'Pipeline', icon: Workflow },
-  { key: 'notifications', label: 'Notifications', icon: Bell },
   { key: 'versions', label: 'Versions', icon: History },
   { key: 'audit', label: 'Audit', icon: ScrollText },
   { key: 'plugins', label: 'Plugins', icon: Puzzle },
   { key: 'ai-providers', label: 'AI Providers', icon: Bot },
-];
-
-// Developer Tools section - collapsible, hidden by default
-const DEV_TOOLS_NAV_ITEMS: NavItem[] = [
-  { key: 'context', label: 'Context Viewer', icon: Boxes },
-  { key: 'prompts', label: 'Prompt Builder', icon: Send },
 ];
 
 export const Sidebar: React.FC = () => {
@@ -74,7 +61,6 @@ export const Sidebar: React.FC = () => {
 
   // Collapsible section state
   const [adminOpen, setAdminOpen] = useState(false);
-  const [devToolsOpen, setDevToolsOpen] = useState(false);
 
   // Project-centric primary navigation (outside project workspace)
   const primaryNavigationItems = [
@@ -102,8 +88,6 @@ export const Sidebar: React.FC = () => {
   // Check if any admin item is active (to auto-expand the section)
   const adminKeys = ADMIN_NAV_ITEMS.map((i) => i.key);
   const isAdminActive = adminKeys.includes(activeProjectTab);
-  const devToolsKeys = DEV_TOOLS_NAV_ITEMS.map((i) => i.key);
-  const isDevToolsActive = devToolsKeys.includes(activeProjectTab);
 
   const renderNavItem = (item: NavItem) => {
     const Icon = item.icon;
@@ -202,32 +186,6 @@ export const Sidebar: React.FC = () => {
                 {(adminOpen || isAdminActive) && (
                   <div className="mt-1 space-y-1">
                     {ADMIN_NAV_ITEMS.map((item) => renderCollapsibleItem(item))}
-                  </div>
-                )}
-              </div>
-
-              {/* Developer Tools Section - Collapsible, hidden by default */}
-              <div className="pt-3">
-                <button
-                  onClick={() => setDevToolsOpen(!devToolsOpen)}
-                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                    isDevToolsActive
-                      ? 'text-text'
-                      : 'text-text-secondary hover:bg-surface hover:text-text'
-                  }`}
-                  aria-expanded={devToolsOpen || isDevToolsActive}
-                >
-                  {devToolsOpen || isDevToolsActive ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4" />
-                  )}
-                  <Wrench className="h-4 w-4" />
-                  Developer Tools
-                </button>
-                {(devToolsOpen || isDevToolsActive) && (
-                  <div className="mt-1 space-y-1">
-                    {DEV_TOOLS_NAV_ITEMS.map((item) => renderCollapsibleItem(item))}
                   </div>
                 )}
               </div>

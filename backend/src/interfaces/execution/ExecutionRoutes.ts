@@ -9,17 +9,20 @@ import { asyncHandler } from '../middleware/AsyncHandler';
 const {
   executePlan,
   executionRunRepository,
+  executionPlanRepository,
 } = container;
 
 // Initialize controller
 const executionController = new ExecutionController(
   executePlan,
-  executionRunRepository
+  executionRunRepository,
+  executionPlanRepository,
 );
 
 const router = Router();
 
 // Execution routes
+router.get('/projects/:projectId/execution-plans', asyncHandler((req, res) => executionController.listExecutionPlans(req, res)));
 router.post('/projects/:projectId/executions/:executionPlanId/start', asyncHandler((req, res) => executionController.startExecution(req, res)));
 router.get('/projects/:projectId/executions', asyncHandler((req, res) => executionController.listExecutions(req, res)));
 router.get('/projects/:projectId/executions/:runId', asyncHandler((req, res) => executionController.getExecution(req, res)));

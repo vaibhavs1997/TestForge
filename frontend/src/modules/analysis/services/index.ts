@@ -1,16 +1,18 @@
 // Analysis service functions for AI Project Analysis
-import axios from 'axios';
+import { apiAxios } from '../../../services/apiAxios';
 import type { AnalysisCard } from '../types';
 import { API_BASE_URL } from '../../../constants/api';
 
+const http = apiAxios;
+
 export const analysisService = {
   listAnalysis: async (projectId: string): Promise<AnalysisCard[]> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/analysis`);
+    const { data } = await http.get(`${API_BASE_URL}/projects/${projectId}/analysis`);
     return data.data;
   },
 
   getAnalysis: async (projectId: string, analysisId: string): Promise<AnalysisCard> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/analysis/${analysisId}`);
+    const { data } = await http.get(`${API_BASE_URL}/projects/${projectId}/analysis/${analysisId}`);
     return data.data;
   },
 
@@ -25,7 +27,7 @@ export const analysisService = {
     relatedRuntimeVariables?: string[];
     status?: string;
   }): Promise<AnalysisCard> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/analysis`, payload);
+    const { data } = await http.post(`${API_BASE_URL}/projects/${projectId}/analysis`, payload);
     return data.data;
   },
 
@@ -40,16 +42,16 @@ export const analysisService = {
     relatedRuntimeVariables?: string[];
     status?: string;
   }): Promise<AnalysisCard> => {
-    const { data } = await axios.patch(`${API_BASE_URL}/projects/${projectId}/analysis/${analysisId}`, payload);
+    const { data } = await http.patch(`${API_BASE_URL}/projects/${projectId}/analysis/${analysisId}`, payload);
     return data.data;
   },
 
   deleteAnalysis: async (projectId: string, analysisId: string): Promise<void> => {
-    await axios.delete(`${API_BASE_URL}/projects/${projectId}/analysis/${analysisId}`);
+    await http.delete(`${API_BASE_URL}/projects/${projectId}/analysis/${analysisId}`);
   },
 
   runAnalysis: async (projectId: string): Promise<AnalysisCard[]> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/analysis/run`);
+    const { data } = await http.post(`${API_BASE_URL}/projects/${projectId}/analysis/run`);
     return data.data;
   },
 };

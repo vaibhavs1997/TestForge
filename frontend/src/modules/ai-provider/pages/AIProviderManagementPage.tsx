@@ -5,6 +5,8 @@ import { useState, useMemo } from 'react';
 import { useAIProviders, useAIProviderTypes } from '../hooks';
 import { aiProviderService } from '../services';
 import type { AIProvider, AIProviderType, AIProviderFormData } from '../types';
+import { AdminPageIntro } from '../../../components/shared/AdminPageIntro';
+import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
 
 interface AIProviderManagementPageProps {
   projectId: string;
@@ -24,7 +26,7 @@ const DEFAULT_MODELS: Record<AIProviderType, string> = {
   'OpenAI': 'gpt-4o',
   'Claude': 'claude-3-5-sonnet-20241022',
   'Gemini': 'gemini-1.5-pro',
-  'Ollama': 'llama3.1',
+  'Ollama': 'llama3.2',
   'Azure OpenAI': 'gpt-4o',
   'AWS Bedrock': 'anthropic.claude-3-5-sonnet-20241022-v2:0',
   'Custom': 'custom-model',
@@ -223,15 +225,16 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
   if (error) return <div className="p-4 text-red-500">Error: {String(error)}</div>;
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">AI Provider Management</h1>
-          <p className="mt-1 text-sm text-text-secondary">
-            Configure AI model providers for this project. Placeholder responses only - no external API calls.
-          </p>
-        </div>
+    <div className="mx-auto max-w-7xl p-6">
+      <WorkflowOptionalBanner
+        description="Configure models used for test design and assertions. The default project provider is used when you generate from Requirements."
+        projectId={projectId}
+        primaryLink={{ label: 'Requirements', path: `/projects/${projectId}/requirements` }}
+      />
+      <AdminPageIntro
+        title="AI providers"
+        description="Manage LLM connections, defaults, and health for this project."
+      >
         <button
           onClick={() => {
             setFormData(EMPTY_FORM);
@@ -239,9 +242,9 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
           }}
           className="rounded bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
         >
-          + Add Provider
+          + Add provider
         </button>
-      </div>
+      </AdminPageIntro>
 
       {/* Filters */}
       <div className="mb-6 rounded-lg border border-border bg-surface p-4">

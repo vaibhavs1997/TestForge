@@ -4,8 +4,8 @@ export {
   OpenAIAdapter,
   ClaudeAdapter,
   GeminiAdapter,
-  OllamaAdapter,
   AzureOpenAIAdapter,
   AWSBedrockAdapter,
   CustomAdapter,
 } from './ProviderAdapters';
+export { OllamaAdapter } from './OllamaAdapter';

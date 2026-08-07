@@ -46,8 +46,10 @@ import { rowService } from '../services/rowService';
 import { relationshipService } from '../services/relationshipService';
 import { Check, X as XIcon, ArrowUp, ArrowDown, Plus as PlusIcon, Upload, FileSpreadsheet, FileJson } from 'lucide-react';
 import { logger } from '../../../utils/logger';
-import { useParams, useLocation } from 'react-router-dom';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { datasetService } from '../services/datasetService';
+import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
+import { projectStore } from '../../../store/projectStore';
 import { MappingPage } from './MappingPage';
 import { useMappings } from '../hooks/useMappings';
 import { providerService } from '../services/providerService';
@@ -159,7 +161,9 @@ const SECTION_CHIPS: {
 export const TestDataLibraryPage = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const location = useLocation();
-  const resolvedProjectId = projectId ?? '';
+  const navigate = useNavigate();
+  const storeProjectId = projectStore((s) => s.selectedProjectId);
+  const resolvedProjectId = projectId ?? storeProjectId ?? '';
   const [search, setSearch] = React.useState('');
   const [categoryFilter, setCategoryFilter] = React.useState<string>('All');
   const [viewMode, setViewMode] = React.useState<ViewMode>('card');
@@ -608,7 +612,7 @@ export const TestDataLibraryPage = () => {
     onDelete: (dataset: Dataset) => { setSelectedDataset(dataset); setDeleteOpen(true); },
   }), [openDatasetDetails, handleDuplicate]);
 
-  if (!projectId) {
+  if (!resolvedProjectId) {
     return (
       <div className="mx-auto max-w-7xl px-6 py-16 text-center text-text-secondary">
         Open a project from the Projects page to manage test data.
@@ -619,11 +623,21 @@ export const TestDataLibraryPage = () => {
   return (
     <div className='min-h-screen'>
       <div className='mx-auto max-w-7xl px-6 py-8'>
+        {resolvedProjectId && (
+          <WorkflowOptionalBanner
+            projectId={resolvedProjectId}
+            description="Tabular data for data-driven tests. Generated API tests work without datasets unless a test case references one."
+            primaryLink={{
+              label: 'Requirements',
+              path: `/projects/${resolvedProjectId}/requirements`,
+            }}
+          />
+        )}
         <div className='mb-6 flex flex-wrap items-start justify-between gap-4'>
           <div>
-            <h1 className='text-2xl font-bold text-text'>Test Data Library</h1>
+            <h1 className='text-2xl font-bold text-text'>Test data</h1>
             <p className='mt-1 max-w-2xl text-sm text-text-secondary'>
-              Datasets, mappings, relationships, and providers in one place. Open a dataset to edit rows and columns.
+              Optional datasets, mappings, and providers — use when tests need tables of inputs or linked columns.
             </p>
           </div>
           {activeSection === 'datasets' && (
@@ -760,9 +774,17 @@ export const TestDataLibraryPage = () => {
               {filteredDatasets.length === 0 && (
                 <EmptyState
                   icon={<Database className='h-12 w-12' />}
-                  title='No datasets available'
-                  description='Create your first reusable dataset to get started.'
-                  action={{ label: 'Create Dataset', onClick: () => setEditOpen(true) }}
+                  title='No datasets yet'
+                  description='Most API tests use generated payloads from your contract. Add a dataset when you need reusable rows (e.g. login users).'
+                  action={{ label: 'Create dataset', onClick: () => setEditOpen(true) }}
+                  secondaryAction={
+                    resolvedProjectId
+                      ? {
+                          label: 'Back to requirements',
+                          onClick: () => navigate(`/projects/${resolvedProjectId}/requirements`),
+                        }
+                      : undefined
+                  }
                 />
               )}
 

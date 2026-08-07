@@ -1,7 +1,6 @@
 // External libraries
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { apiRoutes } from './interfaces/api/ApiRoutes';
 import { environmentRoutes } from './interfaces/environment/routes';
 import { datasetRoutes } from './interfaces/test-data/routes';
@@ -18,6 +17,7 @@ import { recommendationRoutes } from './interfaces/recommendation/Recommendation
 import { pipelineRoutes } from './interfaces/pipeline/PipelineRoutes';
 import { testSuiteRoutes } from './interfaces/suite/TestSuiteRoutes';
 import { reportRoutes } from './interfaces/report/ReportRoutes';
+import { integrationRoutes } from './interfaces/integrations/IntegrationRoutes';
 import { assertionRoutes } from './interfaces/assertion/AssertionRoutes';
 import { importRoutes } from './interfaces/test-data/importRoutes';
 import { relationshipRoutes } from './interfaces/test-data/relationshipRoutes';
@@ -46,8 +46,9 @@ import { projectRoutes } from './interfaces/project/ProjectRoutes';
 import { createActivityStreamRoutes } from './interfaces/realtime/ActivityStreamRoutes';
 import { createAuthRoutes } from './interfaces/auth/AuthRoutes';
 import { connectMongo, disconnectMongo } from './infrastructure/auth/mongoClient';
+import { loadEnv } from './config/loadEnv';
 
-dotenv.config();
+loadEnv();
 
 async function bootstrap(): Promise<void> {
   let config;
@@ -179,6 +180,7 @@ app.use('/api', recommendationRoutes);
 app.use('/api', pipelineRoutes);
 app.use('/api', testSuiteRoutes);
 app.use('/api', reportRoutes);
+app.use('/api', integrationRoutes);
 app.use('/api', assertionRoutes);
 app.use('/api', importRoutes);
 app.use('/api', relationshipRoutes);

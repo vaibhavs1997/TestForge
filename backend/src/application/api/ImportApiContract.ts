@@ -13,6 +13,7 @@ import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
 import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
 import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
 import { EventPublisher } from '../EventPublisher';
+import { extractOpenApiSampleRequestBody, extractPostmanSampleRequestBody } from './openApiSampleBody';
 
 // ─── DTOs ────────────────────────────────────────────────
 
@@ -41,6 +42,7 @@ interface ParsedOperation {
   description: string;
   authenticationType: string;
   status: string;
+  sampleRequestBody: Record<string, unknown> | null;
 }
 
 interface ParsedService {
@@ -224,6 +226,7 @@ function extractFromOpenApi(spec: any, warnings: string[]): ParsedService[] {
         description: desc || '',
         authenticationType: authType,
         status: 'Active',
+        sampleRequestBody: extractOpenApiSampleRequestBody(op as Record<string, unknown>),
       });
     }
   }
@@ -304,6 +307,7 @@ function extractFromPostman(spec: any, warnings: string[]): ParsedService[] {
           description: desc || '',
           authenticationType: authType,
           status: 'Active',
+          sampleRequestBody: extractPostmanSampleRequestBody(req as Record<string, unknown>),
         });
       }
     }
@@ -641,6 +645,7 @@ function parseGraphQLFields(body: string, typeName: string): ParsedOperation[] {
         description: '',
         authenticationType: 'None',
         status: 'Active',
+        sampleRequestBody: null,
       });
     }
   }
@@ -674,6 +679,7 @@ function extractFromGraphQLIntrospection(spec: any, warnings: string[]): ParsedS
         description: field.description || '',
         authenticationType: 'None',
         status: 'Active',
+        sampleRequestBody: null,
       });
     }
 
@@ -834,6 +840,7 @@ export class ImportApiContract {
             description: op.description,
             authenticationType: op.authenticationType,
             status: op.status,
+            sampleRequestBody: op.sampleRequestBody,
           });
           operationsUpdated++;
         } else {
@@ -851,6 +858,7 @@ export class ImportApiContract {
             now,
             now
           );
+          operation.sampleRequestBody = op.sampleRequestBody;
           await this.apiOperationRepository.create(operation);
           operationsImported++;
         }

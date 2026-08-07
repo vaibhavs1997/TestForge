@@ -1,17 +1,14 @@
 // External libraries
 import { create } from 'zustand';
 
-// Shared constants
+import { getScopedStorageKey } from '../services/authSession';
 
-// Shared types
+const STORAGE_BASE = 'selectedProjectId';
 
-// Hooks
-
-// Services
-
-// Components
-
-// Styles
+function readSelectedProjectId(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(getScopedStorageKey(STORAGE_BASE));
+}
 
 interface ProjectState {
   selectedProjectId: string | null;
@@ -19,12 +16,15 @@ interface ProjectState {
 }
 
 export const projectStore = create<ProjectState>((set) => ({
-  selectedProjectId: typeof window !== 'undefined' ? localStorage.getItem('selectedProjectId') : null,
+  selectedProjectId: readSelectedProjectId(),
   setSelectedProjectId: (id) => {
-    if (id) {
-      localStorage.setItem('selectedProjectId', id);
-    } else {
-      localStorage.removeItem('selectedProjectId');
+    if (typeof window !== 'undefined') {
+      const key = getScopedStorageKey(STORAGE_BASE);
+      if (id) {
+        localStorage.setItem(key, id);
+      } else {
+        localStorage.removeItem(key);
+      }
     }
     set({ selectedProjectId: id });
   },

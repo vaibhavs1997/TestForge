@@ -1,5 +1,6 @@
 // TanStack Query hooks for Execution module
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCRUD } from '../../../hooks/useCRUD';
 import { executionService } from '../services';
 import type { ExecutionRun, ExecutionRunCreatePayload } from '../types';
 import { queryKeys } from '../../../constants';
@@ -8,19 +9,23 @@ export const useExecution = (projectId?: string) => {
   const queryClient = useQueryClient();
   const queryKey = queryKeys.executions(projectId || '');
 
-  const { data: runs = [], isLoading, isError, error } = useQuery({
+  const { data, isLoading, isError, error } = useCRUD({
     queryKey,
-    queryFn: async () => {
-      if (!projectId) return [];
-      return executionService.listExecutions(projectId);
+    service: {
+      list: () => (projectId ? executionService.listExecutions(projectId) : Promise.resolve([])),
+      create: () => Promise.resolve({} as any),
+      update: () => Promise.resolve({} as any),
+      delete: () => Promise.resolve(),
     },
     enabled: !!projectId,
-    refetchInterval: (query) => {
-      const data = query.state.data as ExecutionRun[];
-      if (!data || data.length === 0) return false;
-      const hasRunning = data.some(run => run.status === 'Running');
-      if (!hasRunning) return false;
-      return 3000; // Poll every 3 seconds while executions are running
+    listOptions: {
+      refetchInterval: (query) => {
+        const runs = query.state.data as ExecutionRun[];
+        if (!runs || runs.length === 0) return false;
+        const hasRunning = runs.some(run => run.status === 'Running');
+        if (!hasRunning) return false;
+        return 3000; // Poll every 3 seconds while executions are running
+      },
     },
   });
 
@@ -31,7 +36,7 @@ export const useExecution = (projectId?: string) => {
   });
 
   return {
-    runs,
+    runs: data,
     isLoading,
     isError,
     error,

@@ -1,33 +1,35 @@
-// Relationship service functions for Dataset Relationships
+// Relationship service for Dataset Relationships
 
-import axios from 'axios';
+import { ApiClient } from '../../../services/ApiClient';
 import type { Relationship, CreateRelationshipInput } from '../types/relationship';
-import { API_BASE_URL } from '../../../constants/api';
 
-export const relationshipService = {
-  listByProject: async (projectId: string): Promise<Relationship[]> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/relationships`);
-    return data.data;
-  },
+class RelationshipService extends ApiClient<Relationship> {
+  constructor() {
+    super('/projects/:projectId/relationships');
+  }
 
-  listByDataset: async (projectId: string, datasetId: string): Promise<Relationship[]> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/datasets/${datasetId}/relationships`);
-    return data.data;
-  },
+  async listByProject(projectId: string): Promise<Relationship[]> {
+    return this.list(projectId);
+  }
 
-  create: async (projectId: string, input: CreateRelationshipInput): Promise<Relationship> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/relationships`, input);
-    return data.data;
-  },
+  async listByDataset(projectId: string, datasetId: string): Promise<Relationship[]> {
+    const path = `/projects/${projectId}/datasets/${datasetId}/relationships`;
+    return this.getCustom(path);
+  }
 
-  update: async (projectId: string, relationshipId: string, updates: Partial<CreateRelationshipInput>): Promise<Relationship> => {
-    const { data } = await axios.patch(`${API_BASE_URL}/projects/${projectId}/relationships/${relationshipId}`, updates);
-    return data.data;
-  },
+  async createRelationship(projectId: string, input: CreateRelationshipInput): Promise<Relationship> {
+    return this.create(projectId, input);
+  }
 
-  delete: async (projectId: string, relationshipId: string): Promise<void> => {
-    await axios.delete(`${API_BASE_URL}/projects/${projectId}/relationships/${relationshipId}`);
-  },
-};
+  async updateRelationship(projectId: string, relationshipId: string, updates: Partial<CreateRelationshipInput>): Promise<Relationship> {
+    return this.patch(projectId, relationshipId, updates);
+  }
+
+  async deleteRelationship(projectId: string, relationshipId: string): Promise<void> {
+    return this.delete(projectId, relationshipId);
+  }
+}
+
+export const relationshipService = new RelationshipService();
 
 export default relationshipService;

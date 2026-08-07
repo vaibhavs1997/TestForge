@@ -63,6 +63,14 @@ import { ExecutePlan } from './execution/ExecutePlan';
 import { SchedulerService } from './scheduler/SchedulerService';
 import { OrchestratePipeline } from './pipeline/OrchestratePipeline';
 import { RunAIPipeline } from './pipeline/RunAIPipeline';
+import { ApiModule } from './api/ApiModule';
+import { ProjectModule } from './project/ProjectModule';
+import { EnvironmentModule } from './environment/EnvironmentModule';
+import { ActivityStreamHub } from './realtime/ActivityStreamHub';
+import { AuthService } from './auth/AuthService';
+import { createAuditLogRepository } from '../infrastructure/persistence/createAuditLogRepository';
+import { createProjectRepository } from '../infrastructure/persistence/createProjectRepository';
+import type { PersistenceDriver } from '../config';
 
 // ─── Cross-cutting subscribers (Sprint 3 integration) ───
 import { CacheInvalidationService } from '../domain/events/CacheInvalidationService';
@@ -101,6 +109,16 @@ import { GenerateTestSuiteWithAI } from './suite/GenerateTestSuiteWithAI';
  *  16. Pipeline orchestrators (need repositories + AI use cases)
  */
 export class ApplicationContainer {
+  private readonly persistenceDriver: PersistenceDriver = (() => {
+    const raw = (process.env.PERSISTENCE_DRIVER || 'json').toLowerCase();
+    if (raw === 'memory' || raw === 'sqlite') return raw;
+    return 'json';
+  })();
+
+  private readonly dbPath = process.env.DB_PATH || './data/testforge.db';
+
+  readonly projectRepository = createProjectRepository(this.persistenceDriver, this.dbPath);
+
   // ─── EventBus ──────────────────────────────────────────
   readonly eventBus = new EventBus();
   readonly eventPublisher = new EventPublisher(this.eventBus);
@@ -134,7 +152,7 @@ export class ApplicationContainer {
   readonly promptRepository = new PromptRepository();
   readonly providerRepository = new ProviderRepository();
   readonly versionRepository = new VersionRepository();
-  readonly auditLogRepository = new AuditLogRepository();
+  readonly auditLogRepository = createAuditLogRepository(this.persistenceDriver);
   readonly pluginRepository = new PluginRepository();
   readonly aiProviderRepository = new InMemoryAIProviderRepository();
   readonly notificationRepository = new InMemoryNotificationRepository();
@@ -305,7 +323,7 @@ export class ApplicationContainer {
 
   // ─── AuditLogService ───────────────────────────────────
   readonly auditLogService = new AuditLogService(
-    this.inMemoryAuditLogRepository,
+    this.auditLogRepository,
     this.eventBus
   );
 
@@ -350,6 +368,20 @@ export class ApplicationContainer {
   readonly versionEventListener = new VersionEventListener(this.eventBus, this.versionService);
   readonly recommendationRefreshSubscriber = new RecommendationRefreshSubscriber(this.eventBus, this.recommendationEngine);
   readonly pipelineRefreshSubscriber = new PipelineRefreshSubscriber(this.eventBus, this.orchestratePipeline);
+
+  // ─── HTTP modules (Phase 4 composition) ─────────────────
+  readonly apiModule = new ApiModule({
+    apiServiceRepository: this.apiServiceRepository,
+    apiOperationRepository: this.apiOperationRepository,
+    eventPublisher: this.eventPublisher,
+  });
+  readonly projectModule = new ProjectModule(this.projectRepository);
+  readonly environmentModule = new EnvironmentModule({
+    environmentRepository: this.environmentRepository,
+    eventPublisher: this.eventPublisher,
+  });
+  readonly activityStreamHub = new ActivityStreamHub(this.eventBus);
+  readonly authService = new AuthService();
 }
 
 // Singleton instance shared across the application

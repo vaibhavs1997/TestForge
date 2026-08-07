@@ -1,6 +1,7 @@
 // UpdateApiService - Application Use Case
 import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity';
 import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 import { EventPublisher } from '../EventPublisher';
 
 export class UpdateApiService {
@@ -15,33 +16,42 @@ export class UpdateApiService {
     description?: string;
     version?: string;
     tags?: string[];
+    baseUrl?: string;
   }): Promise<ApiServiceEntity> {
     const existing = await this.apiServiceRepository.findById(params.id);
     if (!existing) {
       throw new Error(`Service with id ${params.id} not found`);
     }
 
-    if (params.name !== undefined && !params.name.trim()) {
-      throw new Error('Service Name cannot be empty');
+    if (params.name !== undefined) {
+      ValidationHelpers.validateNotEmpty(params.name, 'Service Name');
     }
 
     if (params.name && params.name.trim() !== existing.name) {
-      const exists = await this.apiServiceRepository.existsByName(params.name.trim(), existing.projectId);
-      if (exists) {
-        throw new Error(`Service with name "${params.name}" already exists in this project`);
+      try {
+        await ValidationHelpers.validateUniqueName(
+          this.apiServiceRepository,
+          params.name,
+          existing.projectId,
+          existing.name
+        );
+      } catch (error) {
+        if (error instanceof Error && error.message === `Resource with name "${params.name}" already exists in this project`) {
+          throw new Error(`Service with name "${params.name}" already exists in this project`);
+        }
+        throw error;
       }
     }
 
     const updateData: any = {};
-    if (params.name !== undefined) updateData.name = params.name.trim();
-    if (params.description !== undefined) updateData.description = params.description.trim();
-    if (params.version !== undefined) updateData.version = params.version.trim() || 'v1';
-    if (params.tags !== undefined) updateData.tags = params.tags.map(t => t.trim()).filter(t => t.length > 0);
+    if (params.name !== undefined) updateData.name = ValidationHelpers.trimString(params.name);
+    if (params.description !== undefined) updateData.description = ValidationHelpers.trimString(params.description);
+    if (params.version !== undefined) updateData.version = ValidationHelpers.trimString(params.version) || 'v1';
+    if (params.tags !== undefined) updateData.tags = ValidationHelpers.trimStringArray(params.tags);
+    if (params.baseUrl !== undefined) updateData.baseUrl = ValidationHelpers.trimString(params.baseUrl);
 
     const updated = await this.apiServiceRepository.update(params.id, updateData);
 
-    // Publish through central EventPublisher — triggers audit, versioning,
-    // cache invalidation, recommendation refresh, and pipeline refresh.
     if (this.eventPublisher) {
       await this.eventPublisher.updated('api', updated.id, updated.projectId, 'ApiService', existing as any, updated as any);
     }

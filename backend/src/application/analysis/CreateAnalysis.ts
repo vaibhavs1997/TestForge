@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { AnalysisRepository } from '../../domain/analysis/AnalysisRepository';
 import { AnalysisEntity, AnalysisStatus } from '../../domain/analysis/AnalysisEntity';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export class CreateAnalysis {
   constructor(private readonly analysisRepository: AnalysisRepository) {}
@@ -18,22 +19,20 @@ export class CreateAnalysis {
     relatedRuntimeVariables?: string[];
     status?: AnalysisStatus;
   }): Promise<AnalysisEntity> {
-    if (!params.title || !params.title.trim()) {
-      throw new Error('Analysis title is required');
-    }
+    const title = ValidationHelpers.validateRequired(params.title, 'Analysis title');
 
     const now = Date.now();
     const analysis = new AnalysisEntity(
       randomUUID(),
       params.projectId,
-      params.title.trim(),
-      params.description?.trim() || '',
-      params.category?.trim() || 'General',
+      title,
+      ValidationHelpers.trimString(params.description),
+      ValidationHelpers.trimString(params.category) || 'General',
       params.confidence ?? 0,
-      params.relatedOperations || [],
-      params.relatedFlows || [],
-      params.relatedDatasets || [],
-      params.relatedRuntimeVariables || [],
+      ValidationHelpers.trimStringArray(params.relatedOperations),
+      ValidationHelpers.trimStringArray(params.relatedFlows),
+      ValidationHelpers.trimStringArray(params.relatedDatasets),
+      ValidationHelpers.trimStringArray(params.relatedRuntimeVariables),
       params.status || 'Pending',
       now,
       now

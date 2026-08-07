@@ -3,43 +3,43 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { PipelineRepository } from '../../domain/pipeline/PipelineRepository';
 import { PipelineEntity, PipelineStage, PipelineStatus, StageResult } from '../../domain/pipeline/PipelineEntity';
+import { readJsonFile, writeJsonFile } from '../persistence/JsonFileStore';
 
-const DATA_ROOT = path.join(process.cwd(), 'data', 'pipelines');
+function getDataRoot(): string {
+  return path.join(process.cwd(), 'data', 'pipelines');
+}
 
 export class PipelineRepositoryImpl implements PipelineRepository {
   private getPipelineFilePath(id: string): string {
-    return path.join(DATA_ROOT, `${id}.json`);
+    return path.join(getDataRoot(), `${id}.json`);
   }
 
   private ensureDataDir(): void {
-    if (!fs.existsSync(DATA_ROOT)) {
-      fs.mkdirSync(DATA_ROOT, { recursive: true });
+    if (!fs.existsSync(getDataRoot())) {
+      fs.mkdirSync(getDataRoot(), { recursive: true });
     }
   }
 
   async create(pipeline: PipelineEntity): Promise<PipelineEntity> {
     this.ensureDataDir();
     const filePath = this.getPipelineFilePath(pipeline.id);
-    fs.writeFileSync(filePath, JSON.stringify(pipeline, null, 2));
+    await writeJsonFile(filePath, pipeline);
     return pipeline;
   }
 
   async findById(id: string): Promise<PipelineEntity | null> {
     const filePath = this.getPipelineFilePath(id);
-    if (!fs.existsSync(filePath)) return null;
-    const data = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(data) as PipelineEntity;
+    return readJsonFile<PipelineEntity | null>(filePath, null);
   }
 
   async findByProject(projectId: string): Promise<PipelineEntity[]> {
-    if (!fs.existsSync(DATA_ROOT)) return [];
-    const files = fs.readdirSync(DATA_ROOT).filter(f => f.endsWith('.json'));
+    if (!fs.existsSync(getDataRoot())) return [];
+    const files = fs.readdirSync(getDataRoot()).filter(f => f.endsWith('.json'));
     const pipelines: PipelineEntity[] = [];
     for (const file of files) {
-      const filePath = path.join(DATA_ROOT, file);
-      const data = fs.readFileSync(filePath, 'utf-8');
-      const pipeline = JSON.parse(data) as PipelineEntity;
-      if (pipeline.projectId === projectId) {
+      const filePath = path.join(getDataRoot(), file);
+      const pipeline = await readJsonFile<PipelineEntity | null>(filePath, null);
+      if (pipeline && pipeline.projectId === projectId) {
         pipelines.push(pipeline);
       }
     }
@@ -52,7 +52,7 @@ export class PipelineRepositoryImpl implements PipelineRepository {
     
     const updated = { ...existing, ...data };
     const filePath = this.getPipelineFilePath(id);
-    fs.writeFileSync(filePath, JSON.stringify(updated, null, 2));
+    await writeJsonFile(filePath, updated);
     return updated;
   }
 
@@ -79,7 +79,7 @@ export class PipelineRepositoryImpl implements PipelineRepository {
     };
 
     const filePath = this.getPipelineFilePath(id);
-    fs.writeFileSync(filePath, JSON.stringify(updated, null, 2));
+    await writeJsonFile(filePath, updated);
     return updated;
   }
 

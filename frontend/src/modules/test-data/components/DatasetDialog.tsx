@@ -1,10 +1,7 @@
 // Dataset Editor Dialog for creating and editing datasets
 import React from 'react';
-import { X } from 'lucide-react';
-import { Button } from '../../../components/ui/Button';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../../../components/ui/Card';
-import { TextInput } from '../../../components/forms/TextInput';
-import { Select } from '../../../components/forms/Select';
+import { EntityDialog } from '../../../components/dialogs/EntityDialog';
+import { EntityForm, FormField } from '../../../components/forms/EntityForm';
 import { useFormValidation } from '../../../hooks/useFormValidation';
 import { isDuplicateName, FormErrors } from '../../../utils/validation';
 
@@ -84,53 +81,59 @@ export const DatasetDialog = ({ open, onClose, onSubmit, dataset, isSubmitting }
     });
   };
 
-  if (!open) return null;
+  const formFields: FormField[] = [
+    {
+      name: 'name',
+      label: 'Dataset Name',
+      type: 'text',
+      placeholder: 'e.g., Customer Data, Product Catalog',
+      required: true,
+      value: name,
+    },
+    {
+      name: 'description',
+      label: 'Description',
+      type: 'text',
+      placeholder: 'Optional description',
+      value: description,
+    },
+    {
+      name: 'category',
+      label: 'Category',
+      type: 'select',
+      value: category,
+      options: categoryOptions,
+    },
+  ];
 
   return (
-    <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50' onClick={onClose}>
-      <Card className='mx-4 w-full max-w-2xl' onClick={(e) => e.stopPropagation()}>
-        <CardHeader>
-          <div className='flex items-center justify-between'>
-            <CardTitle>{dataset ? 'Edit Dataset' : 'Create Dataset'}</CardTitle>
-            <Button variant='ghost' size='sm' className='h-8 w-8 p-0' onClick={onClose} aria-label='Close' type='button' disabled={isSubmitting}>
-              <X className='h-4 w-4' />
-            </Button>
-          </div>
-        </CardHeader>
-        <form onSubmit={handleSubmit}>
-          <CardContent className='space-y-4'>
-            <TextInput
-              label='Dataset Name'
-              value={name}
-              onChange={(e) => { setName(e.target.value); clearError('name'); }}
-              placeholder='e.g., Customer Data, Product Catalog'
-              error={errors.name}
-              required
-            />
-            <TextInput
-              label='Description'
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder='Optional description'
-            />
-            <Select
-              label='Category'
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              options={categoryOptions}
-            />
-          </CardContent>
-          <CardFooter className='justify-end gap-2'>
-            <Button type='button' variant='outline' onClick={onClose} disabled={isSubmitting}>
-              Cancel
-            </Button>
-            <Button type='submit' disabled={isSubmitting}>
-              {isSubmitting ? 'Saving...' : dataset ? 'Update' : 'Create'}
-            </Button>
-          </CardFooter>
-        </form>
-      </Card>
-    </div>
+    <EntityDialog
+      open={open}
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      title={dataset ? 'Edit Dataset' : 'Create Dataset'}
+      submitLabel={dataset ? 'Update' : 'Create'}
+      isLoading={isSubmitting}
+      size="lg"
+    >
+      <div className="space-y-4">
+        <EntityForm
+          fields={formFields}
+          values={{ name, description, category }}
+          onChange={(field, value) => {
+            if (field === 'name') {
+              setName(value);
+              clearError('name');
+            } else if (field === 'description') {
+              setDescription(value);
+            } else if (field === 'category') {
+              setCategory(value);
+            }
+          }}
+          errors={errors}
+        />
+      </div>
+    </EntityDialog>
   );
 };
 

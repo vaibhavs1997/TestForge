@@ -12,12 +12,17 @@ import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity';
 import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
 import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
 import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
+import { EventPublisher } from '../EventPublisher';
 
 // ─── DTOs ────────────────────────────────────────────────
 
 export interface ImportSummary {
   servicesImported: number;
+  servicesUpdated: number;
   operationsImported: number;
+  operationsUpdated: number;
+  operationsRemoved: number;
+  /** @deprecated Kept for API compatibility; always 0 when upsert/replace is used */
   duplicatesSkipped: number;
   warnings: string[];
   detectedEnvironments: DetectedEnvironment[];
@@ -43,6 +48,7 @@ interface ParsedService {
   description: string;
   version: string;
   tags: string[];
+  baseUrl?: string;
   operations: ParsedOperation[];
 }
 
@@ -50,14 +56,19 @@ interface ParsedService {
 
 type SpecType = 'openapi3' | 'swagger2' | 'postman' | 'graphql-schema' | 'graphql-introspection' | 'unknown';
 
+function stripBom(content: string): string {
+  return content.replace(/^\uFEFF/, '');
+}
+
 function detectSpecType(content: string, fileName: string): SpecType {
+  const normalized = stripBom(content);
   const ext = fileName.split('.').pop()?.toLowerCase();
 
   if (ext === 'graphql' || ext === 'gql') return 'graphql-schema';
 
   if (ext === 'json') {
     try {
-      const parsed = JSON.parse(content);
+      const parsed = JSON.parse(normalized);
       return detectFromObject(parsed);
     } catch {
       return 'unknown';
@@ -66,7 +77,7 @@ function detectSpecType(content: string, fileName: string): SpecType {
 
   if (ext === 'yaml' || ext === 'yml') {
     try {
-      const parsed = yaml.load(content);
+      const parsed = yaml.load(normalized);
       if (typeof parsed === 'object' && parsed !== null) {
         return detectFromObject(parsed as Record<string, unknown>);
       }
@@ -77,10 +88,10 @@ function detectSpecType(content: string, fileName: string): SpecType {
 
   // Fallback: auto-detect from content
   try {
-    const parsed = JSON.parse(content);
+    const parsed = JSON.parse(normalized);
     return detectFromObject(parsed);
   } catch {
-    if (/type\s+(Query|Mutation|Subscription)\s*\{/.test(content)) {
+    if (/type\s+(Query|Mutation|Subscription)\s*\{/.test(normalized)) {
       return 'graphql-schema';
     }
   }
@@ -99,12 +110,13 @@ function detectFromObject(obj: Record<string, unknown>): SpecType {
 // ─── Spec parsing & extraction helpers ───────────────────
 
 function parseJsonOrYaml(content: string, fileName: string): any {
+  const normalized = stripBom(content);
   const ext = fileName.split('.').pop()?.toLowerCase();
-  if (ext === 'json') return JSON.parse(content);
+  if (ext === 'json') return JSON.parse(normalized);
   try {
-    return JSON.parse(content);
+    return JSON.parse(normalized);
   } catch {
-    return yaml.load(content);
+    return yaml.load(normalized);
   }
 }
 
@@ -217,6 +229,12 @@ function extractFromOpenApi(spec: any, warnings: string[]): ParsedService[] {
   }
 
   const result = Array.from(servicesByTag.values());
+  const specBaseUrl = openApiPrimaryBaseUrl(spec);
+  if (specBaseUrl) {
+    for (const svc of result) {
+      if (!svc.baseUrl) svc.baseUrl = specBaseUrl;
+    }
+  }
 
   if (allTags.length === 0 && result.length === 0) {
     result.push({
@@ -224,6 +242,7 @@ function extractFromOpenApi(spec: any, warnings: string[]): ParsedService[] {
       description: specDescription,
       version: specVersion,
       tags: [],
+      baseUrl: specBaseUrl,
       operations: [],
     });
     warnings.push('No operations found in the specification.');
@@ -244,6 +263,7 @@ function extractFromPostman(spec: any, warnings: string[]): ParsedService[] {
     description: String(info.description || ''),
     version: collectionVersion,
     tags: [],
+    baseUrl: inferPostmanCollectionBaseUrl(spec),
     operations: [],
   };
 
@@ -318,6 +338,172 @@ function mapPostmanAuth(auth: any): string {
 
 // ─── Environment detection ──────────────────────────────
 
+function normalizeBaseUrl(value: string): string {
+  const trimmed = value.trim().replace(/\/$/, '');
+  if (!trimmed) return '';
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+  return `https://${trimmed}`;
+}
+
+/** Filters Postman/OAuth variable noise (e.g. token_url paths) from environment suggestions. */
+function isPlausibleEnvironmentUrl(raw: string, key: string): boolean {
+  const value = raw.trim();
+  if (!value || value.includes('{{') || /\s/.test(value)) return false;
+  if (value.includes('=') || value.startsWith('/oauth') || value.startsWith('/api/')) return false;
+
+  const lower = key.toLowerCase();
+  const hasHttp = /^https?:\/\//i.test(value);
+  const hostLike = /^[\w.-]+\.[a-z]{2,}/i.test(value) && !value.includes('/');
+
+  if (lower.endsWith('_url') && !hasHttp) return false;
+  if (lower.includes('token') && !hasHttp) return false;
+
+  if (lower === 'issuer' || lower.includes('baseurl') || lower === 'host') {
+    return hasHttp || hostLike;
+  }
+  if (lower.includes('url') || lower.includes('host') || lower.includes('base')) {
+    return hasHttp;
+  }
+  if (lower === 'domain') {
+    return hostLike;
+  }
+  return false;
+}
+
+function openApiPrimaryBaseUrl(spec: any): string {
+  if (Array.isArray(spec?.servers) && spec.servers[0]?.url) {
+    return normalizeBaseUrl(String(spec.servers[0].url));
+  }
+  const host = String(spec?.host || '').trim();
+  if (host) {
+    const basePath = String(spec?.basePath || '').trim();
+    const scheme = Array.isArray(spec?.schemes) && spec.schemes[0] ? String(spec.schemes[0]) : 'https';
+    return normalizeBaseUrl(`${scheme}://${host}${basePath}`);
+  }
+  return '';
+}
+
+function readPostmanVariables(spec: any): Map<string, string> {
+  const map = new Map<string, string>();
+  const add = (entries: unknown) => {
+    if (!Array.isArray(entries)) return;
+    for (const entry of entries) {
+      if (entry && typeof entry === 'object' && 'key' in entry) {
+        const key = String((entry as { key: unknown }).key);
+        const value = String((entry as { value?: unknown }).value ?? '').trim();
+        if (key) map.set(key, value);
+      }
+    }
+  };
+  add(spec?.variable);
+  add(spec?.auth?.apikey);
+  return map;
+}
+
+function firstHttpUrlInVariableValues(variables: Map<string, string>): string {
+  for (const value of variables.values()) {
+    if (!value || value.includes('{{')) continue;
+    if (/^https?:\/\//i.test(value)) {
+      return normalizeBaseUrl(value);
+    }
+  }
+  return '';
+}
+
+function resolvePostmanVariableRef(value: string, variables: Map<string, string>): string {
+  const match = value.trim().match(/^\{\{([^}]+)\}\}$/);
+  if (!match) return value;
+  return variables.get(match[1].trim()) ?? value;
+}
+
+function inferPostmanCollectionBaseUrl(spec: any): string {
+  const variables = readPostmanVariables(spec);
+
+  const fromAnyUrl = firstHttpUrlInVariableValues(variables);
+  if (fromAnyUrl) return fromAnyUrl;
+
+  const preferredKeys = [
+    'baseurl',
+    'base_url',
+    'url',
+    'host',
+    'domain',
+    'issuer',
+    'apiurl',
+    'api_url',
+    'custom-url',
+    'custom_url',
+    'zitadel',
+  ];
+
+  for (const preferred of preferredKeys) {
+    for (const [key, value] of variables) {
+      if (!value || value.includes('{{')) continue;
+      if (key.toLowerCase() === preferred || key.toLowerCase().includes(preferred)) {
+        return normalizeBaseUrl(value);
+      }
+    }
+  }
+
+  let originFromRequest = '';
+  const visitItems = (items: any[]) => {
+    for (const item of items) {
+      if (originFromRequest) return;
+      if (item.item && Array.isArray(item.item)) {
+        visitItems(item.item);
+        continue;
+      }
+      const url = item.request?.url;
+      if (!url) continue;
+      if (typeof url === 'string') {
+        const abs = url.match(/^(https?:\/\/[^\s/]+)/i);
+        if (abs) {
+          originFromRequest = abs[1];
+          return;
+        }
+        const resolved = resolvePostmanVariableRef(url.split('/')[0], variables);
+        if (/^https?:\/\//i.test(resolved)) {
+          originFromRequest = normalizeBaseUrl(resolved);
+          return;
+        }
+      }
+      if (typeof url === 'object') {
+        const raw = url.raw ? String(url.raw) : '';
+        if (raw) {
+          const abs = raw.match(/^(https?:\/\/[^\s/]+)/i);
+          if (abs) {
+            originFromRequest = abs[1];
+            return;
+          }
+          const varPrefix = raw.match(/^\{\{([^}]+)\}\}/);
+          if (varPrefix) {
+            const resolved = variables.get(varPrefix[1].trim());
+            if (resolved && /^https?:\/\//i.test(resolved)) {
+              originFromRequest = normalizeBaseUrl(resolved);
+              return;
+            }
+          }
+        }
+        if (url.protocol && url.host) {
+          const protocol = Array.isArray(url.protocol) ? url.protocol[0] : url.protocol;
+          const hostParts = Array.isArray(url.host) ? url.host : [url.host];
+          const host = hostParts.map((p: string) => resolvePostmanVariableRef(String(p), variables)).join('.');
+          if (host && /^https?:\/\//i.test(host)) {
+            originFromRequest = normalizeBaseUrl(host);
+            return;
+          }
+          if (host && !host.includes('{{') && !host.includes(' ')) {
+            originFromRequest = `${protocol}://${host}`;
+            return;
+          }
+        }
+      }
+    }
+  };
+  visitItems(spec.item || []);
+  return originFromRequest ? normalizeBaseUrl(originFromRequest) : '';
+}
+
 function detectEnvironments(spec: any): DetectedEnvironment[] {
   const environments: DetectedEnvironment[] = [];
   const seen = new Set<string>();
@@ -362,6 +548,29 @@ function detectEnvironments(spec: any): DetectedEnvironment[] {
     if (host) {
       const baseUrl = `https://${host}${basePath}`;
       environments.push({ name: 'Default', baseUrl });
+    }
+  }
+
+  // Postman collection variables (common for base URL / issuer)
+  if (spec?.item || spec?.info?.schema?.includes?.('postman')) {
+    const variables = readPostmanVariables(spec);
+    for (const [key, value] of variables) {
+      if (!value || value.includes('{{')) continue;
+      if (!isPlausibleEnvironmentUrl(value, key)) continue;
+      const baseUrl = normalizeBaseUrl(value);
+      const envKey = `${key.toLowerCase()}-${baseUrl.toLowerCase()}`;
+      if (!seen.has(envKey)) {
+        seen.add(envKey);
+        environments.push({ name: key, baseUrl });
+      }
+    }
+    const collectionBase = inferPostmanCollectionBaseUrl(spec);
+    if (collectionBase) {
+      const envKey = `collection-${collectionBase.toLowerCase()}`;
+      if (!seen.has(envKey)) {
+        seen.add(envKey);
+        environments.push({ name: 'Collection default', baseUrl: collectionBase });
+      }
     }
   }
 
@@ -491,7 +700,8 @@ function extractFromGraphQLIntrospection(spec: any, warnings: string[]): ParsedS
 export class ImportApiContract {
   constructor(
     private readonly apiServiceRepository: ApiServiceRepository,
-    private readonly apiOperationRepository: ApiOperationRepository
+    private readonly apiOperationRepository: ApiOperationRepository,
+    private readonly eventPublisher?: EventPublisher,
   ) {}
 
   async execute(params: {
@@ -500,8 +710,9 @@ export class ImportApiContract {
     content: string;
   }): Promise<ImportSummary> {
     const warnings: string[] = [];
+    const content = stripBom(params.content);
 
-    const specType = detectSpecType(params.content, params.fileName);
+    const specType = detectSpecType(content, params.fileName);
 
     if (specType === 'unknown') {
       warnings.push('Could not detect specification format from file extension or content.');
@@ -512,9 +723,9 @@ export class ImportApiContract {
 
     try {
       if (specType === 'graphql-schema') {
-        parsedServices = parseGraphQLSchema(params.content, params.fileName, warnings);
+        parsedServices = parseGraphQLSchema(content, params.fileName, warnings);
       } else {
-        spec = parseJsonOrYaml(params.content, params.fileName);
+        spec = parseJsonOrYaml(content, params.fileName);
         if (specType === 'openapi3' || specType === 'swagger2') {
           parsedServices = extractFromOpenApi(spec, warnings);
         } else if (specType === 'postman') {
@@ -538,21 +749,42 @@ export class ImportApiContract {
       }
     } catch (e) {
       warnings.push(`Failed to parse file: ${e instanceof Error ? e.message : 'Parse error'}`);
-      return { servicesImported: 0, operationsImported: 0, duplicatesSkipped: 0, warnings, detectedEnvironments: [] };
+      return {
+        servicesImported: 0,
+        servicesUpdated: 0,
+        operationsImported: 0,
+        operationsUpdated: 0,
+        operationsRemoved: 0,
+        duplicatesSkipped: 0,
+        warnings,
+        detectedEnvironments: [],
+      };
     }
 
     // Detect environments from spec
     const detectedEnvironments = spec ? detectEnvironments(spec) : [];
+    const fallbackBaseUrl = detectedEnvironments[0]?.baseUrl || '';
+    for (const svc of parsedServices) {
+      if (!svc.baseUrl && fallbackBaseUrl) {
+        svc.baseUrl = fallbackBaseUrl;
+      }
+    }
 
-    // 3. Persist — skip duplicates
+    // 3. Persist — upsert services and replace operations for matching contracts
     let servicesImported = 0;
+    let servicesUpdated = 0;
     let operationsImported = 0;
-    let duplicatesSkipped = 0;
+    let operationsUpdated = 0;
+    let operationsRemoved = 0;
+
+    const operationKey = (method: string, path: string) =>
+      `${method.toUpperCase()}:${path}`;
 
     for (const svc of parsedServices) {
       let serviceEntity: ApiServiceEntity | null = null;
 
       const exists = await this.apiServiceRepository.existsByName(svc.name, params.projectId);
+      const serviceBaseUrl = svc.baseUrl || fallbackBaseUrl || '';
       if (!exists) {
         const now = Date.now();
         serviceEntity = new ApiServiceEntity(
@@ -562,6 +794,7 @@ export class ImportApiContract {
           svc.description,
           svc.version,
           svc.tags,
+          serviceBaseUrl,
           now,
           now
         );
@@ -574,17 +807,35 @@ export class ImportApiContract {
           warnings.push(`Service "${svc.name}" exists but could not be retrieved. Skipping its operations.`);
           continue;
         }
+        serviceEntity = await this.apiServiceRepository.update(serviceEntity.id, {
+          description: svc.description,
+          version: svc.version,
+          tags: svc.tags,
+          ...(serviceBaseUrl ? { baseUrl: serviceBaseUrl } : {}),
+        });
+        servicesUpdated++;
       }
 
-      // Check for duplicate operations (same service + method + path)
-      const existingOps = await this.apiOperationRepository.findByService(serviceEntity!.id);
+      const existingOps = await this.apiOperationRepository.findByProjectAndService(
+        params.projectId,
+        serviceEntity!.id,
+      );
+      const importedKeys = new Set<string>();
 
       for (const op of svc.operations) {
-        const isDuplicate = existingOps.some(
-          (e: any) => e.method === op.method && e.path === op.path
+        importedKeys.add(operationKey(op.method, op.path));
+        const match = existingOps.find(
+          (e) =>
+            e.method.toUpperCase() === op.method.toUpperCase() && e.path === op.path,
         );
-        if (isDuplicate) {
-          duplicatesSkipped++;
+        if (match) {
+          await this.apiOperationRepository.update(match.id, {
+            name: op.name,
+            description: op.description,
+            authenticationType: op.authenticationType,
+            status: op.status,
+          });
+          operationsUpdated++;
         } else {
           const now = Date.now();
           const operation = new ApiOperationEntity(
@@ -604,13 +855,57 @@ export class ImportApiContract {
           operationsImported++;
         }
       }
+
+      for (const existingOp of existingOps) {
+        if (!importedKeys.has(operationKey(existingOp.method, existingOp.path))) {
+          await this.apiOperationRepository.delete(existingOp.id);
+          operationsRemoved++;
+        }
+      }
     }
 
-    if (servicesImported === 0 && warnings.length === 0 && parsedServices.length === 0) {
+    if (servicesImported === 0 && servicesUpdated === 0 && warnings.length === 0 && parsedServices.length === 0) {
       warnings.push('No services or operations were found in the uploaded file.');
     }
 
-    return { servicesImported, operationsImported, duplicatesSkipped, warnings, detectedEnvironments };
+    const summary = {
+      servicesImported,
+      servicesUpdated,
+      operationsImported,
+      operationsUpdated,
+      operationsRemoved,
+      duplicatesSkipped: 0,
+      warnings,
+      detectedEnvironments,
+    };
+
+    const hadChanges =
+      servicesImported > 0
+      || servicesUpdated > 0
+      || operationsImported > 0
+      || operationsUpdated > 0
+      || operationsRemoved > 0;
+
+    if (this.eventPublisher && hadChanges) {
+      await this.eventPublisher.publish({
+        type: 'IMPORTED',
+        module: 'api',
+        entityId: randomUUID(),
+        projectId: params.projectId,
+        entityType: 'ApiContract',
+        newValue: { fileName: params.fileName },
+        metadata: {
+          status: 'Completed',
+          servicesImported,
+          servicesUpdated,
+          operationsImported,
+          operationsUpdated,
+          operationsRemoved,
+        },
+      });
+    }
+
+    return summary;
   }
 }
 

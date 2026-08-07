@@ -1,5 +1,6 @@
 // UpdateRow - Application Use Case for updating a Dataset Row
 import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowRepository';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export class UpdateRow {
   constructor(private readonly datasetRowRepository: DatasetRowRepository) {}
@@ -8,13 +9,11 @@ export class UpdateRow {
     id: string;
     values?: Record<string, any>;
   }): Promise<any> {
-    if (!input.id) {
-      throw new Error('Row id is required');
-    }
+    const id = ValidationHelpers.validateRequired(input.id, 'Row id');
 
-    const existing = await this.datasetRowRepository.findById(input.id);
+    const existing = await this.datasetRowRepository.findById(id);
     if (!existing) {
-      throw new Error(`Dataset Row with id ${input.id} not found`);
+      throw new Error(`Dataset Row with id ${id} not found`);
     }
 
     const updateData: any = {};
@@ -22,7 +21,7 @@ export class UpdateRow {
       updateData.values = input.values;
     }
 
-    return this.datasetRowRepository.update(input.id, updateData);
+    return this.datasetRowRepository.update(id, updateData);
   }
 }
 

@@ -32,12 +32,13 @@
 ├── backups/
 │   ├── backup-2024-01-01T00-00-00/
 │   │   ├── backup.json          # Backup metadata
-│   │   └── data/                # Full data snapshot
-│   │       └── testforge.db     # Database file
+│   │   └── data/                # Full data snapshot (JSON project trees)
 │   ├── project-1-2024-01-01T00-00-00.zip  # Project export
 │   └── import-1234567890/       # Temporary import directory
 ├── uploads/                     # Temporary upload directory
-└── testforge.db                 # Active database
+├── apis/                        # Per-project API catalog JSON
+├── environments/                # Environment definitions
+└── …                            # Other domain JSON directories
 ```
 
 ## Backup Retention
@@ -53,8 +54,7 @@
 ```
 project-<projectId>-<timestamp>.zip
 ├── manifest.json
-└── data/
-    └── testforge.db
+└── data/                        # Snapshot of ./data JSON trees
 ```
 
 ### Manifest Structure

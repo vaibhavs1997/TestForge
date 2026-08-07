@@ -23,3 +23,15 @@ npm-debug.log*
 # OS files
 .DS_Store
 Thumbs.db
+
+# JSON store lock artifacts (runtime only; should not be committed)
+**/*.lockstub
+**/*.json.lock
+
+# Local JSON persistence (use seed scripts for fixtures)
+backend/data/**
+!backend/data/README.md
+
+# Graphify (local codebase knowledge graph for Cursor MCP)
+graphify-out/
+**/graphify-out/

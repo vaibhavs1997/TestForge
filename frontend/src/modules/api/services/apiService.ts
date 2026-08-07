@@ -1,8 +1,7 @@
-// API service functions for API Management
-import axios from 'axios';
+// API service for API Management
 import type { AxiosProgressEvent } from 'axios';
+import { ApiClient } from '../../../services/ApiClient';
 import type { ImportSummary } from '../types';
-import { API_BASE_URL } from '../../../constants/api';
 
 export interface ApiServiceDto {
   id: string;
@@ -11,6 +10,7 @@ export interface ApiServiceDto {
   description: string;
   version: string;
   tags: string[];
+  baseUrl?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -28,98 +28,121 @@ export interface ApiOperationDto {
   updatedAt: number;
 }
 
-export const apiService = {
+class ApiService extends ApiClient<ApiServiceDto> {
+  constructor() {
+    super('/projects/:projectId/services');
+  }
+
   // Services
-  listServices: async (projectId: string): Promise<ApiServiceDto[]> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/services`);
-    return data.data;
-  },
+  async listServices(projectId: string): Promise<ApiServiceDto[]> {
+    return this.list(projectId);
+  }
 
-  getService: async (projectId: string, serviceId: string): Promise<ApiServiceDto> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/services/${serviceId}`);
-    return data.data;
-  },
+  async getService(projectId: string, serviceId: string): Promise<ApiServiceDto> {
+    return this.get(projectId, serviceId);
+  }
 
-  createService: async (projectId: string, payload: {
-    name: string;
-    description?: string;
-    version?: string;
-    tags?: string[];
-  }): Promise<ApiServiceDto> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/services`, payload);
-    return data.data;
-  },
+  async createService(
+    projectId: string,
+    payload: {
+      name: string;
+      description?: string;
+      version?: string;
+      tags?: string[];
+    }
+  ): Promise<ApiServiceDto> {
+    return this.create(projectId, payload);
+  }
 
-  updateService: async (projectId: string, serviceId: string, payload: {
-    name?: string;
-    description?: string;
-    version?: string;
-    tags?: string[];
-  }): Promise<ApiServiceDto> => {
-    const { data } = await axios.patch(`${API_BASE_URL}/projects/${projectId}/services/${serviceId}`, payload);
-    return data.data;
-  },
+  async updateService(
+    projectId: string,
+    serviceId: string,
+    payload: {
+      name?: string;
+      description?: string;
+      version?: string;
+      tags?: string[];
+    }
+  ): Promise<ApiServiceDto> {
+    return this.patch(projectId, serviceId, payload);
+  }
 
-  deleteService: async (projectId: string, serviceId: string): Promise<void> => {
-    await axios.delete(`${API_BASE_URL}/projects/${projectId}/services/${serviceId}`);
-  },
+  async deleteService(projectId: string, serviceId: string): Promise<void> {
+    return this.delete(projectId, serviceId);
+  }
 
   // Operations
-  listOperations: async (projectId: string, serviceId: string): Promise<ApiOperationDto[]> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/services/${serviceId}/apis`);
-    return data.data;
-  },
+  async listOperations(projectId: string, serviceId: string): Promise<ApiOperationDto[]> {
+    const path = `/projects/${projectId}/services/${serviceId}/apis`;
+    return this.getCustom(path);
+  }
 
-  getOperation: async (projectId: string, serviceId: string, apiId: string): Promise<ApiOperationDto> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/services/${serviceId}/apis/${apiId}`);
-    return data.data;
-  },
+  async getOperation(projectId: string, serviceId: string, apiId: string): Promise<ApiOperationDto> {
+    const path = `/projects/${projectId}/services/${serviceId}/apis/${apiId}`;
+    return this.getCustom(path);
+  }
 
-  createOperation: async (projectId: string, serviceId: string, payload: {
-    name: string;
-    method: string;
-    path: string;
-    description?: string;
-    authenticationType?: string;
-    status?: string;
-  }): Promise<ApiOperationDto> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/services/${serviceId}/apis`, payload);
-    return data.data;
-  },
+  async createOperation(
+    projectId: string,
+    serviceId: string,
+    payload: {
+      name: string;
+      method: string;
+      path: string;
+      description?: string;
+      authenticationType?: string;
+      status?: string;
+    }
+  ): Promise<ApiOperationDto> {
+    const path = `/projects/${projectId}/services/${serviceId}/apis`;
+    return this.post(path, payload);
+  }
 
-  updateOperation: async (projectId: string, serviceId: string, apiId: string, payload: {
-    name?: string;
-    method?: string;
-    path?: string;
-    description?: string;
-    authenticationType?: string;
-    status?: string;
-  }): Promise<ApiOperationDto> => {
-    const { data } = await axios.patch(`${API_BASE_URL}/projects/${projectId}/services/${serviceId}/apis/${apiId}`, payload);
-    return data.data;
-  },
+  async updateOperation(
+    projectId: string,
+    serviceId: string,
+    apiId: string,
+    payload: {
+      name?: string;
+      method?: string;
+      path?: string;
+      description?: string;
+      authenticationType?: string;
+      status?: string;
+    }
+  ): Promise<ApiOperationDto> {
+    const path = `/projects/${projectId}/services/${serviceId}/apis/${apiId}`;
+    return this.post(path, payload, { method: 'PATCH' });
+  }
 
-  deleteOperation: async (projectId: string, serviceId: string, apiId: string): Promise<void> => {
-    await axios.delete(`${API_BASE_URL}/projects/${projectId}/services/${serviceId}/apis/${apiId}`);
-  },
+  async deleteOperation(projectId: string, serviceId: string, apiId: string): Promise<void> {
+    const path = `/projects/${projectId}/services/${serviceId}/apis/${apiId}`;
+    return this.delete(projectId, path.split('/').pop()!);
+  }
 
   // Import Contract
-  importContract: async (
+  async importContract(
     projectId: string,
     file: File,
     onUploadProgress?: (progressEvent: AxiosProgressEvent) => void
-  ): Promise<ImportSummary> => {
+  ): Promise<ImportSummary> {
     const formData = new FormData();
     formData.append('file', file);
 
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/import`, formData, {
+    const path = `/projects/${projectId}/import`;
+    return this.post(path, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress,
     });
+  }
 
-    return data.data as ImportSummary;
-  },
-};
+  async importContractFromUrl(projectId: string, url: string): Promise<ImportSummary> {
+    const path = `/projects/${projectId}/import/url`;
+    return this.post(path, { url });
+  }
+}
+
+export const apiService = new ApiService();
 
 export default apiService;
 

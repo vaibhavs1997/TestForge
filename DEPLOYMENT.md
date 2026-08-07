@@ -6,7 +6,7 @@ TestForge is deployable anywhere with a single command using Docker Compose. The
 
 - **Frontend**: Nginx serving static React build (port 80)
 - **Backend**: Node.js Express API (port 3000)
-- **Data**: Persistent volume for database files
+- **Data**: Persistent volume for JSON project data (`/app/data`)
 
 ## Quick Start
 
@@ -44,9 +44,11 @@ curl http://localhost:3000/ready
 |----------|---------|-------------|
 | PORT | 3000 | Backend listen port |
 | NODE_ENV | production | Runtime environment |
-| DB_PATH | /app/data/testforge.db | SQLite database path |
+| DB_PATH | /app/data/testforge.db | Data root anchor (parent directory holds JSON stores; not SQLite) |
 | CORS_ORIGIN | http://localhost:80 | Allowed CORS origins (comma-separated) |
 | LOG_LEVEL | info | Logging level |
+| TESTFORGE_API_KEY | (unset) | If set, requires API key on `/api` routes |
+| TESTFORGE_JWT_SECRET | (unset) | If set, accepts JWT bearer tokens with `projects` claim |
 | BUILD_TIMESTAMP | (auto) | Build timestamp |
 | GIT_COMMIT | unknown | Git commit hash |
 
@@ -91,17 +93,19 @@ The backend handles `SIGTERM` and `SIGINT` signals:
 
 - [ ] Set `NODE_ENV=production`
 - [ ] Configure `CORS_ORIGIN` to your frontend domain
+- [ ] Set `TESTFORGE_API_KEY` or `TESTFORGE_JWT_SECRET` when the API is reachable on a network
 - [ ] Set strong secrets in environment
 - [ ] Enable HTTPS via reverse proxy (e.g., Traefik, Caddy)
 - [ ] Configure log rotation
 - [ ] Set up monitoring (health checks)
-- [ ] Schedule database backups
+- [ ] Schedule data volume backups (JSON under `/app/data`)
 - [ ] Pin Docker image versions
 
 ## Backup Locations
 
-- **Database**: `/app/data/testforge.db` (mounted volume `testforge-data`)
+- **Project data**: `/app/data/` (JSON files and backups; mounted volume `testforge-data`)
 - **Backup command**: `docker run --rm -v testforge-data:/data -v $(pwd):/backup alpine tar czf /backup/testforge-backup.tar.gz /data`
+- See [`BACKUP_AND_RESTORE.md`](BACKUP_AND_RESTORE.md) and the `/api` backup routes for application-level backup
 
 ## Ports
 
@@ -114,7 +118,7 @@ The backend handles `SIGTERM` and `SIGINT` signals:
 
 | Volume | Mount | Description |
 |--------|-------|-------------|
-| testforge-data | /app/data | Persistent database storage |
+| testforge-data | /app/data | Persistent JSON data storage |
 
 ## Networks
 

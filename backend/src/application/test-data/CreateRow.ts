@@ -1,6 +1,7 @@
 // CreateRow - Application Use Case for creating a Dataset Row
 import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowRepository';
 import { DatasetRowEntity } from '../../domain/test-data/DatasetRowEntity';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export class CreateRow {
   constructor(private readonly datasetRowRepository: DatasetRowRepository) {}
@@ -10,7 +11,8 @@ export class CreateRow {
     datasetId: string;
     values: Record<string, any>;
   }): Promise<DatasetRowEntity> {
-    if (!input.values || Object.keys(input.values).length === 0) {
+    ValidationHelpers.validateRequiredField(input.values, 'Row values');
+    if (Object.keys(input.values).length === 0) {
       throw new Error('Row values are required');
     }
 

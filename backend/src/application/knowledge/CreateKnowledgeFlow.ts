@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { KnowledgeFlowRepository } from '../../domain/knowledge/KnowledgeFlowRepository';
 import { KnowledgeFlowEntity, FlowStatus, FlowStep } from '../../domain/knowledge/KnowledgeFlowEntity';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export class CreateKnowledgeFlow {
   constructor(private readonly knowledgeFlowRepository: KnowledgeFlowRepository) {}
@@ -14,23 +15,28 @@ export class CreateKnowledgeFlow {
     status?: FlowStatus;
     steps?: FlowStep[];
   }): Promise<KnowledgeFlowEntity> {
-    if (!params.name || !params.name.trim()) {
-      throw new Error('Flow Name is required');
-    }
+    const name = ValidationHelpers.validateRequired(params.name, 'Flow Name');
 
-    const trimmedName = params.name.trim();
-    const exists = await this.knowledgeFlowRepository.existsByName(trimmedName, params.projectId);
-    if (exists) {
-      throw new Error(`Flow with name "${params.name}" already exists in this project`);
+    try {
+      await ValidationHelpers.validateUniqueName(
+        this.knowledgeFlowRepository,
+        params.name,
+        params.projectId
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message === `Resource with name "${params.name}" already exists in this project`) {
+        throw new Error(`Flow with name "${params.name}" already exists in this project`);
+      }
+      throw error;
     }
 
     const now = Date.now();
     const flow = new KnowledgeFlowEntity(
       randomUUID(),
       params.projectId,
-      trimmedName,
-      params.description?.trim() || '',
-      params.tags?.map(t => t.trim()).filter(t => t.length > 0) || [],
+      name,
+      ValidationHelpers.trimString(params.description),
+      ValidationHelpers.trimStringArray(params.tags),
       params.status || 'Draft',
       params.steps || [],
       now,

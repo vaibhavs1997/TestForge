@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
 import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
 import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export class CreateApiOperation {
   constructor(
@@ -20,19 +21,10 @@ export class CreateApiOperation {
     authenticationType?: string;
     status?: string;
   }): Promise<ApiOperationEntity> {
-    if (!params.name || !params.name.trim()) {
-      throw new Error('API Name is required');
-    }
+    const name = ValidationHelpers.validateRequired(params.name, 'API Name');
+    const method = ValidationHelpers.validateRequired(params.method, 'HTTP Method');
+    const trimmedPath = ValidationHelpers.validateRequired(params.path, 'Endpoint Path');
 
-    if (!params.method || !params.method.trim()) {
-      throw new Error('HTTP Method is required');
-    }
-
-    if (!params.path || !params.path.trim()) {
-      throw new Error('Endpoint Path is required');
-    }
-
-    const trimmedPath = params.path.trim();
     if (!trimmedPath.startsWith('/')) {
       throw new Error('Endpoint Path must begin with "/"');
     }
@@ -46,7 +38,7 @@ export class CreateApiOperation {
 
     const existingOperations = await this.apiOperationRepository.findByService(params.serviceId);
     const isDuplicate = existingOperations.some(
-      op => op.method === params.method && op.path === trimmedPath
+      op => op.method === method && op.path === trimmedPath
     );
     if (isDuplicate) {
       throw new Error(`API with ${params.method} ${trimmedPath} already exists in this service`);
@@ -57,12 +49,12 @@ export class CreateApiOperation {
       randomUUID(),
       projectId,
       params.serviceId,
-      params.name.trim(),
-      params.method.trim(),
+      name,
+      method,
       trimmedPath,
-      params.description?.trim() || '',
-      params.authenticationType?.trim() || 'None',
-      params.status?.trim() || 'Active',
+      ValidationHelpers.trimString(params.description),
+      ValidationHelpers.trimString(params.authenticationType) || 'None',
+      ValidationHelpers.trimString(params.status) || 'Active',
       now,
       now
     );

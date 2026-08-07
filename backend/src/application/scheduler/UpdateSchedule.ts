@@ -2,6 +2,7 @@
 import { ScheduleEntity } from '../../domain/scheduler/ScheduleEntity';
 import type { ScheduleRepository } from '../../domain/scheduler/ScheduleRepository';
 import { TestSuiteRepository } from '../../domain/suite/TestSuiteRepository';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 import { CronExpression } from './CronExpression';
 
 export interface UpdateScheduleInput {
@@ -32,14 +33,19 @@ export class UpdateSchedule {
     const updateData: Partial<ScheduleEntity> = {};
 
     if (input.name !== undefined) {
-      if (!input.name.trim()) {
-        throw new Error('Schedule name cannot be empty');
-      }
-      // Check for duplicate names excluding this schedule
+      ValidationHelpers.validateNotEmpty(input.name, 'Schedule name');
       if (input.name.trim().toLowerCase() !== existing.name.toLowerCase()) {
-        const exists = await this.scheduleRepository.existsByName(input.name.trim(), input.projectId);
-        if (exists) {
-          throw new Error(`Schedule with name "${input.name}" already exists in this project`);
+        try {
+          await ValidationHelpers.validateUniqueName(
+            this.scheduleRepository,
+            input.name,
+            input.projectId
+          );
+        } catch (error) {
+          if (error instanceof Error && error.message === `Resource with name "${input.name}" already exists in this project`) {
+            throw new Error(`Schedule with name "${input.name}" already exists in this project`);
+          }
+          throw error;
         }
       }
       updateData.name = input.name.trim();
@@ -54,24 +60,19 @@ export class UpdateSchedule {
     }
 
     if (input.suiteId !== undefined) {
-      if (!input.suiteId) {
-        throw new Error('Test Suite is required');
-      }
-      const suite = await this.suiteRepository.findById(input.suiteId);
+      const suiteId = ValidationHelpers.validateRequired(input.suiteId, 'Test Suite');
+      const suite = await this.suiteRepository.findById(suiteId);
       if (!suite) {
-        throw new Error(`Test Suite with id ${input.suiteId} not found`);
+        throw new Error(`Test Suite with id ${suiteId} not found`);
       }
       if (suite.status !== 'Active') {
         throw new Error(`Cannot schedule disabled suite "${suite.name}" - suite must be Active`);
       }
-      updateData.suiteId = input.suiteId;
+      updateData.suiteId = suiteId;
     }
 
     if (input.executionProfileId !== undefined) {
-      if (!input.executionProfileId) {
-        throw new Error('Execution Profile is required');
-      }
-      updateData.executionProfileId = input.executionProfileId;
+      updateData.executionProfileId = ValidationHelpers.validateRequired(input.executionProfileId, 'Execution Profile');
     }
 
     if (input.environmentId !== undefined) {
@@ -79,20 +80,17 @@ export class UpdateSchedule {
     }
 
     if (input.cronExpression !== undefined) {
-      if (!input.cronExpression || !input.cronExpression.trim()) {
-        throw new Error('Cron expression is required');
-      }
+      const cronExpression = ValidationHelpers.validateRequired(input.cronExpression, 'Cron expression');
       if (!CronExpression.validate(input.cronExpression)) {
         throw new Error(`Invalid cron expression "${input.cronExpression}"`);
       }
-      updateData.cronExpression = input.cronExpression.trim();
+      updateData.cronExpression = cronExpression;
     }
 
     if (input.timezone !== undefined) {
       updateData.timezone = input.timezone;
     }
 
-    // Recompute nextRun if cron expression or enabled changed
     const recomputeNext = input.cronExpression !== undefined || input.enabled !== undefined;
     if (recomputeNext) {
       const cronExpr = input.cronExpression || existing.cronExpression;

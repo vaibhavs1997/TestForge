@@ -2,12 +2,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
 
-const DATA_ROOT = path.join(process.cwd(), 'data', 'apis');
+function getDataRoot(): string {
+  return path.join(process.cwd(), 'data', 'apis');
+}
 
 export class ApiOperationRepository {
   private getProjectDir(projectId: string): string {
-    return path.join(DATA_ROOT, projectId);
+    return path.join(getDataRoot(), projectId);
   }
 
   private getOperationsFilePath(projectId: string): string {
@@ -26,7 +29,7 @@ export class ApiOperationRepository {
     const filePath = this.getOperationsFilePath(operation.projectId);
     const operations = await this.readOperations(operation.projectId);
     operations.push(operation);
-    fs.writeFileSync(filePath, JSON.stringify(operations, null, 2));
+    await writeJsonArray(filePath, operations);
     return operation;
   }
 
@@ -39,7 +42,7 @@ export class ApiOperationRepository {
         const updated = { ...operations[index], ...data, updatedAt: Date.now() };
         operations[index] = updated;
         const filePath = this.getOperationsFilePath(projectId);
-        fs.writeFileSync(filePath, JSON.stringify(operations, null, 2));
+        await writeJsonArray(filePath, operations);
         return updated;
       }
     }
@@ -53,7 +56,7 @@ export class ApiOperationRepository {
       const filtered = operations.filter(o => o.id !== id);
       if (filtered.length !== operations.length) {
         const filePath = this.getOperationsFilePath(projectId);
-        fs.writeFileSync(filePath, JSON.stringify(filtered, null, 2));
+        await writeJsonArray(filePath, filtered);
         return;
       }
     }
@@ -69,11 +72,26 @@ export class ApiOperationRepository {
     return null;
   }
 
+  async findByProjectAndService(projectId: string, serviceId: string): Promise<ApiOperationEntity[]> {
+    const operations = await this.readOperations(projectId);
+    return operations.filter(
+      (o) => o.serviceId === serviceId && Boolean(o.method) && Boolean(o.path),
+    );
+  }
+
+  async deleteByServiceId(projectId: string, serviceId: string): Promise<void> {
+    const filePath = this.getOperationsFilePath(projectId);
+    const operations = await this.readOperations(projectId);
+    const filtered = operations.filter((o) => o.serviceId !== serviceId);
+    if (filtered.length !== operations.length) {
+      await writeJsonArray(filePath, filtered);
+    }
+  }
+
   async findByService(serviceId: string): Promise<ApiOperationEntity[]> {
     const projectIds = this.listProjectIds();
     for (const projectId of projectIds) {
-      const operations = await this.readOperations(projectId);
-      const filtered = operations.filter((o: any) => o.serviceId === serviceId);
+      const filtered = await this.findByProjectAndService(projectId, serviceId);
       if (filtered.length > 0) return filtered;
     }
     return [];
@@ -90,18 +108,19 @@ export class ApiOperationRepository {
   }
 
   private listProjectIds(): string[] {
-    if (!fs.existsSync(DATA_ROOT)) return [];
-    return fs.readdirSync(DATA_ROOT).filter(name => {
-      const fullPath = path.join(DATA_ROOT, name);
+    if (!fs.existsSync(getDataRoot())) return [];
+    return fs.readdirSync(getDataRoot()).filter(name => {
+      const fullPath = path.join(getDataRoot(), name);
       return fs.statSync(fullPath).isDirectory();
     });
   }
 
-  private readOperations(projectId: string): ApiOperationEntity[] {
+  private async readOperations(projectId: string): Promise<ApiOperationEntity[]> {
     const filePath = this.getOperationsFilePath(projectId);
-    if (!fs.existsSync(filePath)) return [];
-    const data = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(data);
+    const raw = await readJsonArray<ApiOperationEntity>(filePath);
+    return raw.filter(
+      (o) => Boolean(o?.serviceId) && typeof o.method === 'string' && typeof o.path === 'string',
+    );
   }
 }
 

@@ -1,7 +1,9 @@
 // RelationshipDialog - Create/Edit Dataset Relationships
 
 import React from 'react';
-import { Button } from '../../../components/ui/Button';
+import { EntityDialog } from '../../../components/dialogs/EntityDialog';
+import { TextInput } from '../../../components/forms/TextInput';
+import { Select } from '../../../components/forms/Select';
 
 export interface RelationshipDialogData {
   parentDatasetId: string;
@@ -71,119 +73,95 @@ export const RelationshipDialog: React.FC<RelationshipDialogProps> = ({
 
   const isEditing = !!relationship;
 
-  if (!open) return null;
+  const datasetOptions = datasets.map((ds) => ({ value: ds.id, label: ds.name }));
+  const childDatasetOptions = datasets
+    .filter((ds) => ds.id !== formData.parentDatasetId)
+    .map((ds) => ({ value: ds.id, label: ds.name }));
+
+  const relationshipTypeOptions = [
+    { value: 'one-to-one', label: 'One to One' },
+    { value: 'one-to-many', label: 'One to Many' },
+    { value: 'many-to-one', label: 'Many to One' },
+    { value: 'many-to-many', label: 'Many to Many (Future)' },
+  ];
+
+  const cardinalityOptions = [
+    { value: '1:1', label: '1:1' },
+    { value: '1:N', label: '1:N' },
+    { value: 'N:1', label: 'N:1' },
+  ];
 
   return (
-    <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
-      <div className='w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-lg'>
-        <div className='mb-4 flex items-center justify-between'>
-          <h2 className='text-lg font-semibold'>{isEditing ? 'Edit Relationship' : 'Create Relationship'}</h2>
-          <Button variant='ghost' size='sm' onClick={onClose}>✕</Button>
+    <EntityDialog
+      open={open}
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      title={isEditing ? 'Edit Relationship' : 'Create Relationship'}
+      submitLabel={isEditing ? 'Update' : 'Create'}
+      isLoading={isSubmitting}
+      size="md"
+    >
+      <div className="space-y-4">
+        <Select
+          label="Parent Dataset"
+          value={formData.parentDatasetId}
+          onChange={(e) => setFormData({ ...formData, parentDatasetId: e.target.value })}
+          options={datasetOptions}
+          required
+        />
+
+        <Select
+          label="Child Dataset"
+          value={formData.childDatasetId}
+          onChange={(e) => setFormData({ ...formData, childDatasetId: e.target.value })}
+          options={childDatasetOptions}
+          required
+        />
+
+        <Select
+          label="Relationship Type"
+          value={formData.relationshipType}
+          onChange={(e) => setFormData({ ...formData, relationshipType: e.target.value as any })}
+          options={relationshipTypeOptions}
+        />
+
+        <Select
+          label="Cardinality"
+          value={formData.cardinality}
+          onChange={(e) => setFormData({ ...formData, cardinality: e.target.value as any })}
+          options={cardinalityOptions}
+        />
+
+        <TextInput
+          label="Parent Column"
+          value={formData.parentColumn}
+          onChange={(e) => setFormData({ ...formData, parentColumn: e.target.value })}
+          placeholder="e.g., id"
+          required
+        />
+
+        <TextInput
+          label="Child Column"
+          value={formData.childColumn}
+          onChange={(e) => setFormData({ ...formData, childColumn: e.target.value })}
+          placeholder="e.g., customerId"
+          required
+        />
+
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="enabled"
+            checked={formData.enabled}
+            onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
+            className="h-4 w-4 rounded border-border"
+          />
+          <label htmlFor="enabled" className="text-sm">
+            Enabled
+          </label>
         </div>
-        <form onSubmit={handleSubmit} className='space-y-4'>
-          <div className='space-y-2'>
-            <label className='text-xs font-medium text-text-secondary'>Parent Dataset</label>
-            <select
-              value={formData.parentDatasetId}
-              onChange={(e) => setFormData({ ...formData, parentDatasetId: e.target.value })}
-              className='w-full rounded-lg border border-border px-3 py-2 text-sm'
-              required
-            >
-              <option value=''>Select parent dataset</option>
-              {datasets.map((ds) => (
-                <option key={ds.id} value={ds.id}>{ds.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className='space-y-2'>
-            <label className='text-xs font-medium text-text-secondary'>Child Dataset</label>
-            <select
-              value={formData.childDatasetId}
-              onChange={(e) => setFormData({ ...formData, childDatasetId: e.target.value })}
-              className='w-full rounded-lg border border-border px-3 py-2 text-sm'
-              required
-            >
-              <option value=''>Select child dataset</option>
-              {datasets.filter((ds) => ds.id !== formData.parentDatasetId).map((ds) => (
-                <option key={ds.id} value={ds.id}>{ds.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className='space-y-2'>
-            <label className='text-xs font-medium text-text-secondary'>Relationship Type</label>
-            <select
-              value={formData.relationshipType}
-              onChange={(e) => setFormData({ ...formData, relationshipType: e.target.value as any })}
-              className='w-full rounded-lg border border-border px-3 py-2 text-sm'
-            >
-              <option value='one-to-one'>One to One</option>
-              <option value='one-to-many'>One to Many</option>
-              <option value='many-to-one'>Many to One</option>
-              <option value='many-to-many'>Many to Many (Future)</option>
-            </select>
-          </div>
-
-          <div className='space-y-2'>
-            <label className='text-xs font-medium text-text-secondary'>Cardinality</label>
-            <select
-              value={formData.cardinality}
-              onChange={(e) => setFormData({ ...formData, cardinality: e.target.value as any })}
-              className='w-full rounded-lg border border-border px-3 py-2 text-sm'
-            >
-              <option value='1:1'>1:1</option>
-              <option value='1:N'>1:N</option>
-              <option value='N:1'>N:1</option>
-            </select>
-          </div>
-
-          <div className='space-y-2'>
-            <label className='text-xs font-medium text-text-secondary'>Parent Column</label>
-            <input
-              type='text'
-              value={formData.parentColumn}
-              onChange={(e) => setFormData({ ...formData, parentColumn: e.target.value })}
-              placeholder='e.g., id'
-              className='w-full rounded-lg border border-border px-3 py-2 text-sm'
-              required
-            />
-          </div>
-
-          <div className='space-y-2'>
-            <label className='text-xs font-medium text-text-secondary'>Child Column</label>
-            <input
-              type='text'
-              value={formData.childColumn}
-              onChange={(e) => setFormData({ ...formData, childColumn: e.target.value })}
-              placeholder='e.g., customerId'
-              className='w-full rounded-lg border border-border px-3 py-2 text-sm'
-              required
-            />
-          </div>
-
-          <div className='flex items-center gap-2'>
-            <input
-              type='checkbox'
-              id='enabled'
-              checked={formData.enabled}
-              onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
-              className='h-4 w-4 rounded border-border'
-            />
-            <label htmlFor='enabled' className='text-sm'>Enabled</label>
-          </div>
-
-          <div className='flex justify-end gap-2'>
-            <Button type='button' variant='outline' onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type='submit' disabled={isSubmitting}>
-              {isSubmitting ? 'Saving...' : isEditing ? 'Update' : 'Create'}
-            </Button>
-          </div>
-        </form>
       </div>
-    </div>
+    </EntityDialog>
   );
 };
 

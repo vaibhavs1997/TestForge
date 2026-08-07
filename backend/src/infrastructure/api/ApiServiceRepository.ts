@@ -2,12 +2,21 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
 
-const DATA_ROOT = path.join(process.cwd(), 'data', 'apis');
+function getDataRoot(): string {
+  return path.join(process.cwd(), 'data', 'apis');
+}
+
+function isServiceRecord(record: unknown): record is ApiServiceEntity {
+  if (!record || typeof record !== 'object') return false;
+  const r = record as Record<string, unknown>;
+  return typeof r.name === 'string' && !('serviceId' in r && 'method' in r);
+}
 
 export class ApiServiceRepository {
   private getProjectDir(projectId: string): string {
-    return path.join(DATA_ROOT, projectId);
+    return path.join(getDataRoot(), projectId);
   }
 
   private getServicesFilePath(projectId: string): string {
@@ -26,7 +35,7 @@ export class ApiServiceRepository {
     const filePath = this.getServicesFilePath(service.projectId);
     const services = await this.readServices(service.projectId);
     services.push(service);
-    fs.writeFileSync(filePath, JSON.stringify(services, null, 2));
+    await writeJsonArray(filePath, services);
     return service;
   }
 
@@ -40,7 +49,7 @@ export class ApiServiceRepository {
         const updated = { ...services[index], ...data, updatedAt: Date.now() };
         services[index] = updated;
         const filePath = this.getServicesFilePath(projectId);
-        fs.writeFileSync(filePath, JSON.stringify(services, null, 2));
+        await writeJsonArray(filePath, services);
         return updated;
       }
     }
@@ -50,14 +59,24 @@ export class ApiServiceRepository {
   async delete(id: string): Promise<void> {
     const projectIds = this.listProjectIds();
     for (const projectId of projectIds) {
-      const services = await this.readServices(projectId);
-      const filtered = services.filter(s => s.id !== id);
-      if (filtered.length !== services.length) {
-        const filePath = this.getServicesFilePath(projectId);
-        fs.writeFileSync(filePath, JSON.stringify(filtered, null, 2));
+      if (await this.deleteInProject(projectId, id)) {
         return;
       }
     }
+    throw new Error(`Service with id ${id} not found`);
+  }
+
+  /** Delete a service within a specific project (used by the API route). */
+  async deleteInProject(projectId: string, id: string): Promise<boolean> {
+    const filePath = this.getServicesFilePath(projectId);
+    const raw = await readJsonArray<unknown>(filePath);
+    const filtered = raw.filter((s) => (s as { id?: string })?.id !== id);
+    if (filtered.length === raw.length) {
+      return false;
+    }
+    const sanitized = filtered.filter(isServiceRecord);
+    await writeJsonArray(filePath, sanitized);
+    return true;
   }
 
   async findById(id: string): Promise<ApiServiceEntity | null> {
@@ -90,18 +109,17 @@ export class ApiServiceRepository {
   }
 
   private listProjectIds(): string[] {
-    if (!fs.existsSync(DATA_ROOT)) return [];
-    return fs.readdirSync(DATA_ROOT).filter(name => {
-      const fullPath = path.join(DATA_ROOT, name);
+    if (!fs.existsSync(getDataRoot())) return [];
+    return fs.readdirSync(getDataRoot()).filter(name => {
+      const fullPath = path.join(getDataRoot(), name);
       return fs.statSync(fullPath).isDirectory();
     });
   }
 
-  private readServices(projectId: string): ApiServiceEntity[] {
+  private async readServices(projectId: string): Promise<ApiServiceEntity[]> {
     const filePath = this.getServicesFilePath(projectId);
-    if (!fs.existsSync(filePath)) return [];
-    const data = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(data);
+    const raw = await readJsonArray<unknown>(filePath);
+    return raw.filter(isServiceRecord);
   }
 }
 

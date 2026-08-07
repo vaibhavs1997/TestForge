@@ -12,6 +12,7 @@ import { UpdatePopulationProfile } from '../../application/test-data/UpdatePopul
 import { DeletePopulationProfile } from '../../application/test-data/DeletePopulationProfile';
 import { GetPopulationProfile } from '../../application/test-data/GetPopulationProfile';
 import { ListPopulationProfiles } from '../../application/test-data/ListPopulationProfiles';
+import { asyncHandler } from '../middleware/AsyncHandler';
 
 const createProfile = new CreatePopulationProfile(profileRepository);
 const updateProfile = new UpdatePopulationProfile(profileRepository);
@@ -31,11 +32,11 @@ const profileController = new PopulationProfileController(
 const router = Router();
 
 // Profile routes
-router.get('/projects/:projectId/test-data/profiles', (req, res) => profileController.listProfiles(req, res));
-router.post('/projects/:projectId/test-data/profiles', (req, res) => profileController.createProfile(req, res));
-router.get('/projects/:projectId/test-data/profiles/:profileId', (req, res) => profileController.getProfile(req, res));
-router.patch('/projects/:projectId/test-data/profiles/:profileId', (req, res) => profileController.updateProfile(req, res));
-router.delete('/projects/:projectId/test-data/profiles/:profileId', (req, res) => profileController.deleteProfile(req, res));
+router.get('/projects/:projectId/test-data/profiles', asyncHandler((req, res) => profileController.listProfiles(req, res)));
+router.post('/projects/:projectId/test-data/profiles', asyncHandler((req, res) => profileController.createProfile(req, res)));
+router.get('/projects/:projectId/test-data/profiles/:profileId', asyncHandler((req, res) => profileController.getProfile(req, res)));
+router.patch('/projects/:projectId/test-data/profiles/:profileId', asyncHandler((req, res) => profileController.updateProfile(req, res)));
+router.delete('/projects/:projectId/test-data/profiles/:profileId', asyncHandler((req, res) => profileController.deleteProfile(req, res)));
 
 export { router as profileRoutes };
 export default router;

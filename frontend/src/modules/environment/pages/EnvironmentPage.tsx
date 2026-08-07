@@ -1,8 +1,12 @@
 // External libraries
 import React from 'react';
 import { useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { projectStore } from '../../../store/projectStore';
+import { queryKeys } from '../../../constants';
+import { environmentService } from '../services/environmentService';
 import { PageHeader } from '../../../components/layout/PageHeader';
-import { Card, CardContent } from '../../../components/ui/Card';
+import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { SearchBar } from '../../../components/shared/SearchBar';
@@ -14,7 +18,7 @@ import { ImportEnvironmentModal, type ImportEnvironmentModalData } from '../comp
 import { Plus, Cloud, Upload, Edit, Trash2 } from 'lucide-react';
 import { useEnvironments } from '../hooks/useEnvironments';
 import { EnvironmentDialog, type EnvironmentDialogData } from '../components/EnvironmentDialog';
-import { logger } from '../../../utils/logger';
+import { parseEnvironmentImport } from '../utils/parseEnvironmentImport';
 
 // Styles
 
@@ -35,7 +39,9 @@ interface Environment {
 
 export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
-  const projectId = routeProjectId || '1';
+  const selectedProjectId = projectStore((s) => s.selectedProjectId);
+  const projectId = routeProjectId ?? selectedProjectId ?? '1';
+  const queryClient = useQueryClient();
   const { environments, isLoading, isError, error, createAsync, updateAsync, removeAsync } = useEnvironments(projectId);
   
   const [search, setSearch] = React.useState('');
@@ -52,18 +58,186 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
   const filteredEnvironments = React.useMemo(() => {
     const term = search.trim().toLowerCase();
     return environments.filter((env) => {
-      const matchesSearch = env.name.toLowerCase().includes(term) || env.description.toLowerCase().includes(term);
+      const matchesSearch =
+        env.name.toLowerCase().includes(term) ||
+        (env.description ?? '').toLowerCase().includes(term);
       const matchesFilter = filter === 'All' || env.name.toLowerCase().includes(filter.toLowerCase());
       return matchesSearch && matchesFilter;
     });
   }, [search, filter, environments]);
 
+  const handleDelete = async () => {
+    if (!selectedEnvironment) return;
+    try {
+      await removeAsync(selectedEnvironment.id);
+      setDeleteOpen(false);
+      setToastType('success');
+      setToastMessage('Environment deleted successfully');
+      setToastOpen(true);
+    } catch (err: any) {
+      setToastType('error');
+      setToastMessage(err?.message || 'Failed to delete environment');
+      setToastOpen(true);
+    }
+  };
 
-  const breadcrumbItems = [
-    { label: 'Projects', to: '/projects' },
-    { label: 'Project', to: `/projects/${projectId}/overview` },
-    { label: 'Environment' },
-  ];
+  const handleEnvironmentSubmit = async (data: EnvironmentDialogData) => {
+    setIsSubmitting(true);
+    try {
+      if (data.id) {
+        await updateAsync(data.id, {
+          name: data.name,
+          baseUrl: data.baseUrl,
+          description: data.description,
+          authentication: data.authentication,
+          variables: data.variables,
+          timeout: data.timeout,
+        });
+        setToastMessage('Environment updated successfully');
+      } else {
+        await createAsync({
+          projectId,
+          name: data.name,
+          baseUrl: data.baseUrl,
+          description: data.description,
+          authentication: data.authentication,
+          variables: data.variables,
+          timeout: data.timeout,
+        });
+        setToastMessage('Environment created successfully');
+      }
+      setToastType('success');
+      setEditOpen(false);
+      setToastOpen(true);
+    } catch (err: any) {
+      setToastType('error');
+      setToastMessage(err?.message || 'Failed to save environment');
+      setToastOpen(true);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleImport = async (data: ImportEnvironmentModalData) => {
+    setIsSubmitting(true);
+    try {
+      const format = data.format;
+      const payloads: Array<{
+        name: string;
+        baseUrl: string;
+        description?: string;
+        variables?: Record<string, string>;
+        timeout?: number;
+      }> = [];
+      const fileErrors: string[] = [];
+
+      if (data.source === 'file' && data.files?.length) {
+        for (const file of data.files) {
+          try {
+            const parsed = await parseEnvironmentImport({ file, format });
+            for (const env of parsed) {
+              payloads.push({
+                name: env.name,
+                baseUrl: env.baseUrl,
+                description: env.description,
+                variables: env.variables,
+                timeout: env.timeout,
+              });
+            }
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Import failed';
+            fileErrors.push(`${file.name}: ${msg}`);
+          }
+        }
+      } else if (data.source === 'url' && data.url) {
+        const parsed = await parseEnvironmentImport({ url: data.url, format });
+        for (const env of parsed) {
+          payloads.push({
+            name: env.name,
+            baseUrl: env.baseUrl,
+            description: env.description,
+            variables: env.variables,
+            timeout: env.timeout,
+          });
+        }
+      } else {
+        throw new Error('Select files or enter a URL.');
+      }
+
+      if (payloads.length === 0) {
+        if (fileErrors.length > 0) {
+          throw new Error(fileErrors.join('\n\n'));
+        }
+        throw new Error('No environments found in the selected files or URL.');
+      }
+
+      const result = await environmentService.batchUpsertEnvironments(projectId, payloads);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.environments(projectId) });
+
+      setImportOpen(false);
+      const lines: string[] = [];
+      if (result.created > 0) {
+        lines.push(`Created ${result.created} environment${result.created === 1 ? '' : 's'}.`);
+      }
+      if (result.updated > 0) {
+        lines.push(`Updated ${result.updated} environment${result.updated === 1 ? '' : 's'}.`);
+      }
+      if (fileErrors.length > 0) {
+        lines.push(...fileErrors.map((e) => `⚠ ${e}`));
+      }
+      setToastType(fileErrors.length > 0 && result.environments.length === 0 ? 'error' : 'success');
+      setToastMessage(lines.join('\n') || 'Import completed.');
+      setToastOpen(true);
+    } catch (err: unknown) {
+      setToastType('error');
+      setToastMessage(err instanceof Error ? err.message : 'Failed to import environment');
+      setToastOpen(true);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const pageModals = (
+    <>
+      <ImportEnvironmentModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImport={(data) => void handleImport(data)}
+        isImporting={isSubmitting}
+      />
+      <EnvironmentDialog
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        onSubmit={handleEnvironmentSubmit}
+        environment={selectedEnvironment}
+        isSubmitting={isSubmitting}
+      />
+      <ConfirmDialog
+        open={deleteOpen}
+        title='Delete Environment'
+        message={`Deleting "${selectedEnvironment?.name}" cannot be undone.`}
+        confirmLabel='Delete'
+        cancelLabel='Cancel'
+        variant='destructive'
+        onConfirm={() => void handleDelete()}
+        onCancel={() => setDeleteOpen(false)}
+      />
+      <Toast message={toastMessage} type={toastType} open={toastOpen} onClose={() => setToastOpen(false)} />
+    </>
+  );
+
+  const headerActions = (
+    <>
+      <Button variant='outline' onClick={() => setImportOpen(true)}>
+        <Upload className='mr-2 h-4 w-4' />
+        Import Environment
+      </Button>
+      <Button onClick={() => { setSelectedEnvironment(undefined); setEditOpen(true); }}>
+        <Plus className='mr-2 h-4 w-4' />
+        Create Environment
+      </Button>
+    </>
+  );
 
   if (isLoading) {
     return (
@@ -71,7 +245,6 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
         <PageHeader
           title='Environments'
           description='Manage reusable execution environments for this project.'
-          breadcrumb={breadcrumbItems}
         />
         <div className='flex items-center justify-center py-12'>
           <p className='text-sm text-text-secondary'>Loading environments...</p>
@@ -86,7 +259,6 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
         <PageHeader
           title='Environments'
           description='Manage reusable execution environments for this project.'
-          breadcrumb={breadcrumbItems}
         />
         <ErrorAlert
           title='Failed to load environments'
@@ -97,224 +269,105 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
     );
   }
 
-  if (filteredEnvironments.length === 0) {
-    return (
-      <div className='mx-auto max-w-7xl px-4 py-8'>
-        <PageHeader
-          title='Environments'
-          description='Manage reusable execution environments for this project.'
-          breadcrumb={breadcrumbItems}
-        >
-          <Button variant='outline' onClick={() => setImportOpen(true)}>
-            <Upload className='mr-2 h-4 w-4' />
-            Import Environment
-          </Button>
-          <Button onClick={() => { setSelectedEnvironment(undefined); setEditOpen(true); }}>
-            <Plus className='mr-2 h-4 w-4' />
-            Create Environment
-          </Button>
-        </PageHeader>
-        <EmptyState
-          icon={<Cloud className='h-12 w-12' />}
-          title='No environments found'
-          description={search ? 'Try adjusting your search criteria.' : 'Create your first environment to get started.'}
-          action={search ? undefined : { label: 'Create Environment', onClick: () => setEditOpen(true) }}
-        />
-      </div>
-    );
-  }
-
-  const handleDelete = async () => {
-    if (selectedEnvironment) {
-      try {
-        await removeAsync(selectedEnvironment.id);
-        setDeleteOpen(false);
-        setToastMessage('Environment deleted successfully');
-        setToastOpen(true);
-      } catch (error: any) {
-        setToastMessage(error?.message || 'Failed to delete environment');
-        setToastOpen(true);
-      }
-    }
-  };
-
-  const handleEnvironmentSubmit = async (data: EnvironmentDialogData) => {
-    setIsSubmitting(true);
-    try {
-      if (data.id) {
-        await updateAsync({
-          environmentId: data.id,
-          name: data.name,
-          baseUrl: data.baseUrl,
-          description: data.description,
-          authentication: data.authentication,
-          variables: data.variables,
-          timeout: data.timeout,
-        });
-        setToastMessage('Environment updated successfully');
-      } else {
-        await createAsync({
-          projectId: projectId,
-          name: data.name,
-          baseUrl: data.baseUrl,
-          description: data.description,
-          authentication: data.authentication,
-          variables: data.variables,
-          timeout: data.timeout,
-        });
-        setToastMessage('Environment created successfully');
-      }
-      setEditOpen(false);
-      setToastOpen(true);
-    } catch (error: any) {
-      setToastMessage(error?.message || 'Failed to save environment');
-      setToastOpen(true);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleImport = async (data: ImportEnvironmentModalData) => {
-    try {
-      // TODO: Implement actual API call when environmentService.importEnvironment is available
-      // For now, log the import data
-      logger.info('Import environment', data);
-      setImportOpen(false);
-      setToastMessage('Environment import is not yet implemented');
-      setToastType('error');
-      setToastOpen(true);
-    } catch (error: any) {
-      setToastMessage(error?.message || 'Failed to import environment');
-      setToastType('error');
-      setToastOpen(true);
-    }
-  };
+  const showEmptyProjectState =
+    environments.length === 0 && !search.trim() && filter === 'All';
 
   return (
     <div className='mx-auto max-w-7xl px-4 py-8'>
       <PageHeader
         title='Environments'
         description='Manage reusable execution environments for this project.'
-        breadcrumb={breadcrumbItems}
       >
-        <Button variant='outline' onClick={() => setImportOpen(true)}>
-          <Upload className='mr-2 h-4 w-4' />
-          Import Environment
-        </Button>
-        <Button onClick={() => { setSelectedEnvironment(undefined); setEditOpen(true); }}>
-          <Plus className='mr-2 h-4 w-4' />
-          Create Environment
-        </Button>
+        {headerActions}
       </PageHeader>
 
-      {/* Search and Filters */}
-      <div className='mb-6 flex flex-col gap-3 sm:flex-row sm:items-center'>
-        <SearchBar value={search} onChange={setSearch} placeholder='Search environments...' className='sm:w-80' />
-        <div className='flex gap-2'>
-          {['All', 'Development', 'Testing', 'Staging', 'Production'].map((type) => (
-            <Button key={type} variant={filter === type ? 'default' : 'outline'} size='sm' onClick={() => setFilter(type)}>
-              {type === 'All' ? 'All' : type}
-            </Button>
-          ))}
-        </div>
-        <div className='flex items-center gap-2'>
-          <select className='rounded-lg border border-border bg-background px-3 py-2 text-sm text-text'>
-            <option>Sort by: Name</option>
-            <option>Sort by: Last Updated</option>
-          </select>
-        </div>
-      </div>
+      {showEmptyProjectState ? (
+        <EmptyState
+          icon={<Cloud className='h-12 w-12' />}
+          title='No environments found'
+          description='Create your first environment or import one from a file.'
+          action={{ label: 'Create Environment', onClick: () => setEditOpen(true) }}
+        />
+      ) : (
+        <>
+          <div className='mb-6 flex flex-col gap-3 sm:flex-row sm:items-center'>
+            <SearchBar value={search} onChange={setSearch} placeholder='Search environments...' className='sm:w-80' />
+            <div className='flex gap-2'>
+              {['All', 'Development', 'Testing', 'Staging', 'Production'].map((type) => (
+                <Button key={type} variant={filter === type ? 'default' : 'outline'} size='sm' onClick={() => setFilter(type)}>
+                  {type === 'All' ? 'All' : type}
+                </Button>
+              ))}
+            </div>
+            <div className='flex items-center gap-2'>
+              <select className='rounded-lg border border-border bg-background px-3 py-2 text-sm text-text'>
+                <option>Sort by: Name</option>
+                <option>Sort by: Last Updated</option>
+              </select>
+            </div>
+          </div>
 
-      {/* Environment List */}
-      <Card>
-        <div className='overflow-x-auto'>
-          <table className='w-full text-sm'>
-            <thead className='border-b border-border bg-surface'>
-              <tr>
-                <th className='px-4 py-3 text-left'>Name</th>
-                <th className='px-4 py-3 text-left'>Description</th>
-                <th className='px-4 py-3 text-left'>Base URL</th>
-                <th className='px-4 py-3 text-left'>Authentication</th>
-                <th className='px-4 py-3 text-left'>Variables</th>
-                <th className='px-4 py-3 text-left'>Timeout</th>
-                <th className='px-4 py-3 text-left'>Status</th>
-                <th className='px-4 py-3 text-left'>Last Updated</th>
-                <th className='px-4 py-3 text-right'>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredEnvironments.map((env) => {
-                const authType = env.authentication?.type || 'None';
-                const varCount = Object.keys(env.variables || {}).length;
-                const lastUpdated = env.updatedAt ? new Date(env.updatedAt).toLocaleDateString() : 'Never';
-                
-                return (
-                  <tr key={env.id} className='border-b border-border last:border-b-0 hover:bg-surface/50'>
-                    <td className='px-4 py-3 font-medium'>{env.name}</td>
-                    <td className='px-4 py-3 text-text-secondary'>{env.description || '—'}</td>
-                    <td className='px-4 py-3 font-mono text-xs'>{env.baseUrl}</td>
-                    <td className='px-4 py-3'>
-                      <Badge variant='outline'>{authType}</Badge>
-                    </td>
-                    <td className='px-4 py-3 text-center'>{varCount}</td>
-                    <td className='px-4 py-3'>{env.timeout}ms</td>
-                    <td className='px-4 py-3'>
-                      <Badge variant='default' className='bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'>Default</Badge>
-                    </td>
-                    <td className='px-4 py-3 text-text-secondary'>{lastUpdated}</td>
-                    <td className='px-4 py-3'>
-                      <div className='flex items-center justify-end gap-1'>
-                        <Button variant='ghost' size='sm' onClick={() => { setSelectedEnvironment(env); setEditOpen(true); }}>
-                          <Edit className='h-4 w-4' />
-                        </Button>
-                        <Button variant='ghost' size='sm' onClick={() => { setSelectedEnvironment(env); setDeleteOpen(true); }}>
-                          <Trash2 className='h-4 w-4' />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+          {filteredEnvironments.length === 0 ? (
+            <EmptyState
+              icon={<Cloud className='h-12 w-12' />}
+              title='No environments match your filters'
+              description='Try adjusting search or filters.'
+            />
+          ) : (
+            <Card>
+              <div className='overflow-x-auto'>
+                <table className='w-full text-sm'>
+                  <thead className='border-b border-border bg-surface'>
+                    <tr>
+                      <th className='px-4 py-3 text-left'>Name</th>
+                      <th className='px-4 py-3 text-left'>Base URL</th>
+                      <th className='px-4 py-3 text-left'>Authentication</th>
+                      <th className='px-4 py-3 text-left'>Variables</th>
+                      <th className='px-4 py-3 text-left'>Status</th>
+                      <th className='px-4 py-3 text-left'>Last Updated</th>
+                      <th className='px-4 py-3 text-right'>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredEnvironments.map((env) => {
+                      const authType = env.authentication?.type || 'None';
+                      const varCount = Object.keys(env.variables || {}).length;
+                      const lastUpdated = env.updatedAt ? new Date(env.updatedAt).toLocaleDateString() : 'Never';
 
-      <ImportEnvironmentModal
-        open={importOpen}
-        onClose={() => setImportOpen(false)}
-        onImport={(data: ImportEnvironmentModalData) => {
-          logger.info('Import environment', data);
-          setImportOpen(false);
-        }}
-      />
+                      return (
+                        <tr key={env.id} className='border-b border-border last:border-b-0 hover:bg-surface/50'>
+                          <td className='px-4 py-3 font-medium'>{env.name}</td>
+                          <td className='px-4 py-3 font-mono text-xs'>{env.baseUrl}</td>
+                          <td className='px-4 py-3'>
+                            <Badge variant='outline'>{authType}</Badge>
+                          </td>
+                          <td className='px-4 py-3 text-center'>{varCount}</td>
+                          <td className='px-4 py-3'>
+                            <Badge variant='default' className='bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'>Default</Badge>
+                          </td>
+                          <td className='px-4 py-3 text-text-secondary'>{lastUpdated}</td>
+                          <td className='px-4 py-3'>
+                            <div className='flex items-center justify-end gap-1'>
+                              <Button variant='ghost' size='sm' onClick={() => { setSelectedEnvironment(env); setEditOpen(true); }}>
+                                <Edit className='h-4 w-4' />
+                              </Button>
+                              <Button variant='ghost' size='sm' onClick={() => { setSelectedEnvironment(env); setDeleteOpen(true); }}>
+                                <Trash2 className='h-4 w-4' />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+        </>
+      )}
 
-      {/* Environment Editor Dialog */}
-      <EnvironmentDialog
-        open={editOpen}
-        onClose={() => setEditOpen(false)}
-        onSubmit={handleEnvironmentSubmit}
-        environment={selectedEnvironment}
-        isSubmitting={isSubmitting}
-      />
-
-      {/* Delete Confirmation Dialog */}
-      <ConfirmDialog
-        open={deleteOpen}
-        title='Delete Environment'
-        message={`Deleting "${selectedEnvironment?.name}" cannot be undone.`}
-        confirmLabel='Delete'
-        cancelLabel='Cancel'
-        variant='destructive'
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteOpen(false)}
-      />
-
-      <Toast
-        message={toastMessage}
-        open={toastOpen}
-        onClose={() => setToastOpen(false)}
-      />
+      {pageModals}
     </div>
   );
 };

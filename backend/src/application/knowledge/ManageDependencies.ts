@@ -2,27 +2,34 @@
 import { randomUUID } from 'node:crypto';
 import { Dependency } from '../../domain/knowledge/DependencyEntity';
 import { DependencyRepository } from '../../domain/knowledge/DependencyRepository';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export class ManageDependencies {
   constructor(private readonly dependencyRepository: DependencyRepository) {}
 
   async create(input: Omit<Dependency, 'id' | 'createdAt' | 'updatedAt'>): Promise<Dependency> {
-    if (!input.name || !input.name.trim()) {
-      throw new Error('Dependency name is required');
-    }
+    const name = ValidationHelpers.validateRequired(input.name, 'Dependency name');
 
-    const exists = await this.dependencyRepository.existsByName(input.name.trim(), input.projectId);
-    if (exists) {
-      throw new Error(`Dependency with name "${input.name}" already exists in this project`);
+    try {
+      await ValidationHelpers.validateUniqueName(
+        this.dependencyRepository,
+        input.name,
+        input.projectId
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message === `Resource with name "${input.name}" already exists in this project`) {
+        throw new Error(`Dependency with name "${input.name}" already exists in this project`);
+      }
+      throw error;
     }
 
     const now = Date.now();
     const dependency: Dependency = {
       ...input,
       id: randomUUID(),
-      name: input.name.trim(),
-      description: input.description?.trim() || '',
-      tags: input.tags?.map(t => t.trim()).filter(t => t.length > 0) || [],
+      name,
+      description: ValidationHelpers.trimString(input.description),
+      tags: ValidationHelpers.trimStringArray(input.tags),
       createdAt: now,
       updatedAt: now,
     };
@@ -36,13 +43,15 @@ export class ManageDependencies {
       throw new Error(`Dependency with id ${id} not found`);
     }
 
-    if (data.name !== undefined && !data.name.trim()) {
-      throw new Error('Dependency name cannot be empty');
+    if (data.name !== undefined) {
+      ValidationHelpers.validateNotEmpty(data.name, 'Dependency name');
     }
 
     return this.dependencyRepository.update(id, {
       ...data,
-      name: data.name?.trim() || existing.name,
+      name: data.name !== undefined ? ValidationHelpers.trimString(data.name) : existing.name,
+      description: data.description !== undefined ? ValidationHelpers.trimString(data.description) : existing.description,
+      tags: data.tags !== undefined ? ValidationHelpers.trimStringArray(data.tags) : existing.tags,
       updatedAt: Date.now(),
     });
   }

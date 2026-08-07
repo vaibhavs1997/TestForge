@@ -1,8 +1,6 @@
 // ColumnProfileDialog - Unified editor for columns with General/Population/Validation sections
 import React from 'react';
-import { X } from 'lucide-react';
-import { Button } from '../../../components/ui/Button';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../../../components/ui/Card';
+import { EntityDialog } from '../../../components/dialogs/EntityDialog';
 import { TextInput } from '../../../components/forms/TextInput';
 import { Select } from '../../../components/forms/Select';
 import { useFormValidation } from '../../../hooks/useFormValidation';
@@ -162,92 +160,175 @@ export const ColumnProfileDialog = ({ open, onClose, onSubmit, column, isSubmitt
   if (!open) return null;
 
   return (
-    <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50' onClick={onClose}>
-      <Card className='mx-4 w-full max-w-3xl' onClick={(e) => e.stopPropagation()}>
-        <CardHeader>
-          <div className='flex items-center justify-between'>
-            <CardTitle>{column ? 'Edit Column' : 'Add Column'}</CardTitle>
-            <Button variant='ghost' size='sm' className='h-8 w-8 p-0' onClick={onClose} aria-label='Close' type='button' disabled={isSubmitting}>
-              <X className='h-4 w-4' />
-            </Button>
-          </div>
-          <div className='flex gap-1 border-b border-border'>
-            {(['General', 'Population', 'Validation'] as TabSection[]).map((section) => (
-              <button
-                key={section}
-                onClick={() => setActiveSection(section)}
-                className={`px-4 py-2 text-sm font-medium ${
-                  activeSection === section ? 'border-b-2 border-primary text-primary' : 'text-text-secondary hover:text-text'
-                }`}
-              >
-                {section}
-              </button>
-            ))}
-          </div>
-        </CardHeader>
-        <form onSubmit={handleSubmit}>
-          <CardContent className='space-y-4 pt-4'>
-            {activeSection === 'General' && (
-              <div className='space-y-4'>
-                <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
-                  <TextInput label='Column Name' value={name} onChange={(e) => { setName(e.target.value); clearError('name'); }} placeholder='e.g., email, firstName' error={errors.name} required />
-                  <TextInput label='Display Name' value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder='e.g., Email Address' />
-                </div>
-                <Select label='Data Type' value={dataType} onChange={(e) => setDataType(e.target.value)} options={dataTypeOptions} />
-                <TextInput label='Description' value={description} onChange={(e) => setDescription(e.target.value)} placeholder='Optional description' />
-              </div>
-            )}
+    <EntityDialog
+      open={open}
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      title={column ? 'Edit Column' : 'Add Column'}
+      submitLabel={column ? 'Update' : 'Save'}
+      isLoading={isSubmitting}
+      size="xl"
+    >
+      <div>
+        <div className="flex gap-1 border-b border-border mb-4">
+          {(['General', 'Population', 'Validation'] as TabSection[]).map((section) => (
+            <button
+              key={section}
+              onClick={() => setActiveSection(section)}
+              className={`px-4 py-2 text-sm font-medium ${
+                activeSection === section ? 'border-b-2 border-primary text-primary' : 'text-text-secondary hover:text-text'
+              }`}
+            >
+              {section}
+            </button>
+          ))}
+        </div>
 
-            {activeSection === 'Population' && (
-              <div className='space-y-4'>
-                <Select label='Strategy Type' value={strategyType} onChange={(e) => setStrategyType(e.target.value)} options={strategyOptions} />
-                {strategyType === 'Static Value' && (
-                  <TextInput label='Value' value={staticValue} onChange={(e) => { setStaticValue(e.target.value); clearError('staticValue'); }} placeholder='e.g., Active, true, 100' error={errors.staticValue} />
-                )}
-                {strategyType === 'Existing Dataset' && (
-                  <div className='space-y-4'>
-                    <Select label='Dataset' value={selectedDataset} onChange={(e) => { setSelectedDataset(e.target.value); clearError('dataset'); }} options={mockDatasets} />
-                    {errors.dataset && <p className='text-sm text-error'>{errors.dataset}</p>}
-                    <Select label='Column' value={selectedColumn} onChange={(e) => { setSelectedColumn(e.target.value); clearError('column'); }} options={mockColumns} />
-                    {errors.column && <p className='text-sm text-error'>{errors.column}</p>}
-                  </div>
-                )}
-                {strategyType === 'Generator' && (
-                  <Select label='Generator' value={selectedGenerator} onChange={(e) => setSelectedGenerator(e.target.value)} options={generatorOptions} />
-                )}
-                {strategyType === 'Manual' && (
-                  <p className='text-sm text-text-secondary'>No configuration needed. Values will be entered manually.</p>
-                )}
-                {(strategyType === 'Provider' || strategyType === 'Runtime Response' || strategyType === 'Environment Variable') && (
-                  <p className='text-xs text-text-secondary'>{strategyType} configuration will be available in a future update.</p>
-                )}
+        <div className="space-y-4">
+          {activeSection === 'General' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <TextInput
+                  label="Column Name"
+                  value={name}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    clearError('name');
+                  }}
+                  placeholder="e.g., email, firstName"
+                  error={errors.name}
+                  required
+                />
+                <TextInput
+                  label="Display Name"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="e.g., Email Address"
+                />
               </div>
-            )}
+              <Select
+                label="Data Type"
+                value={dataType}
+                onChange={(e) => setDataType(e.target.value)}
+                options={dataTypeOptions}
+              />
+              <TextInput
+                label="Description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Optional description"
+              />
+            </div>
+          )}
 
-            {activeSection === 'Validation' && (
-              <div className='space-y-4'>
-                <div className='flex items-center gap-2'>
-                  <input type='checkbox' checked={required} onChange={(e) => setRequired(e.target.checked)} className='h-4 w-4 rounded border-border' id='required' />
-                  <label htmlFor='required' className='text-sm text-text'>Required</label>
+          {activeSection === 'Population' && (
+            <div className="space-y-4">
+              <Select
+                label="Strategy Type"
+                value={strategyType}
+                onChange={(e) => setStrategyType(e.target.value)}
+                options={strategyOptions}
+              />
+              {strategyType === 'Static Value' && (
+                <TextInput
+                  label="Value"
+                  value={staticValue}
+                  onChange={(e) => {
+                    setStaticValue(e.target.value);
+                    clearError('staticValue');
+                  }}
+                  placeholder="e.g., Active, true, 100"
+                  error={errors.staticValue}
+                />
+              )}
+              {strategyType === 'Existing Dataset' && (
+                <div className="space-y-4">
+                  <Select
+                    label="Dataset"
+                    value={selectedDataset}
+                    onChange={(e) => {
+                      setSelectedDataset(e.target.value);
+                      clearError('dataset');
+                    }}
+                    options={mockDatasets}
+                  />
+                  {errors.dataset && <p className="text-sm text-error">{errors.dataset}</p>}
+                  <Select
+                    label="Column"
+                    value={selectedColumn}
+                    onChange={(e) => {
+                      setSelectedColumn(e.target.value);
+                      clearError('column');
+                    }}
+                    options={mockColumns}
+                  />
+                  {errors.column && <p className="text-sm text-error">{errors.column}</p>}
                 </div>
-                <div className='flex items-center gap-2'>
-                  <input type='checkbox' checked={unique} onChange={(e) => setUnique(e.target.checked)} className='h-4 w-4 rounded border-border' id='unique' />
-                  <label htmlFor='unique' className='text-sm text-text'>Unique</label>
-                </div>
-                <div className='flex items-center gap-2'>
-                  <input type='checkbox' checked={nullable} onChange={(e) => setNullable(e.target.checked)} className='h-4 w-4 rounded border-border' id='nullable' />
-                  <label htmlFor='nullable' className='text-sm text-text'>Nullable</label>
-                </div>
+              )}
+              {strategyType === 'Generator' && (
+                <Select
+                  label="Generator"
+                  value={selectedGenerator}
+                  onChange={(e) => setSelectedGenerator(e.target.value)}
+                  options={generatorOptions}
+                />
+              )}
+              {strategyType === 'Manual' && (
+                <p className="text-sm text-text-secondary">
+                  No configuration needed. Values will be entered manually.
+                </p>
+              )}
+              {(strategyType === 'Provider' || strategyType === 'Runtime Response' || strategyType === 'Environment Variable') && (
+                <p className="text-xs text-text-secondary">
+                  {strategyType} configuration will be available in a future update.
+                </p>
+              )}
+            </div>
+          )}
+
+          {activeSection === 'Validation' && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={required}
+                  onChange={(e) => setRequired(e.target.checked)}
+                  className="h-4 w-4 rounded border-border"
+                  id="required"
+                />
+                <label htmlFor="required" className="text-sm text-text">
+                  Required
+                </label>
               </div>
-            )}
-          </CardContent>
-          <CardFooter className='justify-end gap-2'>
-            <Button type='button' variant='outline' onClick={onClose} disabled={isSubmitting}>Cancel</Button>
-            <Button type='submit' disabled={isSubmitting}>{isSubmitting ? 'Saving...' : column ? 'Update' : 'Save'}</Button>
-          </CardFooter>
-        </form>
-      </Card>
-    </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={unique}
+                  onChange={(e) => setUnique(e.target.checked)}
+                  className="h-4 w-4 rounded border-border"
+                  id="unique"
+                />
+                <label htmlFor="unique" className="text-sm text-text">
+                  Unique
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={nullable}
+                  onChange={(e) => setNullable(e.target.checked)}
+                  className="h-4 w-4 rounded border-border"
+                  id="nullable"
+                />
+                <label htmlFor="nullable" className="text-sm text-text">
+                  Nullable
+                </label>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </EntityDialog>
   );
 };
 

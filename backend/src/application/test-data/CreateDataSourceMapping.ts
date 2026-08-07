@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { DataSourceMappingRepository } from '../../domain/test-data/DataSourceMappingRepository';
 import { DataSourceMappingEntity } from '../../domain/test-data/DataSourceMappingEntity';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export class CreateDataSourceMapping {
   constructor(private readonly mappingRepository: DataSourceMappingRepository) {}
@@ -19,15 +20,10 @@ export class CreateDataSourceMapping {
     runtimeField?: string;
     notes?: string;
   }): Promise<DataSourceMappingEntity> {
-    if (!params.fieldPath || !params.fieldPath.trim()) {
-      throw new Error('Field path is required');
-    }
+    const fieldPath = ValidationHelpers.validateRequired(params.fieldPath, 'Field path');
+    const sourceType = ValidationHelpers.validateRequired(params.sourceType, 'Source type');
 
-    if (!params.sourceType || !params.sourceType.trim()) {
-      throw new Error('Source type is required');
-    }
-
-    const exists = await this.mappingRepository.existsByField(params.operationId, params.fieldPath.trim());
+    const exists = await this.mappingRepository.existsByField(params.operationId, fieldPath);
     if (exists) {
       throw new Error(`Mapping for field "${params.fieldPath}" already exists for this operation`);
     }
@@ -38,16 +34,16 @@ export class CreateDataSourceMapping {
       params.projectId,
       params.serviceId,
       params.operationId,
-      params.fieldPath.trim(),
-      params.sourceType.trim(),
-      params.notes?.trim() || '',
+      fieldPath,
+      sourceType,
+      ValidationHelpers.trimString(params.notes),
       now,
       now,
       params.datasetId,
-      params.datasetColumn?.trim(),
-      params.environmentVariable?.trim(),
+      params.datasetColumn === undefined ? undefined : ValidationHelpers.trimString(params.datasetColumn),
+      params.environmentVariable === undefined ? undefined : ValidationHelpers.trimString(params.environmentVariable),
       params.runtimeOperationId,
-      params.runtimeField?.trim()
+      params.runtimeField === undefined ? undefined : ValidationHelpers.trimString(params.runtimeField)
     );
 
     return this.mappingRepository.create(mapping);

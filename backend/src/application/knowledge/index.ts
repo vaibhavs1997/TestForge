@@ -8,3 +8,5 @@ export * from './ManageBusinessRules';
 export * from './ManageRuntimeVariables';
 export * from './ManageDependencies';
 export * from './ManageDocumentation';
+export * from './ImportKnowledgeDocuments';
+export * from './extractDocumentText';

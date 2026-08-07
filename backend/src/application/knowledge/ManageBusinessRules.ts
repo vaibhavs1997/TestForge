@@ -2,27 +2,34 @@
 import { randomUUID } from 'node:crypto';
 import { BusinessRule } from '../../domain/knowledge/BusinessRuleEntity';
 import { BusinessRuleRepository } from '../../domain/knowledge/BusinessRuleRepository';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export class ManageBusinessRules {
   constructor(private readonly businessRuleRepository: BusinessRuleRepository) {}
 
   async create(input: Omit<BusinessRule, 'id' | 'createdAt' | 'updatedAt'>): Promise<BusinessRule> {
-    if (!input.name || !input.name.trim()) {
-      throw new Error('Business Rule name is required');
-    }
+    const name = ValidationHelpers.validateRequired(input.name, 'Business Rule name');
 
-    const exists = await this.businessRuleRepository.existsByName(input.name.trim(), input.projectId);
-    if (exists) {
-      throw new Error(`Business Rule with name "${input.name}" already exists in this project`);
+    try {
+      await ValidationHelpers.validateUniqueName(
+        this.businessRuleRepository,
+        input.name,
+        input.projectId
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message === `Resource with name "${input.name}" already exists in this project`) {
+        throw new Error(`Business Rule with name "${input.name}" already exists in this project`);
+      }
+      throw error;
     }
 
     const now = Date.now();
     const rule: BusinessRule = {
       ...input,
       id: randomUUID(),
-      name: input.name.trim(),
-      description: input.description?.trim() || '',
-      tags: input.tags?.map(t => t.trim()).filter(t => t.length > 0) || [],
+      name,
+      description: ValidationHelpers.trimString(input.description),
+      tags: ValidationHelpers.trimStringArray(input.tags),
       createdAt: now,
       updatedAt: now,
     };
@@ -36,13 +43,15 @@ export class ManageBusinessRules {
       throw new Error(`Business Rule with id ${id} not found`);
     }
 
-    if (data.name !== undefined && !data.name.trim()) {
-      throw new Error('Business Rule name cannot be empty');
+    if (data.name !== undefined) {
+      ValidationHelpers.validateNotEmpty(data.name, 'Business Rule name');
     }
 
     return this.businessRuleRepository.update(id, {
       ...data,
-      name: data.name?.trim() || existing.name,
+      name: data.name !== undefined ? ValidationHelpers.trimString(data.name) : existing.name,
+      description: data.description !== undefined ? ValidationHelpers.trimString(data.description) : existing.description,
+      tags: data.tags !== undefined ? ValidationHelpers.trimStringArray(data.tags) : existing.tags,
       updatedAt: Date.now(),
     });
   }

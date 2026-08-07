@@ -3,6 +3,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { ProviderEntity } from '../../domain/providers/ProviderEntity';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
 
 // Mask credentials when persisting to disk
 const SECRET_KEYS = ['apiKey', 'apiSecret', 'token', 'password', 'authToken', 'secret', 'accountSid'];
@@ -19,11 +20,13 @@ function maskCredentials(credentials: Record<string, any>): Record<string, any> 
   return masked;
 }
 
-const DATA_ROOT = path.join(process.cwd(), 'data', 'providers');
+function getDataRoot(): string {
+  return path.join(process.cwd(), 'data', 'providers');
+}
 
 export class ProviderRepository {
   private getProjectDir(projectId: string): string {
-    return path.join(DATA_ROOT, projectId);
+    return path.join(getDataRoot(), projectId);
   }
 
   private getProvidersFilePath(projectId: string): string {
@@ -42,7 +45,7 @@ export class ProviderRepository {
     const filePath = this.getProvidersFilePath(provider.projectId);
     const items = await this.readProviders(provider.projectId);
     items.push(provider);
-    fs.writeFileSync(filePath, JSON.stringify(items, null, 2));
+    await writeJsonArray(filePath, items);
     return provider;
   }
 
@@ -97,7 +100,7 @@ export class ProviderRepository {
           });
         }
         items[index] = updated;
-        fs.writeFileSync(filePath, JSON.stringify(items, null, 2));
+        await writeJsonArray(filePath, items);
         return updated;
       }
     }
@@ -111,27 +114,24 @@ export class ProviderRepository {
       const items = await this.readProviders(projectId);
       const filtered = items.filter(p => p.id !== id);
       if (filtered.length !== items.length) {
-        fs.writeFileSync(filePath, JSON.stringify(filtered, null, 2));
+        await writeJsonArray(filePath, filtered);
         return;
       }
     }
   }
 
   private listProjectIds(): string[] {
-    if (!fs.existsSync(DATA_ROOT)) return [];
-    return fs.readdirSync(DATA_ROOT).filter(name => {
-      const fullPath = path.join(DATA_ROOT, name);
+    if (!fs.existsSync(getDataRoot())) return [];
+    return fs.readdirSync(getDataRoot()).filter(name => {
+      const fullPath = path.join(getDataRoot(), name);
       return fs.statSync(fullPath).isDirectory();
     });
   }
 
-  private readProviders(projectId: string): ProviderEntity[] {
+  private async readProviders(projectId: string): Promise<ProviderEntity[]> {
     const filePath = this.getProvidersFilePath(projectId);
-    if (!fs.existsSync(filePath)) return [];
-    const data = fs.readFileSync(filePath, 'utf-8');
-    const raw = JSON.parse(data);
-    // Mask credentials on read to protect secrets
-    return raw.map((p: any) => ({
+    const raw = await readJsonArray<ProviderEntity>(filePath);
+    return raw.map((p) => ({
       ...p,
       credentials: p.credentials ? maskCredentials(p.credentials) : {},
     }));

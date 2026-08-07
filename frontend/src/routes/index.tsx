@@ -3,7 +3,12 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppShell } from '../layouts/AppShell';
 import { ProjectRoutes } from '../modules/project';
 import { SettingsRoutes } from '../modules/settings';
+import { LandingPage } from '../modules/landing';
 import { projectStore } from '../store/projectStore';
+import { RequireAuth } from '../modules/auth/components/RequireAuth';
+import { GuestOnly } from '../modules/auth/components/GuestOnly';
+import { EnterpriseAuthRoutes } from '../modules/auth/components/EnterpriseAuthRoutes';
+import { AuthModalRedirect } from '../modules/auth/components/AuthModalRedirect';
 // Simple loading fallback for lazy routes
 const PageLoader = () => (
   <div className="flex h-screen items-center justify-center">
@@ -30,8 +35,15 @@ const ProjectModuleRedirect: React.FC<{ module: string }> = ({ module }) => {
 
 export const AppRoutes = () => (
   <Routes>
-    <Route element={<AppShell />}>
-      <Route path='/' element={<Navigate to='/projects' replace />} />
+    <Route path="/" element={<LandingPage />} />
+    <Route element={<GuestOnly />}>
+      <Route element={<EnterpriseAuthRoutes />}>
+        <Route path="/login" element={<AuthModalRedirect mode="login" />} />
+        <Route path="/register" element={<AuthModalRedirect mode="register" />} />
+      </Route>
+    </Route>
+    <Route element={<RequireAuth />}>
+      <Route element={<AppShell />}>
       <Route path='/dashboard' element={
         <Suspense fallback={<PageLoader />}>
           <DashboardPage />
@@ -81,6 +93,7 @@ export const AppRoutes = () => (
       <Route path='/context/*' element={<ProjectModuleRedirect module='context' />} />
       <Route path='/prompts' element={<ProjectModuleRedirect module='prompts' />} />
       <Route path='/prompts/*' element={<ProjectModuleRedirect module='prompts' />} />
+      </Route>
     </Route>
   </Routes>
 );

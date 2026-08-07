@@ -1,3 +1,1 @@
-// Barrel export file
-// Add exports here as modules are implemented
-export {};
+export * from './unifiedKnowledge';

@@ -1,5 +1,5 @@
 // TanStack Query hooks for Test Data Library
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCRUD } from '../../../hooks/useCRUD';
 import { datasetService } from '../services/datasetService';
 import type { DatasetDto } from '../services/datasetService';
 import { queryKeys } from '../../../constants';
@@ -7,60 +7,37 @@ import { queryKeys } from '../../../constants';
 // ─── Datasets ──────────────────────────────────────────────────
 
 export const useDatasets = (projectId?: string) => {
-  const queryClient = useQueryClient();
-  const queryKey = queryKeys.datasets(projectId || '');
-
-  const { data: datasets = [], isLoading, isError, error } = useQuery({
-    queryKey,
-    queryFn: async () => {
-      if (!projectId) return [];
-      const result = await datasetService.listDatasets(projectId);
-      return result;
+  const { data, isLoading, isError, error, create, update, remove, isCreating, isUpdating, isDeleting } = useCRUD({
+    queryKey: queryKeys.datasets(projectId || ''),
+    service: {
+      list: () => (projectId ? datasetService.listDatasets(projectId) : Promise.resolve([])),
+      create: (input: { projectId: string; name: string; description?: string; category?: string }) =>
+        datasetService.createDataset(input.projectId, {
+          name: input.name,
+          description: input.description,
+          category: input.category,
+        }),
+      update: (datasetId: string, input: { name?: string; description?: string; category?: string }) =>
+        datasetService.updateDataset(projectId || '', datasetId, input),
+      delete: (datasetId: string) => datasetService.deleteDataset(projectId || '', datasetId),
     },
     enabled: !!projectId,
   });
 
-  const createMutation = useMutation({
-    mutationFn: (data: { projectId: string; name: string; description?: string; category?: string }) =>
-      datasetService.createDataset(data.projectId, {
-        name: data.name,
-        description: data.description,
-        category: data.category,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ datasetId, ...data }: { datasetId: string } & { name?: string; description?: string; category?: string }) =>
-      datasetService.updateDataset(projectId || '', datasetId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (datasetId: string) => datasetService.deleteDataset(projectId || '', datasetId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
-    },
-  });
-
   return {
-    datasets,
+    datasets: data,
     isLoading,
     isError,
     error,
-    create: createMutation.mutate,
-    createAsync: createMutation.mutateAsync,
-    isCreating: createMutation.isPending,
-    update: updateMutation.mutate,
-    updateAsync: updateMutation.mutateAsync,
-    isUpdating: updateMutation.isPending,
-    remove: deleteMutation.mutate,
-    removeAsync: deleteMutation.mutateAsync,
-    isDeleting: deleteMutation.isPending,
+    create,
+    createAsync: create,
+    isCreating,
+    update,
+    updateAsync: update,
+    isUpdating,
+    remove,
+    removeAsync: remove,
+    isDeleting,
   };
 };
 

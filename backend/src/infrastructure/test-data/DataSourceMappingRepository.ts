@@ -2,12 +2,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { DataSourceMappingEntity } from '../../domain/test-data/DataSourceMappingEntity';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
 
-const DATA_ROOT = path.join(process.cwd(), 'data', 'test-data');
+function getDataRoot(): string {
+  return path.join(process.cwd(), 'data', 'test-data');
+}
 
 export class DataSourceMappingRepository {
   private getProjectDir(projectId: string): string {
-    return path.join(DATA_ROOT, projectId);
+    return path.join(getDataRoot(), projectId);
   }
 
   private getMappingsFilePath(projectId: string): string {
@@ -26,7 +29,7 @@ export class DataSourceMappingRepository {
     const filePath = this.getMappingsFilePath(mapping.projectId);
     const mappings = await this.readMappings(mapping.projectId);
     mappings.push(mapping);
-    fs.writeFileSync(filePath, JSON.stringify(mappings, null, 2));
+    await writeJsonArray(filePath, mappings);
     return mapping;
   }
 
@@ -39,7 +42,7 @@ export class DataSourceMappingRepository {
         const updated = { ...mappings[index], ...data, updatedAt: Date.now() };
         mappings[index] = updated;
         const filePath = this.getMappingsFilePath(projectId);
-        fs.writeFileSync(filePath, JSON.stringify(mappings, null, 2));
+        await writeJsonArray(filePath, mappings);
         return updated;
       }
     }
@@ -53,7 +56,7 @@ export class DataSourceMappingRepository {
       const filtered = mappings.filter(m => m.id !== id);
       if (filtered.length !== mappings.length) {
         const filePath = this.getMappingsFilePath(projectId);
-        fs.writeFileSync(filePath, JSON.stringify(filtered, null, 2));
+        await writeJsonArray(filePath, filtered);
         return;
       }
     }
@@ -110,18 +113,16 @@ export class DataSourceMappingRepository {
   }
 
   private listProjectIds(): string[] {
-    if (!fs.existsSync(DATA_ROOT)) return [];
-    return fs.readdirSync(DATA_ROOT).filter(name => {
-      const fullPath = path.join(DATA_ROOT, name);
+    if (!fs.existsSync(getDataRoot())) return [];
+    return fs.readdirSync(getDataRoot()).filter(name => {
+      const fullPath = path.join(getDataRoot(), name);
       return fs.statSync(fullPath).isDirectory();
     });
   }
 
-  private readMappings(projectId: string): DataSourceMappingEntity[] {
+  private async readMappings(projectId: string): Promise<DataSourceMappingEntity[]> {
     const filePath = this.getMappingsFilePath(projectId);
-    if (!fs.existsSync(filePath)) return [];
-    const data = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(data);
+    return readJsonArray(filePath);
   }
 }
 

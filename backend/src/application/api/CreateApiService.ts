@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity';
 import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
 import { EventPublisher } from '../EventPublisher';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export class CreateApiService {
   constructor(
@@ -16,24 +17,25 @@ export class CreateApiService {
     description?: string;
     version?: string;
     tags?: string[];
+    baseUrl?: string;
   }): Promise<ApiServiceEntity> {
-    if (!params.name || !params.name.trim()) {
-      throw new Error('Service Name is required');
-    }
+    const name = ValidationHelpers.validateRequired(params.name, 'Service Name');
 
-    const exists = await this.apiServiceRepository.existsByName(params.name.trim(), params.projectId);
-    if (exists) {
-      throw new Error(`Service with name "${params.name}" already exists in this project`);
-    }
+    await ValidationHelpers.validateUniqueName(
+      this.apiServiceRepository,
+      name,
+      params.projectId
+    );
 
     const now = Date.now();
     const service = new ApiServiceEntity(
       randomUUID(),
       params.projectId,
-      params.name.trim(),
-      params.description?.trim() || '',
-      params.version?.trim() || 'v1',
-      params.tags?.map(t => t.trim()).filter(t => t.length > 0) || [],
+      name,
+      ValidationHelpers.trimString(params.description),
+      ValidationHelpers.trimString(params.version) || 'v1',
+      ValidationHelpers.trimStringArray(params.tags),
+      ValidationHelpers.trimString(params.baseUrl),
       now,
       now
     );

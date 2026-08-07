@@ -1,43 +1,44 @@
-import axios from 'axios';
+// Provider service for Data Providers
+import { ApiClient } from '../../../services/ApiClient';
 import type { Provider, CreateProviderInput, ProviderTestResult, AdapterInfo } from '../types/provider';
-import { API_BASE_URL } from '../../../constants/api';
 
-export const providerService = {
-  listByProject: async (projectId: string, category?: string): Promise<Provider[]> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/providers`, {
-      params: category ? { category } : undefined,
-    });
-    return data.data;
-  },
+class ProviderService extends ApiClient<Provider> {
+  constructor() {
+    super('/projects/:projectId/providers');
+  }
 
-  getById: async (projectId: string, providerId: string): Promise<Provider> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/providers/${providerId}`);
-    return data.data;
-  },
+  async listByProject(projectId: string, category?: string): Promise<Provider[]> {
+    const params = category ? { category } : {};
+    return this.list(projectId, params);
+  }
 
-  create: async (projectId: string, input: CreateProviderInput): Promise<Provider> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/providers`, input);
-    return data.data;
-  },
+  async getById(projectId: string, providerId: string): Promise<Provider> {
+    return this.get(projectId, providerId);
+  }
 
-  update: async (projectId: string, providerId: string, updates: Partial<CreateProviderInput>): Promise<Provider> => {
-    const { data } = await axios.patch(`${API_BASE_URL}/projects/${projectId}/providers/${providerId}`, updates);
-    return data.data;
-  },
+  async createProvider(projectId: string, input: CreateProviderInput): Promise<Provider> {
+    return this.create(projectId, input);
+  }
 
-  delete: async (projectId: string, providerId: string): Promise<void> => {
-    await axios.delete(`${API_BASE_URL}/projects/${projectId}/providers/${providerId}`);
-  },
+  async updateProvider(projectId: string, providerId: string, updates: Partial<CreateProviderInput>): Promise<Provider> {
+    return this.patch(projectId, providerId, updates);
+  }
 
-  testConnection: async (projectId: string, providerId: string): Promise<ProviderTestResult> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/providers/${providerId}/test`);
-    return data.data;
-  },
+  async deleteProvider(projectId: string, providerId: string): Promise<void> {
+    return this.delete(projectId, providerId);
+  }
 
-  listAdapterTypes: async (): Promise<AdapterInfo[]> => {
-    const { data } = await axios.get(`${API_BASE_URL}/adapter-types`);
-    return data.data;
-  },
-};
+  async testConnection(projectId: string, providerId: string): Promise<ProviderTestResult> {
+    const path = `/projects/${projectId}/providers/${providerId}/test`;
+    return this.post(path);
+  }
+
+  async listAdapterTypes(): Promise<AdapterInfo[]> {
+    const path = `/adapter-types`;
+    return this.getCustom(path);
+  }
+}
+
+export const providerService = new ProviderService();
 
 export default providerService;

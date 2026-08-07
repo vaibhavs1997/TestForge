@@ -5,7 +5,7 @@ import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
-import { Toast } from '../../../components/shared/Toast';
+import { Toast, type ToastType } from '../../../components/shared/Toast';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
 import {
   Database,
@@ -20,6 +20,7 @@ import {
   Globe,
   Zap,
   Network,
+  Link2,
   FileText,
   FlaskConical,
   BookOpen,
@@ -45,6 +46,11 @@ import { rowService } from '../services/rowService';
 import { relationshipService } from '../services/relationshipService';
 import { Check, X as XIcon, ArrowUp, ArrowDown, Plus as PlusIcon, Upload, FileSpreadsheet, FileJson } from 'lucide-react';
 import { logger } from '../../../utils/logger';
+import { useParams, useLocation } from 'react-router-dom';
+import { datasetService } from '../services/datasetService';
+import { MappingPage } from './MappingPage';
+import { useMappings } from '../hooks/useMappings';
+import { providerService } from '../services/providerService';
 
 // Memoized category badge to avoid re-renders
 const CategoryBadge = React.memo<{ category: string }>(({ category }) => {
@@ -132,21 +138,39 @@ interface Dataset {
 }
 
 type ViewMode = 'card' | 'table';
-type NavSection = 'datasets' | 'datasources' | 'generators' | 'providers' | 'relationships';
+type TestDataSection = 'datasets' | 'mappings' | 'relationships' | 'providers' | 'datasources' | 'generators';
 
 const CATEGORY_OPTIONS = ['General', 'Customer', 'Product', 'Order', 'Payment', 'User', 'Custom'];
 
+const SECTION_CHIPS: {
+  id: TestDataSection;
+  label: string;
+  icon: typeof Database;
+  comingSoon?: boolean;
+}[] = [
+  { id: 'datasets', label: 'Datasets', icon: Database },
+  { id: 'mappings', label: 'Mappings', icon: Link2 },
+  { id: 'relationships', label: 'Relationships', icon: Network },
+  { id: 'providers', label: 'Providers', icon: Sparkles },
+  { id: 'datasources', label: 'Data Sources', icon: Globe, comingSoon: true },
+  { id: 'generators', label: 'Generators', icon: Zap, comingSoon: true },
+];
+
 export const TestDataLibraryPage = () => {
+  const { projectId } = useParams<{ projectId: string }>();
+  const location = useLocation();
+  const resolvedProjectId = projectId ?? '';
   const [search, setSearch] = React.useState('');
   const [categoryFilter, setCategoryFilter] = React.useState<string>('All');
   const [viewMode, setViewMode] = React.useState<ViewMode>('card');
-  const [activeNav, setActiveNav] = React.useState<NavSection>('datasets');
+  const [activeSection, setActiveSection] = React.useState<TestDataSection>('datasets');
   const [editOpen, setEditOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [selectedDataset, setSelectedDataset] = React.useState<Dataset | null>(null);
   const [detailsOpen, setDetailsOpen] = React.useState(false);
   const [toastOpen, setToastOpen] = React.useState(false);
   const [toastMessage, setToastMessage] = React.useState('');
+  const [toastType, setToastType] = React.useState<ToastType>('success');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState('Overview');
   const [editorOpen, setEditorOpen] = React.useState(false);
@@ -156,6 +180,7 @@ export const TestDataLibraryPage = () => {
   const [rejectedSuggestions, setRejectedSuggestions] = React.useState<Set<string>>(new Set());
   const [selectedSuggestionIds, setSelectedSuggestionIds] = React.useState<Set<string>>(new Set());
   const [importWizardOpen, setImportWizardOpen] = React.useState(false);
+  const importFileInputRef = React.useRef<HTMLInputElement>(null);
   const [importStep, setImportStep] = React.useState(1);
   const [importFile, setImportFile] = React.useState<File | null>(null);
   const [importPreview, setImportPreview] = React.useState<Record<string, any>[]>([]);
@@ -168,6 +193,9 @@ export const TestDataLibraryPage = () => {
   });
   const [importResult, setImportResult] = React.useState<any>(null);
   const [isImporting, setIsImporting] = React.useState(false);
+  const [importTargetDatasetId, setImportTargetDatasetId] = React.useState('');
+  const [importDatasetMode, setImportDatasetMode] = React.useState<'existing' | 'new'>('new');
+  const [importNewDatasetName, setImportNewDatasetName] = React.useState('');
   const [relationshipDialogOpen, setRelationshipDialogOpen] = React.useState(false);
   const [relationships, setRelationships] = React.useState<any[]>([]);
   const [datasets, setDatasets] = React.useState<Dataset[]>([]);
@@ -175,19 +203,53 @@ export const TestDataLibraryPage = () => {
   const [datasetsError, setDatasetsError] = React.useState<string | null>(null);
   const [currentPage, setCurrentPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(25);
+  const { mappings } = useMappings(resolvedProjectId);
+  const [providerCount, setProviderCount] = React.useState(0);
+  const [relationshipCount, setRelationshipCount] = React.useState(0);
 
-  // Load datasets on mount
+  React.useEffect(() => {
+    if (!resolvedProjectId) return;
+    providerService.listByProject(resolvedProjectId).then((p) => setProviderCount(p.length)).catch(() => {});
+    relationshipService.listByProject(resolvedProjectId).then((r) => setRelationshipCount(r.length)).catch(() => {});
+  }, [resolvedProjectId]);
+
+  const sectionCounts = React.useMemo(
+    () => ({
+      datasets: datasets.length,
+      mappings: (mappings ?? []).length,
+      relationships: relationshipCount,
+      providers: providerCount,
+      datasources: 0,
+      generators: 0,
+    }),
+    [datasets.length, mappings, relationshipCount, providerCount]
+  );
   React.useEffect(() => {
     const loadDatasets = async () => {
+      if (!projectId) {
+        setDatasets([]);
+        setIsLoadingDatasets(false);
+        return;
+      }
       try {
         setIsLoadingDatasets(true);
         setDatasetsError(null);
-        // TODO: Replace with real API call
-        // const data = await datasetService.listDatasets(projectId);
-        // setDatasets(data);
-        
-        // For now, show empty state - no mock data
-        setDatasets([]);
+        const data = await datasetService.listDatasets(projectId);
+        setDatasets(
+          data.map((d) => ({
+            id: d.id,
+            projectId: d.projectId,
+            name: d.name,
+            description: d.description || '',
+            category: d.category || 'General',
+            rows: d.rowCount ?? 0,
+            columns: 0,
+            relationships: 0,
+            lastUpdated: new Date(d.updatedAt).toLocaleString(),
+            created: new Date(d.createdAt).toLocaleString(),
+            usedBy: { requirements: 0, suites: 0, apis: 0, knowledge: 0 },
+          })),
+        );
       } catch (err) {
         setDatasetsError(err instanceof Error ? err.message : 'Failed to load datasets');
         logger.error('Failed to load datasets', err);
@@ -196,8 +258,26 @@ export const TestDataLibraryPage = () => {
       }
     };
 
-    loadDatasets();
-  }, []);
+    void loadDatasets();
+  }, [projectId]);
+
+  React.useEffect(() => {
+    const afterTestData = location.pathname.split('/testdata')[1] ?? '';
+    const segment = afterTestData.replace(/^\//, '').split('/')[0] || '';
+    const segmentToSection: Record<string, TestDataSection> = {
+      '': 'datasets',
+      rows: 'datasets',
+      mapping: 'mappings',
+      mappings: 'mappings',
+      relationships: 'relationships',
+      providers: 'providers',
+      generators: 'generators',
+    };
+    const next = segmentToSection[segment];
+    if (next) setActiveSection(next);
+  }, [location.pathname]);
+
+  // Load datasets on mount
 
   const filteredDatasets = React.useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -211,7 +291,7 @@ export const TestDataLibraryPage = () => {
   const handleCreate = (data: DatasetDialogData) => {
     const newDataset: Dataset = {
       id: Date.now().toString(),
-      projectId: '1',
+      projectId: resolvedProjectId,
       name: data.name,
       description: data.description,
       category: data.category,
@@ -293,11 +373,53 @@ export const TestDataLibraryPage = () => {
     });
     setImportResult(null);
     setIsImporting(false);
+    setImportTargetDatasetId('');
+    setImportDatasetMode('new');
+    setImportNewDatasetName('');
+    if (importFileInputRef.current) {
+      importFileInputRef.current.value = '';
+    }
   };
+
+  const IMPORT_FILE_HELP_MESSAGE =
+    'Import could not run. In step 1, upload a CSV or JSON file with a header row and at least one data row, then try again.';
+
+  const showToast = (message: string, type: ToastType = 'success') => {
+    setToastMessage(message);
+    setToastType(type);
+    setToastOpen(true);
+  };
+
+  const getImportFileIssue = (): string | null => {
+    if (!importFile) {
+      return IMPORT_FILE_HELP_MESSAGE;
+    }
+    const ext = importFile.name.split('.').pop()?.toLowerCase();
+    if (ext !== 'csv' && ext !== 'json') {
+      return 'Only .csv and .json files are supported. Go back to step 1 and choose a supported file.';
+    }
+    if (importColumns.length === 0) {
+      return IMPORT_FILE_HELP_MESSAGE;
+    }
+    return null;
+  };
+
+  const dismissImportWizardWithError = (message: string) => {
+    setImportWizardOpen(false);
+    resetImportWizard();
+    showToast(message, 'error');
+  };
+
+  const isImportUploadErrorMessage = (message: string) =>
+    /no file uploaded/i.test(message);
 
   const handleFileSelect = (file: File | null) => {
     setImportFile(file);
     if (file) {
+      const baseName = file.name.replace(/\.[^.]+$/, '').trim();
+      if (baseName) {
+        setImportNewDatasetName(baseName);
+      }
       const reader = new FileReader();
       reader.onload = (e) => {
         const content = e.target?.result as string;
@@ -337,45 +459,148 @@ export const TestDataLibraryPage = () => {
     }
   };
 
-  const handleNextStep = async () => {
-    if (importStep === 5) {
-      // Execute import
-      setIsImporting(true);
-      try {
-        const result = await rowService.importData(
-          selectedDataset?.projectId || '1',
-          selectedDataset?.id || '1',
-          importFile!,
-          importOptions
-        );
-        setImportResult(result);
-      } catch (error) {
-        logger.error('Dataset import failed', error);
-        setToastMessage('Import failed');
-        setToastOpen(true);
-      } finally {
-        setIsImporting(false);
-      }
+  const resolveImportDatasetId = () =>
+    importTargetDatasetId || selectedDataset?.id || '';
+
+  const usesNewDatasetForImport = () =>
+    datasets.length === 0 || importDatasetMode === 'new';
+
+  const isImportTargetReady = () => {
+    if (usesNewDatasetForImport()) {
+      return importNewDatasetName.trim().length > 0;
     }
-    setImportStep(importStep + 1);
+    return Boolean(resolveImportDatasetId());
+  };
+
+  const ensureImportDatasetId = async (): Promise<string> => {
+    if (!usesNewDatasetForImport()) {
+      const id = resolveImportDatasetId();
+      if (!id) {
+        throw new Error('Select a dataset to import into');
+      }
+      return id;
+    }
+
+    if (importTargetDatasetId) {
+      return importTargetDatasetId;
+    }
+
+    const name = importNewDatasetName.trim();
+    if (!name) {
+      throw new Error('Enter a name for the new dataset');
+    }
+
+    const created = await datasetService.createDataset(resolvedProjectId, {
+      name,
+      description: importFile ? `Imported from ${importFile.name}` : undefined,
+      category: 'Custom',
+    });
+    setImportTargetDatasetId(created.id);
+    setImportDatasetMode('existing');
+    return created.id;
+  };
+
+  const reloadDatasets = React.useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const data = await datasetService.listDatasets(projectId);
+      setDatasets(
+        data.map((d) => ({
+          id: d.id,
+          projectId: d.projectId,
+          name: d.name,
+          description: d.description || '',
+          category: d.category || 'General',
+          rows: d.rowCount ?? 0,
+          columns: 0,
+          relationships: 0,
+          lastUpdated: new Date(d.updatedAt).toLocaleString(),
+          created: new Date(d.createdAt).toLocaleString(),
+          usedBy: { requirements: 0, suites: 0, apis: 0, knowledge: 0 },
+        })),
+      );
+    } catch (err) {
+      logger.error('Failed to reload datasets', err);
+    }
+  }, [projectId]);
+
+  const handleNextStep = async () => {
+    if (importStep < 5) {
+      if (importStep === 1) {
+        const fileIssue = getImportFileIssue();
+        if (fileIssue) {
+          showToast(fileIssue, 'error');
+          return;
+        }
+      }
+      if (importStep === 4 && !isImportTargetReady()) {
+        showToast(
+          usesNewDatasetForImport()
+            ? 'Enter a name for the new dataset'
+            : 'Select a dataset to import into',
+          'error',
+        );
+        return;
+      }
+      setImportStep(importStep + 1);
+      return;
+    }
+
+    // Step 5: run import, then allow Finish to close
+    if (importResult) {
+      setImportWizardOpen(false);
+      resetImportWizard();
+      void reloadDatasets();
+      showToast('Import completed', 'success');
+      return;
+    }
+
+    const fileIssue = getImportFileIssue();
+    if (fileIssue) {
+      dismissImportWizardWithError(fileIssue);
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const datasetId = await ensureImportDatasetId();
+      const result = await rowService.importData(
+        resolvedProjectId,
+        datasetId,
+        importFile!,
+        importOptions,
+      );
+      setImportResult(result);
+      await reloadDatasets();
+    } catch (error) {
+      logger.error('Dataset import failed', error);
+      const message = error instanceof Error ? error.message : 'Import failed';
+      if (isImportUploadErrorMessage(message)) {
+        dismissImportWizardWithError(IMPORT_FILE_HELP_MESSAGE);
+        return;
+      }
+      showToast(message, 'error');
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   const canProceed = () => {
-    if (importStep === 1) return importFile !== null;
+    if (isImporting) return false;
+    if (importStep === 1) return importFile !== null && importColumns.length > 0;
+    if (importStep >= 2 && importStep <= 4) return getImportFileIssue() === null;
+    if (importStep === 4) return isImportTargetReady();
     if (importStep === 5) return true;
     return true;
   };
 
-  // Navigation Items
-  const navItems = [
-    { id: 'datasets' as NavSection, label: 'Datasets', icon: Database, active: activeNav === 'datasets' },
-    { id: 'datasources' as NavSection, label: 'Data Sources', icon: Globe, active: activeNav === 'datasources' },
-    { id: 'generators' as NavSection, label: 'Generators', icon: Zap, active: activeNav === 'generators' },
-    { id: 'providers' as NavSection, label: 'Providers', icon: Sparkles, active: activeNav === 'providers' },
-    { id: 'relationships' as NavSection, label: 'Relationships', icon: Network, active: activeNav === 'relationships' },
-  ];
+  const primaryWizardLabel = () => {
+    if (importStep < 5) return 'Next';
+    if (importResult) return 'Finish';
+    return 'Import';
+  };
 
-  // Memoized handlers for dataset cards to prevent re-renders
+  // Navigation Items — section chips rendered in main layout
   const handlers = useMemo(() => ({
     onView: (dataset: Dataset) => openDatasetDetails(dataset),
     onEdit: (dataset: Dataset) => { setSelectedDataset(dataset); setEditOpen(true); },
@@ -383,70 +608,111 @@ export const TestDataLibraryPage = () => {
     onDelete: (dataset: Dataset) => { setSelectedDataset(dataset); setDeleteOpen(true); },
   }), [openDatasetDetails, handleDuplicate]);
 
+  if (!projectId) {
+    return (
+      <div className="mx-auto max-w-7xl px-6 py-16 text-center text-text-secondary">
+        Open a project from the Projects page to manage test data.
+      </div>
+    );
+  }
+
   return (
-    <div className='flex h-screen'>
-      {/* Left Navigation Sidebar */}
-      <div className='w-64 border-r border-border bg-surface'>
-        <div className='p-4'>
-          <h2 className='mb-4 text-sm font-semibold text-text-secondary'>Test Data Library</h2>
-          <nav className='space-y-1'>
-            {navItems.map((item) => (
+    <div className='min-h-screen'>
+      <div className='mx-auto max-w-7xl px-6 py-8'>
+        <div className='mb-6 flex flex-wrap items-start justify-between gap-4'>
+          <div>
+            <h1 className='text-2xl font-bold text-text'>Test Data Library</h1>
+            <p className='mt-1 max-w-2xl text-sm text-text-secondary'>
+              Datasets, mappings, relationships, and providers in one place. Open a dataset to edit rows and columns.
+            </p>
+          </div>
+          {activeSection === 'datasets' && (
+            <div className='flex flex-wrap items-center gap-2'>
+              <Button
+                variant='outline'
+                onClick={() => {
+                  const defaultId = selectedDataset?.id ?? datasets[0]?.id ?? '';
+                  setImportTargetDatasetId(defaultId);
+                  setImportDatasetMode(datasets.length > 0 ? 'existing' : 'new');
+                  setImportWizardOpen(true);
+                }}
+              >
+                <Upload className='mr-2 h-4 w-4' />
+                Import Dataset
+              </Button>
+              <Button onClick={() => { setSelectedDataset(null); setEditOpen(true); }}>
+                <Plus className='mr-2 h-4 w-4' />
+                New Dataset
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <div className='mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6'>
+          {SECTION_CHIPS.map((chip) => {
+            const Icon = chip.icon;
+            const active = activeSection === chip.id;
+            const count = sectionCounts[chip.id];
+            return (
               <button
-                key={item.id}
-                onClick={() => setActiveNav(item.id)}
-                className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  activeNav === item.id ? 'bg-primary text-white' : 'text-text hover:bg-surface'
+                key={chip.id}
+                type='button'
+                onClick={() => setActiveSection(chip.id)}
+                className={`rounded-lg border p-3 text-left transition-colors ${
+                  chip.comingSoon
+                    ? 'border-border bg-surface/50 opacity-90'
+                    : active
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border bg-surface hover:border-primary/50'
                 }`}
               >
-                <div className='flex items-center gap-2'>
-                  <item.icon className='h-4 w-4' />
-                  {item.label}
+                <div className='flex items-center justify-between gap-1'>
+                  <div className='flex items-center gap-2 text-xs font-medium text-text-secondary'>
+                    <Icon className='h-3.5 w-3.5' />
+                    {chip.label}
+                  </div>
+                  {chip.comingSoon ? (
+                    <Badge variant='secondary' className='text-[10px]'>
+                      Soon
+                    </Badge>
+                  ) : null}
                 </div>
-                {!item.active && (
-                  <Badge variant='secondary' className='text-xs'>
-                    Soon
-                  </Badge>
-                )}
+                <p className='mt-1 text-xl font-semibold text-text'>{chip.comingSoon ? '—' : count}</p>
               </button>
-            ))}
-          </nav>
+            );
+          })}
         </div>
-      </div>
 
-      {/* Main Content */}
-      <div className='flex-1 overflow-auto'>
-        <div className='mx-auto max-w-7xl px-4 py-8'>
-          {/* Relationships Section */}
-          {activeNav === 'relationships' && (
+          {activeSection === 'relationships' && (
             <RelationshipsSection
               datasets={datasets}
-              projectId='1'
+              projectId={resolvedProjectId}
               setToastMessage={setToastMessage}
               setToastOpen={setToastOpen}
             />
           )}
 
-          {/* Providers Section */}
-          {activeNav === 'providers' && (
+          {activeSection === 'providers' && (
             <ProvidersSection
-              projectId='1'
+              projectId={resolvedProjectId}
               setToastMessage={setToastMessage}
               setToastOpen={setToastOpen}
             />
           )}
 
-          {/* Coming Soon Sections */}
-          {activeNav !== 'datasets' && activeNav !== 'relationships' && activeNav !== 'providers' && (
+          {activeSection === 'mappings' && <MappingPage embedded />}
+
+          {(activeSection === 'datasources' || activeSection === 'generators') && (
             <div className='flex flex-col items-center justify-center py-20'>
               <div className='mb-4 rounded-full bg-primary/10 p-6'>
-                {activeNav === 'datasources' && <Globe className='h-12 w-12 text-primary' />}
-                {activeNav === 'generators' && <Zap className='h-12 w-12 text-primary' />}
+                {activeSection === 'datasources' && <Globe className='h-12 w-12 text-primary' />}
+                {activeSection === 'generators' && <Zap className='h-12 w-12 text-primary' />}
               </div>
               <h3 className='mb-2 text-2xl font-bold text-text'>Coming Soon</h3>
               <p className='mb-6 max-w-md text-center text-sm text-text-secondary'>
-                {activeNav === 'datasources' &&
+                {activeSection === 'datasources' &&
                   'Manage where execution data comes from. Configure datasets, environment variables, runtime responses, and AI-generated data sources.'}
-                {activeNav === 'generators' && 'Reusable value generators for creating realistic test data on the fly.'}
+                {activeSection === 'generators' && 'Reusable value generators for creating realistic test data on the fly.'}
               </p>
               <Badge variant='outline' className='text-xs'>
                 Available in next release
@@ -454,35 +720,13 @@ export const TestDataLibraryPage = () => {
             </div>
           )}
 
-          {/* Datasets Section */}
-          {activeNav === 'datasets' && (
+          {activeSection === 'datasets' && (
             <>
-              {/* Page Header */}
-              <div className='mb-6 flex items-center justify-between'>
-                <div>
-                  <h1 className='text-2xl font-bold text-text'>Test Data Library</h1>
-                  <p className='mt-1 text-sm text-text-secondary'>
-                    Manage reusable datasets, generators, providers and data mappings used across your project.
-                  </p>
-                </div>
-                <div className='flex items-center gap-2'>
-                  <Button variant='outline' onClick={() => setImportWizardOpen(true)}>
-                    <Upload className='mr-2 h-4 w-4' />
-                    Import Dataset
-                  </Button>
-                  <Button onClick={() => { setSelectedDataset(null); setEditOpen(true); }}>
-                    <Plus className='mr-2 h-4 w-4' />
-                    New Dataset
-                  </Button>
-                </div>
-              </div>
-
-              {/* Search and Filters */}
               <div className='mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
                 <div className='flex flex-1 items-center gap-3'>
                   <SearchBar value={search} onChange={setSearch} placeholder='Search datasets...' className='sm:w-80' />
-                  <div className='flex gap-2'>
-                    {CATEGORY_OPTIONS.map((category) => (
+                  <div className='flex flex-wrap gap-2'>
+                    {['All', ...CATEGORY_OPTIONS].map((category) => (
                       <Button
                         key={category}
                         variant={categoryFilter === category ? 'default' : 'outline'}
@@ -828,15 +1072,40 @@ export const TestDataLibraryPage = () => {
                       {/* Step 1: Upload File */}
                       {importStep === 1 && (
                         <div className='space-y-4'>
-                          <div className='border-2 border-dashed border-border rounded-lg p-8 text-center'>
-                            <Upload className='h-12 w-12 mx-auto mb-4 text-text-secondary' />
-                            <h3 className='text-sm font-medium text-text mb-2'>Upload File</h3>
-                            <p className='text-xs text-text-secondary mb-4'>Supports CSV and JSON formats</p>
+                          <div
+                            className='cursor-pointer rounded-lg border-2 border-dashed border-border p-8 text-center transition-colors hover:border-primary'
+                            onClick={() => importFileInputRef.current?.click()}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const file = e.dataTransfer.files?.[0];
+                              if (file) handleFileSelect(file);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                importFileInputRef.current?.click();
+                              }
+                            }}
+                            role='button'
+                            tabIndex={0}
+                          >
+                            <Upload className='mx-auto mb-4 h-12 w-12 text-text-secondary' />
+                            <h3 className='mb-2 text-sm font-medium text-text'>Upload File</h3>
+                            <p className='mb-4 text-xs text-text-secondary'>
+                              Click anywhere here or drop a file. Supports CSV and JSON formats.
+                            </p>
                             <input
+                              ref={importFileInputRef}
                               type='file'
                               accept='.csv,.json'
                               onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
-                              className='block mx-auto'
+                              className='hidden'
+                              onClick={(e) => e.stopPropagation()}
                             />
                             {importFile && (
                               <div className='mt-4 flex items-center justify-center gap-2'>
@@ -901,6 +1170,59 @@ export const TestDataLibraryPage = () => {
                       {importStep === 4 && (
                         <div className='space-y-4'>
                           <h3 className='text-sm font-medium text-text'>Import Options</h3>
+                          <div>
+                            <label className='mb-1 block text-xs font-medium text-text-secondary'>
+                              Target dataset <span className='text-red-500'>*</span>
+                            </label>
+                            {datasets.length > 0 ? (
+                              <div className='mb-3 flex flex-wrap gap-4 text-sm text-text'>
+                                <label className='flex cursor-pointer items-center gap-2'>
+                                  <input
+                                    type='radio'
+                                    name='importDatasetMode'
+                                    checked={importDatasetMode === 'existing'}
+                                    onChange={() => setImportDatasetMode('existing')}
+                                  />
+                                  Existing dataset
+                                </label>
+                                <label className='flex cursor-pointer items-center gap-2'>
+                                  <input
+                                    type='radio'
+                                    name='importDatasetMode'
+                                    checked={importDatasetMode === 'new'}
+                                    onChange={() => setImportDatasetMode('new')}
+                                  />
+                                  Create new dataset
+                                </label>
+                              </div>
+                            ) : (
+                              <p className='mb-2 text-xs text-text-secondary'>
+                                No datasets yet — name the dataset that will be created from this file.
+                              </p>
+                            )}
+                            {usesNewDatasetForImport() ? (
+                              <input
+                                type='text'
+                                value={importNewDatasetName}
+                                onChange={(e) => setImportNewDatasetName(e.target.value)}
+                                placeholder='Dataset name'
+                                className='w-full rounded-lg border border-border px-3 py-2 text-sm'
+                              />
+                            ) : (
+                              <select
+                                value={importTargetDatasetId}
+                                onChange={(e) => setImportTargetDatasetId(e.target.value)}
+                                className='w-full rounded-lg border border-border px-3 py-2 text-sm'
+                              >
+                                <option value=''>Select dataset…</option>
+                                {datasets.map((d) => (
+                                  <option key={d.id} value={d.id}>
+                                    {d.name}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
                           <div className='space-y-3'>
                             <div>
                               <label className='text-xs font-medium text-text-secondary mb-1 block'>Import Mode</label>
@@ -1000,7 +1322,9 @@ export const TestDataLibraryPage = () => {
                               </div>
                             </div>
                           ) : (
-                            <p className='text-sm text-text-secondary'>Click "Import" to start the import process.</p>
+                            <p className='text-sm text-text-secondary'>
+                              Click &quot;Import&quot; to load rows into the selected dataset.
+                            </p>
                           )}
                         </div>
                       )}
@@ -1020,10 +1344,10 @@ export const TestDataLibraryPage = () => {
                         {importStep === 1 ? 'Cancel' : 'Back'}
                       </Button>
                       <Button
-                        onClick={handleNextStep}
+                        onClick={() => void handleNextStep()}
                         disabled={!canProceed()}
                       >
-                        {importStep === 5 ? 'Finish' : 'Next'}
+                        {isImporting ? 'Importing…' : primaryWizardLabel()}
                       </Button>
                     </CardFooter>
                   </Card>
@@ -1047,6 +1371,24 @@ export const TestDataLibraryPage = () => {
                 </Suspense>
               )}
 
+              {editOpen && (
+                <Suspense fallback={<div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'><div className='text-sm text-text-secondary'>Loading...</div></div>}>
+                  <DatasetDialog
+                    open={editOpen}
+                    onClose={() => { setEditOpen(false); setSelectedDataset(null); }}
+                    onSubmit={selectedDataset ? handleUpdate : handleCreate}
+                    dataset={selectedDataset ? {
+                      id: selectedDataset.id,
+                      projectId: selectedDataset.projectId,
+                      name: selectedDataset.name,
+                      description: selectedDataset.description,
+                      category: selectedDataset.category,
+                    } : undefined}
+                    isSubmitting={isSubmitting}
+                  />
+                </Suspense>
+              )}
+
               {/* Delete Confirmation */}
               <ConfirmDialog
                 open={deleteOpen}
@@ -1060,10 +1402,9 @@ export const TestDataLibraryPage = () => {
               />
 
               {/* Toast */}
-              <Toast message={toastMessage} open={toastOpen} onClose={() => setToastOpen(false)} />
+              <Toast message={toastMessage} open={toastOpen} onClose={() => setToastOpen(false)} type={toastType} />
             </>
           )}
-        </div>
       </div>
     </div>
   );

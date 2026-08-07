@@ -51,7 +51,8 @@ TestForge/
 ### Backend
 - Express.js + TypeScript
 - Clean Architecture (Domain → Application → Infrastructure → Interfaces)
-- File-based persistence (JSON)
+- File-based JSON persistence with per-file locking (`proper-lockfile`)
+- Optional API key / JWT authentication on `/api` routes
 
 ## Engineering Standards
 

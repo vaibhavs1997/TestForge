@@ -38,25 +38,110 @@ import { AuditLogController } from './interfaces/audit/AuditLogController';
 import { validateConfig } from './config';
 import { BackupService } from './interfaces/backup/BackupService';
 import { createBackupRoutes } from './interfaces/backup/BackupRoutes';
+import { errorHandler, notFoundHandler } from './interfaces/middleware/ErrorHandler';
+import { authenticate, authorizeProject, setProjectAccessLookup } from './interfaces/middleware/auth';
+import { asyncHandler } from './interfaces/middleware/AsyncHandler';
+import { createSuccessResponse } from './shared/ApiResponse';
+import { projectRoutes } from './interfaces/project/ProjectRoutes';
+import { createActivityStreamRoutes } from './interfaces/realtime/ActivityStreamRoutes';
+import { createAuthRoutes } from './interfaces/auth/AuthRoutes';
+import { connectMongo, disconnectMongo } from './infrastructure/auth/mongoClient';
 
 dotenv.config();
 
-// Validate configuration at startup with readable errors
-let config;
-try {
-  config = validateConfig();
-} catch (err) {
-  console.error(err instanceof Error ? err.message : 'Configuration validation failed');
-  process.exit(1);
-}
+async function bootstrap(): Promise<void> {
+  let config;
+  try {
+    config = validateConfig();
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : 'Configuration validation failed');
+    process.exit(1);
+  }
 
-const app = express();
-const port = config.port;
+  const app = express();
+  const port = config.port;
 
-app.use(cors({ origin: config.corsOrigin === '*' ? true : config.corsOrigin.split(',') }));
-app.use(express.json());
+  const connectMongoPromise =
+    config.mongodbUri
+      ? connectMongo(config.mongodbUri)
+          .then(() => {
+            console.log('Connected to MongoDB (enterprise user accounts enabled)');
+          })
+          .catch((err) => {
+            console.error(
+              'MongoDB connection failed — login/register will not work until this is fixed:',
+              err instanceof Error ? err.message : err,
+            );
+            console.error(
+              'Check Atlas Network Access (your IP), database user password (URL-encode @ as %40), and cluster hostname.',
+            );
+          })
+      : Promise.resolve();
 
-const serverStartTime = Date.now();
+  void connectMongoPromise;
+
+  app.use(cors({ origin: config.corsOrigin === '*' ? true : config.corsOrigin.split(',') }));
+  app.use(express.json());
+
+  app.use('/api', createAuthRoutes(container.authService));
+
+  app.use('/api', authenticate);
+  setProjectAccessLookup(async (projectId) => {
+    const p = await container.projectModule.repository.findById(projectId);
+    return p ? { ownerId: p.ownerId, tenantId: p.tenantId } : null;
+  });
+  app.use('/api/projects/:projectId', asyncHandler(authorizeProject));
+
+  app.get(
+    '/api/me',
+    asyncHandler(async (req, res) => {
+      const authConfig = config.auth;
+      if (!authConfig.enabled) {
+        res.status(200).json(
+          createSuccessResponse({
+            authenticated: false,
+            subject: 'local-dev',
+            projectIds: '*',
+            loginRequired: false,
+          }),
+        );
+        return;
+      }
+      if (!req.auth) {
+        res.status(401).json({ success: false, message: 'Authentication required' });
+        return;
+      }
+
+      let displayName = req.auth.email ?? req.auth.subject;
+      let email = req.auth.email;
+      if (config.mongodbUri && req.auth.subject !== 'api-key') {
+        const profile = await container.authService.getPublicProfile(req.auth.subject);
+        if (profile) {
+          displayName = profile.displayName;
+          email = profile.email;
+        }
+      }
+
+      res.status(200).json(
+        createSuccessResponse({
+          authenticated: true,
+          subject: req.auth.subject,
+          email,
+          displayName,
+          tenantId: req.auth.tenantId,
+          role: req.auth.role,
+          projectIds: req.auth.projectIds,
+          loginRequired: authConfig.enterpriseLogin,
+        }),
+      );
+    }),
+  );
+
+  container.activityStreamHub.start();
+  app.use('/api', createActivityStreamRoutes(container.activityStreamHub));
+  app.use('/api', projectRoutes);
+
+  const serverStartTime = Date.now();
 
 // ── Health Endpoints ─────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
@@ -126,6 +211,14 @@ app.use('/api', createAuditLogRoutes(auditLogController));
 const backupService = new BackupService();
 app.use('/api', createBackupRoutes(backupService));
 
+// ── 404 Not Found Handler ───────────────────────────────────────────────────
+// Must be before error handler middleware
+app.use(notFoundHandler);
+
+// ── Error Handler Middleware ────────────────────────────────────────────────
+// Must be registered LAST, after all routes and middleware
+app.use(errorHandler);
+
 const server = app.listen(port, () => {
   console.log(`Server running on port ${port} (${config.nodeEnv})`);
   console.log(`Version: ${config.version}, Build: ${config.buildTimestamp}, Commit: ${config.gitCommit}`);
@@ -135,7 +228,9 @@ const server = app.listen(port, () => {
 const shutdown = (signal: string) => {
   console.log(`\nReceived ${signal}. Shutting down gracefully...`);
 
-  server.close(() => {
+  server.close(async () => {
+    container.activityStreamHub.stop();
+    await disconnectMongo();
     console.log('HTTP server closed.');
     process.exit(0);
   });
@@ -149,3 +244,9 @@ const shutdown = (signal: string) => {
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
+}
+
+bootstrap().catch((err) => {
+  console.error(err instanceof Error ? err.message : err);
+  process.exit(1);
+});

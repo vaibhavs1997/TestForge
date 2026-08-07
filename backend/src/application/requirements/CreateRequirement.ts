@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
 import { RequirementEntity, RequirementSource, ReviewStatus, ApprovalStatus, AcceptanceCriterion } from '../../domain/requirements/RequirementEntity';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 
 export class CreateRequirement {
   constructor(private readonly requirementRepository: RequirementRepository) {}
@@ -21,25 +22,23 @@ export class CreateRequirement {
     relatedDatasets?: string[];
     acceptanceCriteria?: AcceptanceCriterion[];
   }): Promise<RequirementEntity> {
-    if (!params.title || !params.title.trim()) {
-      throw new Error('Requirement title is required');
-    }
+    const title = ValidationHelpers.validateRequired(params.title, 'Requirement title');
 
     const now = Date.now();
     const requirement = new RequirementEntity(
       randomUUID(),
       params.projectId,
-      params.title.trim(),
-      params.description?.trim() || '',
-      params.category?.trim() || 'General',
+      title,
+      ValidationHelpers.trimString(params.description),
+      ValidationHelpers.trimString(params.category) || 'General',
       params.confidence ?? 0,
       params.source || 'Manual',
       params.projectAnalysisId ?? null,
       params.reviewStatus || 'Pending',
       params.approvalStatus || 'Suggested',
-      params.relatedOperations || [],
-      params.relatedFlows || [],
-      params.relatedDatasets || [],
+      ValidationHelpers.trimStringArray(params.relatedOperations),
+      ValidationHelpers.trimStringArray(params.relatedFlows),
+      ValidationHelpers.trimStringArray(params.relatedDatasets),
       params.acceptanceCriteria || [],
       now,
       now

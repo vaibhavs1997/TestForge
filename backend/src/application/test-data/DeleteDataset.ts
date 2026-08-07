@@ -4,12 +4,12 @@ import { DatasetRepository } from '../../domain/test-data/DatasetRepository';
 export class DeleteDataset {
   constructor(private readonly datasetRepository: DatasetRepository) {}
 
-  async execute(id: string): Promise<void> {
-    const existing = await this.datasetRepository.findById(id);
-    if (!existing) {
-      throw new Error(`Dataset with id ${id} not found`);
+  async execute(params: { projectId: string; id: string }): Promise<void> {
+    const existing = await this.datasetRepository.findById(params.id);
+    if (!existing || existing.projectId !== params.projectId) {
+      throw new Error(`Dataset with id ${params.id} not found`);
     }
-    await this.datasetRepository.delete(id);
+    await this.datasetRepository.delete(params.id);
   }
 }
 

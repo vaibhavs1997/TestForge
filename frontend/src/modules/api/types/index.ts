@@ -9,7 +9,7 @@ export interface Service {
   description: string;
   /** Frontend UI field – not persisted by the backend */
   protocol?: ServiceProtocol;
-  /** Frontend UI field – not persisted by the backend */
+  /** Optional API base URL (from import or manual entry) */
   baseUrl?: string;
   version: string;
   /** Frontend UI field – not persisted by the backend */
@@ -81,7 +81,10 @@ export interface OperationFormData {
 
 export interface ImportSummary {
   servicesImported: number;
+  servicesUpdated?: number;
   operationsImported: number;
+  operationsUpdated?: number;
+  operationsRemoved?: number;
   duplicatesSkipped: number;
   warnings: string[];
   detectedEnvironments: DetectedEnvironment[];

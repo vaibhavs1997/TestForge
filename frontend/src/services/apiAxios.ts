@@ -3,7 +3,7 @@
  * Paths must include API_BASE_URL — see ApiClient and other callers.
  */
 import axios from 'axios';
-import { getAuthAuthorizationHeader } from './authSession';
+import { getAuthAuthorizationHeader, notifyUnauthorized } from './authSession';
 
 export const apiAxios = axios.create();
 
@@ -17,4 +17,22 @@ apiAxios.interceptors.request.use((config) => {
   }
   return config;
 });
+
+apiAxios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error.response?.status;
+    const url = String(error.config?.url ?? '');
+    if (
+      status === 401
+      && !url.includes('/auth/login')
+      && !url.includes('/auth/register')
+      && !url.includes('/auth/config')
+    ) {
+      notifyUnauthorized();
+    }
+    return Promise.reject(error);
+  },
+);
+
 export default apiAxios;

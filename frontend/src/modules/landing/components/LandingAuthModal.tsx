@@ -81,7 +81,7 @@ export const LandingAuthModal: React.FC<LandingAuthModalProps> = ({
           </div>
         </CardHeader>
 
-        <CardContent className="min-h-0 flex-1 overflow-y-auto pt-6">
+        <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-6 scrollbar-none">
           {!isHydrated || loginRequired === null ? (
             <p className="text-center text-sm text-slate-400">Loading…</p>
           ) : !loginRequired ? (

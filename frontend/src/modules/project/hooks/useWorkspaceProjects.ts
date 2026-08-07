@@ -15,16 +15,9 @@ export function useWorkspaceProjects() {
   const invalidate = () => queryClient.invalidateQueries({ queryKey });
 
   const createMutation = useMutation({
-    mutationFn: (data: {
-      name: string;
-      id: string;
-      projectKey?: string;
-      description?: string;
-    }) =>
+    mutationFn: (data: { name: string; description?: string }) =>
       projectService.createProject({
         name: data.name,
-        id: data.id,
-        projectKey: data.projectKey ?? data.id.toLowerCase(),
         description: data.description,
       }),
     onSuccess: invalidate,

@@ -4,8 +4,13 @@
  * Eliminates duplicate HTTP logic across service modules
  */
 
-import axios, { AxiosRequestConfig, AxiosProgressEvent } from 'axios';
+import type { AxiosRequestConfig } from 'axios';
+import axios from 'axios';
 import { API_BASE_URL } from '../constants/api';
+import { apiAxios } from './apiAxios';
+
+/** Axios instance that attaches JWT / API key on every request. */
+const http = apiAxios;
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -49,7 +54,7 @@ export class ApiClient<T = any> {
   async list<R = T>(projectId: string, params?: Record<string, any>): Promise<R[]> {
     try {
       const url = `${this.baseUrl}${this.resolveEndpoint(this.endpoint, projectId)}`;
-      const { data } = await axios.get(url, { params });
+      const { data } = await http.get(url, { params });
       return data.data || [];
     } catch (error) {
       throw this.handleError(error);
@@ -62,7 +67,7 @@ export class ApiClient<T = any> {
   async get<R = T>(projectId: string, id: string): Promise<R> {
     try {
       const url = `${this.baseUrl}${this.resolveEndpoint(this.endpoint, projectId)}/${id}`;
-      const { data } = await axios.get(url);
+      const { data } = await http.get(url);
       return data.data;
     } catch (error) {
       throw this.handleError(error);
@@ -75,7 +80,7 @@ export class ApiClient<T = any> {
   async create<R = T>(projectId: string, payload: any): Promise<R> {
     try {
       const url = `${this.baseUrl}${this.resolveEndpoint(this.endpoint, projectId)}`;
-      const { data } = await axios.post(url, payload);
+      const { data } = await http.post(url, payload);
       return data.data;
     } catch (error) {
       throw this.handleError(error);
@@ -88,7 +93,7 @@ export class ApiClient<T = any> {
   async update<R = T>(projectId: string, id: string, payload: any): Promise<R> {
     try {
       const url = `${this.baseUrl}${this.resolveEndpoint(this.endpoint, projectId)}/${id}`;
-      const { data } = await axios.put(url, payload);
+      const { data } = await http.put(url, payload);
       return data.data;
     } catch (error) {
       throw this.handleError(error);
@@ -101,7 +106,7 @@ export class ApiClient<T = any> {
   async patch<R = T>(projectId: string, id: string, payload: any): Promise<R> {
     try {
       const url = `${this.baseUrl}${this.resolveEndpoint(this.endpoint, projectId)}/${id}`;
-      const { data } = await axios.patch(url, payload);
+      const { data } = await http.patch(url, payload);
       return data.data;
     } catch (error) {
       throw this.handleError(error);
@@ -114,7 +119,7 @@ export class ApiClient<T = any> {
   async delete(projectId: string, id: string): Promise<void> {
     try {
       const url = `${this.baseUrl}${this.resolveEndpoint(this.endpoint, projectId)}/${id}`;
-      await axios.delete(url);
+      await http.delete(url);
     } catch (error) {
       throw this.handleError(error);
     }
@@ -130,7 +135,7 @@ export class ApiClient<T = any> {
   ): Promise<R> {
     try {
       const url = `${this.baseUrl}${path}`;
-      const { data } = await axios.post(url, payload, config);
+      const { data } = await http.post(url, payload, config);
       return data.data;
     } catch (error) {
       throw this.handleError(error);
@@ -147,7 +152,7 @@ export class ApiClient<T = any> {
   ): Promise<R> {
     try {
       const url = `${this.baseUrl}${path}`;
-      const { data } = await axios.get(url, { params, ...config });
+      const { data } = await http.get(url, { params, ...config });
       return data.data;
     } catch (error) {
       throw this.handleError(error);

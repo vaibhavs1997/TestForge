@@ -1,12 +1,15 @@
 import jwt from 'jsonwebtoken';
 import { getAuthConfig } from '../../config';
 import type { PublicUser } from '../../domain/auth/types';
+import { normalizeEmail } from '../../domain/auth/normalizeEmail';
 import { AuthRepository } from '../../infrastructure/auth/AuthRepository';
+import { sendWelcomeEmail } from './sendWelcomeEmail';
 
 export interface AuthTokenPair {
   accessToken: string;
   expiresIn: string;
   user: PublicUser;
+  welcomeEmailSent?: boolean;
 }
 
 export class AuthService {
@@ -28,17 +31,29 @@ export class AuthService {
       lastName = (parts.slice(1).join(' ') || parts[0]) ?? '';
     }
     const user = await this.repository.registerUser({
-      email: input.email,
+      email: normalizeEmail(input.email),
       password: input.password,
       firstName,
       lastName,
       organizationName: input.organizationName ?? '',
     });
-    return this.issueToken(user);
+
+    let welcomeEmailSent = false;
+    try {
+      welcomeEmailSent = await sendWelcomeEmail({
+        to: user.email,
+        firstName,
+        organizationName: input.organizationName ?? '',
+      });
+    } catch (err) {
+      console.error('[welcome-email] Failed to send:', err);
+    }
+
+    return { ...this.issueToken(user), welcomeEmailSent };
   }
 
   async login(email: string, password: string): Promise<AuthTokenPair> {
-    const normalized = email.trim().toLowerCase();
+    const normalized = normalizeEmail(email);
     if (!normalized || !password) {
       throw new Error('Email and password are required');
     }

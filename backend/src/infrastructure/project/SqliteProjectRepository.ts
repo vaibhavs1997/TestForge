@@ -6,14 +6,10 @@ import type { ProjectRecord } from '../../domain/project/ProjectRecord';
 import type { ProjectRepository } from '../../domain/project/ProjectRepository';
 import { JsonProjectRepository } from './JsonProjectRepository';
 
-function slugify(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 48) || 'project';
-}
+import {
+  allocateProjectIdentifiers,
+  slugifyProjectKey,
+} from '../../domain/project/projectIdentifiers';
 
 function rowToRecord(row: Record<string, unknown>): ProjectRecord {
   return {
@@ -93,10 +89,26 @@ export class SqliteProjectRepository implements ProjectRepository {
     description?: string;
     id?: string;
     status?: ProjectRecord['status'];
+    ownerId?: string;
+    tenantId?: string;
   }): Promise<ProjectRecord> {
     const now = Date.now();
-    const id = input.id?.trim() || randomUUID();
-    const projectKey = (input.projectKey?.trim() || slugify(input.name)).toLowerCase();
+    const existing = this.db.prepare('SELECT id, project_key FROM projects').all() as Array<{
+      id: string;
+      project_key: string;
+    }>;
+    const allocated =
+      !input.id?.trim() && !input.projectKey?.trim()
+        ? allocateProjectIdentifiers(
+            input.name,
+            existing.map((r) => ({ id: r.id, projectKey: r.project_key })),
+          )
+        : null;
+
+    const id = input.id?.trim() || allocated?.id || randomUUID();
+    const projectKey = (
+      input.projectKey?.trim() || allocated?.projectKey || slugifyProjectKey(input.name)
+    ).toLowerCase();
 
     const record: ProjectRecord = {
       id,

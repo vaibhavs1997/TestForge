@@ -4,9 +4,9 @@ import { Button } from '../../../components/ui/Button';
 import { PasswordField } from './PasswordField';
 import { authApi } from '../../../services/authApi';
 import { authStore } from '../../../store/authStore';
-import { useToast } from '../../../hooks/useToast';
 import { getApiErrorMessage, validateLoginForm, type FieldErrors } from '../utils/validation';
 import { cn } from '../../../utils/cn';
+import { AuthFormAlert, type AuthFormAlertType } from './AuthFormAlert';
 
 const REMEMBER_EMAIL_KEY = 'testforge_remember_email';
 
@@ -33,9 +33,11 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   const [rememberEmail, setRememberEmail] = React.useState(Boolean(email));
   const [fieldErrors, setFieldErrors] = React.useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [formAlert, setFormAlert] = React.useState<{ type: AuthFormAlertType; message: string } | null>(
+    null,
+  );
   const navigate = useNavigate();
   const setSession = authStore((s) => s.setSession);
-  const { showError, showSuccess, toast } = useToast();
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,19 +46,19 @@ export const LoginForm: React.FC<LoginFormProps> = ({
     if (Object.keys(errors).length > 0) return;
 
     setIsSubmitting(true);
+    setFormAlert(null);
     try {
-      const result = await authApi.login(email.trim(), password);
+      const result = await authApi.login(email.trim().toLowerCase(), password);
       if (rememberEmail) {
         sessionStorage.setItem(REMEMBER_EMAIL_KEY, email.trim().toLowerCase());
       } else {
         sessionStorage.removeItem(REMEMBER_EMAIL_KEY);
       }
       setSession(result.accessToken, result.user);
-      showSuccess('Signed in successfully');
       onSuccess?.();
       navigate(redirectTo, { replace: true });
     } catch (err: unknown) {
-      showError(getApiErrorMessage(err, 'Sign in failed'));
+      setFormAlert({ type: 'error', message: getApiErrorMessage(err, 'Sign in failed') });
     } finally {
       setIsSubmitting(false);
     }
@@ -68,6 +70,14 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
           Your session expired. Please sign in again.
         </div>
+      ) : null}
+
+      {formAlert ? (
+        <AuthFormAlert
+          type={formAlert.type}
+          message={formAlert.message}
+          onDismiss={() => setFormAlert(null)}
+        />
       ) : null}
 
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
@@ -136,7 +146,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           </button>
         </p>
       ) : null}
-      {toast}
     </>
   );
 };

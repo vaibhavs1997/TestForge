@@ -14,14 +14,10 @@ function registryPath(): string {
   return path.join(process.cwd(), 'data', 'projects', 'projects.json');
 }
 
-function slugify(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 48) || 'project';
-}
+import {
+  allocateProjectIdentifiers,
+  slugifyProjectKey,
+} from '../../domain/project/projectIdentifiers';
 
 export class JsonProjectRepository implements ProjectRepository {
   private async readRegistry(): Promise<ProjectRecord[]> {
@@ -43,7 +39,7 @@ export class JsonProjectRepository implements ProjectRepository {
       const record: ProjectRecord = {
         id,
         name: id,
-        projectKey: slugify(id),
+        projectKey: slugifyProjectKey(id),
         description: 'Discovered from local data directory',
         status: 'active',
         createdAt: now,
@@ -87,8 +83,16 @@ export class JsonProjectRepository implements ProjectRepository {
   }): Promise<ProjectRecord> {
     const projects = await this.readRegistry();
     const now = Date.now();
-    const id = input.id?.trim() || randomUUID();
-    const projectKey = (input.projectKey?.trim() || slugify(input.name)).toLowerCase();
+
+    const allocated =
+      !input.id?.trim() && !input.projectKey?.trim()
+        ? allocateProjectIdentifiers(input.name, projects)
+        : null;
+
+    const id = input.id?.trim() || allocated?.id || randomUUID();
+    const projectKey = (
+      input.projectKey?.trim() || allocated?.projectKey || slugifyProjectKey(input.name)
+    ).toLowerCase();
 
     if (projects.some((p) => p.id === id)) {
       throw new Error(`Project with id ${id} already exists`);

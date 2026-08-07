@@ -5,7 +5,7 @@ import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
-import { Toast } from '../../../components/shared/Toast';
+import { Toast, type ToastType } from '../../../components/shared/Toast';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
 import {
   Database,
@@ -170,6 +170,7 @@ export const TestDataLibraryPage = () => {
   const [detailsOpen, setDetailsOpen] = React.useState(false);
   const [toastOpen, setToastOpen] = React.useState(false);
   const [toastMessage, setToastMessage] = React.useState('');
+  const [toastType, setToastType] = React.useState<ToastType>('success');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState('Overview');
   const [editorOpen, setEditorOpen] = React.useState(false);
@@ -192,6 +193,9 @@ export const TestDataLibraryPage = () => {
   });
   const [importResult, setImportResult] = React.useState<any>(null);
   const [isImporting, setIsImporting] = React.useState(false);
+  const [importTargetDatasetId, setImportTargetDatasetId] = React.useState('');
+  const [importDatasetMode, setImportDatasetMode] = React.useState<'existing' | 'new'>('new');
+  const [importNewDatasetName, setImportNewDatasetName] = React.useState('');
   const [relationshipDialogOpen, setRelationshipDialogOpen] = React.useState(false);
   const [relationships, setRelationships] = React.useState<any[]>([]);
   const [datasets, setDatasets] = React.useState<Dataset[]>([]);
@@ -369,14 +373,53 @@ export const TestDataLibraryPage = () => {
     });
     setImportResult(null);
     setIsImporting(false);
+    setImportTargetDatasetId('');
+    setImportDatasetMode('new');
+    setImportNewDatasetName('');
     if (importFileInputRef.current) {
       importFileInputRef.current.value = '';
     }
   };
 
+  const IMPORT_FILE_HELP_MESSAGE =
+    'Import could not run. In step 1, upload a CSV or JSON file with a header row and at least one data row, then try again.';
+
+  const showToast = (message: string, type: ToastType = 'success') => {
+    setToastMessage(message);
+    setToastType(type);
+    setToastOpen(true);
+  };
+
+  const getImportFileIssue = (): string | null => {
+    if (!importFile) {
+      return IMPORT_FILE_HELP_MESSAGE;
+    }
+    const ext = importFile.name.split('.').pop()?.toLowerCase();
+    if (ext !== 'csv' && ext !== 'json') {
+      return 'Only .csv and .json files are supported. Go back to step 1 and choose a supported file.';
+    }
+    if (importColumns.length === 0) {
+      return IMPORT_FILE_HELP_MESSAGE;
+    }
+    return null;
+  };
+
+  const dismissImportWizardWithError = (message: string) => {
+    setImportWizardOpen(false);
+    resetImportWizard();
+    showToast(message, 'error');
+  };
+
+  const isImportUploadErrorMessage = (message: string) =>
+    /no file uploaded/i.test(message);
+
   const handleFileSelect = (file: File | null) => {
     setImportFile(file);
     if (file) {
+      const baseName = file.name.replace(/\.[^.]+$/, '').trim();
+      if (baseName) {
+        setImportNewDatasetName(baseName);
+      }
       const reader = new FileReader();
       reader.onload = (e) => {
         const content = e.target?.result as string;
@@ -416,33 +459,145 @@ export const TestDataLibraryPage = () => {
     }
   };
 
-  const handleNextStep = async () => {
-    if (importStep === 5) {
-      if (!selectedDataset || !importFile) return;
-      setIsImporting(true);
-      try {
-        const result = await rowService.importData(
-          selectedDataset.projectId,
-          selectedDataset.id,
-          importFile,
-          importOptions
-        );
-        setImportResult(result);
-      } catch (error) {
-        logger.error('Dataset import failed', error);
-        setToastMessage('Import failed');
-        setToastOpen(true);
-      } finally {
-        setIsImporting(false);
-      }
+  const resolveImportDatasetId = () =>
+    importTargetDatasetId || selectedDataset?.id || '';
+
+  const usesNewDatasetForImport = () =>
+    datasets.length === 0 || importDatasetMode === 'new';
+
+  const isImportTargetReady = () => {
+    if (usesNewDatasetForImport()) {
+      return importNewDatasetName.trim().length > 0;
     }
-    setImportStep(importStep + 1);
+    return Boolean(resolveImportDatasetId());
+  };
+
+  const ensureImportDatasetId = async (): Promise<string> => {
+    if (!usesNewDatasetForImport()) {
+      const id = resolveImportDatasetId();
+      if (!id) {
+        throw new Error('Select a dataset to import into');
+      }
+      return id;
+    }
+
+    if (importTargetDatasetId) {
+      return importTargetDatasetId;
+    }
+
+    const name = importNewDatasetName.trim();
+    if (!name) {
+      throw new Error('Enter a name for the new dataset');
+    }
+
+    const created = await datasetService.createDataset(resolvedProjectId, {
+      name,
+      description: importFile ? `Imported from ${importFile.name}` : undefined,
+      category: 'Custom',
+    });
+    setImportTargetDatasetId(created.id);
+    setImportDatasetMode('existing');
+    return created.id;
+  };
+
+  const reloadDatasets = React.useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const data = await datasetService.listDatasets(projectId);
+      setDatasets(
+        data.map((d) => ({
+          id: d.id,
+          projectId: d.projectId,
+          name: d.name,
+          description: d.description || '',
+          category: d.category || 'General',
+          rows: d.rowCount ?? 0,
+          columns: 0,
+          relationships: 0,
+          lastUpdated: new Date(d.updatedAt).toLocaleString(),
+          created: new Date(d.createdAt).toLocaleString(),
+          usedBy: { requirements: 0, suites: 0, apis: 0, knowledge: 0 },
+        })),
+      );
+    } catch (err) {
+      logger.error('Failed to reload datasets', err);
+    }
+  }, [projectId]);
+
+  const handleNextStep = async () => {
+    if (importStep < 5) {
+      if (importStep === 1) {
+        const fileIssue = getImportFileIssue();
+        if (fileIssue) {
+          showToast(fileIssue, 'error');
+          return;
+        }
+      }
+      if (importStep === 4 && !isImportTargetReady()) {
+        showToast(
+          usesNewDatasetForImport()
+            ? 'Enter a name for the new dataset'
+            : 'Select a dataset to import into',
+          'error',
+        );
+        return;
+      }
+      setImportStep(importStep + 1);
+      return;
+    }
+
+    // Step 5: run import, then allow Finish to close
+    if (importResult) {
+      setImportWizardOpen(false);
+      resetImportWizard();
+      void reloadDatasets();
+      showToast('Import completed', 'success');
+      return;
+    }
+
+    const fileIssue = getImportFileIssue();
+    if (fileIssue) {
+      dismissImportWizardWithError(fileIssue);
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const datasetId = await ensureImportDatasetId();
+      const result = await rowService.importData(
+        resolvedProjectId,
+        datasetId,
+        importFile!,
+        importOptions,
+      );
+      setImportResult(result);
+      await reloadDatasets();
+    } catch (error) {
+      logger.error('Dataset import failed', error);
+      const message = error instanceof Error ? error.message : 'Import failed';
+      if (isImportUploadErrorMessage(message)) {
+        dismissImportWizardWithError(IMPORT_FILE_HELP_MESSAGE);
+        return;
+      }
+      showToast(message, 'error');
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   const canProceed = () => {
-    if (importStep === 1) return importFile !== null;
+    if (isImporting) return false;
+    if (importStep === 1) return importFile !== null && importColumns.length > 0;
+    if (importStep >= 2 && importStep <= 4) return getImportFileIssue() === null;
+    if (importStep === 4) return isImportTargetReady();
     if (importStep === 5) return true;
     return true;
+  };
+
+  const primaryWizardLabel = () => {
+    if (importStep < 5) return 'Next';
+    if (importResult) return 'Finish';
+    return 'Import';
   };
 
   // Navigation Items — section chips rendered in main layout
@@ -473,7 +628,15 @@ export const TestDataLibraryPage = () => {
           </div>
           {activeSection === 'datasets' && (
             <div className='flex flex-wrap items-center gap-2'>
-              <Button variant='outline' onClick={() => setImportWizardOpen(true)}>
+              <Button
+                variant='outline'
+                onClick={() => {
+                  const defaultId = selectedDataset?.id ?? datasets[0]?.id ?? '';
+                  setImportTargetDatasetId(defaultId);
+                  setImportDatasetMode(datasets.length > 0 ? 'existing' : 'new');
+                  setImportWizardOpen(true);
+                }}
+              >
                 <Upload className='mr-2 h-4 w-4' />
                 Import Dataset
               </Button>
@@ -1007,6 +1170,59 @@ export const TestDataLibraryPage = () => {
                       {importStep === 4 && (
                         <div className='space-y-4'>
                           <h3 className='text-sm font-medium text-text'>Import Options</h3>
+                          <div>
+                            <label className='mb-1 block text-xs font-medium text-text-secondary'>
+                              Target dataset <span className='text-red-500'>*</span>
+                            </label>
+                            {datasets.length > 0 ? (
+                              <div className='mb-3 flex flex-wrap gap-4 text-sm text-text'>
+                                <label className='flex cursor-pointer items-center gap-2'>
+                                  <input
+                                    type='radio'
+                                    name='importDatasetMode'
+                                    checked={importDatasetMode === 'existing'}
+                                    onChange={() => setImportDatasetMode('existing')}
+                                  />
+                                  Existing dataset
+                                </label>
+                                <label className='flex cursor-pointer items-center gap-2'>
+                                  <input
+                                    type='radio'
+                                    name='importDatasetMode'
+                                    checked={importDatasetMode === 'new'}
+                                    onChange={() => setImportDatasetMode('new')}
+                                  />
+                                  Create new dataset
+                                </label>
+                              </div>
+                            ) : (
+                              <p className='mb-2 text-xs text-text-secondary'>
+                                No datasets yet — name the dataset that will be created from this file.
+                              </p>
+                            )}
+                            {usesNewDatasetForImport() ? (
+                              <input
+                                type='text'
+                                value={importNewDatasetName}
+                                onChange={(e) => setImportNewDatasetName(e.target.value)}
+                                placeholder='Dataset name'
+                                className='w-full rounded-lg border border-border px-3 py-2 text-sm'
+                              />
+                            ) : (
+                              <select
+                                value={importTargetDatasetId}
+                                onChange={(e) => setImportTargetDatasetId(e.target.value)}
+                                className='w-full rounded-lg border border-border px-3 py-2 text-sm'
+                              >
+                                <option value=''>Select dataset…</option>
+                                {datasets.map((d) => (
+                                  <option key={d.id} value={d.id}>
+                                    {d.name}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
                           <div className='space-y-3'>
                             <div>
                               <label className='text-xs font-medium text-text-secondary mb-1 block'>Import Mode</label>
@@ -1106,7 +1322,9 @@ export const TestDataLibraryPage = () => {
                               </div>
                             </div>
                           ) : (
-                            <p className='text-sm text-text-secondary'>Click "Import" to start the import process.</p>
+                            <p className='text-sm text-text-secondary'>
+                              Click &quot;Import&quot; to load rows into the selected dataset.
+                            </p>
                           )}
                         </div>
                       )}
@@ -1126,10 +1344,10 @@ export const TestDataLibraryPage = () => {
                         {importStep === 1 ? 'Cancel' : 'Back'}
                       </Button>
                       <Button
-                        onClick={handleNextStep}
+                        onClick={() => void handleNextStep()}
                         disabled={!canProceed()}
                       >
-                        {importStep === 5 ? 'Finish' : 'Next'}
+                        {isImporting ? 'Importing…' : primaryWizardLabel()}
                       </Button>
                     </CardFooter>
                   </Card>
@@ -1184,7 +1402,7 @@ export const TestDataLibraryPage = () => {
               />
 
               {/* Toast */}
-              <Toast message={toastMessage} open={toastOpen} onClose={() => setToastOpen(false)} />
+              <Toast message={toastMessage} open={toastOpen} onClose={() => setToastOpen(false)} type={toastType} />
             </>
           )}
       </div>

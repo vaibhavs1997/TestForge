@@ -5,13 +5,16 @@ import { PasswordField } from './PasswordField';
 import { authApi } from '../../../services/authApi';
 import { authStore } from '../../../store/authStore';
 import { projectStore } from '../../../store/projectStore';
-import { useToast } from '../../../hooks/useToast';
 import {
   getApiErrorMessage,
   validateRegisterForm,
   type FieldErrors,
 } from '../utils/validation';
 import { cn } from '../../../utils/cn';
+import { AuthFormAlert, type AuthFormAlertType } from './AuthFormAlert';
+import { setAuthFlash } from '../../../utils/authFlash';
+
+const REGISTER_SUCCESS_REDIRECT_MS = 2200;
 
 export type RegisterFormProps = {
   redirectTo?: string;
@@ -35,10 +38,12 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
   const [acceptTerms, setAcceptTerms] = React.useState(false);
   const [fieldErrors, setFieldErrors] = React.useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [formAlert, setFormAlert] = React.useState<{ type: AuthFormAlertType; message: string } | null>(
+    null,
+  );
   const navigate = useNavigate();
   const setSession = authStore((s) => s.setSession);
   const setSelectedProjectId = projectStore((s) => s.setSelectedProjectId);
-  const { showError, showSuccess, toast } = useToast();
 
   const clearError = (key: keyof FieldErrors) => {
     setFieldErrors((prev) => {
@@ -63,9 +68,10 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
     if (Object.keys(errors).length > 0) return;
 
     setIsSubmitting(true);
+    setFormAlert(null);
     try {
       const result = await authApi.register({
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
@@ -73,11 +79,20 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
       });
       setSelectedProjectId(null);
       setSession(result.accessToken, result.user);
-      showSuccess('Welcome! Your organization workspace is ready.');
-      onSuccess?.();
-      navigate(redirectTo, { replace: true });
+
+      const successMessage = result.welcomeEmailSent
+        ? `Welcome, ${firstName.trim()}! Your account is ready. We sent a confirmation email to ${email.trim().toLowerCase()}.`
+        : `Welcome, ${firstName.trim()}! Your account is ready. You can start using your workspace now.`;
+
+      setFormAlert({ type: 'success', message: successMessage });
+      setAuthFlash({ type: 'success', message: successMessage });
+
+      window.setTimeout(() => {
+        onSuccess?.();
+        navigate(redirectTo, { replace: true });
+      }, REGISTER_SUCCESS_REDIRECT_MS);
     } catch (err: unknown) {
-      showError(getApiErrorMessage(err, 'Registration failed'));
+      setFormAlert({ type: 'error', message: getApiErrorMessage(err, 'Registration failed') });
     } finally {
       setIsSubmitting(false);
     }
@@ -122,6 +137,14 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
 
   return (
     <>
+      {formAlert ? (
+        <AuthFormAlert
+          type={formAlert.type}
+          message={formAlert.message}
+          onDismiss={() => setFormAlert(null)}
+        />
+      ) : null}
+
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
         {textInput('reg-org', 'Organization name', organizationName, setOrganizationName, 'organizationName', {
           placeholder: 'Acme QA Team',
@@ -187,8 +210,8 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
           ) : null}
         </div>
 
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting ? 'Creating account…' : 'Create account'}
+        <Button type="submit" className="w-full" disabled={isSubmitting || formAlert?.type === 'success'}>
+          {isSubmitting ? 'Creating account…' : formAlert?.type === 'success' ? 'Redirecting…' : 'Create account'}
         </Button>
       </form>
 
@@ -204,7 +227,6 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
           </button>
         </p>
       ) : null}
-      {toast}
     </>
   );
 };

@@ -100,6 +100,29 @@ const formatLastUpdated = (timestamp: number | null): string => {
   return `${days}d ago`;
 };
 
+/** Progress bar segment color — grey until the stage has real progress. */
+const getStageBarClass = (stage: PipelineStageInfo): string => {
+  const grey = 'bg-gray-300 dark:bg-gray-700';
+  const { status, count } = stage;
+
+  if (status === 'NOT_STARTED' || status === 'BLOCKED') {
+    return grey;
+  }
+  if (status === 'IN_PROGRESS') {
+    return count > 0 ? 'bg-blue-500' : grey;
+  }
+  if (status === 'WARNING') {
+    return count > 0 ? 'bg-yellow-500' : grey;
+  }
+  if (status === 'COMPLETE' || status === 'READY') {
+    return count > 0 ? 'bg-green-500' : grey;
+  }
+  return grey;
+};
+
+const isStageProgressComplete = (stage: PipelineStageInfo): boolean =>
+  (stage.status === 'COMPLETE' || stage.status === 'READY') && stage.count > 0;
+
 export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId, projectName }) => {
   const navigate = useNavigate();
 
@@ -319,7 +342,7 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
   }, [services, environments, datasets, flows, analysisCards, requirements, suggested, approved, suites, runs, reports, projectId]);
 
   // Calculate pipeline progress
-  const completedStages = stages.filter(s => s.status === 'COMPLETE' || s.status === 'READY').length;
+  const completedStages = stages.filter(isStageProgressComplete).length;
   const progressPercent = Math.round((completedStages / stages.length) * 100);
 
   const handleAction = (stage: PipelineStageInfo) => {
@@ -390,7 +413,7 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
     const approvedCount = approved.length;
     const approvedPercent = reqCount > 0 ? Math.round((approvedCount / reqCount) * 100) : 0;
 
-    const completedStagesCount = stages.filter(s => s.status === 'COMPLETE' || s.status === 'READY').length;
+    const completedStagesCount = stages.filter(isStageProgressComplete).length;
     const pipelinePercent = Math.round((completedStagesCount / stages.length) * 100);
 
     const latestRun = runs.length > 0 ? [...runs].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] : null;
@@ -476,30 +499,23 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
             <span className="text-sm font-medium text-text">Pipeline Progress</span>
             <span className="text-sm font-semibold text-text">{progressPercent}%</span>
           </div>
-          <div className="flex gap-1">
-            {stages.map((stage) => {
-              const isComplete = stage.status === 'COMPLETE' || stage.status === 'READY';
-              const isWarning = stage.status === 'WARNING';
-              const isBlocked = stage.status === 'BLOCKED';
-              return (
+          <div
+            className="grid gap-1"
+            style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(0, 1fr))` }}
+          >
+            {stages.map((stage) => (
+              <div key={stage.key} className="flex min-w-0 flex-col items-stretch gap-1.5">
                 <div
-                  key={stage.key}
-                  className={`h-2 flex-1 rounded-full ${
-                    isComplete ? 'bg-green-500' :
-                    isWarning ? 'bg-yellow-500' :
-                    isBlocked ? 'bg-red-500' :
-                    'bg-gray-300 dark:bg-gray-700'
-                  }`}
+                  className={`h-2 w-full rounded-full ${getStageBarClass(stage)}`}
                   title={`${stage.label}: ${stage.status}`}
                 />
-              );
-            })}
-          </div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {stages.map((stage) => (
-              <span key={stage.key} className="text-xs text-text-secondary">
-                {stage.label}
-              </span>
+                <span
+                  className="block w-full text-center text-[10px] leading-tight text-text-secondary sm:text-xs"
+                  title={stage.label}
+                >
+                  {stage.label}
+                </span>
+              </div>
             ))}
           </div>
         </CardContent>

@@ -1,6 +1,10 @@
 // External libraries
 import React from 'react';
 import { useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { projectStore } from '../../../store/projectStore';
+import { queryKeys } from '../../../constants';
+import { environmentService } from '../services/environmentService';
 import { PageHeader } from '../../../components/layout/PageHeader';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
@@ -35,7 +39,9 @@ interface Environment {
 
 export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
-  const projectId = routeProjectId || '1';
+  const selectedProjectId = projectStore((s) => s.selectedProjectId);
+  const projectId = routeProjectId ?? selectedProjectId ?? '1';
+  const queryClient = useQueryClient();
   const { environments, isLoading, isError, error, createAsync, updateAsync, removeAsync } = useEnvironments(projectId);
   
   const [search, setSearch] = React.useState('');
@@ -52,7 +58,9 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
   const filteredEnvironments = React.useMemo(() => {
     const term = search.trim().toLowerCase();
     return environments.filter((env) => {
-      const matchesSearch = env.name.toLowerCase().includes(term) || env.description.toLowerCase().includes(term);
+      const matchesSearch =
+        env.name.toLowerCase().includes(term) ||
+        (env.description ?? '').toLowerCase().includes(term);
       const matchesFilter = filter === 'All' || env.name.toLowerCase().includes(filter.toLowerCase());
       return matchesSearch && matchesFilter;
     });
@@ -113,51 +121,76 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
   const handleImport = async (data: ImportEnvironmentModalData) => {
     setIsSubmitting(true);
     try {
-      const parsed =
-        data.source === 'file' && data.file
-          ? await parseEnvironmentImport({ file: data.file, format: data.format })
-          : data.source === 'url' && data.url
-            ? await parseEnvironmentImport({ url: data.url, format: data.format })
-            : [];
+      const format = data.format;
+      const payloads: Array<{
+        name: string;
+        baseUrl: string;
+        description?: string;
+        variables?: Record<string, string>;
+        timeout?: number;
+      }> = [];
+      const fileErrors: string[] = [];
 
-      if (parsed.length === 0) {
-        throw new Error('No environments found in the file or URL.');
-      }
-
-      let created = 0;
-      for (const env of parsed) {
-        try {
-          await createAsync({
-            projectId,
+      if (data.source === 'file' && data.files?.length) {
+        for (const file of data.files) {
+          try {
+            const parsed = await parseEnvironmentImport({ file, format });
+            for (const env of parsed) {
+              payloads.push({
+                name: env.name,
+                baseUrl: env.baseUrl,
+                description: env.description,
+                variables: env.variables,
+                timeout: env.timeout,
+              });
+            }
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Import failed';
+            fileErrors.push(`${file.name}: ${msg}`);
+          }
+        }
+      } else if (data.source === 'url' && data.url) {
+        const parsed = await parseEnvironmentImport({ url: data.url, format });
+        for (const env of parsed) {
+          payloads.push({
             name: env.name,
             baseUrl: env.baseUrl,
             description: env.description,
             variables: env.variables,
             timeout: env.timeout,
           });
-          created += 1;
-        } catch (err: any) {
-          const msg = err?.message || '';
-          if (msg.toLowerCase().includes('already exists')) {
-            continue;
-          }
-          throw err;
         }
+      } else {
+        throw new Error('Select files or enter a URL.');
       }
 
-      if (created === 0) {
-        throw new Error('All environments in the file already exist in this project.');
+      if (payloads.length === 0) {
+        if (fileErrors.length > 0) {
+          throw new Error(fileErrors.join('\n\n'));
+        }
+        throw new Error('No environments found in the selected files or URL.');
       }
+
+      const result = await environmentService.batchUpsertEnvironments(projectId, payloads);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.environments(projectId) });
 
       setImportOpen(false);
-      setToastType('success');
-      setToastMessage(
-        `Imported ${created} environment${created === 1 ? '' : 's'} successfully.`,
-      );
+      const lines: string[] = [];
+      if (result.created > 0) {
+        lines.push(`Created ${result.created} environment${result.created === 1 ? '' : 's'}.`);
+      }
+      if (result.updated > 0) {
+        lines.push(`Updated ${result.updated} environment${result.updated === 1 ? '' : 's'}.`);
+      }
+      if (fileErrors.length > 0) {
+        lines.push(...fileErrors.map((e) => `⚠ ${e}`));
+      }
+      setToastType(fileErrors.length > 0 && result.environments.length === 0 ? 'error' : 'success');
+      setToastMessage(lines.join('\n') || 'Import completed.');
       setToastOpen(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setToastType('error');
-      setToastMessage(err?.message || 'Failed to import environment');
+      setToastMessage(err instanceof Error ? err.message : 'Failed to import environment');
       setToastOpen(true);
     } finally {
       setIsSubmitting(false);
@@ -170,6 +203,7 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
         open={importOpen}
         onClose={() => setImportOpen(false)}
         onImport={(data) => void handleImport(data)}
+        isImporting={isSubmitting}
       />
       <EnvironmentDialog
         open={editOpen}
@@ -286,11 +320,9 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
                   <thead className='border-b border-border bg-surface'>
                     <tr>
                       <th className='px-4 py-3 text-left'>Name</th>
-                      <th className='px-4 py-3 text-left'>Description</th>
                       <th className='px-4 py-3 text-left'>Base URL</th>
                       <th className='px-4 py-3 text-left'>Authentication</th>
                       <th className='px-4 py-3 text-left'>Variables</th>
-                      <th className='px-4 py-3 text-left'>Timeout</th>
                       <th className='px-4 py-3 text-left'>Status</th>
                       <th className='px-4 py-3 text-left'>Last Updated</th>
                       <th className='px-4 py-3 text-right'>Actions</th>
@@ -305,13 +337,11 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
                       return (
                         <tr key={env.id} className='border-b border-border last:border-b-0 hover:bg-surface/50'>
                           <td className='px-4 py-3 font-medium'>{env.name}</td>
-                          <td className='px-4 py-3 text-text-secondary'>{env.description || '—'}</td>
                           <td className='px-4 py-3 font-mono text-xs'>{env.baseUrl}</td>
                           <td className='px-4 py-3'>
                             <Badge variant='outline'>{authType}</Badge>
                           </td>
                           <td className='px-4 py-3 text-center'>{varCount}</td>
-                          <td className='px-4 py-3'>{env.timeout}ms</td>
                           <td className='px-4 py-3'>
                             <Badge variant='default' className='bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'>Default</Badge>
                           </td>

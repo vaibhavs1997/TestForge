@@ -148,4 +148,30 @@ describe('ImportApiContract', () => {
     expect(operations).toHaveLength(1);
     expect(operations[0].description).toContain('updated');
   });
+
+  it('imports OpenAPI JSON with a UTF-8 BOM', async () => {
+    const useCase = new ImportApiContract(new ApiServiceRepository(), new ApiOperationRepository());
+    const summary = await useCase.execute({
+      projectId: 'project-bom',
+      fileName: 'pets.json',
+      content: `\uFEFF${OPENAPI_SPEC}`,
+    });
+
+    expect(summary.servicesImported).toBeGreaterThanOrEqual(1);
+    expect(summary.operationsImported).toBeGreaterThanOrEqual(1);
+    expect(summary.warnings).toEqual([]);
+  });
+
+  it('returns no imports and parse warnings for invalid JSON', async () => {
+    const useCase = new ImportApiContract(new ApiServiceRepository(), new ApiOperationRepository());
+    const summary = await useCase.execute({
+      projectId: 'project-bad',
+      fileName: 'broken.json',
+      content: '{ "openapi": "3.0.0", broken',
+    });
+
+    expect(summary.servicesImported).toBe(0);
+    expect(summary.operationsImported).toBe(0);
+    expect(summary.warnings.some((w) => w.includes('Failed to parse file'))).toBe(true);
+  });
 });

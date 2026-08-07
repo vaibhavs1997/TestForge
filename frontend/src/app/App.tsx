@@ -6,16 +6,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 // Shared constants
 import { QUERY_STALE_TIME_MS, DEFAULT_QUERY_RETRY_COUNT } from '../constants/timeouts';
 
-// Shared types
-
-// Hooks
-
-// Services
-
 // Components
 import { AppRoutes } from '../routes';
-
-// Styles
+import { AuthBootstrap } from '../components/auth/AuthBootstrap';
+import { authStore } from '../store/authStore';
+import { setUnauthorizedHandler } from '../services/authSession';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -28,10 +23,23 @@ const queryClient = new QueryClient({
 });
 
 export const App: React.FC = () => {
+  React.useEffect(() => {
+    setUnauthorizedHandler(() => {
+      const loginRequired = authStore.getState().loginRequired;
+      authStore.getState().logout();
+      if (loginRequired) {
+        window.location.assign('/?auth=login&expired=1');
+      }
+    });
+    return () => setUnauthorizedHandler(null);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <AppRoutes />
+        <AuthBootstrap>
+          <AppRoutes />
+        </AuthBootstrap>
       </BrowserRouter>
     </QueryClientProvider>
   );

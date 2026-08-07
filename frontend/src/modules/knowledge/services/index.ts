@@ -1,5 +1,6 @@
 // Knowledge service functions for the AI Knowledge Hub
 import axios from 'axios';
+import { apiAxios } from '../../../services/apiAxios';
 import type {
   KnowledgeFlow,
   KnowledgeFlowFormData,
@@ -138,6 +139,24 @@ export const knowledgeService = {
 
   deleteDocumentation: async (projectId: string, docId: string): Promise<void> => {
     await axios.delete(`${API_BASE_URL}/projects/${projectId}/knowledge/docs/${docId}`);
+  },
+
+  importDocuments: async (
+    projectId: string,
+    files: File[]
+  ): Promise<{
+    created: { flows: number; rules: number; variables: number; dependencies: number; documentation: number };
+    errors: string[];
+    filesProcessed: number;
+  }> => {
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append('files', file);
+    }
+    const { data } = await apiAxios.post(`${API_BASE_URL}/projects/${projectId}/knowledge/import`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data.data;
   },
 };
 

@@ -5,6 +5,7 @@ import { UpdateEnvironment } from '../../application/environment/UpdateEnvironme
 import { DeleteEnvironment } from '../../application/environment/DeleteEnvironment';
 import { GetEnvironment } from '../../application/environment/GetEnvironment';
 import { ListEnvironments } from '../../application/environment/ListEnvironments';
+import { UpsertEnvironments } from '../../application/environment/UpsertEnvironments';
 import { createSuccessResponse } from '../../shared/ApiResponse';
 
 export class EnvironmentController {
@@ -13,7 +14,8 @@ export class EnvironmentController {
     private readonly updateEnvironmentUseCase: UpdateEnvironment,
     private readonly deleteEnvironmentUseCase: DeleteEnvironment,
     private readonly getEnvironmentUseCase: GetEnvironment,
-    private readonly listEnvironmentsUseCase: ListEnvironments
+    private readonly listEnvironmentsUseCase: ListEnvironments,
+    private readonly upsertEnvironmentsUseCase: UpsertEnvironments,
   ) {}
 
   async listEnvironments(req: Request, res: Response): Promise<void> {
@@ -37,6 +39,26 @@ export class EnvironmentController {
     });
 
     res.status(201).json(createSuccessResponse(environment));
+  }
+
+  async upsertEnvironments(req: Request, res: Response): Promise<void> {
+    const projectId = req.params.projectId;
+    const body = req.body as { environments?: unknown };
+    const items = Array.isArray(body?.environments) ? body.environments : [];
+
+    const result = await this.upsertEnvironmentsUseCase.execute({
+      projectId,
+      items: items as {
+        name: string;
+        baseUrl: string;
+        description?: string;
+        authentication?: unknown;
+        variables?: Record<string, string>;
+        timeout?: number;
+      }[],
+    });
+
+    res.status(200).json(createSuccessResponse(result));
   }
 
   async getEnvironment(req: Request, res: Response): Promise<void> {

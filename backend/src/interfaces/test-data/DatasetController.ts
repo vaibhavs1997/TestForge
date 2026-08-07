@@ -25,14 +25,17 @@ export class DatasetController {
         res.status(201).json(createSuccessResponse(dataset));
     }
     async getDataset(req: Request, res: Response): Promise<void> {
+        const projectId = req.params.projectId;
         const { datasetId } = req.params;
-        const dataset = await this.getDatasetUseCase.execute(datasetId);
+        const dataset = await this.getDatasetUseCase.execute({ projectId, id: datasetId });
         res.status(200).json(createSuccessResponse(dataset));
     }
     async updateDataset(req: Request, res: Response): Promise<void> {
+        const projectId = req.params.projectId;
         const { datasetId } = req.params;
         const { name, description, category } = req.body;
         const dataset = await this.updateDatasetUseCase.execute({
+            projectId,
             id: datasetId,
             name,
             description,
@@ -41,8 +44,9 @@ export class DatasetController {
         res.status(200).json(createSuccessResponse(dataset));
     }
     async deleteDataset(req: Request, res: Response): Promise<void> {
+        const projectId = req.params.projectId;
         const { datasetId } = req.params;
-        await this.deleteDatasetUseCase.execute(datasetId);
+        await this.deleteDatasetUseCase.execute({ projectId, id: datasetId });
         res.status(204).send();
     }
 }

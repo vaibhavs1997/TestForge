@@ -4,6 +4,7 @@
  */
 
 import { API_BASE_URL } from '../constants/api';
+import { getAuthAuthorizationHeader, notifyUnauthorized } from './authSession';
 
 export interface ApiError {
   message: string;
@@ -35,9 +36,9 @@ export class HttpClient {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
-    const apiKey = import.meta.env.VITE_API_KEY;
-    if (typeof apiKey === 'string' && apiKey.length > 0) {
-      headers.Authorization = `Bearer ${apiKey}`;
+    const authorization = getAuthAuthorizationHeader();
+    if (authorization) {
+      headers.Authorization = authorization;
     }
     return headers;
   }
@@ -54,7 +55,7 @@ export class HttpClient {
     });
 
     if (!response.ok) {
-      throw await this.handleError(response);
+      throw await this.handleError(response, path);
     }
 
     const body = await response.json();
@@ -69,7 +70,7 @@ export class HttpClient {
     });
 
     if (!response.ok) {
-      throw await this.handleError(response);
+      throw await this.handleError(response, path);
     }
 
     const json = await response.json();
@@ -84,7 +85,7 @@ export class HttpClient {
     });
 
     if (!response.ok) {
-      throw await this.handleError(response);
+      throw await this.handleError(response, path);
     }
 
     const json = await response.json();
@@ -99,7 +100,7 @@ export class HttpClient {
     });
 
     if (!response.ok) {
-      throw await this.handleError(response);
+      throw await this.handleError(response, path);
     }
 
     const json = await response.json();
@@ -113,7 +114,7 @@ export class HttpClient {
     });
 
     if (!response.ok) {
-      throw await this.handleError(response);
+      throw await this.handleError(response, path);
     }
 
     if (response.status === 204) {
@@ -125,7 +126,7 @@ export class HttpClient {
     unwrap(JSON.parse(text));
   }
 
-  private async handleError(response: Response): Promise<ApiError> {
+  private async handleError(response: Response, path: string): Promise<ApiError> {
     let errorBody: Record<string, unknown> = {};
 
     try {
@@ -134,7 +135,7 @@ export class HttpClient {
       errorBody = { message: response.statusText };
     }
 
-    return {
+    const apiError: ApiError = {
       message:
         (typeof errorBody.message === 'string' && errorBody.message) ||
         (typeof errorBody.error === 'string' && errorBody.error) ||
@@ -142,6 +143,17 @@ export class HttpClient {
       statusCode: response.status,
       details: errorBody,
     };
+
+    if (
+      response.status === 401
+      && !path.startsWith('/auth/login')
+      && !path.startsWith('/auth/register')
+      && path !== '/auth/config'
+    ) {
+      notifyUnauthorized();
+    }
+
+    return apiError;
   }
 }
 

@@ -44,7 +44,7 @@ export async function readJsonFile<T>(filePath: string, defaultValue: T): Promis
     if (!raw) {
       return defaultValue;
     }
-    return JSON.parse(raw) as T;
+    return JSON.parse(raw.replace(/^\uFEFF/, '')) as T;
   });
 }
 
@@ -63,4 +63,25 @@ export async function readJsonArray<T>(filePath: string): Promise<T[]> {
 
 export async function writeJsonArray<T>(filePath: string, data: T[]): Promise<void> {
   await writeJsonFile(filePath, data);
+}
+
+/** Read-modify-write an array file under a single lock (avoids lost updates). */
+export async function updateJsonArray<T>(
+  filePath: string,
+  defaultValue: T[],
+  updater: (current: T[]) => T[],
+): Promise<T[]> {
+  return withFileLock(filePath, () => {
+    let current = defaultValue;
+    if (fs.existsSync(filePath)) {
+      const raw = fs.readFileSync(filePath, 'utf-8').trim();
+      if (raw) {
+        current = JSON.parse(raw.replace(/^\uFEFF/, '')) as T[];
+      }
+    }
+    const next = updater(current);
+    ensureParentDir(filePath);
+    fs.writeFileSync(filePath, JSON.stringify(next, null, 2), 'utf-8');
+    return next;
+  });
 }

@@ -56,14 +56,19 @@ interface ParsedService {
 
 type SpecType = 'openapi3' | 'swagger2' | 'postman' | 'graphql-schema' | 'graphql-introspection' | 'unknown';
 
+function stripBom(content: string): string {
+  return content.replace(/^\uFEFF/, '');
+}
+
 function detectSpecType(content: string, fileName: string): SpecType {
+  const normalized = stripBom(content);
   const ext = fileName.split('.').pop()?.toLowerCase();
 
   if (ext === 'graphql' || ext === 'gql') return 'graphql-schema';
 
   if (ext === 'json') {
     try {
-      const parsed = JSON.parse(content);
+      const parsed = JSON.parse(normalized);
       return detectFromObject(parsed);
     } catch {
       return 'unknown';
@@ -72,7 +77,7 @@ function detectSpecType(content: string, fileName: string): SpecType {
 
   if (ext === 'yaml' || ext === 'yml') {
     try {
-      const parsed = yaml.load(content);
+      const parsed = yaml.load(normalized);
       if (typeof parsed === 'object' && parsed !== null) {
         return detectFromObject(parsed as Record<string, unknown>);
       }
@@ -83,10 +88,10 @@ function detectSpecType(content: string, fileName: string): SpecType {
 
   // Fallback: auto-detect from content
   try {
-    const parsed = JSON.parse(content);
+    const parsed = JSON.parse(normalized);
     return detectFromObject(parsed);
   } catch {
-    if (/type\s+(Query|Mutation|Subscription)\s*\{/.test(content)) {
+    if (/type\s+(Query|Mutation|Subscription)\s*\{/.test(normalized)) {
       return 'graphql-schema';
     }
   }
@@ -105,12 +110,13 @@ function detectFromObject(obj: Record<string, unknown>): SpecType {
 // ─── Spec parsing & extraction helpers ───────────────────
 
 function parseJsonOrYaml(content: string, fileName: string): any {
+  const normalized = stripBom(content);
   const ext = fileName.split('.').pop()?.toLowerCase();
-  if (ext === 'json') return JSON.parse(content);
+  if (ext === 'json') return JSON.parse(normalized);
   try {
-    return JSON.parse(content);
+    return JSON.parse(normalized);
   } catch {
-    return yaml.load(content);
+    return yaml.load(normalized);
   }
 }
 
@@ -704,8 +710,9 @@ export class ImportApiContract {
     content: string;
   }): Promise<ImportSummary> {
     const warnings: string[] = [];
+    const content = stripBom(params.content);
 
-    const specType = detectSpecType(params.content, params.fileName);
+    const specType = detectSpecType(content, params.fileName);
 
     if (specType === 'unknown') {
       warnings.push('Could not detect specification format from file extension or content.');
@@ -716,9 +723,9 @@ export class ImportApiContract {
 
     try {
       if (specType === 'graphql-schema') {
-        parsedServices = parseGraphQLSchema(params.content, params.fileName, warnings);
+        parsedServices = parseGraphQLSchema(content, params.fileName, warnings);
       } else {
-        spec = parseJsonOrYaml(params.content, params.fileName);
+        spec = parseJsonOrYaml(content, params.fileName);
         if (specType === 'openapi3' || specType === 'swagger2') {
           parsedServices = extractFromOpenApi(spec, warnings);
         } else if (specType === 'postman') {

@@ -67,6 +67,7 @@ import { ApiModule } from './api/ApiModule';
 import { ProjectModule } from './project/ProjectModule';
 import { EnvironmentModule } from './environment/EnvironmentModule';
 import { ActivityStreamHub } from './realtime/ActivityStreamHub';
+import { AuthService } from './auth/AuthService';
 import { createAuditLogRepository } from '../infrastructure/persistence/createAuditLogRepository';
 import { createProjectRepository } from '../infrastructure/persistence/createProjectRepository';
 import type { PersistenceDriver } from '../config';
@@ -380,6 +381,7 @@ export class ApplicationContainer {
     eventPublisher: this.eventPublisher,
   });
   readonly activityStreamHub = new ActivityStreamHub(this.eventBus);
+  readonly authService = new AuthService();
 }
 
 // Singleton instance shared across the application

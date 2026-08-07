@@ -29,6 +29,8 @@ export class CreateProject {
     description?: string;
     id?: string;
     status?: ProjectRecord['status'];
+    ownerId?: string;
+    tenantId?: string;
   }): Promise<ProjectRecord> {
     return this.projectRepository.create(input);
   }

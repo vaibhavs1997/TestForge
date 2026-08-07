@@ -1,4 +1,6 @@
-const META_KEY = 'testforge_project_ui_meta';
+import { getScopedStorageKey } from '../../../services/authSession';
+
+const META_BASE = 'testforge_project_ui_meta';
 
 export interface ProjectUiMeta {
   lastOpenedAt: number;
@@ -6,9 +8,13 @@ export interface ProjectUiMeta {
 
 type MetaMap = Record<string, ProjectUiMeta>;
 
+function metaKey(): string {
+  return getScopedStorageKey(META_BASE);
+}
+
 export function loadProjectUiMeta(): MetaMap {
   try {
-    const raw = localStorage.getItem(META_KEY);
+    const raw = localStorage.getItem(metaKey());
     if (!raw) return {};
     return JSON.parse(raw) as MetaMap;
   } catch {
@@ -18,7 +24,7 @@ export function loadProjectUiMeta(): MetaMap {
 
 export function saveProjectUiMeta(map: MetaMap): void {
   try {
-    localStorage.setItem(META_KEY, JSON.stringify(map));
+    localStorage.setItem(metaKey(), JSON.stringify(map));
   } catch {
     // ignore
   }

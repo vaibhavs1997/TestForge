@@ -1,5 +1,6 @@
 import { apiService } from '../../api/services/apiService';
 import type { ImportSummary, DetectedEnvironment } from '../../api/types';
+import { importSummaryHasChanges } from '../../api/utils/importSummary';
 import { parseEnvironmentImport } from '../../environment/utils/parseEnvironmentImport';
 import { environmentService } from '../../environment/services/environmentService';
 import type { ClassifiedFile, ImportFileKind } from './classifyImportFile';
@@ -22,16 +23,16 @@ async function upsertDetectedEnvironments(
   projectId: string,
   envs: DetectedEnvironment[],
 ): Promise<number> {
-  let count = 0;
-  for (const env of envs) {
-    await environmentService.upsertEnvironment(projectId, {
+  if (envs.length === 0) return 0;
+  const result = await environmentService.batchUpsertEnvironments(
+    projectId,
+    envs.map((env) => ({
       name: env.name,
       baseUrl: env.baseUrl,
       description: env.description,
-    });
-    count += 1;
-  }
-  return count;
+    })),
+  );
+  return result.environments.length;
 }
 
 export async function runUnifiedImport(
@@ -63,12 +64,28 @@ export async function runUnifiedImport(
       if (summary.detectedEnvironments?.length) {
         detectedFromContracts.push(...summary.detectedEnvironments);
       }
-      fileResults.push({
-        fileName: item.file.name,
-        kind: item.kind,
-        status: 'success',
-        message: `Contract synced (${summary.operationsImported + (summary.operationsUpdated ?? 0)} ops touched)`,
-      });
+      const changed = importSummaryHasChanges(summary);
+      const warnings = summary.warnings?.filter(Boolean) ?? [];
+      if (!changed) {
+        fileResults.push({
+          fileName: item.file.name,
+          kind: item.kind,
+          status: 'failed',
+          message:
+            warnings.length > 0
+              ? warnings.join('\n\n')
+              : 'No services or operations were imported from this file.',
+        });
+      } else {
+        fileResults.push({
+          fileName: item.file.name,
+          kind: item.kind,
+          status: 'success',
+          message: `Contract synced (${summary.operationsImported + (summary.operationsUpdated ?? 0)} ops touched${
+            warnings.length > 0 ? `; ${warnings.length} warning(s)` : ''
+          })`,
+        });
+      }
     } catch (err) {
       fileResults.push({
         fileName: item.file.name,
@@ -82,16 +99,17 @@ export async function runUnifiedImport(
   for (const item of envFiles) {
     try {
       const parsed = await parseEnvironmentImport({ file: item.file });
-      for (const env of parsed) {
-        await environmentService.upsertEnvironment(projectId, {
+      const batch = await environmentService.batchUpsertEnvironments(
+        projectId,
+        parsed.map((env) => ({
           name: env.name,
           baseUrl: env.baseUrl,
           description: env.description,
           variables: env.variables,
           timeout: env.timeout,
-        });
-        environmentsUpserted += 1;
-      }
+        })),
+      );
+      environmentsUpserted += batch.environments.length;
       fileResults.push({
         fileName: item.file.name,
         kind: item.kind,
@@ -117,8 +135,17 @@ export async function runUnifiedImport(
   });
 
   let detectedEnvironmentsSynced = 0;
-  if (uniqueDetected.length > 0) {
+  // When the user explicitly imported environment files, do not also create rows from
+  // Postman/OpenAPI variable heuristics (baseUrl, issuer, Collection default, etc.).
+  if (uniqueDetected.length > 0 && envFiles.length === 0) {
     detectedEnvironmentsSynced = await upsertDetectedEnvironments(projectId, uniqueDetected);
+  } else if (uniqueDetected.length > 0 && envFiles.length > 0) {
+    fileResults.push({
+      fileName: '(from API contracts)',
+      kind: 'environment',
+      status: 'skipped',
+      message: `Skipped ${uniqueDetected.length} auto-detected environment(s) — you already imported environment file(s).`,
+    });
   }
 
   return {

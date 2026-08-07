@@ -4,6 +4,10 @@ export interface ProjectRecord {
   projectKey: string;
   description?: string;
   status?: 'active' | 'archived';
+  /** Set when created by an authenticated user (JWT sub). */
+  ownerId?: string;
+  /** Organization / tenant — projects are isolated per tenant. */
+  tenantId?: string;
   createdAt: number;
   updatedAt: number;
 }

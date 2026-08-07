@@ -69,22 +69,29 @@ class EnvironmentService extends ApiClient<EnvironmentDto> {
       timeout?: number;
     },
   ): Promise<{ action: 'created' | 'updated'; environment: EnvironmentDto }> {
-    const existingList = await this.listEnvironments(projectId);
-    const nameLower = payload.name.trim().toLowerCase();
-    const match = existingList.find((e) => e.name.trim().toLowerCase() === nameLower);
+    const result = await this.batchUpsertEnvironments(projectId, [payload]);
+    const environment = result.environments[0];
+    return {
+      action: result.created > 0 ? 'created' : 'updated',
+      environment,
+    };
+  }
 
-    if (match) {
-      const environment = await this.updateEnvironment(projectId, match.id, {
-        baseUrl: payload.baseUrl,
-        description: payload.description,
-        variables: payload.variables,
-        timeout: payload.timeout,
-      });
-      return { action: 'updated', environment };
+  async batchUpsertEnvironments(
+    projectId: string,
+    environments: Array<{
+      name: string;
+      baseUrl: string;
+      description?: string;
+      authentication?: any;
+      variables?: Record<string, string>;
+      timeout?: number;
+    }>,
+  ): Promise<{ created: number; updated: number; environments: EnvironmentDto[] }> {
+    if (environments.length === 0) {
+      return { created: 0, updated: 0, environments: [] };
     }
-
-    const environment = await this.createEnvironment(projectId, payload);
-    return { action: 'created', environment };
+    return this.post(`/projects/${projectId}/environments/upsert-batch`, { environments });
   }
 }
 

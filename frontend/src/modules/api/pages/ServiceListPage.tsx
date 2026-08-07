@@ -1,6 +1,11 @@
 // Service list page scoped to a project with search, sort, and filters.
 import React from 'react';
 import { useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../../../constants';
+import { notificationInboxQueryKey } from '../../notification/hooks';
+import { runUnifiedImport } from '../../import/utils/runUnifiedImport';
+import { evaluateUnifiedImport } from '../../import/utils/buildUnifiedImportMessage';
 import { PageHeader } from '../../../components/layout/PageHeader';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { Button } from '../../../components/ui/Button';
@@ -13,9 +18,13 @@ import { ServiceDialog } from '../components/ServiceDialog';
 import { ImportApiModal, type ImportApiModalData } from '../components/ImportApiModal';
 import { AddApiModal, type AddApiModalData } from '../components/AddApiModal';
 import { useService, useApiOperations, useImportApiContract } from '../hooks/useService';
+import { useEnvironments } from '../../environment/hooks/useEnvironments';
+import { useApiTryEnvironment } from '../hooks/useApiTryEnvironment';
+import { ApiTryEnvironmentSelect } from '../components/ApiTryEnvironmentSelect';
+import { joinBaseUrlAndPath } from '../utils/buildOperationUrl';
 import { environmentService } from '../../environment/services/environmentService';
 import type { Service, ServiceFormData, Operation, OperationStatus, ImportSummary, DetectedEnvironment } from '../types';
-import { applyImportSummaryToUi } from '../utils/importSummary';
+import { applyImportSummaryToUi, type ImportUiOutcome } from '../utils/importSummary';
 import { ChevronRight, Plus, Import, MoreVertical, Play, Edit, Trash2, FolderOpen } from 'lucide-react';
 
 type SortField = 'name' | 'protocol' | 'version' | 'status' | 'updatedDate';
@@ -63,9 +72,16 @@ const toOperationLocal = (op: Operation, serviceName: string): OperationLocal =>
 
 export const ServiceListPage = ({ projectId: propProjectId, projectName }: { projectId?: string; projectName?: string }) => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
-  const projectId = propProjectId ?? routeProjectId ?? '1';
+  const projectId = routeProjectId ?? propProjectId ?? '1';
+  const queryClient = useQueryClient();
   const { services, create, createAsync, update, remove, refetchServices } = useService(projectId);
   const { importContractAsync, isImporting } = useImportApiContract(projectId);
+  const { environments: environmentList, isLoading: environmentsLoading } = useEnvironments(projectId);
+  const environments = environmentList ?? [];
+  const { environmentId, setEnvironmentId, selectedEnvironment } = useApiTryEnvironment(
+    projectId,
+    environments,
+  );
 
   // Fetch all operations for every service in this project
   const serviceIds = React.useMemo(() => services.map((s) => s.id), [services]);
@@ -92,6 +108,7 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
   const [progressMessage, setProgressMessage] = React.useState('');
   const [summaryToastOpen, setSummaryToastOpen] = React.useState(false);
   const [summaryMessage, setSummaryMessage] = React.useState('');
+  const [summaryToastType, setSummaryToastType] = React.useState<'success' | 'warning' | 'info'>('success');
   const [errorToastOpen, setErrorToastOpen] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState('');
   
@@ -113,6 +130,17 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
       };
     });
   }, [services, rawOperations]);
+
+  const executionBaseUrl = selectedEnvironment?.baseUrl?.trim() ?? '';
+  const operationFullUrl = React.useMemo(() => {
+    if (!selectedOperation) return '';
+    if (executionBaseUrl) {
+      return joinBaseUrlAndPath(executionBaseUrl, selectedOperation.path);
+    }
+    const svcBase = selectedService?.baseUrl?.trim();
+    if (svcBase) return joinBaseUrlAndPath(svcBase, selectedOperation.path);
+    return '';
+  }, [selectedOperation, executionBaseUrl, selectedService?.baseUrl]);
 
   // Auto-select and expand first service if none selected
   React.useEffect(() => {
@@ -235,6 +263,17 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
       ? servicesWithOperations.find((s) => s.id === deleteService.id)?.operations.length ?? 0
       : 0;
 
+  const showImportOutcome = (message: string, outcome: ImportUiOutcome) => {
+    if (outcome === 'error') {
+      setErrorMessage(message);
+      setErrorToastOpen(true);
+      return;
+    }
+    setSummaryToastType(outcome === 'warning' ? 'warning' : 'success');
+    setSummaryMessage(message);
+    setSummaryToastOpen(true);
+  };
+
   const handleImportApi = (data: ImportApiModalData) => {
     const onImportSuccess = (summary: ImportSummary) => {
       setProgressToastOpen(false);
@@ -245,9 +284,8 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
           setSelectedEnvIds(new Set(envs.map((e) => `${e.name}-${e.baseUrl}`)));
           setEnvConfirmOpen(true);
         },
-        onMessage: (message) => {
-          setSummaryMessage(message);
-          setSummaryToastOpen(true);
+        onMessage: (message, outcome) => {
+          showImportOutcome(message, outcome);
         },
       });
     };
@@ -262,23 +300,48 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
       setErrorToastOpen(true);
     };
 
-    if (data.source === 'file' && data.file) {
-      setUploadProgress(0);
-      setProgressMessage('Starting upload…');
-      setProgressToastOpen(true);
+    if (data.source === 'file' && data.items?.length) {
+      const items = data.items;
+      const singleApiOnly =
+        items.length === 1 && items[0].kind === 'api-contract';
 
-      importContractAsync({
-        file: data.file,
-        onUploadProgress: (e: { total?: number; loaded: number }) => {
-          if (e.total && e.total > 0) {
-            const percent = Math.round((e.loaded / e.total) * 100);
-            setUploadProgress(percent);
-            setProgressMessage(`Uploading… ${percent}%`);
-          }
-        },
-      })
-        .then(onImportSuccess)
-        .catch(onImportError);
+      if (singleApiOnly) {
+        setUploadProgress(0);
+        setProgressMessage('Starting upload…');
+        setProgressToastOpen(true);
+
+        importContractAsync({
+          file: items[0].file,
+          onUploadProgress: (e: { total?: number; loaded: number }) => {
+            if (e.total && e.total > 0) {
+              const percent = Math.round((e.loaded / e.total) * 100);
+              setUploadProgress(percent);
+              setProgressMessage(`Uploading… ${percent}%`);
+            }
+          },
+        })
+          .then(onImportSuccess)
+          .catch(onImportError);
+      } else {
+        setUploadProgress(-1);
+        setProgressMessage(`Importing ${items.length} file(s)…`);
+        setProgressToastOpen(true);
+
+        void runUnifiedImport(projectId, items)
+          .then((result) => {
+            setProgressToastOpen(false);
+            setUploadProgress(0);
+            void queryClient.invalidateQueries({ queryKey: queryKeys.services(projectId) });
+            void queryClient.invalidateQueries({ queryKey: queryKeys.operations(projectId) });
+            void queryClient.invalidateQueries({ queryKey: queryKeys.environments(projectId) });
+            void queryClient.invalidateQueries({ queryKey: notificationInboxQueryKey() });
+            void refetchServices();
+
+            const { message, outcome } = evaluateUnifiedImport(result);
+            showImportOutcome(message, outcome);
+          })
+          .catch(onImportError);
+      }
     } else if (data.source === 'url' && data.url?.trim()) {
       setUploadProgress(0);
       setProgressMessage('Fetching contract from URL…');
@@ -553,8 +616,33 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
                       {selectedOperation.status}
                     </Badge>
                   </div>
-                  <div className='flex items-center gap-2'>
-                    <Button variant='outline' size='sm'>
+                  <div className='flex flex-wrap items-center justify-end gap-2'>
+                    <ApiTryEnvironmentSelect
+                      projectId={projectId}
+                      environments={environments}
+                      value={environmentId}
+                      onChange={setEnvironmentId}
+                      isLoading={environmentsLoading}
+                      compact
+                    />
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      disabled={!selectedEnvironment || !selectedOperation}
+                      title={
+                        selectedEnvironment
+                          ? 'Execution will use the selected environment (coming soon)'
+                          : 'Select an environment first'
+                      }
+                      onClick={() => {
+                        if (!selectedEnvironment || !selectedOperation) return;
+                        setSummaryToastType('info');
+                        setSummaryMessage(
+                          `Try It will call ${joinBaseUrlAndPath(selectedEnvironment.baseUrl, selectedOperation.path)} using "${selectedEnvironment.name}" when execution is wired.`,
+                        );
+                        setSummaryToastOpen(true);
+                      }}
+                    >
                       <Play className='mr-2 h-4 w-4' />
                       Try It
                     </Button>
@@ -644,18 +732,19 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
                         <code className='text-sm text-text-secondary'>{selectedOperation.path}</code>
                       </div>
                       <div>
-                        <h3 className='text-sm font-semibold text-text mb-1'>Base URL</h3>
+                        <h3 className='text-sm font-semibold text-text mb-1'>Service base URL</h3>
                         <code className='text-sm text-text-secondary break-all'>
                           {selectedService?.baseUrl?.trim() || '—'}
                         </code>
-                        {selectedService?.baseUrl && selectedOperation?.path ? (
-                          <p className='mt-2 text-xs text-text-secondary'>
-                            Full URL:{' '}
-                            <code className='break-all'>
-                              {`${selectedService.baseUrl.replace(/\/$/, '')}${selectedOperation.path.startsWith('/') ? selectedOperation.path : `/${selectedOperation.path}`}`}
-                            </code>
-                          </p>
-                        ) : null}
+                        <p className='mt-1 text-xs text-text-secondary'>From the API contract (reference only).</p>
+                      </div>
+                      <div>
+                        <h3 className='text-sm font-semibold text-text mb-1'>Full URL</h3>
+                        {operationFullUrl ? (
+                          <code className='text-sm text-text-secondary break-all'>{operationFullUrl}</code>
+                        ) : (
+                          <p className='text-sm text-text-secondary'>Select an environment to build the request URL.</p>
+                        )}
                       </div>
                       <div>
                         <h3 className='text-sm font-semibold text-text mb-1'>Authentication</h3>
@@ -675,7 +764,23 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
 
                 {activeTab === 'request' && (
                   <div className='space-y-4'>
-                    <h3 className='text-sm font-semibold text-text'>Request</h3>
+                    <div className='rounded-lg border border-border bg-surface/40 p-4'>
+                      <h3 className='text-sm font-semibold text-text mb-2'>Request target</h3>
+                      <ApiTryEnvironmentSelect
+                        projectId={projectId}
+                        environments={environments}
+                        value={environmentId}
+                        onChange={setEnvironmentId}
+                        isLoading={environmentsLoading}
+                      />
+                      {operationFullUrl && (
+                        <p className='mt-3 text-sm'>
+                          <span className='font-medium text-text'>URL: </span>
+                          <code className='break-all text-text-secondary'>{operationFullUrl}</code>
+                        </p>
+                      )}
+                    </div>
+                    <h3 className='text-sm font-semibold text-text'>Request body &amp; headers</h3>
                     <div className='rounded-lg border border-border p-4'>
                       <p className='text-sm text-text-secondary'>No request schema defined.</p>
                     </div>
@@ -872,7 +977,7 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
         open={summaryToastOpen}
         onClose={() => setSummaryToastOpen(false)}
         duration={10000}
-        type='success'
+        type={summaryToastType}
       />
 
       {/* Error toast */}
@@ -880,6 +985,7 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
         message={errorMessage}
         open={errorToastOpen}
         onClose={() => setErrorToastOpen(false)}
+        duration={0}
         type='error'
       />
     </div>

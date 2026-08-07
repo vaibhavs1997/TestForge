@@ -1,5 +1,5 @@
 // Requirement Workspace domain types
-export type RequirementSource = 'ProjectAnalysis' | 'Manual';
+export type RequirementSource = 'ProjectAnalysis' | 'Manual' | 'Jira';
 export type ReviewStatus = 'Pending' | 'Reviewed';
 export type ApprovalStatus = 'Suggested' | 'Approved' | 'Rejected' | 'Archived';
 
@@ -23,6 +23,7 @@ export interface Requirement {
   relatedFlows: string[];
   relatedDatasets: string[];
   acceptanceCriteria: AcceptanceCriterion[];
+  jiraIssueKey?: string | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -138,6 +139,7 @@ export interface TestDesign {
   projectId: string;
   requirementId: string;
   strategyItemId: string;
+  title?: string;
   operationId: string;
   environmentId: string;
   datasetId: string;

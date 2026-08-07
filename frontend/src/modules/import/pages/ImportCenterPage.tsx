@@ -17,6 +17,7 @@ import { SearchBar } from '../../../components/shared/SearchBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { Upload, FileText, CheckCircle, XCircle } from 'lucide-react';
 import { UnifiedImportWizard } from '../components/UnifiedImportWizard';
+import { AdminPageIntro } from '../../../components/shared/AdminPageIntro';
 
 export interface ImportCenterPageProps {}
 
@@ -112,17 +113,14 @@ export const ImportCenterPage: React.FC<ImportCenterPageProps> = () => {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-text">Import Center</h1>
-          <p className="mt-1 text-sm text-text-secondary">
-            Import API contracts and environments in one place, or review past contract imports
-          </p>
-        </div>
-        <Button variant="outline" onClick={goToApis}>
-          Open APIs in project
+      <AdminPageIntro
+        title="Import center"
+        description="Cross-project bulk import and history. To add or update APIs for daily work, use your project APIs page—that is the recommended path."
+      >
+        <Button variant="default" onClick={goToApis}>
+          Go to project APIs
         </Button>
-      </div>
+      </AdminPageIntro>
 
       <UnifiedImportWizard />
 

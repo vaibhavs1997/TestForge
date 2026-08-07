@@ -1,6 +1,6 @@
 // External libraries
 import React from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '../../../components/layout/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
@@ -8,13 +8,20 @@ import { Badge } from '../../../components/ui/Badge';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { ErrorAlert } from '../../../components/shared/ErrorAlert';
-import { Play, Clock, CheckCircle, XCircle, AlertCircle, Copy, Download, RefreshCw, Eye, MoreVertical, ChevronDown, Shield, Database, Settings } from 'lucide-react';
+import { Play, Clock, CheckCircle, XCircle, AlertCircle, Copy, Download, RefreshCw, Eye, MoreVertical, ChevronDown, Shield, Database, Settings, ListChecks } from 'lucide-react';
 import { profileService } from '../services/profileService';
+import { executionService } from '../services';
 import type { ExecutionProfile } from '../types/profile';
+import type { ExecutionPlan } from '../../requirements/types';
 import { useNavigate } from 'react-router-dom';
+import { Toast } from '../../../components/shared/Toast';
+import { downloadJsonFile } from '../../../utils/downloadFile';
+import { useReports } from '../../report/hooks';
 
 // Hooks
 import { useExecution } from '../hooks';
+import { ExecutionRunHero } from '../components/ExecutionRunHero';
+import { useRequirements } from '../../requirements/hooks';
 
 // Types
 import type { ExecutionRun, StepStatus } from '../types';
@@ -51,23 +58,48 @@ const getStepStatusIcon = (status: StepStatus) => {
 export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const projectId = routeProjectId || '1';
+  const [searchParams] = useSearchParams();
+  const requirementIdFromUrl = searchParams.get('requirementId') ?? '';
 
-  const { runs, isLoading, isError, error, startExecution, isStarting } = useExecution(projectId);
+  const { runs, isLoading, isError, error, startExecutionAsync, isStarting, refetch } = useExecution(projectId);
+  const { generateReportAsync } = useReports(projectId);
+  const { requirements } = useRequirements(projectId);
 
   const [search, setSearch] = React.useState('');
   const [filter, setFilter] = React.useState<string>('all');
   const [selectedRun, setSelectedRun] = React.useState<ExecutionRun | null>(null);
   const [activeTab, setActiveTab] = React.useState<'details' | 'validation' | 'testdata'>('details');
+  const [advancedMenuOpen, setAdvancedMenuOpen] = React.useState(false);
+  const advancedMenuRef = React.useRef<HTMLDivElement>(null);
   const [validationFilter, setValidationFilter] = React.useState<string>('all');
   const [profiles, setProfiles] = React.useState<ExecutionProfile[]>([]);
+  const [executionPlans, setExecutionPlans] = React.useState<ExecutionPlan[]>([]);
   const [selectedProfileId, setSelectedProfileId] = React.useState<string>('');
+  const [selectedExecutionPlanId, setSelectedExecutionPlanId] = React.useState<string>('');
+  const [selectedRequirementId, setSelectedRequirementId] = React.useState<string>(requirementIdFromUrl);
+  const [toastOpen, setToastOpen] = React.useState(false);
+  const [toastMessage, setToastMessage] = React.useState('');
+  const [toastType, setToastType] = React.useState<'success' | 'error'>('success');
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    if (requirementIdFromUrl) {
+      setSelectedRequirementId(requirementIdFromUrl);
+    }
+  }, [requirementIdFromUrl]);
 
   // Load profiles
   React.useEffect(() => {
     profileService.listByProject(projectId).then(setProfiles).catch((err) => {
       logger.error('Failed to load execution profiles', err);
       setProfiles([]);
+    });
+  }, [projectId]);
+
+  React.useEffect(() => {
+    executionService.listExecutionPlans(projectId).then(setExecutionPlans).catch((err) => {
+      logger.error('Failed to load execution plans', err);
+      setExecutionPlans([]);
     });
   }, [projectId]);
 
@@ -80,36 +112,132 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
   }, [profiles, selectedProfileId]);
 
   React.useEffect(() => {
+    const readyPlans = executionPlans.filter((p) => p.status !== 'Disabled');
+    if (readyPlans.length > 0 && !selectedExecutionPlanId) {
+      const sorted = [...readyPlans].sort((a, b) => a.executionOrder - b.executionOrder);
+      setSelectedExecutionPlanId(sorted[0].id);
+    }
+  }, [executionPlans, selectedExecutionPlanId]);
+
+  React.useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (advancedMenuRef.current && !advancedMenuRef.current.contains(e.target as Node)) {
+        setAdvancedMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
+
+  React.useEffect(() => {
     if (runs.length > 0 && !selectedRun) {
       setSelectedRun(runs[0]);
     }
   }, [runs, selectedRun]);
 
+  const requirementById = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of requirements) {
+      map.set(r.id, r.title);
+    }
+    return map;
+  }, [requirements]);
+
   const filteredRuns = React.useMemo(() => {
     const term = search.trim().toLowerCase();
     return runs.filter((run) => {
+      const reqTitle = requirementById.get(run.requirementId)?.toLowerCase() ?? '';
       const matchesSearch =
         !term ||
         run.id.toLowerCase().includes(term) ||
-        run.executionPlanId.toLowerCase().includes(term) ||
-        run.requirementId.toLowerCase().includes(term);
+        run.requirementId.toLowerCase().includes(term) ||
+        reqTitle.includes(term);
       const matchesFilter = filter === 'all' || run.status === filter;
-      return matchesSearch && matchesFilter;
+      const matchesRequirement =
+        !selectedRequirementId || run.requirementId === selectedRequirementId;
+      return matchesSearch && matchesFilter && matchesRequirement;
     });
-  }, [search, filter, runs]);
+  }, [search, filter, runs, requirementById, selectedRequirementId]);
 
-  const handleStartExecution = async (executionPlanId: string) => {
+  const handleStartExecution = async () => {
+    if (!selectedExecutionPlanId) {
+      setToastMessage('Create execution plans from Requirements first (Review → Execution Plans).');
+      setToastType('error');
+      setToastOpen(true);
+      return;
+    }
     try {
-      await startExecution({ projectId, executionPlanId, executionProfileId: selectedProfileId });
+      await startExecutionAsync({
+        projectId,
+        executionPlanId: selectedExecutionPlanId,
+        executionProfileId: selectedProfileId || undefined,
+      });
+      setToastMessage('Execution started');
+      setToastType('success');
+      setToastOpen(true);
+      void refetch();
     } catch (err) {
       logger.error('Failed to start execution', err);
+      setToastMessage(err instanceof Error ? err.message : 'Failed to start execution');
+      setToastType('error');
+      setToastOpen(true);
     }
   };
 
-  // Get the currently selected profile object for summary display
-  const selectedProfile = React.useMemo(() => {
-    return profiles.find(p => p.id === selectedProfileId) || null;
-  }, [profiles, selectedProfileId]);
+  const handleViewReportForRun = async (run: ExecutionRun) => {
+    try {
+      const report = await generateReportAsync({ projectId, executionRunId: run.id });
+      navigate(`/projects/${projectId}/reports/${report.id}`);
+    } catch (err) {
+      logger.error('Failed to generate report', err);
+      setToastMessage(err instanceof Error ? err.message : 'Failed to generate report');
+      setToastType('error');
+      setToastOpen(true);
+    }
+  };
+
+  const handleDownloadRunLogs = (run: ExecutionRun) => {
+    downloadJsonFile(`execution-${run.id.slice(0, 8)}.json`, run);
+    setToastMessage('Execution log downloaded');
+    setToastType('success');
+    setToastOpen(true);
+  };
+
+  const handleRerun = async (run: ExecutionRun) => {
+    try {
+      await startExecutionAsync({
+        projectId,
+        executionPlanId: run.executionPlanId,
+        executionProfileId: selectedProfileId || undefined,
+      });
+      setToastMessage('Execution re-started');
+      setToastType('success');
+      setToastOpen(true);
+      void refetch();
+    } catch (err) {
+      setToastMessage(err instanceof Error ? err.message : 'Failed to re-run execution');
+      setToastType('error');
+      setToastOpen(true);
+    }
+  };
+
+  const copyRunId = async (runId: string) => {
+    try {
+      await navigator.clipboard.writeText(runId);
+      setToastMessage('Execution ID copied');
+      setToastType('success');
+      setToastOpen(true);
+    } catch {
+      setToastMessage('Could not copy to clipboard');
+      setToastType('error');
+      setToastOpen(true);
+    }
+  };
+
+  const readyExecutionPlans = React.useMemo(
+    () => executionPlans.filter((p) => p.status !== 'Disabled'),
+    [executionPlans],
+  );
 
   const totalPassed = runs.filter(e => e.summary.passed).length;
   const totalFailed = runs.filter(e => e.summary.failed).length;
@@ -125,160 +253,47 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
   return (
     <div className='mx-auto max-w-7xl px-4 py-8'>
       <PageHeader
-        title='Executions'
-        description='View and monitor all test executions.'
+        title='Test runs'
+        description='Run API tests from your requirements and review results.'
         breadcrumb={breadcrumbItems}
-      >
-        <Button variant='outline' onClick={() => navigate('profiles')}>
-          <Settings className='mr-2 h-4 w-4' />
-          Manage Profiles
-        </Button>
-        <select
-          value={selectedProfileId}
-          onChange={(e) => setSelectedProfileId(e.target.value)}
-          className='rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text'
-        >
-          {profiles.filter(p => p.enabled).map((profile) => (
-            <option key={profile.id} value={profile.id}>
-              {profile.name}{profile.isDefault ? ' (Default)' : ''}
-            </option>
-          ))}
-        </select>
-        <Button
-          onClick={() => selectedProfileId && handleStartExecution(selectedProfileId)}
-          disabled={!selectedProfileId || isStarting}
-        >
-          <Play className='mr-2 h-4 w-4' />
-          Start Execution
-        </Button>
-      </PageHeader>
+      />
 
-      {/* Profile Summary */}
-      {selectedProfile && (
-        <Card className='mb-6'>
-          <CardHeader>
-            <CardTitle className='text-base'>Execution Profile: {selectedProfile.name}</CardTitle>
-            <CardDescription>{selectedProfile.description || 'No description'}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className='grid grid-cols-2 gap-4 sm:grid-cols-4'>
-              <div>
-                <p className='text-xs text-text-secondary'>Failure Mode</p>
-                <p className='text-sm font-medium text-text'>{selectedProfile.failureMode}</p>
-              </div>
-              <div>
-                <p className='text-xs text-text-secondary'>Timeout</p>
-                <p className='text-sm font-medium text-text'>{selectedProfile.timeout}ms</p>
-              </div>
-              <div>
-                <p className='text-xs text-text-secondary'>Retry</p>
-                <p className='text-sm font-medium text-text'>
-                  {selectedProfile.retryPolicy.enabled
-                    ? `${selectedProfile.retryPolicy.maxRetries}x / ${selectedProfile.retryPolicy.retryDelay}ms`
-                    : 'Disabled'}
-                </p>
-              </div>
-              <div>
-                <p className='text-xs text-text-secondary'>Assertion Mode</p>
-                <p className='text-sm font-medium text-text'>{selectedProfile.assertionMode}</p>
-              </div>
-              <div>
-                <p className='text-xs text-text-secondary'>Dataset Strategy</p>
-                <p className='text-sm font-medium text-text'>{selectedProfile.datasetSelectionStrategy}</p>
-              </div>
-              <div>
-                <p className='text-xs text-text-secondary'>Runtime Reset</p>
-                <p className='text-sm font-medium text-text'>{selectedProfile.runtimeVariableReset ? 'Yes' : 'No'}</p>
-              </div>
-              <div>
-                <p className='text-xs text-text-secondary'>Environment</p>
-                <p className='text-sm font-medium text-text'>{selectedProfile.defaultEnvironmentId || 'N/A'}</p>
-              </div>
-              <div>
-                <p className='text-xs text-text-secondary'>Parallelism</p>
-                <p className='text-sm font-medium text-text'>
-                  {selectedProfile.parallelism.enabled
-                    ? `${selectedProfile.parallelism.maxConcurrent} concurrent`
-                    : 'Disabled'}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <ExecutionRunHero
+        projectId={projectId}
+        requirements={requirements}
+        executionPlans={executionPlans}
+        profiles={profiles}
+        selectedRequirementId={selectedRequirementId}
+        onRequirementChange={setSelectedRequirementId}
+        selectedExecutionPlanId={selectedExecutionPlanId}
+        onPlanChange={setSelectedExecutionPlanId}
+        selectedProfileId={selectedProfileId}
+        onProfileChange={setSelectedProfileId}
+        onStart={handleStartExecution}
+        isStarting={isStarting}
+      />
 
-      {/* Summary Cards */}
-      <div className='mb-8 grid grid-cols-1 gap-4 sm:grid-cols-5'>
-        <Card>
-          <CardContent className='pt-6'>
-            <div className='flex items-center justify-between'>
-              <div>
-                <p className='text-sm font-medium text-text-secondary'>Total Executions</p>
-                <p className='text-2xl font-bold text-text'>{runs.length}</p>
-                <p className='text-xs text-text-secondary mt-1'>+{runs.length} this week</p>
-              </div>
-              <div className='h-12 w-12 rounded-lg bg-blue-100 dark:bg-blue-900 flex items-center justify-center'>
-                <Play className='h-6 w-6 text-blue-600' />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className='pt-6'>
-            <div className='flex items-center justify-between'>
-              <div>
-                <p className='text-sm font-medium text-text-secondary'>Passed</p>
-                <p className='text-2xl font-bold text-text'>{totalPassed}</p>
-                <p className='text-xs text-text-secondary mt-1'>{runs.length > 0 ? Math.round((totalPassed / runs.length) * 100) : 0}%</p>
-              </div>
-              <div className='h-12 w-12 rounded-lg bg-green-100 dark:bg-green-900 flex items-center justify-center'>
-                <CheckCircle className='h-6 w-6 text-green-600' />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className='pt-6'>
-            <div className='flex items-center justify-between'>
-              <div>
-                <p className='text-sm font-medium text-text-secondary'>Failed</p>
-                <p className='text-2xl font-bold text-text'>{totalFailed}</p>
-                <p className='text-xs text-text-secondary mt-1'>{runs.length > 0 ? Math.round((totalFailed / runs.length) * 100) : 0}%</p>
-              </div>
-              <div className='h-12 w-12 rounded-lg bg-red-100 dark:bg-red-900 flex items-center justify-center'>
-                <XCircle className='h-6 w-6 text-red-600' />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className='pt-6'>
-            <div className='flex items-center justify-between'>
-              <div>
-                <p className='text-sm font-medium text-text-secondary'>Running</p>
-                <p className='text-2xl font-bold text-text'>{totalRunning}</p>
-                <p className='text-xs text-text-secondary mt-1'>{runs.length > 0 ? Math.round((totalRunning / runs.length) * 100) : 0}%</p>
-              </div>
-              <div className='h-12 w-12 rounded-lg bg-yellow-100 dark:bg-yellow-900 flex items-center justify-center'>
-                <AlertCircle className='h-6 w-6 text-yellow-600' />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className='pt-6'>
-            <div className='flex items-center justify-between'>
-              <div>
-                <p className='text-sm font-medium text-text-secondary'>Pending</p>
-                <p className='text-2xl font-bold text-text'>{totalPending}</p>
-                <p className='text-xs text-text-secondary mt-1'>{runs.length > 0 ? Math.round((totalPending / runs.length) * 100) : 0}%</p>
-              </div>
-              <div className='h-12 w-12 rounded-lg bg-gray-100 dark:bg-gray-900 flex items-center justify-center'>
-                <Clock className='h-6 w-6 text-gray-600' />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Run summary */}
+      <div className='mb-6 flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm text-text-secondary'>
+        <span>
+          <span className='font-semibold text-text'>{runs.length}</span> runs
+        </span>
+        <span>
+          <span className='font-semibold text-green-600'>{totalPassed}</span> with passes
+        </span>
+        <span>
+          <span className='font-semibold text-red-600'>{totalFailed}</span> with failures
+        </span>
+        {totalRunning > 0 && (
+          <span>
+            <span className='font-semibold text-yellow-600'>{totalRunning}</span> running
+          </span>
+        )}
+        {totalPending > 0 && (
+          <span>
+            <span className='font-semibold text-text'>{totalPending}</span> pending
+          </span>
+        )}
       </div>
 
       {/* Search and Filters */}
@@ -319,20 +334,24 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
               <EmptyState
                 icon={<Play className='h-8 w-8' />}
                 title='No executions found'
-                description='Start an execution to see it here.'
+                description='Plan execution from Requirements, pick a plan above, then start an execution.'
+                action={{
+                  label: 'Go to Requirements',
+                  onClick: () => navigate(`/projects/${projectId}/requirements`),
+                }}
               />
             ) : (
               <div className='overflow-x-auto'>
                 <table className='w-full'>
                   <thead className='border-b border-border'>
                     <tr className='text-left text-xs text-text-secondary'>
-                      <th className='px-4 py-3 font-medium'>Execution ID</th>
+                      <th className='px-4 py-3 font-medium'>Run</th>
                       <th className='px-4 py-3 font-medium'>Requirement</th>
                       <th className='px-4 py-3 font-medium'>Status</th>
                       <th className='px-4 py-3 font-medium'>Steps</th>
                       <th className='px-4 py-3 font-medium'>Passed</th>
                       <th className='px-4 py-3 font-medium'>Failed</th>
-                      <th className='px-4 py-3 font-medium'>Started At</th>
+                      <th className='px-4 py-3 font-medium'>Started</th>
                       <th className='px-4 py-3 font-medium'></th>
                     </tr>
                   </thead>
@@ -346,13 +365,12 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
                         onClick={() => setSelectedRun(run)}
                       >
                         <td className='px-4 py-3'>
-                          <div className='flex items-center gap-2'>
-                            {getStatusBadge(run.status)}
-                            <span className='text-xs font-mono text-text'>{run.id.slice(0, 8)}</span>
-                          </div>
+                          <span className='text-xs font-mono text-text-secondary'>{run.id.slice(0, 8)}</span>
                         </td>
-                        <td className='px-4 py-3 text-sm text-text'>{run.requirementId.slice(0, 8)}</td>
-                        <td className='px-4 py-3 text-sm text-text'>{run.executionPlanId.slice(0, 8)}</td>
+                        <td className='px-4 py-3 text-sm text-text max-w-[200px] truncate' title={requirementById.get(run.requirementId)}>
+                          {requirementById.get(run.requirementId) ?? run.requirementId.slice(0, 8)}
+                        </td>
+                        <td className='px-4 py-3'>{getStatusBadge(run.status)}</td>
                         <td className='px-4 py-3 text-sm text-text'>{run.summary.totalSteps}</td>
                         <td className='px-4 py-3 text-sm text-green-600'>{run.summary.passed}</td>
                         <td className='px-4 py-3 text-sm text-red-600'>{run.summary.failed}</td>
@@ -379,12 +397,12 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
             <CardHeader>
               <div className='flex items-center justify-between'>
                 <CardTitle className='text-base'>Execution Details</CardTitle>
-                <Button variant='ghost' size='sm' className='h-8 w-8 p-0'>
+                <Button variant='ghost' size='sm' className='h-8 w-8 p-0' onClick={() => void copyRunId(selectedRun.id)}>
                   <Copy className='h-4 w-4' />
                 </Button>
               </div>
               {/* Tabs */}
-              <div className='flex gap-2 mt-4'>
+              <div className='mt-4 flex flex-wrap items-center gap-2'>
                 <Button
                   variant={activeTab === 'details' ? 'default' : 'outline'}
                   size='sm'
@@ -392,24 +410,44 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
                 >
                   Details
                 </Button>
-                <Button
-                  variant={activeTab === 'testdata' ? 'default' : 'outline'}
-                  size='sm'
-                  onClick={() => setActiveTab('testdata')}
-                  className='gap-2'
-                >
-                  <Database className='h-4 w-4' />
-                  Resolved Test Data
-                </Button>
-                <Button
-                  variant={activeTab === 'validation' ? 'default' : 'outline'}
-                  size='sm'
-                  onClick={() => setActiveTab('validation')}
-                  className='gap-2'
-                >
-                  <Shield className='h-4 w-4' />
-                  Validation
-                </Button>
+                <div className='relative' ref={advancedMenuRef}>
+                  <Button
+                    variant={activeTab !== 'details' ? 'default' : 'outline'}
+                    size='sm'
+                    className='gap-1'
+                    onClick={() => setAdvancedMenuOpen((v) => !v)}
+                  >
+                    <Settings className='h-4 w-4' />
+                    Advanced
+                    <ChevronDown className='h-3 w-3' />
+                  </Button>
+                  {advancedMenuOpen && (
+                    <div className='absolute left-0 z-20 mt-1 min-w-[180px] rounded-lg border border-border bg-surface py-1 shadow-lg'>
+                      <button
+                        type='button'
+                        className='flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text hover:bg-muted'
+                        onClick={() => {
+                          setActiveTab('validation');
+                          setAdvancedMenuOpen(false);
+                        }}
+                      >
+                        <Shield className='h-4 w-4' />
+                        Validation
+                      </button>
+                      <button
+                        type='button'
+                        className='flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text hover:bg-muted'
+                        onClick={() => {
+                          setActiveTab('testdata');
+                          setAdvancedMenuOpen(false);
+                        }}
+                      >
+                        <Database className='h-4 w-4' />
+                        Resolved test data
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent className='space-y-4'>
@@ -431,7 +469,9 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
                     </div>
                     <div className='flex items-center justify-between text-sm'>
                       <span className='text-text-secondary'>Requirement</span>
-                      <span className='font-medium text-text'>{selectedRun.requirementId.slice(0, 8)}</span>
+                      <span className='font-medium text-text text-right max-w-[60%] truncate'>
+                        {requirementById.get(selectedRun.requirementId) ?? selectedRun.requirementId.slice(0, 8)}
+                      </span>
                     </div>
                     <div className='flex items-center justify-between text-sm'>
                       <span className='text-text-secondary'>Started At</span>
@@ -753,15 +793,30 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
               <div>
                 <h4 className='text-sm font-semibold text-text mb-3'>Quick Actions</h4>
                 <div className='grid grid-cols-3 gap-2'>
-                  <Button variant='outline' size='sm' className='flex flex-col items-center gap-1 h-auto py-2'>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='flex flex-col items-center gap-1 h-auto py-2'
+                    onClick={() => void handleViewReportForRun(selectedRun)}
+                  >
                     <Eye className='h-4 w-4' />
                     <span className='text-xs'>View Report</span>
                   </Button>
-                  <Button variant='outline' size='sm' className='flex flex-col items-center gap-1 h-auto py-2'>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='flex flex-col items-center gap-1 h-auto py-2'
+                    onClick={() => handleDownloadRunLogs(selectedRun)}
+                  >
                     <Download className='h-4 w-4' />
                     <span className='text-xs'>Download Logs</span>
                   </Button>
-                  <Button variant='outline' size='sm' className='flex flex-col items-center gap-1 h-auto py-2'>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='flex flex-col items-center gap-1 h-auto py-2'
+                    onClick={() => void handleRerun(selectedRun)}
+                  >
                     <RefreshCw className='h-4 w-4' />
                     <span className='text-xs'>Rerun Execution</span>
                   </Button>
@@ -771,6 +826,7 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
           </Card>
         )}
       </div>
+      <Toast message={toastMessage} open={toastOpen} onClose={() => setToastOpen(false)} type={toastType} />
     </div>
   );
 };

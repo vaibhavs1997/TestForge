@@ -2,14 +2,14 @@
  * Seed demo projects and sync folders under backend/data.
  * Run from repo root: npm run seed --workspace=backend
  */
-import dotenv from 'dotenv';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadEnv } from '../src/config/loadEnv.js';
 import { JsonProjectRepository } from '../src/infrastructure/project/JsonProjectRepository';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 process.chdir(path.join(__dirname, '..'));
-dotenv.config();
+loadEnv();
 
 const repo = new JsonProjectRepository();
 

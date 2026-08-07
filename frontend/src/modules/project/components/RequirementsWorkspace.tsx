@@ -8,14 +8,11 @@ interface RequirementsWorkspaceProps {
   projectId: string;
 }
 
+/** Sub-nav: only screens with distinct routes. Review flow (strategy / test cases / execution) lives in the requirement review dialog. */
 const SUB_NAV_ITEMS = [
   { key: '', label: 'Requirements', path: '' },
   { key: 'analysis', label: 'Analysis', path: '/analysis' },
-  { key: 'readiness', label: 'Readiness', path: '/readiness' },
-  { key: 'strategy', label: 'Strategy', path: '/strategy' },
-  { key: 'design', label: 'Design', path: '/design' },
   { key: 'assertions', label: 'Assertions', path: '/assertions' },
-  { key: 'execution-plan', label: 'Execution Plans', path: '/execution-plan' },
 ];
 
 export const RequirementsWorkspace: React.FC<RequirementsWorkspaceProps> = ({ projectId }) => {
@@ -23,7 +20,6 @@ export const RequirementsWorkspace: React.FC<RequirementsWorkspaceProps> = ({ pr
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const activeProjectId = projectId || routeProjectId || '1';
 
-  // Determine active sub-tab from URL
   const subPath = location.pathname.replace(`/projects/${activeProjectId}/requirements`, '');
   const activeSub = subPath === '' || subPath === '/' ? '' : subPath;
 
@@ -32,7 +28,7 @@ export const RequirementsWorkspace: React.FC<RequirementsWorkspaceProps> = ({ pr
       <div className='flex items-center gap-1 border-b border-border bg-surface px-6 py-2'>
         {SUB_NAV_ITEMS.map((item) => {
           const fullPath = `/projects/${activeProjectId}/requirements${item.path}`;
-          const isActive = activeSub === item.path;
+          const isActive = activeSub === item.path || (item.path === '' && (activeSub === '' || activeSub === '/'));
           return (
             <NavLink
               key={item.key}
@@ -49,20 +45,15 @@ export const RequirementsWorkspace: React.FC<RequirementsWorkspaceProps> = ({ pr
             </NavLink>
           );
         })}
+        <span className='ml-auto hidden text-xs text-text-secondary sm:inline'>
+          Open a requirement → Review to generate & curate test cases
+        </span>
       </div>
       <div className='flex-1 overflow-y-auto'>
         <Routes>
-          {/* Requirements - main requirements list with review dialog (Readiness, Strategy, Design, Execution Plans) */}
           <Route path='/' element={<RequirementsPage />} />
-          <Route path='readiness' element={<RequirementsPage />} />
-          <Route path='strategy' element={<RequirementsPage />} />
-          <Route path='design' element={<RequirementsPage />} />
-          <Route path='execution-plan' element={<RequirementsPage />} />
-          {/* Analysis - standalone analysis page */}
           <Route path='analysis' element={<AnalysisPage />} />
-          {/* Assertions - standalone assertion library */}
           <Route path='assertions' element={<AssertionLibraryPage />} />
-          {/* Default to requirements */}
           <Route path='*' element={<RequirementsPage />} />
         </Routes>
       </div>

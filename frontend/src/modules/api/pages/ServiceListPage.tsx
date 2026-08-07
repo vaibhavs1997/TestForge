@@ -26,6 +26,7 @@ import { environmentService } from '../../environment/services/environmentServic
 import type { Service, ServiceFormData, Operation, OperationStatus, ImportSummary, DetectedEnvironment } from '../types';
 import { applyImportSummaryToUi, type ImportUiOutcome } from '../utils/importSummary';
 import { ChevronRight, Plus, Import, MoreVertical, Play, Edit, Trash2, FolderOpen } from 'lucide-react';
+import { ApiOnboardingCard } from '../components/ApiOnboardingCard';
 
 type SortField = 'name' | 'protocol' | 'version' | 'status' | 'updatedDate';
 type SortDir = 'asc' | 'desc';
@@ -472,9 +473,9 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
       {/* Page Header */}
       <div className='mb-6 flex items-center justify-between'>
         <div>
-          <h1 className='text-2xl font-bold text-text'>API Operations</h1>
+          <h1 className='text-2xl font-bold text-text'>APIs</h1>
           <p className='mt-1 text-sm text-text-secondary'>
-            Browse, search and explore all API endpoints and operations in this project.
+            Imported contract endpoints — used to map and run generated tests.
           </p>
         </div>
         <div className='flex items-center gap-3'>
@@ -488,6 +489,14 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
           </Button>
         </div>
       </div>
+
+      <ApiOnboardingCard
+        projectId={projectId}
+        onImport={() => setImportOpen(true)}
+        hasServices={services.length > 0}
+        operationCount={rawOperations?.length ?? 0}
+        hasEnvironment={environments.length > 0}
+      />
 
       {/* Search (left) and method filter (right) */}
       <div className='mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>

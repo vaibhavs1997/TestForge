@@ -41,6 +41,7 @@ export class TestDesignEntity {
     public readonly projectId: string,
     public readonly requirementId: string,
     public readonly strategyItemId: string,
+    public readonly title: string,
     public readonly operationId: string,
     public readonly environmentId: string,
     public readonly datasetId: string,

@@ -116,7 +116,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
       {/* Page Header */}
       <div className='mb-6'>
         <h1 className='text-2xl font-bold text-text'>Settings</h1>
-        <p className='mt-1 text-sm text-text-secondary'>Manage your project settings and platform preferences.</p>
+        <p className='mt-1 text-sm text-text-secondary'>
+          Project identity, environments, and platform preferences. Day-to-day testing starts from Get started in the sidebar.
+        </p>
       </div>
 
       {/* Tabs */}

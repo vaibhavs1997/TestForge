@@ -35,9 +35,12 @@ import { ValidateRequirementReadiness } from '../../application/requirements/Val
 import { PlanTestStrategy } from '../../application/requirements/PlanTestStrategy';
 import { GenerateTestDesigns } from '../../application/requirements/GenerateTestDesigns';
 import { PlanExecution } from '../../application/requirements/PlanExecution';
+import { GenerateRequirementTestCases } from '../../application/requirements/GenerateRequirementTestCases';
+import { ImportRequirementFromJira } from '../../application/requirements/ImportRequirementFromJira';
 import { asyncHandler } from '../middleware/AsyncHandler';
 
 const createRequirement = new CreateRequirement(requirementRepository);
+const importRequirementFromJira = new ImportRequirementFromJira(createRequirement);
 const updateRequirement = new UpdateRequirement(requirementRepository, eventPublisher);
 const deleteRequirement = new DeleteRequirement(requirementRepository);
 const getRequirement = new GetRequirement(requirementRepository);
@@ -80,6 +83,17 @@ const planExecution = new PlanExecution(
   apiOperationRepository
 );
 
+const generateRequirementTestCases = new GenerateRequirementTestCases(
+  requirementRepository,
+  testStrategyRepository,
+  testDesignRepository,
+  apiOperationRepository,
+  planTestStrategy,
+  generateTestDesigns,
+  generateTestDesignWithAI,
+  planExecution,
+);
+
 // AI requirement generation (reused from container)
 const aiRequirementController = new AIRequirementController(
   generateRequirementsWithAI,
@@ -100,7 +114,11 @@ const requirementController = new RequirementController(
   validateRequirementReadiness,
   planTestStrategy,
   generateTestDesigns,
-  planExecution
+  planExecution,
+  generateRequirementTestCases,
+  importRequirementFromJira,
+  testDesignRepository,
+  executionPlanRepository,
 );
 
 const router = Router();
@@ -108,6 +126,7 @@ const router = Router();
 // Requirement routes
 router.get('/projects/:projectId/requirements', asyncHandler((req, res) => requirementController.listRequirements(req, res)));
 router.post('/projects/:projectId/requirements', asyncHandler((req, res) => requirementController.createRequirement(req, res)));
+router.post('/projects/:projectId/requirements/from-jira', asyncHandler((req, res) => requirementController.importFromJira(req, res)));
 router.get('/projects/:projectId/requirements/:requirementId', asyncHandler((req, res) => requirementController.getRequirement(req, res)));
 router.patch('/projects/:projectId/requirements/:requirementId', asyncHandler((req, res) => requirementController.updateRequirement(req, res)));
 router.delete('/projects/:projectId/requirements/:requirementId', asyncHandler((req, res) => requirementController.deleteRequirement(req, res)));
@@ -118,9 +137,14 @@ router.post('/projects/:projectId/requirements/:requirementId/execution-plans-ai
 router.post('/projects/:projectId/test-designs/:testDesignId/assertions-ai', asyncHandler((req, res) => aiRequirementController.generateAssertionsWithAI(req, res)));
 router.post('/projects/:projectId/requirements/from-analysis/:analysisId', asyncHandler((req, res) => requirementController.generateFromAnalysis(req, res)));
 router.get('/projects/:projectId/requirements/:requirementId/validate', asyncHandler((req, res) => requirementController.validateReadiness(req, res)));
+router.post('/projects/:projectId/requirements/:requirementId/generate-test-cases', asyncHandler((req, res) => requirementController.generateTestCases(req, res)));
 router.post('/projects/:projectId/requirements/:requirementId/strategy', asyncHandler((req, res) => requirementController.planTestStrategy(req, res)));
 router.post('/projects/:projectId/requirements/:requirementId/designs', asyncHandler((req, res) => requirementController.generateTestDesigns(req, res)));
+router.get('/projects/:projectId/requirements/:requirementId/test-designs', asyncHandler((req, res) => requirementController.listTestDesigns(req, res)));
+router.patch('/projects/:projectId/test-designs/:testDesignId', asyncHandler((req, res) => requirementController.updateTestDesign(req, res)));
 router.post('/projects/:projectId/requirements/:requirementId/execution-plans', asyncHandler((req, res) => requirementController.planExecution(req, res)));
+router.get('/projects/:projectId/requirements/:requirementId/execution-plans', asyncHandler((req, res) => requirementController.listExecutionPlansForRequirement(req, res)));
+router.patch('/projects/:projectId/execution-plans/:executionPlanId', asyncHandler((req, res) => requirementController.updateExecutionPlan(req, res)));
 
 export { router as requirementRoutes };
 export default router;

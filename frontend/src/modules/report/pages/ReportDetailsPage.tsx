@@ -5,11 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { EmptyState } from '../../../components/ui/EmptyState';
-import { ArrowLeft, Download, FileDown, CheckCircle, XCircle, AlertCircle, Clock, Shield, FileText, Globe, Key, AlertTriangle, ListChecks } from 'lucide-react';
+import { ArrowLeft, Download, FileDown, CheckCircle, XCircle, AlertCircle, Clock, Shield, FileText, Globe, Key, AlertTriangle, ListChecks, Send } from 'lucide-react';
 
 // Hooks
 import { useReport } from '../hooks';
-import { projectStore } from '../../../store/projectStore';
+import { reportService } from '../services';
+import { requirementService } from '../../requirements/services/requirementService';
+import { downloadJsonFile, downloadTextFile } from '../../../utils/downloadFile';
+import { ReportExportMenu } from '../../../components/shared/ReportExportMenu';
 
 // Types
 import type { ReportStatus } from '../types';
@@ -62,13 +65,74 @@ const getPriorityBadge = (priority: string) => {
 };
 
 export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
-  const { reportId } = useParams<{ reportId: string }>();
+  const { projectId: routeProjectId, reportId } = useParams<{ projectId: string; reportId: string }>();
   const navigate = useNavigate();
-  const selectedProjectId = projectStore((state) => state.selectedProjectId);
-  const projectId = selectedProjectId || '1';
+  const projectId = routeProjectId || '1';
 
   const { data: report, isLoading, isError, error } = useReport(projectId, reportId);
-  const [activeTab, setActiveTab] = React.useState<'overview' | 'execution' | 'validation' | 'recommendations' | 'timeline' | 'assertions'>('overview');
+  const [activeTab, setActiveTab] = React.useState<
+    'overview' | 'execution' | 'validation' | 'recommendations' | 'timeline' | 'assertions'
+  >('overview');
+  const [moreMenuOpen, setMoreMenuOpen] = React.useState(false);
+  const moreMenuRef = React.useRef<HTMLDivElement>(null);
+  const [jiraConfigured, setJiraConfigured] = React.useState(false);
+  const [jiraIssueKey, setJiraIssueKey] = React.useState<string | null>(null);
+  const [linkedRequirementTitle, setLinkedRequirementTitle] = React.useState<string | null>(null);
+  const [publishingJira, setPublishingJira] = React.useState(false);
+  const [jiraPublishMessage, setJiraPublishMessage] = React.useState<string | null>(null);
+
+  const secondaryTabs = ['recommendations', 'timeline', 'assertions'] as const;
+  const isSecondaryTab = (secondaryTabs as readonly string[]).includes(activeTab);
+
+  React.useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
+
+  React.useEffect(() => {
+    requirementService
+      .getJiraStatus()
+      .then((s) => setJiraConfigured(Boolean(s?.configured)))
+      .catch(() => setJiraConfigured(false));
+  }, []);
+
+  React.useEffect(() => {
+    const reqId = report?.requirementIds?.[0];
+    if (!reqId) {
+      setJiraIssueKey(null);
+      setLinkedRequirementTitle(null);
+      return;
+    }
+    requirementService
+      .getRequirement(projectId, reqId)
+      .then((req) => {
+        setJiraIssueKey(req.jiraIssueKey ?? null);
+        setLinkedRequirementTitle(req.title ?? null);
+      })
+      .catch(() => {
+        setJiraIssueKey(null);
+        setLinkedRequirementTitle(null);
+      });
+  }, [projectId, report?.requirementIds]);
+
+  const handlePublishToJira = async () => {
+    if (!reportId) return;
+    setPublishingJira(true);
+    setJiraPublishMessage(null);
+    try {
+      const result = await reportService.publishToJira(projectId, reportId);
+      setJiraPublishMessage(`Posted to ${result.issueKey}`);
+    } catch (err: any) {
+      setJiraPublishMessage(err?.response?.data?.message || err?.message || 'Failed to post to Jira');
+    } finally {
+      setPublishingJira(false);
+    }
+  };
 
   const formatDuration = (ms: number) => {
     if (!ms) return '—';
@@ -94,7 +158,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
           icon={<FileText className='h-12 w-12' />}
           title='Report not found'
           description={error?.message || 'The report you are looking for does not exist.'}
-          action={{ label: 'Back to Reports', onClick: () => navigate('/reports') }}
+          action={{ label: 'Back to Reports', onClick: () => navigate(`/projects/${projectId}/reports`) }}
         />
       </div>
     );
@@ -113,50 +177,86 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
       {/* Page Header */}
       <div className='mb-6 flex items-center justify-between'>
         <div className='flex items-center gap-4'>
-          <Button variant='ghost' size='sm' onClick={() => navigate('/reports')}>
+          <Button variant='ghost' size='sm' onClick={() => navigate(`/projects/${projectId}/reports`)}>
             <ArrowLeft className='h-4 w-4' />
             Back
           </Button>
           <div>
-            <div className='flex items-center gap-3'>
-              <h1 className='text-2xl font-bold text-text'>{sections.overview.title}</h1>
+            <div className='flex items-center gap-3 flex-wrap'>
+              <h1 className='text-2xl font-bold text-text'>
+                {linkedRequirementTitle || sections.overview.title}
+              </h1>
               {getStatusBadge(report.overallStatus)}
+              {jiraIssueKey && (
+                <Badge variant="outline" className="text-xs">
+                  {jiraIssueKey}
+                </Badge>
+              )}
             </div>
-            <p className='mt-1 text-sm text-text-secondary'>{sections.overview.description}</p>
+            <p className='mt-1 text-sm text-text-secondary'>
+              {report.passedSteps}/{report.totalSteps} steps passed · {formatDuration(report.executionDuration)}
+              {sections.overview.description ? ` · ${sections.overview.description}` : ''}
+            </p>
           </div>
         </div>
         <div className='flex items-center gap-2'>
-          <Button variant='outline' size='sm' title='Export HTML (placeholder)'>
-            <FileDown className='h-4 w-4' />
-            HTML
-          </Button>
-          <Button variant='outline' size='sm' title='Export PDF (placeholder)'>
-            <Download className='h-4 w-4' />
-            PDF
-          </Button>
-          <Button variant='outline' size='sm' title='Export CSV (placeholder)'>
-            <FileDown className='h-4 w-4' />
-            CSV
-          </Button>
+          <ReportExportMenu
+            onExportHtml={() => {
+              const title = report.sections?.overview?.title || report.id;
+              const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${title}</title></head><body><h1>${title}</h1><pre>${JSON.stringify(report, null, 2)}</pre></body></html>`;
+              downloadTextFile(`report-${report.id.slice(0, 8)}.html`, html, 'text/html');
+            }}
+            onExportJson={() => downloadJsonFile(`report-${report.id.slice(0, 8)}.json`, report)}
+            onExportCsv={() => {
+              const rows = [
+                ['reportId', 'status', 'totalSteps', 'passed', 'failed', 'durationMs'],
+                [
+                  report.id,
+                  report.overallStatus,
+                  String(report.totalSteps),
+                  String(report.passedSteps),
+                  String(report.failedSteps),
+                  String(report.executionDuration),
+                ],
+              ];
+              downloadTextFile(
+                `report-${report.id.slice(0, 8)}.csv`,
+                rows.map((r) => r.join(',')).join('\n'),
+                'text/csv',
+              );
+            }}
+          />
+          {jiraConfigured && jiraIssueKey && reportId && (
+            <Button
+              variant='outline'
+              size='sm'
+              title={`Post summary to Jira ${jiraIssueKey}`}
+              disabled={publishingJira}
+              onClick={() => void handlePublishToJira()}
+            >
+              <Send className='h-4 w-4' />
+              {publishingJira ? 'Posting…' : 'Post to Jira'}
+            </Button>
+          )}
         </div>
       </div>
+      {jiraPublishMessage && (
+        <p className='mb-4 text-sm text-text-secondary'>{jiraPublishMessage}</p>
+      )}
 
       {/* Tabs */}
-      <div className='mb-6 flex gap-2 border-b border-border'>
+      <div className='mb-6 flex flex-wrap items-center gap-2 border-b border-border pb-2'>
         {([
-          { key: 'overview', label: 'Overview', icon: FileText },
-          { key: 'execution', label: 'Execution', icon: ListChecks },
-          { key: 'validation', label: 'Validation', icon: Shield },
-          { key: 'recommendations', label: 'Recommendations', icon: AlertTriangle },
-          { key: 'timeline', label: 'Timeline', icon: Clock },
-          { key: 'assertions', label: 'Reusable Assertions', icon: Shield },
-        ] as const).map((tab) => {
+          { key: 'overview' as const, label: 'Overview', icon: FileText },
+          { key: 'execution' as const, label: 'Execution', icon: ListChecks },
+          { key: 'validation' as const, label: 'Validation', icon: Shield },
+        ]).map((tab) => {
           const Icon = tab.icon;
           return (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-[9px] ${
                 activeTab === tab.key
                   ? 'border-primary text-primary'
                   : 'border-transparent text-text-secondary hover:text-text'
@@ -167,6 +267,40 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
             </button>
           );
         })}
+        <div className='relative' ref={moreMenuRef}>
+          <button
+            type='button'
+            onClick={() => setMoreMenuOpen((v) => !v)}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-[9px] ${
+              isSecondaryTab
+                ? 'border-primary text-primary'
+                : 'border-transparent text-text-secondary hover:text-text'
+            }`}
+          >
+            More
+          </button>
+          {moreMenuOpen && (
+            <div className='absolute left-0 z-20 mt-1 min-w-[200px] rounded-lg border border-border bg-surface py-1 shadow-lg'>
+              {([
+                { key: 'recommendations' as const, label: 'Recommendations' },
+                { key: 'timeline' as const, label: 'Timeline' },
+                { key: 'assertions' as const, label: 'Reusable assertions' },
+              ]).map((item) => (
+                <button
+                  key={item.key}
+                  type='button'
+                  className='flex w-full px-3 py-2 text-left text-sm text-text hover:bg-muted'
+                  onClick={() => {
+                    setActiveTab(item.key);
+                    setMoreMenuOpen(false);
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tab Content */}

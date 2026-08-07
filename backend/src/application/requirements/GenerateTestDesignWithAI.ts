@@ -52,6 +52,7 @@ export interface TestDesignGenerationResult {
 
 interface ParsedTestDesignInput {
   strategyItemId?: string;
+  title?: string;
   operationId?: string;
   environmentId?: string;
   datasetId?: string;
@@ -141,7 +142,10 @@ export class GenerateTestDesignWithAI {
       { role: 'system', content: builtPrompt.systemPrompt },
       { role: 'user', content: builtPrompt.userPrompt },
     ];
-    const generateResult = await this.manageAIProviders.generate(request.providerId, messages);
+    const generateResult = await this.manageAIProviders.generate(request.providerId, messages, {
+      maxTokens: 1024,
+      temperature: 0.3,
+    });
 
     if (request.previewOnly) {
       return {
@@ -169,11 +173,17 @@ export class GenerateTestDesignWithAI {
     const persistedDesigns: TestDesignEntity[] = [];
     for (const input of designInputs) {
       const now = Date.now();
+      const strategyItemId = input.strategyItemId || (strategy?.sections[0]?.items[0]?.id) || '';
+      const title =
+        input.title?.trim() ||
+        this.resolveDesignTitle(requirement, strategy, strategyItemId, input);
+
       const design = new TestDesignEntity(
         randomUUID(),
         projectId,
         request.requirementId,
-        input.strategyItemId || (strategy?.sections[0]?.items[0]?.id) || '',
+        strategyItemId,
+        title,
         input.operationId || '',
         input.environmentId || (context?.environments && context.environments[0]?.id) || '',
         input.datasetId || (context?.datasets && context.datasets[0]?.id) || '',
@@ -245,6 +255,7 @@ export class GenerateTestDesignWithAI {
 
           designInputs.push({
             strategyItemId: raw.strategyItemId ? String(raw.strategyItemId) : undefined,
+            title: raw.title ? String(raw.title) : raw.name ? String(raw.name) : undefined,
             operationId: raw.operationId ? String(raw.operationId) : undefined,
             environmentId: raw.environmentId ? String(raw.environmentId) : undefined,
             datasetId: raw.datasetId ? String(raw.datasetId) : undefined,
@@ -326,6 +337,7 @@ export class GenerateTestDesignWithAI {
       for (const category of categories) {
         inputs.push({
           strategyItemId: `cat-${category.toLowerCase()}`,
+          title: this.categoryTitle(requirement.title, category),
           operationId: requirement?.relatedOperations?.[0] || apiOperations[0]?.id || '',
           environmentId: environment?.id || '',
           datasetId: dataset?.id || '',
@@ -344,6 +356,7 @@ export class GenerateTestDesignWithAI {
           const category = section.category;
           inputs.push({
             strategyItemId: item.id,
+            title: item.title,
             operationId: item.relatedApis?.[0] || requirement?.relatedOperations?.[0] || apiOperations[0]?.id || '',
             environmentId: environment?.id || '',
             datasetId: dataset?.id || '',
@@ -411,6 +424,43 @@ export class GenerateTestDesignWithAI {
   private defaultCleanup(category: string): CleanupStep[] {
     if (category === 'Integration' || category === 'Regression') return [{ type: 'dataset', action: 'cleanup', target: 'test-data' }];
     return [];
+  }
+
+  private categoryTitle(requirementTitle: string, category: string): string {
+    const templates: Record<string, string> = {
+      Positive: 'Verify {requirement} with valid inputs',
+      Negative: 'Verify {requirement} with invalid inputs',
+      Boundary: 'Verify {requirement} at boundary values',
+      Security: 'Verify {requirement} security controls',
+      Validation: 'Verify {requirement} input validation',
+    };
+    const template = templates[category] || 'Verify {requirement} ({category})';
+    return template.replace('{requirement}', requirementTitle).replace('{category}', category);
+  }
+
+  private resolveDesignTitle(
+    requirement: { title: string },
+    strategy: TestStrategyEntity | null,
+    strategyItemId: string,
+    input: ParsedTestDesignInput,
+  ): string {
+    if (strategy) {
+      for (const section of strategy.sections) {
+        const item = section.items.find((i) => i.id === strategyItemId);
+        if (item?.title) return item.title;
+      }
+    }
+    const catMatch = strategyItemId.match(/^cat-(\w+)$/i);
+    if (catMatch) {
+      const category =
+        catMatch[1].charAt(0).toUpperCase() + catMatch[1].slice(1).toLowerCase();
+      return this.categoryTitle(requirement.title, category);
+    }
+    const statusAssertion = input.assertions?.find((a) => a.type === 'status');
+    if (statusAssertion) {
+      return `Verify ${requirement.title} (expect HTTP ${statusAssertion.expected})`;
+    }
+    return `Verify ${requirement.title}`;
   }
 
   private buildContextSummary(context: any, requirement: any, strategy: TestStrategyEntity | null): Record<string, any> {

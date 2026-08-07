@@ -27,7 +27,9 @@ export class PlanExecution {
     }
 
     // Get all test designs for this requirement
-    const designs = await this.testDesignRepository.findByRequirement(requirementId);
+  const designs = (await this.testDesignRepository.findByRequirement(requirementId)).filter(
+      (d) => d.status !== 'Disabled',
+    );
     if (!designs || designs.length === 0) {
       throw new Error('No test designs found for this requirement');
     }

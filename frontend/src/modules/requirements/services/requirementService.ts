@@ -77,6 +77,35 @@ class RequirementService extends ApiClient<Requirement> {
     const path = `/projects/${projectId}/requirements/${requirementId}/execution-plans`;
     return this.post(path);
   }
+
+  async importFromJira(projectId: string, issueKey: string): Promise<Requirement> {
+    const path = `/projects/${projectId}/requirements/from-jira`;
+    return this.post(path, { issueKey });
+  }
+
+  async getJiraStatus(): Promise<{ configured: boolean }> {
+    const path = '/integrations/jira/status';
+    return this.getCustom(path);
+  }
+
+  async generateTestCases(
+    projectId: string,
+    requirementId: string,
+    body?: {
+      providerId?: string;
+      useAi?: boolean;
+      buildRunPlan?: boolean;
+      replaceExisting?: boolean;
+    },
+  ): Promise<{
+    designs: TestDesign[];
+    executionPlanIds: string[];
+    usedAi: boolean;
+    warnings: string[];
+  }> {
+    const path = `/projects/${projectId}/requirements/${requirementId}/generate-test-cases`;
+    return this.post(path, body ?? {});
+  }
 }
 
 export const requirementService = new RequirementService();

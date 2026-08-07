@@ -6,7 +6,7 @@ import { projectStore } from '../../../store/projectStore';
 import { queryKeys } from '../../../constants';
 import { environmentService } from '../services/environmentService';
 import { PageHeader } from '../../../components/layout/PageHeader';
-import { Card } from '../../../components/ui/Card';
+import { Card, CardContent } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { SearchBar } from '../../../components/shared/SearchBar';
@@ -16,6 +16,7 @@ import { ErrorAlert } from '../../../components/shared/ErrorAlert';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
 import { ImportEnvironmentModal, type ImportEnvironmentModalData } from '../components/ImportEnvironmentModal';
 import { Plus, Cloud, Upload, Edit, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useEnvironments } from '../hooks/useEnvironments';
 import { EnvironmentDialog, type EnvironmentDialogData } from '../components/EnvironmentDialog';
 import { parseEnvironmentImport } from '../utils/parseEnvironmentImport';
@@ -38,6 +39,7 @@ interface Environment {
 }
 
 export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
+  const navigate = useNavigate();
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const selectedProjectId = projectStore((s) => s.selectedProjectId);
   const projectId = routeProjectId ?? selectedProjectId ?? '1';
@@ -243,8 +245,8 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
     return (
       <div className='mx-auto max-w-7xl px-4 py-8'>
         <PageHeader
-          title='Environments'
-          description='Manage reusable execution environments for this project.'
+          title='Target environment'
+          description='Base URL and variables used when you run tests or try APIs.'
         />
         <div className='flex items-center justify-center py-12'>
           <p className='text-sm text-text-secondary'>Loading environments...</p>
@@ -257,8 +259,8 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
     return (
       <div className='mx-auto max-w-7xl px-4 py-8'>
         <PageHeader
-          title='Environments'
-          description='Manage reusable execution environments for this project.'
+          title='Target environment'
+          description='Base URL and variables used when you run tests or try APIs.'
         />
         <ErrorAlert
           title='Failed to load environments'
@@ -275,18 +277,37 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
   return (
     <div className='mx-auto max-w-7xl px-4 py-8'>
       <PageHeader
-        title='Environments'
-        description='Manage reusable execution environments for this project.'
+        title='Target environment'
+        description='Base URL and variables used when you run tests or try APIs.'
       >
         {headerActions}
       </PageHeader>
 
+      {environments.length > 0 && (
+        <Card className="mb-6 border-primary/20">
+          <CardContent className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-medium uppercase text-text-secondary">Active for runs</p>
+              <p className="font-semibold text-text">{environments[0].name}</p>
+              <p className="text-sm text-text-secondary truncate max-w-xl">{environments[0].baseUrl || 'No base URL set'}</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => { setSelectedEnvironment(environments[0] as Environment); setEditOpen(true); }}>
+              Edit
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {showEmptyProjectState ? (
         <EmptyState
           icon={<Cloud className='h-12 w-12' />}
-          title='No environments found'
-          description='Create your first environment or import one from a file.'
-          action={{ label: 'Create Environment', onClick: () => setEditOpen(true) }}
+          title='No environment yet'
+          description='After importing APIs, add an environment with your API base URL (e.g. staging). You can also import Postman env files.'
+          action={{ label: 'Create environment', onClick: () => setEditOpen(true) }}
+          secondaryAction={{
+            label: 'Import APIs first',
+            onClick: () => navigate(`/projects/${projectId}/apis`),
+          }}
         />
       ) : (
         <>

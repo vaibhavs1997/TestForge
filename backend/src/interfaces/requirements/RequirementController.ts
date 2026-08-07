@@ -10,9 +10,31 @@ import { ValidateRequirementReadiness } from '../../application/requirements/Val
 import { PlanTestStrategy } from '../../application/requirements/PlanTestStrategy';
 import { GenerateTestDesigns } from '../../application/requirements/GenerateTestDesigns';
 import { PlanExecution } from '../../application/requirements/PlanExecution';
+import { GenerateRequirementTestCases } from '../../application/requirements/GenerateRequirementTestCases';
+import { ImportRequirementFromJira } from '../../application/requirements/ImportRequirementFromJira';
+import { TestDesignRepository } from '../../infrastructure/requirements/TestDesignRepository';
+import { ExecutionPlanRepository } from '../../infrastructure/requirements/ExecutionPlanRepository';
 import { createSuccessResponse } from "../../shared/ApiResponse";
+import type { DesignStatus } from '../../domain/requirements/TestDesignEntity';
+import type { ExecutionPlanStatus } from '../../domain/requirements/ExecutionPlanEntity';
+
 export class RequirementController {
-    constructor(private readonly createRequirementUseCase: CreateRequirement, private readonly updateRequirementUseCase: UpdateRequirement, private readonly deleteRequirementUseCase: DeleteRequirement, private readonly getRequirementUseCase: GetRequirement, private readonly listRequirementsUseCase: ListRequirements, private readonly generateFromAnalysisUseCase: GenerateFromAnalysis, private readonly validateRequirementReadinessUseCase: ValidateRequirementReadiness, private readonly planTestStrategyUseCase: PlanTestStrategy, private readonly generateTestDesignsUseCase: GenerateTestDesigns, private readonly planExecutionUseCase: PlanExecution) { }
+    constructor(
+        private readonly createRequirementUseCase: CreateRequirement,
+        private readonly updateRequirementUseCase: UpdateRequirement,
+        private readonly deleteRequirementUseCase: DeleteRequirement,
+        private readonly getRequirementUseCase: GetRequirement,
+        private readonly listRequirementsUseCase: ListRequirements,
+        private readonly generateFromAnalysisUseCase: GenerateFromAnalysis,
+        private readonly validateRequirementReadinessUseCase: ValidateRequirementReadiness,
+        private readonly planTestStrategyUseCase: PlanTestStrategy,
+        private readonly generateTestDesignsUseCase: GenerateTestDesigns,
+        private readonly planExecutionUseCase: PlanExecution,
+        private readonly generateRequirementTestCasesUseCase: GenerateRequirementTestCases,
+        private readonly importRequirementFromJiraUseCase: ImportRequirementFromJira,
+        private readonly testDesignRepository: TestDesignRepository,
+        private readonly executionPlanRepository: ExecutionPlanRepository,
+    ) { }
     async listRequirements(req: Request, res: Response): Promise<void> {
         const projectId = req.params.projectId;
         const approvalStatus = req.query.approvalStatus as string | undefined;
@@ -21,7 +43,7 @@ export class RequirementController {
     }
     async createRequirement(req: Request, res: Response): Promise<void> {
         const projectId = req.params.projectId;
-        const { title, description, category, confidence, source, projectAnalysisId, reviewStatus, approvalStatus, relatedOperations, relatedFlows, relatedDatasets, acceptanceCriteria } = req.body;
+        const { title, description, category, confidence, source, projectAnalysisId, reviewStatus, approvalStatus, relatedOperations, relatedFlows, relatedDatasets, acceptanceCriteria, jiraIssueKey } = req.body;
         const requirement = await this.createRequirementUseCase.execute({
             projectId,
             title,
@@ -36,6 +58,7 @@ export class RequirementController {
             relatedFlows,
             relatedDatasets,
             acceptanceCriteria,
+            jiraIssueKey,
         });
         res.status(201).json(createSuccessResponse(requirement));
     }
@@ -46,7 +69,7 @@ export class RequirementController {
     }
     async updateRequirement(req: Request, res: Response): Promise<void> {
         const { requirementId } = req.params;
-        const { title, description, category, confidence, source, projectAnalysisId, reviewStatus, approvalStatus, relatedOperations, relatedFlows, relatedDatasets, acceptanceCriteria } = req.body;
+        const { title, description, category, confidence, source, projectAnalysisId, reviewStatus, approvalStatus, relatedOperations, relatedFlows, relatedDatasets, acceptanceCriteria, jiraIssueKey } = req.body;
         const requirement = await this.updateRequirementUseCase.execute({
             id: requirementId,
             title,
@@ -61,6 +84,7 @@ export class RequirementController {
             relatedFlows,
             relatedDatasets,
             acceptanceCriteria,
+            jiraIssueKey,
         });
         res.status(200).json(createSuccessResponse(requirement));
     }
@@ -90,10 +114,63 @@ export class RequirementController {
         const designs = await this.generateTestDesignsUseCase.execute(requirementId);
         res.status(201).json(createSuccessResponse(designs));
     }
+    async generateTestCases(req: Request, res: Response): Promise<void> {
+        const { projectId, requirementId } = req.params;
+        const { providerId, useAi, buildRunPlan, replaceExisting } = req.body ?? {};
+        const result = await this.generateRequirementTestCasesUseCase.execute({
+            projectId,
+            requirementId,
+            providerId,
+            useAi: Boolean(useAi),
+            buildRunPlan: Boolean(buildRunPlan),
+            replaceExisting: replaceExisting !== false,
+        });
+        res.status(201).json(createSuccessResponse(result));
+    }
     async planExecution(req: Request, res: Response): Promise<void> {
         const { requirementId } = req.params;
         const plans = await this.planExecutionUseCase.execute(requirementId);
         res.status(201).json(createSuccessResponse(plans));
+    }
+    async listTestDesigns(req: Request, res: Response): Promise<void> {
+        const { requirementId } = req.params;
+        const designs = await this.testDesignRepository.findByRequirement(requirementId);
+        res.status(200).json(createSuccessResponse(designs));
+    }
+    async updateTestDesign(req: Request, res: Response): Promise<void> {
+        const { testDesignId } = req.params;
+        const { status } = req.body as { status?: DesignStatus };
+        if (!status || !['Draft', 'Ready', 'Disabled'].includes(status)) {
+            throw new Error('Invalid status. Must be Draft, Ready, or Disabled');
+        }
+        const design = await this.testDesignRepository.update(testDesignId, { status });
+        res.status(200).json(createSuccessResponse(design));
+    }
+    async listExecutionPlansForRequirement(req: Request, res: Response): Promise<void> {
+        const { requirementId } = req.params;
+        const plans = await this.executionPlanRepository.findByRequirement(requirementId);
+        res.status(200).json(createSuccessResponse(plans));
+    }
+    async updateExecutionPlan(req: Request, res: Response): Promise<void> {
+        const { executionPlanId } = req.params;
+        const { status } = req.body as { status?: ExecutionPlanStatus };
+        if (!status || !['Pending', 'Ready', 'Disabled'].includes(status)) {
+            throw new Error('Invalid status. Must be Pending, Ready, or Disabled');
+        }
+        const plan = await this.executionPlanRepository.update(executionPlanId, { status });
+        res.status(200).json(createSuccessResponse(plan));
+    }
+    async importFromJira(req: Request, res: Response): Promise<void> {
+        const { projectId } = req.params;
+        const { issueKey } = req.body as { issueKey?: string };
+        if (!issueKey?.trim()) {
+            throw new Error('issueKey is required');
+        }
+        const requirement = await this.importRequirementFromJiraUseCase.execute({
+            projectId,
+            issueKey: issueKey.trim(),
+        });
+        res.status(201).json(createSuccessResponse(requirement));
     }
 }
 export default RequirementController;

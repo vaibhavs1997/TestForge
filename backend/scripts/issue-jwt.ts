@@ -2,14 +2,14 @@
  * Issue a short-lived JWT for local API testing (requires TESTFORGE_JWT_SECRET).
  * Example: npx tsx scripts/issue-jwt.ts --sub dev@local --projects '*'
  */
-import dotenv from 'dotenv';
+import { loadEnv } from '../src/config/loadEnv.js';
 import jwt from 'jsonwebtoken';
 
-dotenv.config();
+loadEnv();
 
 const secret = process.env.TESTFORGE_JWT_SECRET?.trim();
 if (!secret) {
-  console.error('Set TESTFORGE_JWT_SECRET in backend/.env first.');
+  console.error('Set TESTFORGE_JWT_SECRET in the repository root .env first.');
   process.exit(1);
 }
 

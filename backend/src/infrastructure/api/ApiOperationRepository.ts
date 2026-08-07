@@ -72,6 +72,10 @@ export class ApiOperationRepository {
     return null;
   }
 
+  async findByProject(projectId: string): Promise<ApiOperationEntity[]> {
+    return this.readOperations(projectId);
+  }
+
   async findByProjectAndService(projectId: string, serviceId: string): Promise<ApiOperationEntity[]> {
     const operations = await this.readOperations(projectId);
     return operations.filter(

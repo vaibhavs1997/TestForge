@@ -9,7 +9,7 @@ export const useExecution = (projectId?: string) => {
   const queryClient = useQueryClient();
   const queryKey = queryKeys.executions(projectId || '');
 
-  const { data, isLoading, isError, error } = useCRUD({
+  const { data, isLoading, isError, error, refetch } = useCRUD({
     queryKey,
     service: {
       list: () => (projectId ? executionService.listExecutions(projectId) : Promise.resolve([])),
@@ -40,6 +40,7 @@ export const useExecution = (projectId?: string) => {
     isLoading,
     isError,
     error,
+    refetch,
     startExecution: startMutation.mutate,
     startExecutionAsync: startMutation.mutateAsync,
     isStarting: startMutation.isPending,

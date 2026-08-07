@@ -4,6 +4,8 @@ import { useAuditLogs } from '../hooks';
 import { auditService } from '../services';
 import type { AuditLog, AuditModule, AuditAction } from '../types';
 import { useParams } from 'react-router-dom';
+import { AdminPageIntro } from '../../../components/shared/AdminPageIntro';
+import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
 
 export function AuditLogPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -91,10 +93,17 @@ export function AuditLogPage() {
   if (error) return <div className="p-4 text-red-500">Error: {String(error)}</div>;
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Audit Log</h1>
-      </div>
+    <div className="mx-auto max-w-7xl p-6">
+      {projectId && (
+        <WorkflowOptionalBanner
+          description="Compliance and troubleshooting trail. Not needed for the everyday import → test → report flow."
+          projectId={projectId}
+        />
+      )}
+      <AdminPageIntro
+        title="Audit log"
+        description="Filter and inspect create, update, and delete events across modules in this project."
+      />
 
       {/* Filters */}
       <div className="bg-white shadow rounded-lg p-4 mb-6">

@@ -4,6 +4,11 @@ import { randomUUID } from 'node:crypto';
 import type { ProjectRecord } from '../../domain/project/ProjectRecord';
 import type { ProjectRepository } from '../../domain/project/ProjectRepository';
 import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import {
+  deleteProjectDataOnDisk,
+  discoverProjectIdsFromData,
+  isValidDiscoveredProjectId,
+} from './projectDataPaths';
 
 function registryPath(): string {
   return path.join(process.cwd(), 'data', 'projects', 'projects.json');
@@ -18,22 +23,6 @@ function slugify(value: string): string {
     .slice(0, 48) || 'project';
 }
 
-function discoverProjectIdsFromData(): string[] {
-  const roots = [
-    path.join(process.cwd(), 'data', 'apis'),
-    path.join(process.cwd(), 'data', 'environments'),
-    path.join(process.cwd(), 'data', 'audit'),
-  ];
-  const ids = new Set<string>();
-  for (const root of roots) {
-    if (!fs.existsSync(root)) continue;
-    for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-      if (entry.isDirectory()) ids.add(entry.name);
-    }
-  }
-  return Array.from(ids);
-}
-
 export class JsonProjectRepository implements ProjectRepository {
   private async readRegistry(): Promise<ProjectRecord[]> {
     return readJsonArray<ProjectRecord>(registryPath());
@@ -43,7 +32,7 @@ export class JsonProjectRepository implements ProjectRepository {
     await writeJsonArray(registryPath(), projects);
   }
 
-  /** Merge on-disk data folders into the registry (idempotent). */
+  /** Merge on-disk API/env folders into the registry (idempotent). */
   async syncDiscoveredProjects(): Promise<ProjectRecord[]> {
     const existing = await this.readRegistry();
     const byId = new Map(existing.map((p) => [p.id, p]));
@@ -61,6 +50,16 @@ export class JsonProjectRepository implements ProjectRepository {
         updatedAt: now,
       };
       byId.set(id, record);
+    }
+
+    // Drop registry entries that were only lock-file artifacts (e.g. logs.json.lock).
+    for (const [id, record] of byId.entries()) {
+      if (
+        !isValidDiscoveredProjectId(id)
+        && record.description === 'Discovered from local data directory'
+      ) {
+        byId.delete(id);
+      }
     }
 
     const merged = Array.from(byId.values()).sort((a, b) => b.updatedAt - a.updatedAt);
@@ -83,6 +82,8 @@ export class JsonProjectRepository implements ProjectRepository {
     description?: string;
     id?: string;
     status?: ProjectRecord['status'];
+    ownerId?: string;
+    tenantId?: string;
   }): Promise<ProjectRecord> {
     const projects = await this.readRegistry();
     const now = Date.now();
@@ -102,6 +103,8 @@ export class JsonProjectRepository implements ProjectRepository {
       projectKey,
       description: input.description?.trim(),
       status: input.status ?? 'active',
+      ownerId: input.ownerId?.trim() || undefined,
+      tenantId: input.tenantId?.trim() || undefined,
       createdAt: now,
       updatedAt: now,
     };
@@ -150,6 +153,7 @@ export class JsonProjectRepository implements ProjectRepository {
       throw new Error(`Project with id ${id} not found`);
     }
     await this.writeRegistry(next);
+    deleteProjectDataOnDisk(id);
   }
 }
 

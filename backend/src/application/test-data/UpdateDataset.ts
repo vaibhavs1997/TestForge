@@ -6,13 +6,14 @@ export class UpdateDataset {
   constructor(private readonly datasetRepository: DatasetRepository) {}
 
   async execute(params: {
+    projectId: string;
     id: string;
     name?: string;
     description?: string;
     category?: string;
   }): Promise<any> {
     const existing = await this.datasetRepository.findById(params.id);
-    if (!existing) {
+    if (!existing || existing.projectId !== params.projectId) {
       throw new Error(`Dataset with id ${params.id} not found`);
     }
 

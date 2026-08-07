@@ -5,6 +5,7 @@ import { Sun, Moon, Home, FolderKanban } from 'lucide-react';
 
 // Components
 import { NotificationBell } from '../components/shared/NotificationBell';
+import { SessionBadge } from '../components/shared/SessionBadge';
 import { BrandLogo } from '../components/brand/BrandLogo';
 import { useThemeStore } from '../store/themeStore';
 
@@ -20,6 +21,7 @@ export const Header: React.FC = () => {
       </div>
       <div className="hidden flex-1 md:block" aria-hidden />
       <div className="flex items-center gap-3">
+        <SessionBadge />
         <NotificationBell />
         {isOnProjectsArea ? (
           <Link

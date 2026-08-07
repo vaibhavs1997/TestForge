@@ -9,6 +9,8 @@ export interface ProjectRepository {
     description?: string;
     id?: string;
     status?: ProjectRecord['status'];
+    ownerId?: string;
+    tenantId?: string;
   }): Promise<ProjectRecord>;
   update(
     id: string,

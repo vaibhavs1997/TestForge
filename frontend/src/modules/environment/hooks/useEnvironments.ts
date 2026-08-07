@@ -29,6 +29,9 @@ export const useEnvironments = (projectId?: string) => {
       delete: (environmentId: string) => environmentService.deleteEnvironment(projectId || '', environmentId),
     },
     enabled: !!projectId,
+    listOptions: {
+      refetchOnMount: 'always',
+    },
     updateOptions: {
       onMutate: async ({ id: environmentId, data: updateData }: any) => {
         await queryClient.cancelQueries({ queryKey });

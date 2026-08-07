@@ -37,13 +37,15 @@ export const Toast = ({ message, open, onClose, duration = TOAST_DURATION_MS, ty
     <div className='fixed bottom-4 right-4 z-[60] animate-in fade-in slide-in-from-bottom-2'>
       <div
         className={cn(
-          'flex items-start gap-3 rounded-lg border border-border bg-background px-4 py-3 shadow-lg'
+          'flex max-h-[min(70vh,28rem)] max-w-lg items-start gap-3 rounded-lg border border-border bg-background px-4 py-3 shadow-lg',
         )}
       >
         <div className='flex-shrink-0 pt-0.5'>
           {Icon}
         </div>
-        <p className='text-sm font-medium text-text whitespace-pre-wrap break-words'>{message}</p>
+        <p className='min-w-0 flex-1 overflow-y-auto text-sm font-medium text-text whitespace-pre-wrap break-words'>
+          {message}
+        </p>
         <button
           onClick={onClose}
           className='ml-2 flex-shrink-0 text-text-secondary hover:text-text'

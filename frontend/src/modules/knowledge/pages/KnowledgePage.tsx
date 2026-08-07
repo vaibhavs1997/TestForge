@@ -1,6 +1,7 @@
-// Knowledge Hub page - foundation for the AI Knowledge Hub
+// Knowledge Hub — unified list, type filters, and document import
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRightLeft,
   Scale,
@@ -12,6 +13,8 @@ import {
   Trash2,
   BookOpen,
   Sparkles,
+  Upload,
+  ChevronDown,
 } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
@@ -22,7 +25,13 @@ import { Toast } from '../../../components/shared/Toast';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
 import { FlowDialog } from '../components/FlowDialog';
 import { AddArticleModal } from '../components/AddArticleModal';
+import { RuleDialog } from '../components/RuleDialog';
+import { VariableDialog } from '../components/VariableDialog';
+import { DependencyDialog } from '../components/DependencyDialog';
+import { ImportKnowledgeModal } from '../components/ImportKnowledgeModal';
 import { useKnowledgeFlows, useBusinessRules, useRuntimeVariables, useDependencies, useDocumentation } from '../hooks';
+import { knowledgeService } from '../services';
+import { toUnifiedItems, type KnowledgeTypeFilter, type UnifiedKnowledgeItem } from '../utils/unifiedKnowledge';
 import type {
   KnowledgeSection,
   KnowledgeFlow,
@@ -37,31 +46,22 @@ import type {
   DocumentationFormData,
 } from '../types';
 
-export interface KnowledgePageProps {}
-
-const SECTION_ICONS = {
-  flows: ArrowRightLeft,
-  rules: Scale,
-  dependencies: Share2,
-  variables: Variable,
-  documentation: FileText,
-};
-
-const SECTION_DESCRIPTIONS: Record<KnowledgeSection, string> = {
-  flows: 'Model how the project behaves as ordered sequences of steps.',
-  rules: 'Capture business rules that govern system behavior.',
-  dependencies: 'Describe how components and tokens depend on each other.',
-  variables: 'Track runtime variables such as tokens, IDs, and credentials.',
-  documentation: 'Free-form notes and documentation for your team.',
-};
-
-const sectionItems = [
-  { id: 'flows' as KnowledgeSection, label: 'Business Flows' },
-  { id: 'rules' as KnowledgeSection, label: 'Business Rules' },
-  { id: 'dependencies' as KnowledgeSection, label: 'Dependencies' },
-  { id: 'variables' as KnowledgeSection, label: 'Runtime Variables' },
-  { id: 'documentation' as KnowledgeSection, label: 'Documentation' },
+const TYPE_CHIPS: { id: KnowledgeTypeFilter; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: 'all', label: 'All', icon: BookOpen },
+  { id: 'flows', label: 'Flows', icon: ArrowRightLeft },
+  { id: 'rules', label: 'Rules', icon: Scale },
+  { id: 'dependencies', label: 'Dependencies', icon: Share2 },
+  { id: 'variables', label: 'Variables', icon: Variable },
+  { id: 'documentation', label: 'Docs', icon: FileText },
 ];
+
+const SECTION_LABELS: Record<KnowledgeSection, string> = {
+  flows: 'Business Flow',
+  rules: 'Business Rule',
+  dependencies: 'Dependency',
+  variables: 'Runtime Variable',
+  documentation: 'Documentation',
+};
 
 const getStatusBadgeVariant = (status: string) => {
   switch (status) {
@@ -89,501 +89,592 @@ const getSeverityBadgeVariant = (severity: string) => {
 
 const getDependencyTypeBadgeVariant = (type: string) => {
   const variants: Record<string, string> = {
-    'Service': 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300',
-    'Database': 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
-    'Queue': 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300',
-    'Cache': 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
-    'External': 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300',
-    'Token': 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300',
-    'Config': 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300',
+    Service: 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300',
+    Database: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-purple-300',
+    Queue: 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300',
+    Cache: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
+    External: 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300',
+    Token: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300',
+    Config: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300',
   };
   return variants[type] || 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
 };
 
-export const KnowledgePage: React.FC<KnowledgePageProps> = () => {
+function renderItemMeta(item: UnifiedKnowledgeItem) {
+  const raw = item.raw as Record<string, unknown>;
+  switch (item.type) {
+    case 'flows':
+      return (
+        <Badge className={getStatusBadgeVariant(String(raw.status))} variant='outline'>
+          {String(raw.status)}
+        </Badge>
+      );
+    case 'rules':
+      return (
+        <>
+          <Badge className={getSeverityBadgeVariant(String(raw.severity))} variant='outline'>
+            {String(raw.severity)}
+          </Badge>
+          <Badge variant={raw.isActive ? 'success' : 'secondary'}>
+            {raw.isActive ? 'Active' : 'Inactive'}
+          </Badge>
+        </>
+      );
+    case 'variables':
+      return <Badge variant='outline'>{String(raw.scope)}</Badge>;
+    case 'dependencies':
+      return (
+        <>
+          <Badge className={getDependencyTypeBadgeVariant(String(raw.dependencyType))} variant='outline'>
+            {String(raw.dependencyType)}
+          </Badge>
+          {raw.isRequired ? <Badge variant='secondary'>Required</Badge> : null}
+        </>
+      );
+    case 'documentation':
+      return <Badge variant='outline'>{String(raw.category || 'General')}</Badge>;
+    default:
+      return null;
+  }
+}
+
+export const KnowledgePage: React.FC = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
-  const projectId = routeProjectId || '1';
+  const projectId = routeProjectId ?? '';
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  const {
-    flows,
-    isLoading: flowsLoading,
-    isError: flowsError,
-    error: flowsErrorObj,
-    createAsync: createFlowAsync,
-    updateAsync: updateFlowAsync,
-    removeAsync: removeFlowAsync,
-  } = useKnowledgeFlows(projectId);
+  const flowHooks = useKnowledgeFlows(projectId);
+  const ruleHooks = useBusinessRules(projectId);
+  const variableHooks = useRuntimeVariables(projectId);
+  const dependencyHooks = useDependencies(projectId);
+  const docHooks = useDocumentation(projectId);
 
-  const {
-    rules,
-    isLoading: rulesLoading,
-    isError: rulesError,
-    error: rulesErrorObj,
-    createAsync: createRuleAsync,
-    updateAsync: updateRuleAsync,
-    removeAsync: removeRuleAsync,
-  } = useBusinessRules(projectId);
+  const { flows, isLoading: flowsLoading, isError: flowsError, error: flowsErrorObj } = flowHooks;
+  const { rules, isLoading: rulesLoading, isError: rulesError, error: rulesErrorObj } = ruleHooks;
+  const { variables, isLoading: variablesLoading, isError: variablesError, error: variablesErrorObj } = variableHooks;
+  const { dependencies, isLoading: dependenciesLoading, isError: dependenciesError, error: dependenciesErrorObj } = dependencyHooks;
+  const { docs, isLoading: docsLoading, isError: docsError, error: docsErrorObj } = docHooks;
 
-  const {
-    variables,
-    isLoading: variablesLoading,
-    isError: variablesError,
-    error: variablesErrorObj,
-    createAsync: createVariableAsync,
-    updateAsync: updateVariableAsync,
-    removeAsync: removeVariableAsync,
-  } = useRuntimeVariables(projectId);
+  const isLoading = flowsLoading || rulesLoading || variablesLoading || dependenciesLoading || docsLoading;
+  const hasError = flowsError || rulesError || variablesError || dependenciesError || docsError;
+  const firstError = flowsErrorObj || rulesErrorObj || variablesErrorObj || dependenciesErrorObj || docsErrorObj;
 
-  const {
-    dependencies,
-    isLoading: dependenciesLoading,
-    isError: dependenciesError,
-    error: dependenciesErrorObj,
-    createAsync: createDependencyAsync,
-    updateAsync: updateDependencyAsync,
-    removeAsync: removeDependencyAsync,
-  } = useDependencies(projectId);
-
-  const {
-    docs,
-    isLoading: docsLoading,
-    isError: docsError,
-    error: docsErrorObj,
-    createAsync: createDocAsync,
-    updateAsync: updateDocAsync,
-    removeAsync: removeDocAsync,
-  } = useDocumentation(projectId);
-
-  const [activeSection, setActiveSection] = React.useState<KnowledgeSection>('flows');
+  const [typeFilter, setTypeFilter] = React.useState<KnowledgeTypeFilter>('all');
   const [search, setSearch] = React.useState('');
+  const [addMenuOpen, setAddMenuOpen] = React.useState(false);
+  const addMenuRef = React.useRef<HTMLDivElement>(null);
+
+  const [importOpen, setImportOpen] = React.useState(false);
+  const [isImporting, setIsImporting] = React.useState(false);
+
   const [flowDialogOpen, setFlowDialogOpen] = React.useState(false);
-  const [selectedFlow, setSelectedFlow] = React.useState<KnowledgeFlow | undefined>(undefined);
+  const [selectedFlow, setSelectedFlow] = React.useState<KnowledgeFlow | undefined>();
   const [ruleDialogOpen, setRuleDialogOpen] = React.useState(false);
-  const [selectedRule, setSelectedRule] = React.useState<BusinessRule | undefined>(undefined);
+  const [selectedRule, setSelectedRule] = React.useState<BusinessRule | undefined>();
   const [variableDialogOpen, setVariableDialogOpen] = React.useState(false);
-  const [selectedVariable, setSelectedVariable] = React.useState<RuntimeVariable | undefined>(undefined);
+  const [selectedVariable, setSelectedVariable] = React.useState<RuntimeVariable | undefined>();
   const [dependencyDialogOpen, setDependencyDialogOpen] = React.useState(false);
-  const [selectedDependency, setSelectedDependency] = React.useState<Dependency | undefined>(undefined);
+  const [selectedDependency, setSelectedDependency] = React.useState<Dependency | undefined>();
   const [docDialogOpen, setDocDialogOpen] = React.useState(false);
-  const [selectedDoc, setSelectedDoc] = React.useState<Documentation | undefined>(undefined);
+  const [selectedDoc, setSelectedDoc] = React.useState<Documentation | undefined>();
+
   const [deleteOpen, setDeleteOpen] = React.useState(false);
-  const [itemToDelete, setItemToDelete] = React.useState<{ type: KnowledgeSection; item: any } | undefined>(undefined);
+  const [itemToDelete, setItemToDelete] = React.useState<UnifiedKnowledgeItem | undefined>();
   const [toastOpen, setToastOpen] = React.useState(false);
   const [toastMessage, setToastMessage] = React.useState('');
   const [toastType, setToastType] = React.useState<'success' | 'error'>('success');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
+  React.useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
+        setAddMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, []);
+
+  const allItems = React.useMemo(
+    () => toUnifiedItems({ flows, rules, variables, dependencies, docs }),
+    [flows, rules, variables, dependencies, docs]
+  );
+
+  const counts = React.useMemo(
+    () => ({
+      all: allItems.length,
+      flows: flows.length,
+      rules: rules.length,
+      dependencies: dependencies.length,
+      variables: variables.length,
+      documentation: docs.length,
+    }),
+    [allItems.length, flows.length, rules.length, dependencies.length, variables.length, docs.length]
+  );
+
+  const filteredItems = React.useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return allItems.filter((item) => {
+      if (typeFilter !== 'all' && item.type !== typeFilter) return false;
+      if (!term) return true;
+      return (
+        item.title.toLowerCase().includes(term) ||
+        item.description.toLowerCase().includes(term) ||
+        ((item.raw as { tags?: string[] }).tags?.some((tag) => tag.toLowerCase().includes(term)) ?? false)
+      );
+    });
+  }, [allItems, typeFilter, search]);
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToastMessage(message);
+    setToastType(type);
+    setToastOpen(true);
+  };
+
+  const invalidateKnowledge = () => {
+    queryClient.invalidateQueries({ queryKey: ['knowledge', projectId] });
+  };
+
+  const handleImport = async (files: File[]) => {
+    setIsImporting(true);
+    try {
+      const result = await knowledgeService.importDocuments(projectId, files);
+      invalidateKnowledge();
+      const total =
+        result.created.flows +
+        result.created.rules +
+        result.created.variables +
+        result.created.dependencies +
+        result.created.documentation;
+      if (total === 0 && result.errors.length > 0) {
+        showToast(result.errors.slice(0, 3).join(' · ') || 'Import failed', 'error');
+      } else if (result.errors.length > 0) {
+        showToast(
+          `Imported ${total} item(s) from ${result.filesProcessed} file(s); ${result.errors.length} warning(s)`,
+          'success'
+        );
+        setImportOpen(false);
+      } else {
+        showToast(`Imported ${total} item(s) from ${result.filesProcessed} file(s)`, 'success');
+        setImportOpen(false);
+      }
+    } catch (e: any) {
+      showToast(e?.response?.data?.message || e?.message || 'Import failed', 'error');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const openCreate = (section: KnowledgeSection) => {
+    setAddMenuOpen(false);
+    switch (section) {
+      case 'flows':
+        setSelectedFlow(undefined);
+        setFlowDialogOpen(true);
+        break;
+      case 'rules':
+        setSelectedRule(undefined);
+        setRuleDialogOpen(true);
+        break;
+      case 'variables':
+        setSelectedVariable(undefined);
+        setVariableDialogOpen(true);
+        break;
+      case 'dependencies':
+        setSelectedDependency(undefined);
+        setDependencyDialogOpen(true);
+        break;
+      case 'documentation':
+        setSelectedDoc(undefined);
+        setDocDialogOpen(true);
+        break;
+    }
+  };
+
+  const openEdit = (item: UnifiedKnowledgeItem) => {
+    switch (item.type) {
+      case 'flows':
+        setSelectedFlow(item.raw as KnowledgeFlow);
+        setFlowDialogOpen(true);
+        break;
+      case 'rules':
+        setSelectedRule(item.raw as BusinessRule);
+        setRuleDialogOpen(true);
+        break;
+      case 'variables':
+        setSelectedVariable(item.raw as RuntimeVariable);
+        setVariableDialogOpen(true);
+        break;
+      case 'dependencies':
+        setSelectedDependency(item.raw as Dependency);
+        setDependencyDialogOpen(true);
+        break;
+      case 'documentation':
+        setSelectedDoc(item.raw as Documentation);
+        setDocDialogOpen(true);
+        break;
+    }
+  };
+
   const handleFlowSubmit = async (data: KnowledgeFlowFormData) => {
     setIsSubmitting(true);
     try {
-      if (data.id) {
-        await updateFlowAsync({ flowId: data.id, ...data });
-        setToastMessage('Business Flow updated successfully');
-      } else {
-        await createFlowAsync(data);
-        setToastMessage('Business Flow created successfully');
-      }
-      setToastType('success');
+      if (data.id) await flowHooks.updateAsync({ flowId: data.id, ...data });
+      else await flowHooks.createAsync(data);
+      showToast(data.id ? 'Business Flow updated' : 'Business Flow created', 'success');
       setFlowDialogOpen(false);
     } catch (err: any) {
-      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to save Business Flow');
-      setToastType('error');
+      showToast(err?.response?.data?.message || err?.message || 'Failed to save flow', 'error');
     } finally {
       setIsSubmitting(false);
-      setToastOpen(true);
     }
   };
 
   const handleRuleSubmit = async (data: BusinessRuleFormData) => {
     setIsSubmitting(true);
     try {
-      if (data.id) {
-        await updateRuleAsync({ ruleId: data.id, ...data });
-        setToastMessage('Business Rule updated successfully');
-      } else {
-        await createRuleAsync(data);
-        setToastMessage('Business Rule created successfully');
-      }
-      setToastType('success');
+      if (data.id) await ruleHooks.updateAsync({ ruleId: data.id, ...data });
+      else await ruleHooks.createAsync(data);
+      showToast(data.id ? 'Business Rule updated' : 'Business Rule created', 'success');
       setRuleDialogOpen(false);
     } catch (err: any) {
-      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to save Business Rule');
-      setToastType('error');
+      showToast(err?.response?.data?.message || err?.message || 'Failed to save rule', 'error');
     } finally {
       setIsSubmitting(false);
-      setToastOpen(true);
     }
   };
 
   const handleVariableSubmit = async (data: RuntimeVariableFormData) => {
     setIsSubmitting(true);
     try {
-      if (data.id) {
-        await updateVariableAsync({ variableId: data.id, ...data });
-        setToastMessage('Runtime Variable updated successfully');
-      } else {
-        await createVariableAsync(data);
-        setToastMessage('Runtime Variable created successfully');
-      }
-      setToastType('success');
+      if (data.id) await variableHooks.updateAsync({ variableId: data.id, ...data });
+      else await variableHooks.createAsync(data);
+      showToast(data.id ? 'Variable updated' : 'Variable created', 'success');
       setVariableDialogOpen(false);
     } catch (err: any) {
-      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to save Runtime Variable');
-      setToastType('error');
+      showToast(err?.response?.data?.message || err?.message || 'Failed to save variable', 'error');
     } finally {
       setIsSubmitting(false);
-      setToastOpen(true);
     }
   };
 
   const handleDependencySubmit = async (data: DependencyFormData) => {
     setIsSubmitting(true);
     try {
-      if (data.id) {
-        await updateDependencyAsync({ dependencyId: data.id, ...data });
-        setToastMessage('Dependency updated successfully');
-      } else {
-        await createDependencyAsync(data);
-        setToastMessage('Dependency created successfully');
-      }
-      setToastType('success');
+      if (data.id) await dependencyHooks.updateAsync({ dependencyId: data.id, ...data });
+      else await dependencyHooks.createAsync(data);
+      showToast(data.id ? 'Dependency updated' : 'Dependency created', 'success');
       setDependencyDialogOpen(false);
     } catch (err: any) {
-      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to save Dependency');
-      setToastType('error');
+      showToast(err?.response?.data?.message || err?.message || 'Failed to save dependency', 'error');
     } finally {
       setIsSubmitting(false);
-      setToastOpen(true);
     }
   };
 
   const handleDocSubmit = async (data: DocumentationFormData) => {
     setIsSubmitting(true);
     try {
-      if (data.id) {
-        await updateDocAsync({ docId: data.id, ...data });
-        setToastMessage('Documentation updated successfully');
-      } else {
-        await createDocAsync(data);
-        setToastMessage('Documentation created successfully');
-      }
-      setToastType('success');
+      if (data.id) await docHooks.updateAsync({ docId: data.id, ...data });
+      else await docHooks.createAsync(data);
+      showToast(data.id ? 'Documentation updated' : 'Documentation created', 'success');
       setDocDialogOpen(false);
     } catch (err: any) {
-      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to save Documentation');
-      setToastType('error');
+      showToast(err?.response?.data?.message || err?.message || 'Failed to save documentation', 'error');
     } finally {
       setIsSubmitting(false);
-      setToastOpen(true);
     }
   };
 
   const handleDelete = async () => {
     if (!itemToDelete) return;
     try {
-      const { type, item } = itemToDelete;
-      switch (type) {
+      switch (itemToDelete.type) {
         case 'flows':
-          await removeFlowAsync(item.id);
-          setToastMessage('Business Flow deleted successfully');
+          await flowHooks.removeAsync(itemToDelete.id);
           break;
         case 'rules':
-          await removeRuleAsync(item.id);
-          setToastMessage('Business Rule deleted successfully');
+          await ruleHooks.removeAsync(itemToDelete.id);
           break;
         case 'variables':
-          await removeVariableAsync(item.id);
-          setToastMessage('Runtime Variable deleted successfully');
+          await variableHooks.removeAsync(itemToDelete.id);
           break;
         case 'dependencies':
-          await removeDependencyAsync(item.id);
-          setToastMessage('Dependency deleted successfully');
+          await dependencyHooks.removeAsync(itemToDelete.id);
           break;
         case 'documentation':
-          await removeDocAsync(item.id);
-          setToastMessage('Documentation deleted successfully');
+          await docHooks.removeAsync(itemToDelete.id);
           break;
       }
-      setToastType('success');
+      showToast('Deleted successfully', 'success');
     } catch (err: any) {
-      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to delete');
-      setToastType('error');
+      showToast(err?.response?.data?.message || err?.message || 'Failed to delete', 'error');
     } finally {
       setDeleteOpen(false);
       setItemToDelete(undefined);
-      setToastOpen(true);
     }
   };
 
-  const getActiveData = () => {
-    switch (activeSection) {
-      case 'flows':
-        return { data: flows, loading: flowsLoading, error: flowsErrorObj };
-      case 'rules':
-        return { data: rules, loading: rulesLoading, error: rulesErrorObj };
-      case 'variables':
-        return { data: variables, loading: variablesLoading, error: variablesErrorObj };
-      case 'dependencies':
-        return { data: dependencies, loading: dependenciesLoading, error: dependenciesErrorObj };
-      case 'documentation':
-        return { data: docs, loading: docsLoading, error: docsErrorObj };
-    }
-  };
+  const primaryCreateSection: KnowledgeSection | null =
+    typeFilter !== 'all' ? typeFilter : null;
 
-  const { data: activeData, loading: activeLoading, error: activeError } = getActiveData();
-
-  const getFilteredData = () => {
-    const term = search.trim().toLowerCase();
-    if (!term) return activeData;
-    return (activeData || []).filter((item: any) => {
-      return (
-        item.name?.toLowerCase().includes(term) ||
-        item.title?.toLowerCase().includes(term) ||
-        item.description?.toLowerCase().includes(term) ||
-        item.tags?.some((tag: string) => tag.toLowerCase().includes(term))
-      );
-    });
-  };
-
-  const filteredData = getFilteredData();
+  if (!projectId) {
+    return (
+      <div className="mx-auto max-w-7xl px-6 py-16 text-center text-text-secondary">
+        Open a project to use the Knowledge Hub.
+      </div>
+    );
+  }
 
   return (
-    <div className='flex min-h-screen'>
-      {/* Persistent Left Navigation */}
-      <aside className='w-64 flex-shrink-0 border-r border-border bg-surface'>
-        <div className='border-b border-border p-4'>
-          <h2 className='text-sm font-semibold text-text'>Knowledge Hub</h2>
-          <p className='mt-1 text-xs text-text-secondary'>Foundation for AI Knowledge</p>
+    <div className='min-h-screen'>
+      <div className='mx-auto max-w-7xl px-6 py-8'>
+        <div className='mb-6 flex flex-wrap items-start justify-between gap-4'>
+          <div>
+            <h1 className='text-2xl font-bold text-text'>Knowledge Hub</h1>
+            <p className='mt-1 max-w-2xl text-sm text-text-secondary'>
+              One place for flows, rules, dependencies, variables, and documentation. Import multiple documents (PDF, Word, Markdown, JSON packs, and more) or add items manually.
+            </p>
+          </div>
+          <div className='flex flex-wrap items-center gap-2'>
+            <Button variant='outline' onClick={() => navigate(`/projects/${projectId}/requirements/analysis`)}>
+              <Sparkles className='mr-2 h-4 w-4' />
+              Analyze project
+            </Button>
+            <Button variant='outline' onClick={() => setImportOpen(true)}>
+              <Upload className='mr-2 h-4 w-4' />
+              Import
+            </Button>
+            {primaryCreateSection ? (
+              <Button onClick={() => openCreate(primaryCreateSection)}>
+                <Plus className='mr-2 h-4 w-4' />
+                Add {SECTION_LABELS[primaryCreateSection]}
+              </Button>
+            ) : (
+              <div className='relative' ref={addMenuRef}>
+                <Button onClick={() => setAddMenuOpen((v) => !v)}>
+                  <Plus className='mr-2 h-4 w-4' />
+                  Add
+                  <ChevronDown className='ml-1 h-4 w-4' />
+                </Button>
+                {addMenuOpen && (
+                  <div className='absolute right-0 z-20 mt-1 w-52 rounded-lg border border-border bg-surface py-1 shadow-lg'>
+                    {(TYPE_CHIPS.filter((c) => c.id !== 'all') as { id: KnowledgeSection; label: string }[]).map((chip) => (
+                      <button
+                        key={chip.id}
+                        type='button'
+                        className='flex w-full px-3 py-2 text-left text-sm text-text hover:bg-primary/10'
+                        onClick={() => openCreate(chip.id)}
+                      >
+                        {SECTION_LABELS[chip.id]}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-        <nav className='space-y-1 p-3'>
-          {sectionItems.map((item) => {
-            const Icon = SECTION_ICONS[item.id];
-            const isActive = activeSection === item.id;
+
+        <div className='mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6'>
+          {TYPE_CHIPS.map((chip) => {
+            const Icon = chip.icon;
+            const count = counts[chip.id];
+            const active = typeFilter === chip.id;
             return (
               <button
-                key={item.id}
-                onClick={() => setActiveSection(item.id)}
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-primary text-white'
-                    : 'text-text-secondary hover:bg-surface hover:text-text'
+                key={chip.id}
+                type='button'
+                onClick={() => setTypeFilter(chip.id)}
+                className={`rounded-lg border p-3 text-left transition-colors ${
+                  active ? 'border-primary bg-primary/10' : 'border-border bg-surface hover:border-primary/50'
                 }`}
               >
-                <Icon className='h-4 w-4' />
-                {item.label}
+                <div className='flex items-center gap-2 text-xs font-medium text-text-secondary'>
+                  <Icon className='h-3.5 w-3.5' />
+                  {chip.label}
+                </div>
+                <p className='mt-1 text-xl font-semibold text-text'>{count}</p>
               </button>
             );
           })}
-        </nav>
-      </aside>
-
-      {/* Main Content */}
-      <div className='min-w-0 flex-1'>
-        <div className='mx-auto max-w-7xl px-6 py-8'>
-          {/* Page Header */}
-          <div className='mb-6 flex flex-wrap items-center justify-between gap-3'>
-            <div>
-              <h1 className='text-2xl font-bold text-text'>
-                {sectionItems.find((s) => s.id === activeSection)?.label}
-              </h1>
-              <p className='mt-1 text-sm text-text-secondary'>{SECTION_DESCRIPTIONS[activeSection]}</p>
-            </div>
-            <div className='flex items-center gap-2'>
-              <Button variant='outline' onClick={() => navigate('/analysis')}>
-                <Sparkles className='mr-2 h-4 w-4' />
-                Analyze Project
-              </Button>
-              {activeSection === 'flows' && (
-                <Button onClick={() => { setSelectedFlow(undefined); setFlowDialogOpen(true); }}>
-                  <Plus className='mr-2 h-4 w-4' />
-                  Create Business Flow
-                </Button>
-              )}
-              {activeSection === 'rules' && (
-                <Button onClick={() => { setSelectedRule(undefined); setRuleDialogOpen(true); }}>
-                  <Plus className='mr-2 h-4 w-4' />
-                  Add Business Rule
-                </Button>
-              )}
-              {activeSection === 'variables' && (
-                <Button onClick={() => { setSelectedVariable(undefined); setVariableDialogOpen(true); }}>
-                  <Plus className='mr-2 h-4 w-4' />
-                  Add Variable
-                </Button>
-              )}
-              {activeSection === 'dependencies' && (
-                <Button onClick={() => { setSelectedDependency(undefined); setDependencyDialogOpen(true); }}>
-                  <Plus className='mr-2 h-4 w-4' />
-                  Add Dependency
-                </Button>
-              )}
-              {activeSection === 'documentation' && (
-                <Button onClick={() => { setSelectedDoc(undefined); setDocDialogOpen(true); }}>
-                  <Plus className='mr-2 h-4 w-4' />
-                  Add Documentation
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {/* Search */}
-          <div className='mb-6'>
-            <SearchBar value={search} onChange={setSearch} placeholder={`Search ${sectionItems.find((s) => s.id === activeSection)?.label.toLowerCase()}...`} className='sm:w-96' />
-          </div>
-
-          {/* Section Content */}
-          {activeLoading ? (
-            <div className='flex items-center justify-center py-16'>
-              <p className='text-sm text-text-secondary'>Loading...</p>
-            </div>
-          ) : activeError ? (
-            <div className='flex items-center justify-center py-16'>
-              <p className='text-sm text-error'>Error: {(activeError as any)?.message || 'Unknown error'}</p>
-            </div>
-          ) : filteredData?.length === 0 ? (
-            <EmptyState
-              icon={<BookOpen className='h-12 w-12' />}
-              title={search ? 'No matches found' : 'No items yet'}
-              description={search ? 'Try adjusting your search criteria.' : `Create your first ${sectionItems.find((s) => s.id === activeSection)?.label.toLowerCase()} to get started.`}
-              action={search ? undefined : {
-                label: `Create ${sectionItems.find((s) => s.id === activeSection)?.label}`,
-                onClick: () => {
-                  switch (activeSection) {
-                    case 'flows':
-                      setSelectedFlow(undefined);
-                      setFlowDialogOpen(true);
-                      break;
-                    case 'rules':
-                      setSelectedRule(undefined);
-                      setRuleDialogOpen(true);
-                      break;
-                    case 'variables':
-                      setSelectedVariable(undefined);
-                      setVariableDialogOpen(true);
-                      break;
-                    case 'dependencies':
-                      setSelectedDependency(undefined);
-                      setDependencyDialogOpen(true);
-                      break;
-                    case 'documentation':
-                      setSelectedDoc(undefined);
-                      setDocDialogOpen(true);
-                      break;
-                  }
-                },
-              }}
-            />
-          ) : (
-            <div className='space-y-4'>
-              {filteredData?.map((item: any) => (
-                <Card key={item.id} className='overflow-hidden'>
-                  <div className='flex items-center justify-between p-4'>
-                    <div className='min-w-0 flex-1'>
-                      <div className='flex flex-wrap items-center gap-2'>
-                        <h3 className='text-sm font-semibold text-text'>{item.name || item.title}</h3>
-                        {activeSection === 'flows' && (
-                          <Badge className={getStatusBadgeVariant(item.status)} variant='outline'>
-                            {item.status}
-                          </Badge>
-                        )}
-                        {activeSection === 'rules' && (
-                          <>
-                            <Badge className={getSeverityBadgeVariant(item.severity)} variant='outline'>
-                              {item.severity}
-                            </Badge>
-                            <Badge variant={item.isActive ? 'success' : 'secondary'}>
-                              {item.isActive ? 'Active' : 'Inactive'}
-                            </Badge>
-                          </>
-                        )}
-                        {activeSection === 'variables' && (
-                          <Badge variant='outline'>{item.scope}</Badge>
-                        )}
-                        {activeSection === 'dependencies' && (
-                          <>
-                            <Badge className={getDependencyTypeBadgeVariant(item.dependencyType)} variant='outline'>
-                              {item.dependencyType}
-                            </Badge>
-                            {item.isRequired && <Badge variant='secondary'>Required</Badge>}
-                          </>
-                        )}
-                        {activeSection === 'documentation' && (
-                          <Badge variant='outline'>{item.category}</Badge>
-                        )}
-                      </div>
-                      <p className='mt-1 line-clamp-1 text-sm text-text-secondary'>{item.description || 'No description'}</p>
-                      <div className='mt-1 flex flex-wrap items-center gap-2'>
-                        {item.tags?.map((tag: string) => (
-                          <Badge key={tag} variant='secondary' className='text-xs'>
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                    <div className='ml-2 flex flex-shrink-0 items-center gap-1'>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        onClick={() => {
-                          switch (activeSection) {
-                            case 'flows':
-                              setSelectedFlow(item);
-                              setFlowDialogOpen(true);
-                              break;
-                            case 'rules':
-                              setSelectedRule(item);
-                              setRuleDialogOpen(true);
-                              break;
-                            case 'variables':
-                              setSelectedVariable(item);
-                              setVariableDialogOpen(true);
-                              break;
-                            case 'dependencies':
-                              setSelectedDependency(item);
-                              setDependencyDialogOpen(true);
-                              break;
-                            case 'documentation':
-                              setSelectedDoc(item);
-                              setDocDialogOpen(true);
-                              break;
-                          }
-                        }}
-                        aria-label='Edit'
-                      >
-                        <Edit className='h-4 w-4' />
-                      </Button>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        onClick={() => { setItemToDelete({ type: activeSection, item }); setDeleteOpen(true); }}
-                        aria-label='Delete'
-                      >
-                        <Trash2 className='h-4 w-4 text-error' />
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
         </div>
+
+        <div className='mb-6'>
+          <SearchBar
+            value={search}
+            onChange={setSearch}
+            placeholder='Search all knowledge…'
+            className='sm:max-w-md'
+          />
+        </div>
+
+        {isLoading ? (
+          <div className='flex justify-center py-16'>
+            <p className='text-sm text-text-secondary'>Loading knowledge…</p>
+          </div>
+        ) : hasError ? (
+          <div className='flex justify-center py-16'>
+            <p className='text-sm text-error'>Error: {(firstError as Error)?.message || 'Unknown error'}</p>
+          </div>
+        ) : filteredItems.length === 0 ? (
+          <EmptyState
+            icon={<BookOpen className='h-12 w-12' />}
+            title={search ? 'No matches' : 'No knowledge yet'}
+            description={
+              search
+                ? 'Try a different search or clear the type filter.'
+                : 'Import project docs (Markdown or JSON) or add flows, rules, and other items manually.'
+            }
+            action={
+              search
+                ? undefined
+                : {
+                    label: 'Import knowledge',
+                    onClick: () => setImportOpen(true),
+                  }
+            }
+          />
+        ) : (
+          <div className='space-y-3'>
+            {filteredItems.map((item) => (
+              <Card key={`${item.type}-${item.id}`} className='overflow-hidden'>
+                <div className='flex items-center justify-between gap-3 p-4'>
+                  <div className='min-w-0 flex-1'>
+                    <div className='flex flex-wrap items-center gap-2'>
+                      <Badge variant='secondary' className='text-xs'>
+                        {item.typeLabel}
+                      </Badge>
+                      <h3 className='text-sm font-semibold text-text'>{item.title}</h3>
+                      {renderItemMeta(item)}
+                    </div>
+                    <p className='mt-1 line-clamp-2 text-sm text-text-secondary'>
+                      {item.description || 'No description'}
+                    </p>
+                  </div>
+                  <div className='flex shrink-0 items-center gap-1'>
+                    <Button variant='ghost' size='sm' onClick={() => openEdit(item)} aria-label='Edit'>
+                      <Edit className='h-4 w-4' />
+                    </Button>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      onClick={() => {
+                        setItemToDelete(item);
+                        setDeleteOpen(true);
+                      }}
+                      aria-label='Delete'
+                    >
+                      <Trash2 className='h-4 w-4 text-error' />
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Dialogs */}
+      <ImportKnowledgeModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImport={handleImport}
+        isImporting={isImporting}
+      />
+
       <FlowDialog
         open={flowDialogOpen}
         onClose={() => setFlowDialogOpen(false)}
         onSubmit={handleFlowSubmit}
-        flow={selectedFlow ? {
-          id: selectedFlow.id,
-          projectId: selectedFlow.projectId,
-          name: selectedFlow.name,
-          description: selectedFlow.description,
-          tags: selectedFlow.tags,
-          status: selectedFlow.status,
-          steps: selectedFlow.steps,
-        } : undefined}
+        flow={
+          selectedFlow
+            ? {
+                id: selectedFlow.id,
+                projectId: selectedFlow.projectId,
+                name: selectedFlow.name,
+                description: selectedFlow.description,
+                tags: selectedFlow.tags,
+                status: selectedFlow.status,
+                steps: selectedFlow.steps,
+              }
+            : undefined
+        }
+        projectId={projectId}
+        isSubmitting={isSubmitting}
+      />
+
+      <RuleDialog
+        open={ruleDialogOpen}
+        onClose={() => setRuleDialogOpen(false)}
+        onSubmit={handleRuleSubmit}
+        rule={
+          selectedRule
+            ? {
+                id: selectedRule.id,
+                projectId: selectedRule.projectId,
+                name: selectedRule.name,
+                description: selectedRule.description,
+                ruleType: selectedRule.ruleType,
+                condition: selectedRule.condition,
+                expectedOutcome: selectedRule.expectedOutcome,
+                severity: selectedRule.severity,
+                linkedApiOperationIds: selectedRule.linkedApiOperationIds,
+                linkedRequirementIds: selectedRule.linkedRequirementIds,
+                tags: selectedRule.tags,
+                isActive: selectedRule.isActive,
+              }
+            : undefined
+        }
+        projectId={projectId}
+        isSubmitting={isSubmitting}
+      />
+
+      <VariableDialog
+        open={variableDialogOpen}
+        onClose={() => setVariableDialogOpen(false)}
+        onSubmit={handleVariableSubmit}
+        variable={
+          selectedVariable
+            ? {
+                id: selectedVariable.id,
+                projectId: selectedVariable.projectId,
+                name: selectedVariable.name,
+                description: selectedVariable.description,
+                scope: selectedVariable.scope,
+                defaultValue: selectedVariable.defaultValue,
+                isSensitive: selectedVariable.isSensitive,
+                linkedApiOperationIds: selectedVariable.linkedApiOperationIds,
+                linkedRequirementIds: selectedVariable.linkedRequirementIds,
+                tags: selectedVariable.tags,
+              }
+            : undefined
+        }
+        projectId={projectId}
+        isSubmitting={isSubmitting}
+      />
+
+      <DependencyDialog
+        open={dependencyDialogOpen}
+        onClose={() => setDependencyDialogOpen(false)}
+        onSubmit={handleDependencySubmit}
+        dependency={
+          selectedDependency
+            ? {
+                id: selectedDependency.id,
+                projectId: selectedDependency.projectId,
+                name: selectedDependency.name,
+                description: selectedDependency.description,
+                dependencyType: selectedDependency.dependencyType,
+                target: selectedDependency.target,
+                version: selectedDependency.version,
+                isRequired: selectedDependency.isRequired,
+                linkedApiOperationIds: selectedDependency.linkedApiOperationIds,
+                linkedRequirementIds: selectedDependency.linkedRequirementIds,
+                tags: selectedDependency.tags,
+              }
+            : undefined
+        }
         projectId={projectId}
         isSubmitting={isSubmitting}
       />
@@ -592,38 +683,40 @@ export const KnowledgePage: React.FC<KnowledgePageProps> = () => {
         open={docDialogOpen}
         onClose={() => setDocDialogOpen(false)}
         onCreate={handleDocSubmit}
-        initialData={selectedDoc ? {
-          id: selectedDoc.id,
-          projectId: selectedDoc.projectId,
-          title: selectedDoc.title,
-          content: selectedDoc.content,
-          category: selectedDoc.category,
-          tags: selectedDoc.tags,
-          linkedApiOperationIds: selectedDoc.linkedApiOperationIds,
-          linkedRequirementIds: selectedDoc.linkedRequirementIds,
-          author: selectedDoc.author,
-          version: selectedDoc.version,
-        } : undefined}
+        initialData={
+          selectedDoc
+            ? {
+                id: selectedDoc.id,
+                projectId: selectedDoc.projectId,
+                title: selectedDoc.title,
+                content: selectedDoc.content,
+                category: selectedDoc.category,
+                tags: selectedDoc.tags,
+                linkedApiOperationIds: selectedDoc.linkedApiOperationIds,
+                linkedRequirementIds: selectedDoc.linkedRequirementIds,
+                author: selectedDoc.author,
+                version: selectedDoc.version,
+              }
+            : undefined
+        }
         isSubmitting={isSubmitting}
       />
 
       <ConfirmDialog
         open={deleteOpen}
-        title={`Delete ${sectionItems.find((s) => s.id === activeSection)?.label.slice(0, -1)}`}
-        message={`Deleting "${itemToDelete?.item?.name || itemToDelete?.item?.title}" cannot be undone.`}
+        title='Delete knowledge item'
+        message={`Delete "${itemToDelete?.title}"? This cannot be undone.`}
         confirmLabel='Delete'
         cancelLabel='Cancel'
         variant='destructive'
         onConfirm={handleDelete}
-        onCancel={() => { setDeleteOpen(false); setItemToDelete(undefined); }}
+        onCancel={() => {
+          setDeleteOpen(false);
+          setItemToDelete(undefined);
+        }}
       />
 
-      <Toast
-        message={toastMessage}
-        open={toastOpen}
-        onClose={() => setToastOpen(false)}
-        type={toastType}
-      />
+      <Toast message={toastMessage} open={toastOpen} onClose={() => setToastOpen(false)} type={toastType} />
     </div>
   );
 };

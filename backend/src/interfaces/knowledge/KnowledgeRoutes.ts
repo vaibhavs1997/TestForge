@@ -1,5 +1,6 @@
 // KnowledgeRoutes - Route definitions for Knowledge Management
 import { Router } from 'express';
+import multer from 'multer';
 import { KnowledgeController } from './KnowledgeController';
 import { container } from '../../application/ApplicationContainer';
 
@@ -22,7 +23,14 @@ import { ManageBusinessRules } from '../../application/knowledge/ManageBusinessR
 import { ManageRuntimeVariables } from '../../application/knowledge/ManageRuntimeVariables';
 import { ManageDependencies } from '../../application/knowledge/ManageDependencies';
 import { ManageDocumentation } from '../../application/knowledge/ManageDocumentation';
+import { ImportKnowledgeDocuments } from '../../application/knowledge/ImportKnowledgeDocuments';
 import { asyncHandler } from '../middleware/AsyncHandler';
+import { FILE_UPLOAD_LIMIT_BYTES } from '../../constants/defaults';
+
+const knowledgeUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: FILE_UPLOAD_LIMIT_BYTES, files: 40 },
+});
 
 const createKnowledgeFlow = new CreateKnowledgeFlow(knowledgeFlowRepository);
 const updateKnowledgeFlow = new UpdateKnowledgeFlow(knowledgeFlowRepository);
@@ -33,6 +41,13 @@ const manageBusinessRules = new ManageBusinessRules(businessRuleRepository);
 const manageRuntimeVariables = new ManageRuntimeVariables(runtimeVariableRepository);
 const manageDependencies = new ManageDependencies(dependencyRepository);
 const manageDocumentation = new ManageDocumentation(documentationRepository);
+const importKnowledgeDocuments = new ImportKnowledgeDocuments(
+  createKnowledgeFlow,
+  manageBusinessRules,
+  manageRuntimeVariables,
+  manageDependencies,
+  manageDocumentation
+);
 
 // Initialize controller
 const knowledgeController = new KnowledgeController(
@@ -44,10 +59,18 @@ const knowledgeController = new KnowledgeController(
   manageBusinessRules,
   manageRuntimeVariables,
   manageDependencies,
-  manageDocumentation
+  manageDocumentation,
+  importKnowledgeDocuments
 );
 
 const router = Router();
+
+// Bulk document import (multi-file)
+router.post(
+  '/projects/:projectId/knowledge/import',
+  knowledgeUpload.array('files', 40),
+  asyncHandler((req, res) => knowledgeController.importDocuments(req, res))
+);
 
 // Business Flow routes
 router.get('/projects/:projectId/knowledge/flows', asyncHandler((req, res) => knowledgeController.listFlows(req, res)));

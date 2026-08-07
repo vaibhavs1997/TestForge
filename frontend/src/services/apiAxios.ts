@@ -3,18 +3,18 @@
  * Paths must include API_BASE_URL — see ApiClient and other callers.
  */
 import axios from 'axios';
+import { getAuthAuthorizationHeader } from './authSession';
 
 export const apiAxios = axios.create();
 
 apiAxios.interceptors.request.use((config) => {
-  const apiKey = import.meta.env.VITE_API_KEY;
-  if (typeof apiKey === 'string' && apiKey.length > 0) {
+  const authorization = getAuthAuthorizationHeader();
+  if (authorization) {
     config.headers = config.headers ?? {};
     if (!config.headers.Authorization) {
-      config.headers.Authorization = `Bearer ${apiKey}`;
+      config.headers.Authorization = authorization;
     }
   }
   return config;
 });
-
 export default apiAxios;

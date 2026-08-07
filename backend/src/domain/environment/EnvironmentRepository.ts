@@ -7,4 +7,15 @@ export interface EnvironmentRepository {
   findDefault(projectId: string): Promise<any>;
   existsByName(name: string, projectId: string): Promise<boolean>;
   list(): Promise<any[]>;
+  upsertManyByName(
+    projectId: string,
+    items: Array<{
+      name: string;
+      baseUrl: string;
+      description?: string;
+      authentication?: unknown;
+      variables?: Record<string, string>;
+      timeout?: number;
+    }>,
+  ): Promise<{ created: number; updated: number; environments: any[] }>;
 }

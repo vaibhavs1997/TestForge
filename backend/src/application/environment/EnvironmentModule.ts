@@ -8,6 +8,7 @@ import { UpdateEnvironment } from './UpdateEnvironment';
 import { DeleteEnvironment } from './DeleteEnvironment';
 import { GetEnvironment } from './GetEnvironment';
 import { ListEnvironments } from './ListEnvironments';
+import { UpsertEnvironments } from './UpsertEnvironments';
 
 export interface EnvironmentModuleDeps {
   environmentRepository: EnvironmentRepository;
@@ -24,6 +25,7 @@ export class EnvironmentModule {
     const deleteEnvironment = new DeleteEnvironment(deps.environmentRepository, deps.eventPublisher);
     const getEnvironment = new GetEnvironment(deps.environmentRepository);
     const listEnvironments = new ListEnvironments(deps.environmentRepository);
+    const upsertEnvironments = new UpsertEnvironments(deps.environmentRepository);
 
     this.controller = new EnvironmentController(
       createEnvironment,
@@ -31,6 +33,7 @@ export class EnvironmentModule {
       deleteEnvironment,
       getEnvironment,
       listEnvironments,
+      upsertEnvironments,
     );
 
     const router = Router();
@@ -38,6 +41,10 @@ export class EnvironmentModule {
 
     router.get('/projects/:projectId/environments', asyncHandler((req, res) => c.listEnvironments(req, res)));
     router.post('/projects/:projectId/environments', asyncHandler((req, res) => c.createEnvironment(req, res)));
+    router.post(
+      '/projects/:projectId/environments/upsert-batch',
+      asyncHandler((req, res) => c.upsertEnvironments(req, res)),
+    );
     router.get('/projects/:projectId/environments/:environmentId', asyncHandler((req, res) => c.getEnvironment(req, res)));
     router.patch('/projects/:projectId/environments/:environmentId', asyncHandler((req, res) => c.updateEnvironment(req, res)));
     router.delete('/projects/:projectId/environments/:environmentId', asyncHandler((req, res) => c.deleteEnvironment(req, res)));

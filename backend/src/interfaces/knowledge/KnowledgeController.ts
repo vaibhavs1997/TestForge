@@ -9,9 +9,10 @@ import { ManageBusinessRules } from '../../application/knowledge/ManageBusinessR
 import { ManageRuntimeVariables } from '../../application/knowledge/ManageRuntimeVariables';
 import { ManageDependencies } from '../../application/knowledge/ManageDependencies';
 import { ManageDocumentation } from '../../application/knowledge/ManageDocumentation';
+import { ImportKnowledgeDocuments } from '../../application/knowledge/ImportKnowledgeDocuments';
 import { createSuccessResponse } from "../../shared/ApiResponse";
 export class KnowledgeController {
-    constructor(private readonly createKnowledgeFlow: CreateKnowledgeFlow, private readonly updateKnowledgeFlow: UpdateKnowledgeFlow, private readonly deleteKnowledgeFlow: DeleteKnowledgeFlow, private readonly getKnowledgeFlow: GetKnowledgeFlow, private readonly listKnowledgeFlows: ListKnowledgeFlows, private readonly manageBusinessRules: ManageBusinessRules, private readonly manageRuntimeVariables: ManageRuntimeVariables, private readonly manageDependencies: ManageDependencies, private readonly manageDocumentation: ManageDocumentation) { }
+    constructor(private readonly createKnowledgeFlow: CreateKnowledgeFlow, private readonly updateKnowledgeFlow: UpdateKnowledgeFlow, private readonly deleteKnowledgeFlow: DeleteKnowledgeFlow, private readonly getKnowledgeFlow: GetKnowledgeFlow, private readonly listKnowledgeFlows: ListKnowledgeFlows, private readonly manageBusinessRules: ManageBusinessRules, private readonly manageRuntimeVariables: ManageRuntimeVariables, private readonly manageDependencies: ManageDependencies, private readonly manageDocumentation: ManageDocumentation, private readonly importKnowledgeDocuments: ImportKnowledgeDocuments) { }
     // Business Flow endpoints
     async listFlows(req: Request, res: Response): Promise<void> {
         const projectId = req.params.projectId;
@@ -208,6 +209,20 @@ export class KnowledgeController {
         const { docId } = req.params;
         await this.manageDocumentation.delete(docId);
         res.status(204).send();
+    }
+    async importDocuments(req: Request, res: Response): Promise<void> {
+        const projectId = req.params.projectId;
+        const rawFiles = req.files as Express.Multer.File[] | undefined;
+        const files = rawFiles ?? [];
+        if (files.length === 0) {
+            res.status(400).json({ success: false, message: 'No files uploaded' });
+            return;
+        }
+        const result = await this.importKnowledgeDocuments.execute(projectId, files.map((f) => ({
+            originalname: f.originalname,
+            buffer: f.buffer,
+        })));
+        res.status(200).json(createSuccessResponse(result));
     }
 }
 export default KnowledgeController;

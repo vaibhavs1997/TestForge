@@ -12,9 +12,10 @@ import { Link2, Plus, Edit, Trash2 } from 'lucide-react';
 import { useMappings } from '../hooks/useMappings';
 import { MappingDialog, type MappingDialogData } from '../components/MappingDialog';
 
-// Styles
-
-export interface MappingPageProps {}
+export interface MappingPageProps {
+  /** When true, omit page title (used inside unified Test Data Library). */
+  embedded?: boolean;
+}
 
 interface Mapping {
   id: string;
@@ -41,9 +42,9 @@ const SOURCE_TYPE_COLORS: Record<string, 'default' | 'secondary' | 'outline' | '
   'Environment Variable': 'secondary',
 };
 
-export const MappingPage: React.FC<MappingPageProps> = () => {
+export const MappingPage: React.FC<MappingPageProps> = ({ embedded = false }) => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
-  const projectId = routeProjectId || '1';
+  const projectId = routeProjectId ?? '';
   const { mappings, isLoading, isError, error, createAsync, updateAsync, removeAsync } = useMappings(projectId);
   
   const [search, setSearch] = React.useState('');
@@ -56,8 +57,9 @@ export const MappingPage: React.FC<MappingPageProps> = () => {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const filteredMappings = React.useMemo(() => {
+    const list = mappings ?? [];
     const term = search.trim().toLowerCase();
-    return mappings.filter((mapping) => {
+    return list.filter((mapping) => {
       const matchesSearch = mapping.fieldPath.toLowerCase().includes(term) || 
                            mapping.notes.toLowerCase().includes(term) ||
                            mapping.serviceId.toLowerCase().includes(term);
@@ -65,61 +67,6 @@ export const MappingPage: React.FC<MappingPageProps> = () => {
       return matchesSearch && matchesSourceType;
     });
   }, [search, sourceTypeFilter, mappings]);
-
-  if (isLoading) {
-    return (
-      <div className='mx-auto max-w-7xl px-4 py-8'>
-        <div className='mb-6 flex items-center justify-between'>
-          <div>
-            <h1 className='text-2xl font-bold text-text'>Data Source Mappings</h1>
-            <p className='mt-1 text-sm text-text-secondary'>Manage data source mappings for API operations.</p>
-          </div>
-        </div>
-        <div className='flex items-center justify-center py-12'>
-          <p className='text-sm text-text-secondary'>Loading mappings...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (isError) {
-    return (
-      <div className='mx-auto max-w-7xl px-4 py-8'>
-        <div className='mb-6 flex items-center justify-between'>
-          <div>
-            <h1 className='text-2xl font-bold text-text'>Data Source Mappings</h1>
-            <p className='mt-1 text-sm text-text-secondary'>Manage data source mappings for API operations.</p>
-          </div>
-        </div>
-        <div className='flex items-center justify-center py-12'>
-          <p className='text-sm text-error'>Error loading mappings: {error?.message || 'Unknown error'}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (filteredMappings.length === 0) {
-    return (
-      <div className='mx-auto max-w-7xl px-4 py-8'>
-        <div className='mb-6 flex items-center justify-between'>
-          <div>
-            <h1 className='text-2xl font-bold text-text'>Data Source Mappings</h1>
-            <p className='mt-1 text-sm text-text-secondary'>Manage data source mappings for API operations.</p>
-          </div>
-          <Button onClick={() => { setSelectedMapping(undefined); setEditOpen(true); }}>
-            <Plus className='mr-2 h-4 w-4' />
-            Create Mapping
-          </Button>
-        </div>
-        <EmptyState
-          icon={<Link2 className='h-12 w-12' />}
-          title='No mappings found'
-          description={search ? 'Try adjusting your search criteria.' : 'Create your first mapping to get started.'}
-          action={search ? undefined : { label: 'Create Mapping', onClick: () => setEditOpen(true) }}
-        />
-      </div>
-    );
-  }
 
   const handleDelete = async () => {
     if (selectedMapping) {
@@ -189,19 +136,129 @@ export const MappingPage: React.FC<MappingPageProps> = () => {
     }
   };
 
-  return (
-    <div className='mx-auto max-w-7xl px-4 py-8'>
-      {/* Page Header */}
-      <div className='mb-6 flex items-center justify-between'>
-        <div>
-          <h1 className='text-2xl font-bold text-text'>Data Source Mappings</h1>
-          <p className='mt-1 text-sm text-text-secondary'>Manage data source mappings for API operations.</p>
-        </div>
-        <Button onClick={() => { setSelectedMapping(undefined); setEditOpen(true); }}>
-          <Plus className='mr-2 h-4 w-4' />
-          Create Mapping
-        </Button>
+  const mappingDialogs = (
+    <>
+      <MappingDialog
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        onSubmit={handleMappingSubmit}
+        mapping={selectedMapping}
+        isSubmitting={isSubmitting}
+      />
+      <ConfirmDialog
+        open={deleteOpen}
+        title='Delete Mapping'
+        message={`Deleting mapping for "${selectedMapping?.fieldPath}" cannot be undone.`}
+        confirmLabel='Delete'
+        cancelLabel='Cancel'
+        variant='destructive'
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteOpen(false)}
+      />
+      <Toast
+        message={toastMessage}
+        open={toastOpen}
+        onClose={() => setToastOpen(false)}
+      />
+    </>
+  );
+
+  const pageShell = embedded ? '' : 'mx-auto max-w-7xl px-4 py-8';
+
+  if (!projectId) {
+    return (
+      <div className={pageShell}>
+        <p className="py-12 text-center text-sm text-text-secondary">No project selected.</p>
       </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className={pageShell}>
+        {!embedded && (
+          <div className='mb-6'>
+            <h1 className='text-2xl font-bold text-text'>Data Source Mappings</h1>
+            <p className='mt-1 text-sm text-text-secondary'>Manage data source mappings for API operations.</p>
+          </div>
+        )}
+        <div className='flex items-center justify-center py-12'>
+          <p className='text-sm text-text-secondary'>Loading mappings...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className={pageShell}>
+        {!embedded && (
+          <div className='mb-6'>
+            <h1 className='text-2xl font-bold text-text'>Data Source Mappings</h1>
+            <p className='mt-1 text-sm text-text-secondary'>Manage data source mappings for API operations.</p>
+          </div>
+        )}
+        <div className='flex items-center justify-center py-12'>
+          <p className='text-sm text-error'>Error loading mappings: {error?.message || 'Unknown error'}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (filteredMappings.length === 0) {
+    return (
+      <div className={pageShell}>
+        {!embedded ? (
+          <div className='mb-6 flex items-center justify-between'>
+            <div>
+              <h1 className='text-2xl font-bold text-text'>Data Source Mappings</h1>
+              <p className='mt-1 text-sm text-text-secondary'>Manage data source mappings for API operations.</p>
+            </div>
+            <Button onClick={() => { setSelectedMapping(undefined); setEditOpen(true); }}>
+              <Plus className='mr-2 h-4 w-4' />
+              Create Mapping
+            </Button>
+          </div>
+        ) : (
+          <div className='mb-4 flex justify-end'>
+            <Button onClick={() => { setSelectedMapping(undefined); setEditOpen(true); }}>
+              <Plus className='mr-2 h-4 w-4' />
+              Create Mapping
+            </Button>
+          </div>
+        )}
+        <EmptyState
+          icon={<Link2 className='h-12 w-12' />}
+          title='No mappings found'
+          description={search ? 'Try adjusting your search criteria.' : 'Create your first mapping to get started.'}
+          action={search ? undefined : { label: 'Create Mapping', onClick: () => setEditOpen(true) }}
+        />
+        {mappingDialogs}
+      </div>
+    );
+  }
+
+  return (
+    <div className={pageShell}>
+      {!embedded ? (
+        <div className='mb-6 flex items-center justify-between'>
+          <div>
+            <h1 className='text-2xl font-bold text-text'>Data Source Mappings</h1>
+            <p className='mt-1 text-sm text-text-secondary'>Manage data source mappings for API operations.</p>
+          </div>
+          <Button onClick={() => { setSelectedMapping(undefined); setEditOpen(true); }}>
+            <Plus className='mr-2 h-4 w-4' />
+            Create Mapping
+          </Button>
+        </div>
+      ) : (
+        <div className='mb-4 flex justify-end'>
+          <Button onClick={() => { setSelectedMapping(undefined); setEditOpen(true); }}>
+            <Plus className='mr-2 h-4 w-4' />
+            Create Mapping
+          </Button>
+        </div>
+      )}
 
       {/* Search and Filters */}
       <div className='mb-6 flex flex-col gap-3 sm:flex-row sm:items-center'>
@@ -274,30 +331,7 @@ export const MappingPage: React.FC<MappingPageProps> = () => {
         </div>
       </Card>
 
-      <MappingDialog
-        open={editOpen}
-        onClose={() => setEditOpen(false)}
-        onSubmit={handleMappingSubmit}
-        mapping={selectedMapping}
-        isSubmitting={isSubmitting}
-      />
-
-      <ConfirmDialog
-        open={deleteOpen}
-        title='Delete Mapping'
-        message={`Deleting mapping for "${selectedMapping?.fieldPath}" cannot be undone.`}
-        confirmLabel='Delete'
-        cancelLabel='Cancel'
-        variant='destructive'
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteOpen(false)}
-      />
-
-      <Toast
-        message={toastMessage}
-        open={toastOpen}
-        onClose={() => setToastOpen(false)}
-      />
+      {mappingDialogs}
     </div>
   );
 };

@@ -34,7 +34,7 @@ describe('auth middleware', () => {
     expect(next).toHaveBeenCalledWith(expect.any(AppError));
   });
 
-  it('enforces JWT project scope', () => {
+  it('enforces JWT project scope', async () => {
     process.env.TESTFORGE_JWT_SECRET = 'jwt-secret';
     const token = jwt.sign({ sub: 'user-1', projects: ['allowed'] }, 'jwt-secret');
     const req = {
@@ -43,7 +43,7 @@ describe('auth middleware', () => {
       auth: { subject: 'user-1', projectIds: ['allowed'] },
     } as any;
     const next = vi.fn();
-    authorizeProject(req, {} as any, next);
+    await authorizeProject(req, {} as any, next);
     expect(next).toHaveBeenCalledWith(expect.any(AppError));
   });
 });

@@ -70,7 +70,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
   const projects = React.useMemo(() => apiProjects.map(toUiProject), [apiProjects]);
 
   const navigate = useNavigate();
-  const { toast, showSuccess } = useToast();
+  const { toast, showSuccess, showError } = useToast();
   const setSelectedProjectId = projectStore((state) => state.setSelectedProjectId);
   const selectedProjectId = projectStore((state) => state.selectedProjectId);
 
@@ -181,6 +181,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
       showSuccess(`Project "${deletedName}" deleted successfully`);
     } catch (e) {
       console.error(e);
+      showError(e instanceof Error ? e.message : 'Failed to delete project');
     }
   };
 
@@ -375,7 +376,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
       <ConfirmDialog
         open={deleteOpen}
         title="Delete Project"
-        message={`Deleting "${deleteProject?.name}" removes it from the registry. Workspace data on disk is not deleted.`}
+        message={`Deleting "${deleteProject?.name}" removes the project and its workspace data from this machine.`}
         confirmLabel="Delete"
         cancelLabel="Cancel"
         variant="destructive"

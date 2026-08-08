@@ -1,0 +1,60 @@
+// Rate limiting middleware
+import { Request, Response, NextFunction } from 'express';
+
+interface RateLimitConfig {
+  windowMs: number;
+  max: number;
+  message?: string;
+  skipSuccessfulRequests?: boolean;
+}
+
+const defaultConfig: RateLimitConfig = {
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per window
+  message: 'Too many requests, please try again later.',
+  skipSuccessfulRequests: false,
+};
+
+// In-memory store (use Redis for production multi-instance)
+const requestCounts = new Map<string, { count: number; resetTime: number }>();
+
+export function createRateLimiter(config: Partial<RateLimitConfig> = {}) {
+  const mergedConfig = { ...defaultConfig, ...config };
+
+  return (req: Request, res: Response, next: NextFunction) => {
+    const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
+    const now = Date.now();
+
+    const record = requestCounts.get(clientIp);
+
+    if (!record || now > record.resetTime) {
+      requestCounts.set(clientIp, {
+        count: 1,
+        resetTime: now + mergedConfig.windowMs,
+      });
+      return next();
+    }
+
+    record.count++;
+
+    if (record.count > mergedConfig.max) {
+      return res.status(429).json({
+        success: false,
+        message: mergedConfig.message || 'Too many requests, please try again later.',
+        retryAfter: Math.ceil((record.resetTime - now) / 1000),
+      });
+    }
+
+    next();
+  };
+}
+
+// Cleanup old entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, record] of requestCounts.entries()) {
+    if (now > record.resetTime) {
+      requestCounts.delete(key);
+    }
+  }
+}, 5 * 60 * 1000); // Every 5 minutes

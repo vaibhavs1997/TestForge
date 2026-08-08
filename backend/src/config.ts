@@ -91,7 +91,9 @@ export function validateConfig(env: NodeJS.ProcessEnv = process.env): AppConfig 
     nodeEnv,
     dbPath: env.DB_PATH || './data/testforge.db',
     persistenceDriver,
-    corsOrigin: env.CORS_ORIGIN || '*',
+  corsOrigin: env.CORS_ORIGIN || env.NODE_ENV === 'production' 
+    ? 'https://your-domain.com' 
+    : 'http://localhost:3000,http://localhost:5173',
     logLevel: env.LOG_LEVEL || 'info',
     version: env.npm_package_version || APP_VERSION,
     buildTimestamp: env.BUILD_TIMESTAMP || BUILD_TIMESTAMP,

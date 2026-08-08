@@ -121,11 +121,12 @@ class RedisCache implements CacheService {
 }
 
 // Factory function
-export function createCacheService(redisUrl?: string): CacheService {
+export async function createCacheService(redisUrl?: string): Promise<CacheService> {
   if (redisUrl) {
     try {
-      // Dynamic import to avoid requiring ioredis
-      const Redis = require('ioredis');
+      // Dynamic import to avoid requiring ioredis (optional dependency)
+      // @ts-expect-error - ioredis is an optional dependency not declared in tsconfig
+      const { default: Redis } = await import('ioredis');
       const redis = new Redis(redisUrl);
       return new RedisCache(redis);
     } catch {
@@ -138,9 +139,9 @@ export function createCacheService(redisUrl?: string): CacheService {
 }
 
 // Singleton instance
-let cacheInstance: CacheService | null = null;
+let cacheInstance: Promise<CacheService> | null = null;
 
-export function getCacheService(redisUrl?: string): CacheService {
+export function getCacheService(redisUrl?: string): Promise<CacheService> {
   if (!cacheInstance) {
     cacheInstance = createCacheService(redisUrl);
   }

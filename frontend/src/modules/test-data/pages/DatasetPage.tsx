@@ -1,5 +1,5 @@
 // Test Data Library - Production Quality UI
-import React, { Suspense, useMemo } from 'react';
+import React, { Suspense, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
@@ -328,7 +328,7 @@ export const TestDataLibraryPage = () => {
     setToastOpen(true);
   };
 
-  const handleDuplicate = (dataset: Dataset) => {
+  const handleDuplicate = useCallback((dataset: Dataset) => {
     const duplicate: Dataset = {
       ...dataset,
       id: Date.now().toString(),
@@ -337,19 +337,19 @@ export const TestDataLibraryPage = () => {
       lastUpdated: 'Just now',
       usedBy: { requirements: 0, suites: 0, apis: 0, knowledge: 0 },
     };
-    setDatasets([...datasets, duplicate]);
+    setDatasets((current) => [...current, duplicate]);
     setToastMessage('Dataset duplicated successfully');
     setToastOpen(true);
-  };
+  }, []);
 
-  const openDatasetDetails = (dataset: Dataset) => {
+  const openDatasetDetails = useCallback((dataset: Dataset) => {
     setSelectedDataset(dataset);
     setDetailsOpen(true);
     setActiveTab('Overview');
     setShowSuggestions(false);
     setRejectedSuggestions(new Set());
     setSelectedSuggestionIds(new Set());
-  };
+  }, []);
 
   const getCategoryBadge = (category: string) => {
     const variants: Record<string, 'default' | 'secondary' | 'outline' | 'destructive'> = {

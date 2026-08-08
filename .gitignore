@@ -4,6 +4,12 @@ node_modules/
 # Build output
 dist/
 build/
+*_output.txt
+*_build_output.txt
+tsc_output.txt
+typecheck_result.txt
+frontend_tsc.txt
+vite_build_output.txt
 
 # Environment variables
 .env

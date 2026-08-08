@@ -34,12 +34,7 @@ export const ExecutionProfilePage: React.FC = () => {
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  // Load profiles on mount
-  React.useEffect(() => {
-    loadProfiles();
-  }, [projectId]);
-
-  const loadProfiles = async () => {
+  const loadProfiles = React.useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -52,7 +47,12 @@ export const ExecutionProfilePage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [projectId]);
+
+  // Load profiles on mount
+  React.useEffect(() => {
+    loadProfiles();
+  }, [loadProfiles]);
 
   const filteredProfiles = React.useMemo(() => {
     const term = search.trim().toLowerCase();

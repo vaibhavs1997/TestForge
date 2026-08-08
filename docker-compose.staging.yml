@@ -1,0 +1,56 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: testforge-backend-staging
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-3001}:3000"
+    environment:
+      - NODE_ENV=staging
+      - PORT=3000
+      - DB_PATH=/app/data/testforge.db
+    volumes:
+      - testforge-staging-data:/app/data
+      - ./.env.staging:/app/.env:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - testforge-network-staging
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.testforge-backend-staging.rule=Host(`${STAGING_DOMAIN:-staging.testforge.local}`)"
+      - "traefik.http.services.testforge-backend-staging.loadbalancer.server.port=3000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: testforge-frontend-staging
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    environment:
+      - VITE_API_URL=${STAGING_API_URL:-http://localhost:3001/api}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - testforge-network-staging
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.testforge-frontend-staging.rule=Host(`${STAGING_DOMAIN:-staging.testforge.local}`)"
+      - "traefik.http.services.testforge-frontend-staging.loadbalancer.server.port=80"
+
+volumes:
+  testforge-staging-data:
+    driver: local
+
+networks:
+  testforge-network-staging:
+    driver: bridge

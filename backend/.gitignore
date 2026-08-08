@@ -2,3 +2,11 @@ node_modules
 dist
 .env
 *.log
+*_output.txt
+*_build_output.txt
+tsc_output.txt
+build_output.txt
+build_output2.txt
+build_output3.txt
+test-openapi.json
+test-openapi-clean.json

@@ -8,6 +8,7 @@ export interface EntityDialogProps {
   onClose: () => void;
   onSubmit: (e: React.FormEvent) => void;
   title: string;
+  description?: string;
   submitLabel?: string;
   isLoading?: boolean;
   children: React.ReactNode;
@@ -27,26 +28,35 @@ export function EntityDialog({
   onClose,
   onSubmit,
   title,
+  description,
   submitLabel = 'Save',
   isLoading = false,
   children,
   size = 'lg',
   scrollable = false,
 }: EntityDialogProps) {
+  const titleId = React.useId().replace(/:/g, '');
+  const descId = description ? `${titleId}-desc` : undefined;
+
   if (!open) return null;
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       onClick={onClose}
+      role="presentation"
     >
       <Card
         className={`mx-4 w-full ${sizeClasses[size]} ${scrollable ? 'max-h-[90vh] overflow-y-auto' : ''}`}
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descId}
       >
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>{title}</CardTitle>
+            <CardTitle id={titleId}>{title}</CardTitle>
             <Button
               variant="ghost"
               size="sm"
@@ -59,6 +69,11 @@ export function EntityDialog({
               <X className="h-4 w-4" />
             </Button>
           </div>
+          {description ? (
+            <p id={descId} className="mt-2 text-sm text-text-secondary">
+              {description}
+            </p>
+          ) : null}
         </CardHeader>
         <form onSubmit={onSubmit}>
           <CardContent>{children}</CardContent>

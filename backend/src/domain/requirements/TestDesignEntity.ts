@@ -4,6 +4,7 @@
 
 export type DesignPriority = 'High' | 'Medium' | 'Low';
 export type DesignStatus = 'Draft' | 'Ready' | 'Disabled';
+export type TestCaseType = 'Positive' | 'Negative' | 'Security';
 
 export interface RequestOverride {
   headers?: Record<string, string>;
@@ -54,7 +55,9 @@ export class TestDesignEntity {
     public readonly status: DesignStatus,
     public readonly createdAt: number,
     public readonly updatedAt: number,
-    public readonly assertionIds: AssertionReference[] = []
+    public readonly assertionIds: AssertionReference[] = [],
+    public readonly testCaseType?: TestCaseType,
+    public readonly expectedHttpStatus?: number
   ) {}
 }
 

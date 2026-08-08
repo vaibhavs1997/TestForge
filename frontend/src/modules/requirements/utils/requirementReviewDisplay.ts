@@ -1,9 +1,9 @@
 import type { Requirement, TestDesign } from '../types';
 
-/** Human-readable label for a test design (new designs store `title` on the entity). */
+/** Human-readable label for a test design (title is generated from acceptance criteria, not the requirement title). */
 export function getTestCaseLabel(
   design: TestDesign,
-  requirementTitle: string,
+  _requirementTitle: string,
   index: number,
 ): string {
   if (design.title?.trim()) {
@@ -14,10 +14,10 @@ export function getTestCaseLabel(
   const scenario = inferScenario(design);
 
   if (statusAssertion) {
-    return `Verify ${requirementTitle} — ${scenario} (expect HTTP ${statusAssertion.expected})`;
+    return `${scenario} (expect HTTP ${statusAssertion.expected})`;
   }
 
-  return `Test case ${index + 1}: ${requirementTitle} (${scenario})`;
+  return `Test case ${index + 1}: ${scenario}`;
 }
 
 function inferScenario(design: TestDesign): string {
@@ -34,21 +34,3 @@ function inferScenario(design: TestDesign): string {
   return 'happy path';
 }
 
-export function getRequirementReviewDisplay(requirement: Requirement) {
-  const normalize = (value: string) => value.trim().toLowerCase();
-  const title = requirement.title.trim();
-  const description = requirement.description?.trim() ?? '';
-  const showDescription = description.length > 0 && normalize(description) !== normalize(title);
-
-  const criteria = requirement.acceptanceCriteria.filter((ac) => {
-    const text = ac.text.trim();
-    if (!text) return false;
-    const n = normalize(text);
-    if (n === normalize(title)) return false;
-    if (showDescription && n === normalize(description)) return false;
-    if (!showDescription && description && n === normalize(description)) return false;
-    return true;
-  });
-
-  return { showDescription, description, criteria };
-}

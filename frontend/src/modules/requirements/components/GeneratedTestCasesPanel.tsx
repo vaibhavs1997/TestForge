@@ -1,0 +1,173 @@
+import React from 'react';
+import { Sparkles, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Badge } from '../../../components/ui/Badge';
+import { Button } from '../../../components/ui/Button';
+import { EmptyState } from '../../../components/ui/EmptyState';
+import type { Requirement, TestDesign } from '../types';
+import { TestCasesListBlock } from './TestCasesListBlock';
+import { ApiMappingBanner } from './ApiMappingBanner';
+import type { ApiOperationOption } from '../utils/operationDisplay';
+
+export interface GeneratedTestCasesPanelProps {
+  requirement?: Requirement;
+  designs: TestDesign[];
+  isGenerating: boolean;
+  isLoadingDesigns?: boolean;
+  onToggleIncluded: (design: TestDesign) => void | Promise<void>;
+  getPriorityBadgeClassName: (priority: string) => string;
+  onApproveSuite?: () => void | Promise<void>;
+  onRejectSuite?: () => void | Promise<void>;
+  onAddToPendingReview?: () => void | Promise<void>;
+  isApproving?: boolean;
+  isRejecting?: boolean;
+  isAddingToPending?: boolean;
+  canApproveSuite?: boolean;
+  canRejectSuite?: boolean;
+  canAddToPending?: boolean;
+  isSuiteApproved?: boolean;
+  operations?: ApiOperationOption[];
+  onChangeOperation?: (design: TestDesign, operationId: string) => void | Promise<void>;
+  isUpdatingMapping?: boolean;
+  mappingBannerMessage?: string;
+  mappingLowConfidence?: boolean;
+}
+
+export const GeneratedTestCasesPanel: React.FC<GeneratedTestCasesPanelProps> = ({
+  requirement,
+  designs,
+  isGenerating,
+  isLoadingDesigns,
+  onToggleIncluded,
+  getPriorityBadgeClassName,
+  onApproveSuite,
+  onRejectSuite,
+  onAddToPendingReview,
+  isApproving,
+  isRejecting,
+  isAddingToPending,
+  canApproveSuite,
+  canRejectSuite,
+  canAddToPending,
+  isSuiteApproved,
+  operations,
+  onChangeOperation,
+  isUpdatingMapping,
+  mappingBannerMessage,
+  mappingLowConfidence,
+}) => {
+  const title = requirement?.title;
+  const includedCount = designs.filter((d) => d.status !== 'Disabled').length;
+
+  return (
+    <div className='mb-8'>
+      <div className='mb-4 flex flex-wrap items-center justify-between gap-2'>
+        <div>
+          <h2 className='text-lg font-semibold text-text'>Generated test cases</h2>
+          {title ? (
+            <p className='mt-1 text-sm text-text-secondary'>
+              For <span className='font-medium text-text'>{title}</span> — uncheck cases you do not want in the suite.
+            </p>
+          ) : (
+            <p className='mt-1 text-sm text-text-secondary'>
+              Enter acceptance criteria above and click Generate Test Cases.
+            </p>
+          )}
+        </div>
+        <div className='flex flex-wrap items-center gap-2'>
+          {designs.length > 0 && (
+            <Badge variant='secondary'>
+              {includedCount} of {designs.length} selected
+            </Badge>
+          )}
+          {canAddToPending && onAddToPendingReview && (
+            <Button
+              type='button'
+              size='sm'
+              variant='secondary'
+              onClick={() => void onAddToPendingReview()}
+              disabled={isApproving || isRejecting || isAddingToPending}
+            >
+              <Clock className='mr-2 h-4 w-4' aria-hidden />
+              {isAddingToPending ? 'Adding…' : 'Add to pending review'}
+            </Button>
+          )}
+          {canApproveSuite && onApproveSuite && (
+            <Button
+              type='button'
+              size='sm'
+              onClick={() => void onApproveSuite()}
+              disabled={isApproving || isRejecting || includedCount === 0}
+            >
+              <CheckCircle className='mr-2 h-4 w-4' />
+              {isApproving ? 'Approving…' : 'Approve test suite'}
+            </Button>
+          )}
+          {canRejectSuite && onRejectSuite && (
+            <Button
+              type='button'
+              size='sm'
+              variant='outline'
+              onClick={() => void onRejectSuite()}
+              disabled={isApproving || isRejecting}
+            >
+              <XCircle className='mr-2 h-4 w-4' />
+              {isRejecting ? 'Rejecting…' : 'Reject'}
+            </Button>
+          )}
+          {isSuiteApproved && (
+            <Badge className='bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' variant='outline'>
+              Suite approved
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      {isGenerating ? (
+        <div className='rounded-lg border border-dashed border-border py-12 text-center text-sm text-text-secondary'>
+          <p>Creating test cases from your acceptance criteria…</p>
+          <p className='mt-2 text-xs'>This can take up to a minute when AI mapping is enabled. Mapped APIs and payloads will appear below.</p>
+        </div>
+      ) : isLoadingDesigns && designs.length === 0 ? (
+        <div className='rounded-lg border border-dashed border-border py-12 text-center text-sm text-text-secondary'>
+          Loading saved test cases…
+        </div>
+      ) : !requirement ? (
+        <EmptyState
+          icon={<Sparkles className='h-8 w-8' />}
+          title='No test cases yet'
+          description='Fill in the requirement title and acceptance criteria, then generate test cases mapped to your APIs.'
+        />
+      ) : designs.length === 0 ? (
+        <div className='rounded-lg border border-dashed border-border py-12 text-center text-sm text-text-secondary'>
+          No test cases were returned. Try generating again or check that APIs are imported for this project.
+        </div>
+      ) : (
+        <>
+          {(mappingLowConfidence || mappingBannerMessage) && (
+            <ApiMappingBanner
+              lowConfidence={mappingLowConfidence}
+              message={mappingBannerMessage || 'Review API mappings before approving this suite.'}
+            />
+          )}
+          <TestCasesListBlock
+            requirement={requirement}
+            designs={designs}
+            isLoading={isLoadingDesigns}
+            onToggleIncluded={onToggleIncluded}
+            getPriorityBadgeClassName={getPriorityBadgeClassName}
+            operations={operations}
+            onChangeOperation={onChangeOperation}
+            isUpdatingMapping={isUpdatingMapping}
+          />
+        </>
+      )}
+
+      <p className='mt-3 text-xs text-text-secondary'>
+        Test cases are matched to imported API operations; payloads cover positive, negative, and security scenarios.
+        Run included cases from the Execution workspace.
+      </p>
+    </div>
+  );
+};
+
+export default GeneratedTestCasesPanel;

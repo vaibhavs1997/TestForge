@@ -71,7 +71,7 @@ describe('ExecutePlan', () => {
       { findById: vi.fn().mockResolvedValue({ id: 'req-1' }) } as any,
       { findByProject: vi.fn().mockResolvedValue([environment]) } as any,
       { findById: vi.fn() } as any,
-      {} as any,
+      { findById: vi.fn().mockResolvedValue({ id: 'op-1', serviceId: 'svc-1', method: 'GET', path: '/get' }) } as any,
       { findByProjectAndOperation: vi.fn().mockResolvedValue([]) } as any,
       {} as any,
       { findById: vi.fn().mockResolvedValue({ assertionIds: [] }) } as any,

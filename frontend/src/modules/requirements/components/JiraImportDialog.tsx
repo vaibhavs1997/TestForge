@@ -31,11 +31,15 @@ export const JiraImportDialog: React.FC<JiraImportDialogProps> = ({
     await onImport(key);
   };
 
+  const dialogTitleId = 'jira-import-dialog-title';
+  const dialogDescId = 'jira-import-dialog-desc';
+  const issueHelperId = 'jira-issue-key-helper';
+
   return (
-    <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4' role='dialog' aria-modal='true'>
+    <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4' role='dialog' aria-modal='true' aria-labelledby={dialogTitleId} aria-describedby={dialogDescId}>
       <div className='w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-lg'>
-        <h3 className='text-lg font-semibold text-text'>Import from Jira</h3>
-        <p className='mt-2 text-sm text-text-secondary'>
+        <h3 id={dialogTitleId} className='text-lg font-semibold text-text'>Import from Jira</h3>
+        <p id={dialogDescId} className='mt-2 text-sm text-text-secondary'>
           Enter a Jira issue key (e.g. PROJ-42). Summary and description become the requirement; bullet lines become acceptance criteria.
         </p>
         {!jiraConfigured && (
@@ -56,7 +60,11 @@ export const JiraImportDialog: React.FC<JiraImportDialogProps> = ({
               onChange={(e) => setIssueKey(e.target.value)}
               disabled={!jiraConfigured || isSubmitting}
               autoFocus
+              aria-describedby={issueHelperId}
             />
+            <p id={issueHelperId} className='mt-1 text-xs text-text-secondary'>
+              Use the issue key from Jira (project prefix and number), for example GPR-42.
+            </p>
           </div>
           <div className='flex justify-end gap-2'>
             <Button type='button' variant='outline' onClick={onClose} disabled={isSubmitting}>

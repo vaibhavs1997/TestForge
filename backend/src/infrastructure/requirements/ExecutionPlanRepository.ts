@@ -117,7 +117,8 @@ export class ExecutionPlanRepository {
   }
 
   async findByProject(projectId: string): Promise<ExecutionPlanEntity[]> {
-    return this.readPlans(projectId);
+    const items = await this.readPlans(projectId);
+    return Array.isArray(items) ? items : [];
   }
 
   async list(): Promise<ExecutionPlanEntity[]> {

@@ -22,6 +22,7 @@ import { ManageAIProviders } from '../ai-provider/ManageAIProviders';
 import { VersionService } from '../versioning/VersionService';
 import { EventPublisher } from '../EventPublisher';
 import type { AIProviderMessage } from '../../domain/ai-provider';
+import { toRequirementPromptPayload } from './requirementAcceptanceFocus';
 
 export interface GenerateTestStrategyWithAIRequest {
   projectId: string;
@@ -147,7 +148,7 @@ export class GenerateTestStrategyWithAI {
         templateId: TEST_STRATEGY_TEMPLATE_ID,
         projectId,
         variableOverrides: {
-          requirements: [requirement as any],
+          requirements: [toRequirementPromptPayload(requirement)],
         },
       });
       builtPrompt = {

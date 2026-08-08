@@ -21,6 +21,7 @@ import { useReports } from '../../report/hooks';
 // Hooks
 import { useExecution } from '../hooks';
 import { ExecutionRunHero } from '../components/ExecutionRunHero';
+import { requirementService } from '../../requirements/services/requirementService';
 import { useRequirements } from '../../requirements/hooks';
 
 // Types
@@ -77,6 +78,7 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
   const [selectedProfileId, setSelectedProfileId] = React.useState<string>('');
   const [selectedExecutionPlanId, setSelectedExecutionPlanId] = React.useState<string>('');
   const [selectedRequirementId, setSelectedRequirementId] = React.useState<string>(requirementIdFromUrl);
+  const [isBuildingPlans, setIsBuildingPlans] = React.useState(false);
   const [toastOpen, setToastOpen] = React.useState(false);
   const [toastMessage, setToastMessage] = React.useState('');
   const [toastType, setToastType] = React.useState<'success' | 'error'>('success');
@@ -161,7 +163,7 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
 
   const handleStartExecution = async () => {
     if (!selectedExecutionPlanId) {
-      setToastMessage('Create execution plans from Requirements first (Review → Execution Plans).');
+      setToastMessage('Build execution steps for this requirement first.');
       setToastType('error');
       setToastOpen(true);
       return;
@@ -178,9 +180,47 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
       void refetch();
     } catch (err) {
       logger.error('Failed to start execution', err);
-      setToastMessage(err instanceof Error ? err.message : 'Failed to start execution');
+      const axiosMsg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined;
+      setToastMessage(axiosMsg || (err instanceof Error ? err.message : 'Failed to start execution'));
       setToastType('error');
       setToastOpen(true);
+    }
+  };
+
+  const handleBuildExecutionPlans = async () => {
+    if (!selectedRequirementId) return;
+    setIsBuildingPlans(true);
+    try {
+      await requirementService.planExecution(projectId, selectedRequirementId);
+      const plans = await executionService.listExecutionPlans(projectId);
+      setExecutionPlans(plans);
+      const forReq = plans
+        .filter((p) => p.requirementId === selectedRequirementId && p.status !== 'Disabled')
+        .sort((a, b) => a.executionOrder - b.executionOrder);
+      if (forReq[0]) {
+        setSelectedExecutionPlanId(forReq[0].id);
+      }
+      setToastMessage(
+        forReq.length > 0
+          ? `Built ${forReq.length} execution step${forReq.length === 1 ? '' : 's'}.`
+          : 'No steps were created — ensure this requirement has included test cases.',
+      );
+      setToastType(forReq.length > 0 ? 'success' : 'error');
+      setToastOpen(true);
+    } catch (err) {
+      logger.error('Failed to build execution plans', err);
+      const message =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined;
+      setToastMessage(message || (err instanceof Error ? err.message : 'Failed to build execution steps'));
+      setToastType('error');
+      setToastOpen(true);
+    } finally {
+      setIsBuildingPlans(false);
     }
   };
 
@@ -271,6 +311,8 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
         onProfileChange={setSelectedProfileId}
         onStart={handleStartExecution}
         isStarting={isStarting}
+        onBuildExecutionPlans={handleBuildExecutionPlans}
+        isBuildingPlans={isBuildingPlans}
       />
 
       {/* Run summary */}
@@ -328,7 +370,7 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
               <ErrorAlert
                 title='Failed to load executions'
                 message={error?.message || 'An unexpected error occurred while loading executions.'}
-                onRetry={() => window.location.reload()}
+                onRetry={() => void refetch()}
               />
             ) : filteredRuns.length === 0 ? (
               <EmptyState
@@ -378,8 +420,8 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
                           {new Date(run.createdAt).toLocaleString()}
                         </td>
                         <td className='px-4 py-3'>
-                          <Button variant='ghost' size='sm' className='h-8 w-8 p-0'>
-                            <MoreVertical className='h-4 w-4' />
+                          <Button variant='ghost' size='sm' className='h-8 w-8 p-0' title='Run actions' aria-label='Run actions'>
+                            <MoreVertical className='h-4 w-4' aria-hidden />
                           </Button>
                         </td>
                       </tr>
@@ -397,8 +439,8 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
             <CardHeader>
               <div className='flex items-center justify-between'>
                 <CardTitle className='text-base'>Execution Details</CardTitle>
-                <Button variant='ghost' size='sm' className='h-8 w-8 p-0' onClick={() => void copyRunId(selectedRun.id)}>
-                  <Copy className='h-4 w-4' />
+                <Button variant='ghost' size='sm' className='h-8 w-8 p-0' onClick={() => void copyRunId(selectedRun.id)} title='Copy run ID' aria-label='Copy run ID'>
+                  <Copy className='h-4 w-4' aria-hidden />
                 </Button>
               </div>
               {/* Tabs */}

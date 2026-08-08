@@ -105,7 +105,7 @@ export const Sidebar: React.FC = () => {
           }`
         }
       >
-        <Icon className="h-4 w-4" />
+        <Icon className="h-4 w-4" aria-hidden />
         {item.label}
       </NavLink>
     );
@@ -127,7 +127,7 @@ export const Sidebar: React.FC = () => {
           }`
         }
       >
-        <Icon className="h-4 w-4" />
+        <Icon className="h-4 w-4" aria-hidden />
         {item.label}
       </NavLink>
     );
@@ -138,7 +138,7 @@ export const Sidebar: React.FC = () => {
       <div className='flex h-[4.5rem] items-center border-b border-border px-4'>
         <BrandLogo variant="sidebar" className="w-full max-w-none" />
       </div>
-      <nav className="flex-1 space-y-1 overflow-y-auto p-4">
+      <nav className="flex-1 space-y-1 overflow-y-auto p-4" aria-label="Main navigation">
         {!isInsideProject && primaryNavigationItems.map((item) => {
           const Icon = item.icon;
           return (
@@ -153,7 +153,7 @@ export const Sidebar: React.FC = () => {
                 }`
               }
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-4 w-4" aria-hidden />
               {item.label}
             </NavLink>
           );
@@ -167,6 +167,7 @@ export const Sidebar: React.FC = () => {
               {/* Administration Section - Collapsible */}
               <div className="pt-3">
                 <button
+                  type="button"
                   onClick={() => setAdminOpen(!adminOpen)}
                   className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                     isAdminActive
@@ -174,13 +175,14 @@ export const Sidebar: React.FC = () => {
                       : 'text-text-secondary hover:bg-surface hover:text-text'
                   }`}
                   aria-expanded={adminOpen || isAdminActive}
+                  aria-label="Toggle administration section"
                 >
                   {adminOpen || isAdminActive ? (
-                    <ChevronDown className="h-4 w-4" />
+                    <ChevronDown className="h-4 w-4" aria-hidden />
                   ) : (
-                    <ChevronRight className="h-4 w-4" />
+                    <ChevronRight className="h-4 w-4" aria-hidden />
                   )}
-                  <Shield className="h-4 w-4" />
+                  <Shield className="h-4 w-4" aria-hidden />
                   Administration
                 </button>
                 {(adminOpen || isAdminActive) && (

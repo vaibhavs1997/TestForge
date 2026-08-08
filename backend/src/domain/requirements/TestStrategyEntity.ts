@@ -27,6 +27,12 @@ export interface StrategyItem {
   relatedData: string[];
   priority: StrategyPriority;
   status: StrategyStatus;
+  /** HTTP status code expected when this scenario is executed. */
+  expectedHttpStatus?: number;
+  /** Simplified type for UI (Positive / Negative / Security). */
+  testCaseType?: 'Positive' | 'Negative' | 'Security';
+  focusFieldId?: string;
+  scenarioKind?: 'missing_field' | 'invalid_field' | 'duplicate' | 'default';
 }
 
 export interface StrategyCategorySection {

@@ -74,6 +74,33 @@ export function extractOpenApiSampleRequestBody(operation: Record<string, unknow
   return sampleObjectFromSchema(schema ?? {}) ?? null;
 }
 
+/** Property names listed in the request body schema `required` array (OpenAPI 3). */
+export function extractOpenApiRequiredRequestBodyFields(
+  operation: Record<string, unknown>,
+): string[] | null {
+  const requestBody = operation.requestBody as Record<string, unknown> | undefined;
+  if (!requestBody) return null;
+
+  const content = requestBody.content as Record<string, Record<string, unknown>> | undefined;
+  if (!content) return null;
+
+  const jsonMedia =
+    content['application/json'] ||
+    content['application/*+json'] ||
+    Object.values(content)[0];
+
+  if (!jsonMedia) return null;
+
+  const schema = jsonMedia.schema as Record<string, unknown> | undefined;
+  if (!schema) return null;
+
+  const required = schema.required;
+  if (!Array.isArray(required)) return null;
+
+  const names = required.filter((r): r is string => typeof r === 'string' && r.trim().length > 0);
+  return names.length > 0 ? names : null;
+}
+
 export function extractPostmanSampleRequestBody(request: Record<string, unknown> | undefined): Record<string, unknown> | null {
   if (!request) return null;
   const body = request.body as Record<string, unknown> | undefined;

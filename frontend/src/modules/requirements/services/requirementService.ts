@@ -1,6 +1,6 @@
 // Requirement service for Requirement Workspace
 import { ApiClient } from '../../../services/ApiClient';
-import type { Requirement, RequirementFormData, ValidationReport, TestStrategy, TestDesign, ExecutionPlan } from '../types';
+import type { Requirement, RequirementFormData, ValidationReport, TestStrategy, TestDesign, ExecutionPlan, RequirementMappingContext } from '../types';
 
 class RequirementService extends ApiClient<Requirement> {
   constructor() {
@@ -85,6 +85,11 @@ class RequirementService extends ApiClient<Requirement> {
 
   async getJiraStatus(): Promise<{ configured: boolean }> {
     const path = '/integrations/jira/status';
+    return this.getCustom(path);
+  }
+
+  async getMappingContext(projectId: string, requirementId: string): Promise<RequirementMappingContext> {
+    const path = `/projects/${projectId}/requirements/${requirementId}/mapping-context`;
     return this.getCustom(path);
   }
 

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { testDesignService, executionPlanService } from '../services/testDesignService';
-import type { TestDesign, DesignStatus, ExecutionPlan } from '../types';
+import type { TestDesign, DesignStatus, ExecutionPlan, RequestOverride } from '../types';
 import { queryKeys } from '../../../constants';
 
 export function useRequirementArtifacts(projectId: string, requirementId?: string) {
@@ -12,6 +12,8 @@ export function useRequirementArtifacts(projectId: string, requirementId?: strin
     queryKey: designsKey,
     queryFn: () => testDesignService.listByRequirement(projectId, requirementId!),
     enabled: !!projectId && !!requirementId,
+    staleTime: 60_000,
+    placeholderData: (previous) => previous,
   });
 
   const plansQuery = useQuery({
@@ -21,6 +23,29 @@ export function useRequirementArtifacts(projectId: string, requirementId?: strin
   });
 
   const updateDesignMutation = useMutation({
+    mutationFn: ({
+      designId,
+      status,
+      operationId,
+      requestOverrides,
+      rebuildPayload,
+    }: {
+      designId: string;
+      status?: DesignStatus;
+      operationId?: string;
+      requestOverrides?: RequestOverride;
+      rebuildPayload?: boolean;
+    }) =>
+      testDesignService.updateDesign(projectId, designId, {
+        status,
+        operationId,
+        requestOverrides,
+        rebuildPayload,
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: designsKey }),
+  });
+
+  const updateDesignStatusMutation = useMutation({
     mutationFn: ({ designId, status }: { designId: string; status: DesignStatus }) =>
       testDesignService.updateStatus(projectId, designId, status),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: designsKey }),
@@ -50,9 +75,11 @@ export function useRequirementArtifacts(projectId: string, requirementId?: strin
     refetchDesigns: designsQuery.refetch,
     refetchPlans: plansQuery.refetch,
     invalidateArtifacts: invalidate,
-    updateDesignStatus: updateDesignMutation.mutateAsync,
+    updateDesignStatus: updateDesignStatusMutation.mutateAsync,
+    updateDesign: updateDesignMutation.mutateAsync,
     updatePlanStatus: updatePlanMutation.mutateAsync,
-    isUpdatingDesign: updateDesignMutation.isPending,
+    isUpdatingDesign: updateDesignStatusMutation.isPending || updateDesignMutation.isPending,
+    isUpdatingMapping: updateDesignMutation.isPending,
   };
 }
 

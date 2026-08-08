@@ -20,6 +20,10 @@ import { ManageAIProviders } from '../ai-provider/ManageAIProviders';
 import { VersionService } from '../versioning/VersionService';
 import { EventPublisher } from '../EventPublisher';
 import type { AIProviderMessage } from '../../domain/ai-provider';
+import {
+  getAcceptanceCriteriaFocusText,
+  toRequirementPromptPayload,
+} from './requirementAcceptanceFocus';
 
 export interface GenerateTestDesignWithAIRequest {
   projectId: string;
@@ -116,7 +120,7 @@ export class GenerateTestDesignWithAI {
       const preview = await this.promptBuilderService.previewPrompt({
         templateId: TEST_DESIGN_TEMPLATE_ID,
         projectId,
-        variableOverrides: { requirements: [requirement as any] },
+        variableOverrides: { requirements: [toRequirementPromptPayload(requirement)] },
       });
       builtPrompt = {
         systemPrompt: preview.systemPrompt,
@@ -132,7 +136,7 @@ export class GenerateTestDesignWithAI {
       warnings.push('No Test Design prompt template was found. Using fallback prompt.');
       builtPrompt = {
         systemPrompt: 'You are a test design specialist.',
-        userPrompt: `Create test designs for the requirement: ${requirement.title}.`,
+        userPrompt: `Create test designs for the following acceptance criteria:\n\n${getAcceptanceCriteriaFocusText(requirement) || '(no acceptance criteria provided)'}`,
         tokenEstimate: 0,
         validationWarnings: ['Fallback prompt used - template not found.'],
       };
@@ -178,6 +182,8 @@ export class GenerateTestDesignWithAI {
         input.title?.trim() ||
         this.resolveDesignTitle(requirement, strategy, strategyItemId, input);
 
+      const strategyMeta = this.findStrategyItemMeta(strategy, strategyItemId);
+
       const design = new TestDesignEntity(
         randomUUID(),
         projectId,
@@ -192,10 +198,13 @@ export class GenerateTestDesignWithAI {
         input.runtimeBindings || [],
         input.assertions || [],
         input.cleanup || [],
-        input.priority || 'Medium',
+        input.priority || strategyMeta?.priority || 'Medium',
         'Ready',
         now,
-        now
+        now,
+        [],
+        strategyMeta?.testCaseType,
+        strategyMeta?.expectedHttpStatus
       );
 
       const saved = await this.testDesignRepository.create(design);
@@ -426,20 +435,38 @@ export class GenerateTestDesignWithAI {
     return [];
   }
 
-  private categoryTitle(requirementTitle: string, category: string): string {
+  private findStrategyItemMeta(
+    strategy: TestStrategyEntity | null,
+    strategyItemId: string,
+  ): { testCaseType?: 'Positive' | 'Negative' | 'Security'; expectedHttpStatus?: number; priority?: 'High' | 'Medium' | 'Low' } | null {
+    if (!strategy) return null;
+    for (const section of strategy.sections) {
+      const item = section.items.find((i) => i.id === strategyItemId);
+      if (item) {
+        return {
+          testCaseType: item.testCaseType,
+          expectedHttpStatus: item.expectedHttpStatus,
+          priority: item.priority,
+        };
+      }
+    }
+    return null;
+  }
+
+  private categoryTitle(acFocus: string, category: string): string {
     const templates: Record<string, string> = {
-      Positive: 'Verify {requirement} with valid inputs',
-      Negative: 'Verify {requirement} with invalid inputs',
-      Boundary: 'Verify {requirement} at boundary values',
-      Security: 'Verify {requirement} security controls',
-      Validation: 'Verify {requirement} input validation',
+      Positive: 'Successfully complete when {action}',
+      Negative: 'Reject the request when inputs are invalid for: {action}',
+      Boundary: 'Exercise boundary values for: {action}',
+      Security: 'Reject unauthenticated or unauthorized access for: {action}',
+      Validation: 'Return validation errors for invalid fields when: {action}',
     };
-    const template = templates[category] || 'Verify {requirement} ({category})';
-    return template.replace('{requirement}', requirementTitle).replace('{category}', category);
+    const template = templates[category] || 'Validate scenario for: {action}';
+    return template.replace('{action}', acFocus).replace('{category}', category);
   }
 
   private resolveDesignTitle(
-    requirement: { title: string },
+    requirement: { title: string; acceptanceCriteria?: { text: string }[]; description?: string },
     strategy: TestStrategyEntity | null,
     strategyItemId: string,
     input: ParsedTestDesignInput,
@@ -450,17 +477,18 @@ export class GenerateTestDesignWithAI {
         if (item?.title) return item.title;
       }
     }
+    const acFocus = getAcceptanceCriteriaFocusText(requirement as any);
     const catMatch = strategyItemId.match(/^cat-(\w+)$/i);
     if (catMatch) {
       const category =
         catMatch[1].charAt(0).toUpperCase() + catMatch[1].slice(1).toLowerCase();
-      return this.categoryTitle(requirement.title, category);
+      return this.categoryTitle(acFocus || requirement.title, category);
     }
     const statusAssertion = input.assertions?.find((a) => a.type === 'status');
-    if (statusAssertion) {
-      return `Verify ${requirement.title} (expect HTTP ${statusAssertion.expected})`;
+    if (statusAssertion && acFocus) {
+      return `${acFocus} (expect HTTP ${statusAssertion.expected})`;
     }
-    return `Verify ${requirement.title}`;
+    return acFocus || requirement.title;
   }
 
   private buildContextSummary(context: any, requirement: any, strategy: TestStrategyEntity | null): Record<string, any> {

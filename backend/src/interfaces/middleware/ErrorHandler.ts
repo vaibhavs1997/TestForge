@@ -13,6 +13,9 @@ import {
   BadRequestError,
 } from '../../shared/errors';
 
+// Re-export AppError for convenience (legacy imports in some routes)
+export { AppError };
+
 /**
  * Maps error messages to appropriate status codes and error codes
  * This helps handle errors from use cases and other parts of the application

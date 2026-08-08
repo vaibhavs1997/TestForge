@@ -48,6 +48,13 @@ import { createAuthRoutes } from './interfaces/auth/AuthRoutes';
 import { connectMongo, disconnectMongo } from './infrastructure/auth/mongoClient';
 import { loadEnv } from './config/loadEnv';
 import { logger } from './infrastructure/logging/Logger';
+import { createRateLimiter } from './infrastructure/security/rateLimiter';
+import { sanitizeRequestBody, sanitizeQuery } from './infrastructure/security/sanitize';
+import { metrics } from './infrastructure/metrics/Metrics';
+import { createWebhookRoutes } from './interfaces/webhook/WebhookRoutes';
+import { ListWebhooks, GetWebhook, CreateWebhook, UpdateWebhook, DeleteWebhook, TriggerWebhooks } from './application/webhook/WebhookUseCases';
+import type { WebhookRepository } from './domain/webhook/WebhookRepository';
+import type { WebhookEntity } from './domain/webhook/WebhookEntity';
 
 loadEnv();
 
@@ -79,8 +86,30 @@ async function bootstrap(): Promise<void> {
 
   void connectMongoPromise;
 
-  app.use(cors({ origin: config.corsOrigin === '*' ? true : config.corsOrigin.split(',') }));
+  const corsOrigins = config.corsOrigin.split(',').map((origin) => origin.trim());
+  app.use(cors({ origin: corsOrigins }));
+  
+  // Rate limiting (skip in development for easier testing)
+  if (config.nodeEnv !== 'development') {
+    app.use('/api', createRateLimiter({ windowMs: 15 * 60 * 1000, max: 100 }));
+  }
+  
   app.use(express.json());
+  
+  // Input sanitization
+  app.use(sanitizeRequestBody);
+  app.use(sanitizeQuery);
+  
+  // Metrics tracking middleware
+  app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+      const duration = (Date.now() - start) / 1000;
+      metrics.increment('requests_total', { method: req.method, path: req.path, status: String(res.statusCode) });
+      metrics.observe('request_duration_seconds', duration, {});
+    });
+    next();
+  });
 
   app.use('/api', createAuthRoutes(container.authService));
 
@@ -162,6 +191,12 @@ async function bootstrap(): Promise<void> {
     });
   });
 
+  // ── Metrics Endpoint ───────────────────────────────────────────────────
+  app.get('/metrics', (_req, res) => {
+    res.setHeader('Content-Type', 'text/plain; version=0.0.4');
+    res.send(metrics.getMetrics());
+  });
+
   app.use('/api', apiRoutes);
   app.use('/api', environmentRoutes);
   app.use('/api', datasetRoutes);
@@ -213,6 +248,31 @@ async function bootstrap(): Promise<void> {
   const backupService = new BackupService();
   app.use('/api', createBackupRoutes(backupService));
 
+  // Initialize Webhook module
+  const webhookRepository: WebhookRepository = {
+    list: async () => [],
+    findById: async () => null,
+    findByProject: async () => [],
+    create: async (webhook) => ({ ...webhook, createdAt: Date.now(), updatedAt: Date.now() } as WebhookEntity),
+    update: async (id, data) => ({ id, ...data, updatedAt: Date.now() } as WebhookEntity),
+    delete: async () => undefined,
+  };
+  const webhookUseCases = {
+    list: new ListWebhooks(webhookRepository),
+    get: new GetWebhook(webhookRepository),
+    create: new CreateWebhook(webhookRepository),
+    update: new UpdateWebhook(webhookRepository),
+    delete: new DeleteWebhook(webhookRepository),
+    trigger: new TriggerWebhooks(webhookRepository),
+  };
+  app.use('/api', createWebhookRoutes(
+    webhookUseCases.list,
+    webhookUseCases.get,
+    webhookUseCases.create,
+    webhookUseCases.update,
+    webhookUseCases.delete,
+  ));
+
   // ── 404 Not Found Handler ───────────────────────────────────────────────────
   // Must be before error handler middleware
   app.use(notFoundHandler);
@@ -227,6 +287,15 @@ async function bootstrap(): Promise<void> {
       buildTimestamp: config.buildTimestamp,
       gitCommit: config.gitCommit,
     });
+    
+    // Development mode warning
+    if (config.nodeEnv === 'development' && !config.auth.enabled) {
+      logger.warn('⚠️  Running in development mode WITHOUT authentication');
+      logger.warn('   This is OK for local development, but remember to enable auth before deploying to production:');
+      logger.warn('   - Set TESTFORGE_API_KEY for API key authentication');
+      logger.warn('   - Set TESTFORGE_JWT_SECRET for JWT authentication');
+      logger.warn('   See DEPLOYMENT.md for details');
+    }
   });
 
   // ── Graceful Shutdown ────────────────────────────────────────────────────

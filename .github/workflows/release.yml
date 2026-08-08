@@ -16,9 +16,8 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: |
-            backend/package-lock.json
-            frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
       - name: Get version
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
@@ -28,36 +27,30 @@ jobs:
       - name: Get build timestamp
         id: timestamp
         run: echo "TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
-      - name: Install backend deps
-        working-directory: backend
-        run: npm ci
       - name: Build backend
-        working-directory: backend
         env:
           BUILD_TIMESTAMP: ${{ steps.timestamp.outputs.TIMESTAMP }}
           GIT_COMMIT: ${{ steps.commit.outputs.COMMIT }}
-        run: npm run build
+        run: npm run build:backend
       - name: Package backend
         working-directory: backend
         run: |
           mkdir -p ../release/backend
-          cp -r dist ../release/backend/
-          cp package.json Dockerfile .env.example ../release/backend/
-      - name: Install frontend deps
-        working-directory: frontend
-        run: npm ci
+          cp -r dist src scripts ../release/backend/
+          cp package.json package-lock.json tsconfig.json Dockerfile ../release/backend/
+          cp ../.env.example ../release/backend/.env.example
       - name: Build frontend
-        working-directory: frontend
         env:
           BUILD_TIMESTAMP: ${{ steps.timestamp.outputs.TIMESTAMP }}
           GIT_COMMIT: ${{ steps.commit.outputs.COMMIT }}
-        run: npm run build
+        run: npm run build:frontend
       - name: Package frontend
         working-directory: frontend
         run: |
           mkdir -p ../release/frontend
-          cp -r dist ../release/frontend/
-          cp Dockerfile nginx.conf .env.example ../release/frontend/
+          cp -r dist src public ../release/frontend/
+          cp package.json index.html tsconfig.json vite.config.ts tailwind.config.js postcss.config.js components.json Dockerfile nginx.conf ../release/frontend/
+          cp ../.env.example ../release/frontend/.env.example
       - name: Create deployment package
         run: |
           mkdir -p release

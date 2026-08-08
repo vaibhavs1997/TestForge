@@ -99,12 +99,17 @@ export const LoginForm: React.FC<LoginFormProps> = ({
               if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: undefined }));
             }}
             aria-invalid={Boolean(fieldErrors.email)}
+            aria-describedby={fieldErrors.email ? 'login-email-error' : 'login-email-helper'}
           />
           {fieldErrors.email ? (
-            <p className="mt-1 text-xs text-red-500" role="alert">
+            <p id="login-email-error" className="mt-1 text-xs text-red-500" role="alert">
               {fieldErrors.email}
             </p>
-          ) : null}
+          ) : (
+            <p id="login-email-helper" className="mt-1 text-xs text-text-secondary">
+              Use the email address associated with your TestForge account.
+            </p>
+          )}
         </div>
 
         <PasswordField
@@ -117,10 +122,12 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           }}
           autoComplete="current-password"
           error={fieldErrors.password}
+          hint="Enter your account password."
         />
 
-        <label className="flex items-center gap-2 text-sm text-text-secondary">
+        <label className="flex items-center gap-2 text-sm text-text-secondary" htmlFor="login-remember-email">
           <input
+            id="login-remember-email"
             type="checkbox"
             checked={rememberEmail}
             onChange={(e) => setRememberEmail(e.target.checked)}

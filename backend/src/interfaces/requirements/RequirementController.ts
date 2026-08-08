@@ -12,10 +12,12 @@ import { GenerateTestDesigns } from '../../application/requirements/GenerateTest
 import { PlanExecution } from '../../application/requirements/PlanExecution';
 import { GenerateRequirementTestCases } from '../../application/requirements/GenerateRequirementTestCases';
 import { ImportRequirementFromJira } from '../../application/requirements/ImportRequirementFromJira';
+import { UpdateTestDesign } from '../../application/requirements/UpdateTestDesign';
+import { GetRequirementMappingContext } from '../../application/requirements/GetRequirementMappingContext';
 import { TestDesignRepository } from '../../infrastructure/requirements/TestDesignRepository';
 import { ExecutionPlanRepository } from '../../infrastructure/requirements/ExecutionPlanRepository';
 import { createSuccessResponse } from "../../shared/ApiResponse";
-import type { DesignStatus } from '../../domain/requirements/TestDesignEntity';
+import type { DesignStatus, RequestOverride } from '../../domain/requirements/TestDesignEntity';
 import type { ExecutionPlanStatus } from '../../domain/requirements/ExecutionPlanEntity';
 
 export class RequirementController {
@@ -32,6 +34,8 @@ export class RequirementController {
         private readonly planExecutionUseCase: PlanExecution,
         private readonly generateRequirementTestCasesUseCase: GenerateRequirementTestCases,
         private readonly importRequirementFromJiraUseCase: ImportRequirementFromJira,
+        private readonly updateTestDesignUseCase: UpdateTestDesign,
+        private readonly getRequirementMappingContextUseCase: GetRequirementMappingContext,
         private readonly testDesignRepository: TestDesignRepository,
         private readonly executionPlanRepository: ExecutionPlanRepository,
     ) { }
@@ -139,12 +143,25 @@ export class RequirementController {
     }
     async updateTestDesign(req: Request, res: Response): Promise<void> {
         const { testDesignId } = req.params;
-        const { status } = req.body as { status?: DesignStatus };
-        if (!status || !['Draft', 'Ready', 'Disabled'].includes(status)) {
-            throw new Error('Invalid status. Must be Draft, Ready, or Disabled');
-        }
-        const design = await this.testDesignRepository.update(testDesignId, { status });
+        const { status, operationId, requestOverrides, rebuildPayload } = req.body as {
+            status?: DesignStatus;
+            operationId?: string;
+            requestOverrides?: RequestOverride;
+            rebuildPayload?: boolean;
+        };
+        const design = await this.updateTestDesignUseCase.execute({
+            testDesignId,
+            status,
+            operationId,
+            requestOverrides,
+            rebuildPayload,
+        });
         res.status(200).json(createSuccessResponse(design));
+    }
+    async getMappingContext(req: Request, res: Response): Promise<void> {
+        const { requirementId } = req.params;
+        const context = await this.getRequirementMappingContextUseCase.execute(requirementId);
+        res.status(200).json(createSuccessResponse(context));
     }
     async listExecutionPlansForRequirement(req: Request, res: Response): Promise<void> {
         const { requirementId } = req.params;

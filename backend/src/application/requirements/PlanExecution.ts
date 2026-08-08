@@ -34,6 +34,11 @@ export class PlanExecution {
       throw new Error('No test designs found for this requirement');
     }
 
+    const existingPlans = await this.executionPlanRepository.findByRequirement(requirementId);
+    for (const plan of existingPlans) {
+      await this.executionPlanRepository.delete(plan.id);
+    }
+
     // Get related knowledge flows to determine execution order
     const flows = await this.knowledgeFlowRepository.findByProject(requirement.projectId);
     const relatedFlows = flows.filter(flow => 

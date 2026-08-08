@@ -1,7 +1,7 @@
 // Requirement Workspace domain types
 export type RequirementSource = 'ProjectAnalysis' | 'Manual' | 'Jira';
 export type ReviewStatus = 'Pending' | 'Reviewed';
-export type ApprovalStatus = 'Suggested' | 'Approved' | 'Rejected' | 'Archived';
+export type ApprovalStatus = 'Draft' | 'Suggested' | 'Approved' | 'Rejected' | 'Archived';
 
 export interface AcceptanceCriterion {
   id: string;
@@ -103,6 +103,7 @@ export interface TestStrategy {
 
 export type DesignPriority = 'High' | 'Medium' | 'Low';
 export type DesignStatus = 'Draft' | 'Ready' | 'Disabled';
+export type TestCaseType = 'Positive' | 'Negative' | 'Security';
 
 export interface RequestOverride {
   headers?: Record<string, string>;
@@ -134,6 +135,22 @@ export interface CleanupStep {
   target: string;
 }
 
+export interface RequirementMappingContext {
+  requirementId: string;
+  lowConfidence: boolean;
+  mappingConfidencePercent: number;
+  primaryOperationId: string | null;
+  rankedOperations: Array<{
+    operationId: string;
+    serviceId: string;
+    name: string;
+    method: string;
+    path: string;
+    score: number;
+  }>;
+  message: string;
+}
+
 export interface TestDesign {
   id: string;
   projectId: string;
@@ -153,6 +170,8 @@ export interface TestDesign {
   createdAt: number;
   updatedAt: number;
   assertionIds: AssertionReference[];
+  testCaseType?: TestCaseType;
+  expectedHttpStatus?: number;
 }
 
 export type ExecutionPlanStatus = 'Pending' | 'Ready' | 'Disabled';

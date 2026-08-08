@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Sparkles, RefreshCw, Upload, Plus } from 'lucide-react';
+import { ChevronDown, Sparkles, RefreshCw, Upload } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 
 export interface RequirementsMoreMenuProps {
@@ -10,7 +10,6 @@ export interface RequirementsMoreMenuProps {
   showGenerateFromAnalysis: boolean;
   onGenerateWithAI: () => void;
   onImportJson: () => void;
-  onAddRequirement: () => void;
 }
 
 export const RequirementsMoreMenu: React.FC<RequirementsMoreMenuProps> = ({
@@ -21,7 +20,6 @@ export const RequirementsMoreMenu: React.FC<RequirementsMoreMenuProps> = ({
   showGenerateFromAnalysis,
   onGenerateWithAI,
   onImportJson,
-  onAddRequirement,
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -37,16 +35,22 @@ export const RequirementsMoreMenu: React.FC<RequirementsMoreMenuProps> = ({
 
   return (
     <div className='relative flex flex-wrap items-center gap-2' ref={ref}>
-      <Button variant='outline' onClick={onAddRequirement}>
-        <Plus className='mr-2 h-4 w-4' />
-        Add requirement
-      </Button>
-      <Button variant='outline' onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+      <Button
+        variant='outline'
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup='menu'
+        aria-label='More requirement actions'
+      >
         More
-        <ChevronDown className='ml-2 h-4 w-4' />
+        <ChevronDown className='ml-2 h-4 w-4' aria-hidden />
       </Button>
       {open && (
-        <div className='absolute right-0 top-full z-20 mt-1 min-w-[220px] rounded-lg border border-border bg-background py-1 shadow-lg'>
+        <div
+          className='absolute right-0 top-full z-20 mt-1 min-w-[220px] rounded-lg border border-border bg-background py-1 shadow-lg'
+          role='menu'
+          aria-label='More requirement actions'
+        >
           <button
             type='button'
             className='flex w-full items-center px-3 py-2 text-left text-sm hover:bg-surface'
@@ -55,7 +59,7 @@ export const RequirementsMoreMenu: React.FC<RequirementsMoreMenuProps> = ({
               setOpen(false);
             }}
           >
-            <RefreshCw className={`mr-2 h-4 w-4 ${isAnalyzing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`mr-2 h-4 w-4 ${isAnalyzing ? 'animate-spin' : ''}`} aria-hidden />
             {isAnalyzing ? 'Analyzing…' : 'Re-analyze project'}
           </button>
           {showGenerateFromAnalysis && onGenerateFromAnalysis && (
@@ -68,7 +72,7 @@ export const RequirementsMoreMenu: React.FC<RequirementsMoreMenuProps> = ({
               }}
               disabled={isGeneratingFromAnalysis}
             >
-              <Sparkles className='mr-2 h-4 w-4' />
+              <Sparkles className='mr-2 h-4 w-4' aria-hidden />
               Generate from analysis
             </button>
           )}
@@ -91,7 +95,7 @@ export const RequirementsMoreMenu: React.FC<RequirementsMoreMenuProps> = ({
               setOpen(false);
             }}
           >
-            <Upload className='mr-2 h-4 w-4' />
+            <Upload className='mr-2 h-4 w-4' aria-hidden />
             Import JSON
           </button>
         </div>

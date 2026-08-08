@@ -28,7 +28,7 @@ export class ImportRequirementFromJira {
       confidence: 90,
       source: 'Jira',
       reviewStatus: 'Pending',
-      approvalStatus: 'Suggested',
+      approvalStatus: 'Draft',
       acceptanceCriteria:
         acceptanceCriteria.length > 0
           ? acceptanceCriteria

@@ -20,6 +20,8 @@ export interface ExecutionRunHeroProps {
   onProfileChange: (id: string) => void;
   onStart: () => void;
   isStarting: boolean;
+  onBuildExecutionPlans?: () => void | Promise<void>;
+  isBuildingPlans?: boolean;
 }
 
 export const ExecutionRunHero: React.FC<ExecutionRunHeroProps> = ({
@@ -35,6 +37,8 @@ export const ExecutionRunHero: React.FC<ExecutionRunHeroProps> = ({
   onProfileChange,
   onStart,
   isStarting,
+  onBuildExecutionPlans,
+  isBuildingPlans,
 }) => {
   const navigate = useNavigate();
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
@@ -118,6 +122,18 @@ export const ExecutionRunHero: React.FC<ExecutionRunHeroProps> = ({
               {readyCount} ready step{readyCount === 1 ? '' : 's'}
               {selectedRequirementId ? ' for this requirement' : ''}
             </p>
+            {readyCount === 0 && selectedRequirementId && onBuildExecutionPlans ? (
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="mt-1 h-auto px-0 text-xs"
+                disabled={isBuildingPlans}
+                onClick={() => void onBuildExecutionPlans()}
+              >
+                {isBuildingPlans ? 'Building steps…' : 'Build execution steps from test cases'}
+              </Button>
+            ) : null}
           </div>
         </div>
 

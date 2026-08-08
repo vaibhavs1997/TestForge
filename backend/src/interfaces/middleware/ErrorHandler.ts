@@ -58,6 +58,10 @@ function mapErrorToAppError(err: any): AppError {
     return new AppError(400, message, ERROR_CODES.VALIDATION_ERROR);
   }
 
+  if (message.includes('already in progress')) {
+    return new AppError(409, message, ERROR_CODES.CONFLICT);
+  }
+
   if (message.includes('already exists') || message.includes('Only one default') || message.includes('duplicate')) {
     return new AppError(409, message, ERROR_CODES.CONFLICT);
   }

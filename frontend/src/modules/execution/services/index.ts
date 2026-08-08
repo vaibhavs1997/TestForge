@@ -1,4 +1,5 @@
 // Execution service functions
+import axios from 'axios';
 import { apiAxios } from '../../../services/apiAxios';
 import type { ExecutionRun } from '../types';
 import type { ExecutionPlan } from '../../requirements/types';
@@ -24,8 +25,19 @@ export const executionService = {
   },
 
   listExecutions: async (projectId: string): Promise<ExecutionRun[]> => {
-    const { data } = await apiAxios.get(`${API_BASE_URL}/projects/${projectId}/executions`);
-    return data.data;
+    try {
+      const { data } = await apiAxios.get(`${API_BASE_URL}/projects/${projectId}/executions`);
+      const runs = data?.data;
+      return Array.isArray(runs) ? runs : [];
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        const serverMessage = err.response?.data?.message;
+        if (typeof serverMessage === 'string' && serverMessage.length > 0) {
+          throw new Error(serverMessage);
+        }
+      }
+      throw err;
+    }
   },
 
   listExecutionPlans: async (projectId: string): Promise<ExecutionPlan[]> => {

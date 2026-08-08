@@ -14,6 +14,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 
 // Styles
 import { cn } from '../../utils/cn';
+import { buttonHasVisibleText } from '../../utils/a11y';
 
 // --- Button variants ---
 
@@ -76,12 +77,20 @@ export const Button: React.FC<ButtonProps> = ({
   loading = false,
   disabled,
   children,
+  title,
+  'aria-label': ariaLabel,
   ...props
 }) => {
+  const resolvedAriaLabel =
+    ariaLabel ?? (!buttonHasVisibleText(children) && title ? String(title) : undefined);
+
   return (
     <button
       className={cn(buttonVariants({ variant, size, className }))}
       disabled={disabled || loading}
+      title={title}
+      aria-label={resolvedAriaLabel}
+      aria-busy={loading || undefined}
       {...props}
     >
       {loading && <ButtonSpinner />}

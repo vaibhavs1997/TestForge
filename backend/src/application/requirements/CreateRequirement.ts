@@ -36,7 +36,7 @@ export class CreateRequirement {
       params.source || 'Manual',
       params.projectAnalysisId ?? null,
       params.reviewStatus || 'Pending',
-      params.approvalStatus || 'Suggested',
+      params.approvalStatus || 'Draft',
       ValidationHelpers.trimStringArray(params.relatedOperations),
       ValidationHelpers.trimStringArray(params.relatedFlows),
       ValidationHelpers.trimStringArray(params.relatedDatasets),

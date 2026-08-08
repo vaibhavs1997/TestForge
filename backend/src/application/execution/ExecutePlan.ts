@@ -29,6 +29,7 @@ import { DEFAULT_TIMEOUT_MS } from '../../constants/defaults';
 
 export class ExecutePlan {
   private loadedProfile: ExecutionProfileEntity | null = null;
+  private readonly inFlightPlanIds = new Set<string>();
 
   constructor(
     private readonly executionRunRepository: ExecutionRunRepository,
@@ -58,6 +59,13 @@ export class ExecutePlan {
   private readonly testDataResolutionService: TestDataResolutionService;
 
   async execute(executionPlanId: string, failureMode: FailureMode = 'StopOnFailure', executionProfileId?: string): Promise<ExecutionRunEntity> {
+    if (this.inFlightPlanIds.has(executionPlanId)) {
+      throw new Error('An execution is already in progress for this step. Wait for it to finish.');
+    }
+    this.inFlightPlanIds.add(executionPlanId);
+    this.loadedProfile = null;
+
+    try {
     // Load execution profile if provided
     if (executionProfileId && this.executionProfileRepository) {
       this.loadedProfile = await this.executionProfileRepository.findById(executionProfileId);
@@ -69,17 +77,15 @@ export class ExecutePlan {
     }
 
     // Get the execution plan
-    const plans = await this.executionPlanRepository.findByProject('');
-    const plan = plans.find(p => p.id === executionPlanId);
+    const plan = await this.executionPlanRepository.findById(executionPlanId);
     if (!plan) {
-      // Try finding by ID directly
-      const planById = await this.executionPlanRepository.findById(executionPlanId);
-      if (!planById) {
-        throw new Error(`Execution Plan with id ${executionPlanId} not found`);
-      }
-      return this.executePlan(planById, failureMode);
+      throw new Error(`Execution Plan with id ${executionPlanId} not found`);
     }
-    return this.executePlan(plan, failureMode);
+    return await this.executePlan(plan, failureMode);
+    } finally {
+      this.inFlightPlanIds.delete(executionPlanId);
+      this.loadedProfile = null;
+    }
   }
 
   private buildProfileMetadata(profile: ExecutionProfileEntity): ExecutionProfileMetadata {
@@ -139,10 +145,15 @@ export class ExecutePlan {
       sequentialPositions: new Map(),
     };
 
+    const mappedOperation = plan.operationId
+      ? await this.apiOperationRepository.findById(plan.operationId)
+      : null;
+    const serviceId = mappedOperation?.serviceId ?? '';
+
     // Validate test data mappings before execution
     const validationErrors = await this.testDataResolutionService.validateMappings(
       plan.projectId,
-      '', // serviceId - will be resolved from plan
+      serviceId,
       plan.operationId,
       resolutionContext
     );
@@ -223,10 +234,15 @@ export class ExecutePlan {
         continue;
       }
 
+      const stepOperation = currentPlan.operationId
+        ? await this.apiOperationRepository.findById(currentPlan.operationId)
+        : null;
+      const stepServiceId = stepOperation?.serviceId ?? '';
+
       // Resolve test data for this step
       const resolvedValues = await this.testDataResolutionService.resolveRequestFields(
         currentPlan.projectId,
-        '', // serviceId
+        stepServiceId,
         currentPlan.operationId,
         resolutionContext
       );
@@ -398,7 +414,7 @@ export class ExecutePlan {
       stepResult.response = {
         status: response.status,
         statusText: response.statusText,
-        headers: response.headers as Record<string, string>,
+        headers: this.normalizeHeaders(response.headers),
         body: response.data,
         duration,
       };
@@ -480,7 +496,7 @@ export class ExecutePlan {
             stepResult.response = {
               status: retryResponse.status,
               statusText: retryResponse.statusText,
-              headers: retryResponse.headers as Record<string, string>,
+              headers: this.normalizeHeaders(retryResponse.headers),
               body: retryResponse.data,
               duration: Date.now() - requestStart,
             };
@@ -504,6 +520,20 @@ export class ExecutePlan {
     }
 
     return stepResult;
+  }
+
+  private normalizeHeaders(headers: unknown): Record<string, string> {
+    if (!headers || typeof headers !== 'object') {
+      return {};
+    }
+    const withToJson = headers as { toJSON?: () => Record<string, unknown> };
+    if (typeof withToJson.toJSON === 'function') {
+      const json = withToJson.toJSON();
+      return Object.fromEntries(Object.entries(json).map(([k, v]) => [k, String(v)]));
+    }
+    return Object.fromEntries(
+      Object.entries(headers as Record<string, unknown>).map(([k, v]) => [k, String(v)]),
+    );
   }
 
   private substituteVariables(text: string, context: ExecutionContext): string {

@@ -218,11 +218,11 @@ export const AssertionLibraryPage: React.FC<AssertionLibraryPageProps> = () => {
               <div className='flex items-center justify-between'>
                 <CardTitle className='text-base'>Assertion Details</CardTitle>
                 <div className='flex items-center gap-1'>
-                  <Button variant='ghost' size='sm' className='h-8 w-8 p-0' onClick={() => toggleAssertion({ id: selectedAssertion.id, enabled: !selectedAssertion.enabled })}>
-                    {selectedAssertion.enabled ? <ToggleRight className='h-4 w-4 text-green-600' /> : <ToggleLeft className='h-4 w-4 text-gray-400' />}
+                  <Button variant='ghost' size='sm' className='h-8 w-8 p-0' onClick={() => toggleAssertion({ id: selectedAssertion.id, enabled: !selectedAssertion.enabled })} title={selectedAssertion.enabled ? 'Disable assertion' : 'Enable assertion'}>
+                    {selectedAssertion.enabled ? <ToggleRight className='h-4 w-4 text-green-600' aria-hidden /> : <ToggleLeft className='h-4 w-4 text-gray-400' aria-hidden />}
                   </Button>
-                  <Button variant='ghost' size='sm' className='h-8 w-8 p-0' onClick={() => duplicateAssertion(selectedAssertion.id)}>
-                    <Copy className='h-4 w-4' />
+                  <Button variant='ghost' size='sm' className='h-8 w-8 p-0' onClick={() => duplicateAssertion(selectedAssertion.id)} title='Duplicate assertion'>
+                    <Copy className='h-4 w-4' aria-hidden />
                   </Button>
                 </div>
               </div>

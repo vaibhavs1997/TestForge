@@ -18,11 +18,14 @@ import { cn } from '../../utils/cn';
 export interface CheckboxProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'> {
   label?: string;
   error?: string;
+  helperText?: string;
 }
 
 export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
-  ({ className, label, error, id, checked, ...props }, ref) => {
+  ({ className, label, error, helperText, id, checked, ...props }, ref) => {
     const checkboxId = id || label?.toLowerCase().replace(/\s+/g, '-');
+    const helperId = helperText ? `${checkboxId}-helper` : undefined;
+    const errorId = error ? `${checkboxId}-error` : undefined;
 
     return (
       <div className="flex items-start gap-2">
@@ -38,20 +41,30 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
               className
             )}
             aria-invalid={error ? 'true' : undefined}
+            aria-describedby={[helperId, errorId].filter(Boolean).join(' ') || undefined}
             {...props}
           />
           {checked && (
-            <Check className="pointer-events-none absolute left-0 top-0 h-4 w-4 text-white peer-disabled:opacity-50" />
+            <Check className="pointer-events-none absolute left-0 top-0 h-4 w-4 text-white peer-disabled:opacity-50" aria-hidden />
           )}
         </div>
-        {label && (
-          <label htmlFor={checkboxId} className="text-sm text-text cursor-pointer">
-            {label}
-          </label>
-        )}
-        {error && (
-          <p className="text-sm text-error" role="alert">{error}</p>
-        )}
+        <div className="flex flex-col">
+          {label && (
+            <label htmlFor={checkboxId} className="text-sm text-text cursor-pointer">
+              {label}
+            </label>
+          )}
+          {helperText && !error && (
+            <p id={helperId} className="text-xs text-text-secondary">
+              {helperText}
+            </p>
+          )}
+          {error && (
+            <p id={errorId} className="text-sm text-error" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
       </div>
     );
   }

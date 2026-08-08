@@ -565,7 +565,7 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
                           aria-label={`Edit ${service.name}`}
                           onClick={(e) => openEditServiceDialog(e, service)}
                         >
-                          <Edit className='h-4 w-4' />
+                          <Edit className='h-4 w-4' aria-hidden />
                         </Button>
                         <Button
                           type='button'

@@ -73,7 +73,10 @@ export class GenerateTestDesigns {
 
         const operation = operations.find((o) => o.id === operationId);
         const requestOverrides: RequestOverride = {
-          body: buildPayloadForScenario(section.category, operation),
+          body: buildPayloadForScenario(section.category, operation, {
+            focusFieldId: item.focusFieldId,
+            scenarioKind: item.scenarioKind,
+          }),
         };
         if (section.category === 'Security') {
           requestOverrides.headers = { Authorization: 'Bearer invalid-token' };
@@ -105,7 +108,10 @@ export class GenerateTestDesigns {
                   item.priority,
                   'Ready',
                   Date.now(),
-                  Date.now()
+                  Date.now(),
+                  [],
+                  item.testCaseType,
+                  item.expectedHttpStatus
                 );
 
         designs.push(design);
@@ -166,41 +172,20 @@ export class GenerateTestDesigns {
   }
 
   private generateAssertions(category: string, item: StrategyItem): Assertion[] {
-    const assertions: Assertion[] = [];
+    const expectedStatus =
+      item.expectedHttpStatus ??
+      (category === 'Security' ? 401 : category === 'Negative' || category === 'Validation' ? 400 : 200);
 
-    switch (category) {
-      case 'Positive':
-        assertions.push(
-          { type: 'status', operator: 'equals', path: '$.status', expected: 200 },
-          { type: 'body', operator: 'exists', path: '$.data', expected: true }
-        );
-        break;
-      case 'Negative':
-      case 'Validation':
-        assertions.push(
-          { type: 'status', operator: 'equals', path: '$.status', expected: 400 }
-        );
-        break;
-      case 'Security':
-        assertions.push(
-          { type: 'status', operator: 'equals', path: '$.status', expected: 401 }
-        );
-        break;
-      case 'Error Handling':
-        assertions.push(
-          { type: 'status', operator: 'equals', path: '$.status', expected: 500 },
-          { type: 'body', operator: 'exists', path: '$.error', expected: true }
-        );
-        break;
-      case 'Boundary':
-        assertions.push(
-          { type: 'status', operator: 'equals', path: '$.status', expected: 200 }
-        );
-        break;
-      default:
-        assertions.push(
-          { type: 'status', operator: 'equals', path: '$.status', expected: 200 }
-        );
+    const assertions: Assertion[] = [
+      { type: 'status', operator: 'equals', path: '$.status', expected: expectedStatus },
+    ];
+
+    if (expectedStatus >= 200 && expectedStatus < 300 && category === 'Positive') {
+      assertions.push({ type: 'body', operator: 'exists', path: '$.data', expected: true });
+    }
+
+    if (expectedStatus >= 400) {
+      assertions.push({ type: 'body', operator: 'exists', path: '$.error', expected: true });
     }
 
     return assertions;

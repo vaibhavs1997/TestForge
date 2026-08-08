@@ -10,6 +10,8 @@ import {
   pickOperationForCategory,
   rankOperationsForRequirement,
   buildPayloadForScenario,
+  getOperationMatchDiagnostics,
+  mappingConfidencePercent,
 } from './RequirementOperationMatcher';
 import type { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
 import type { TestDesignEntity } from '../../domain/requirements/TestDesignEntity';
@@ -55,6 +57,10 @@ export class GenerateRequirementTestCases {
       for (const design of existing) {
         await this.testDesignRepository.delete(design.id);
       }
+      const existingStrategy = await this.testStrategyRepository.findByRequirement(request.requirementId);
+      if (existingStrategy?.id) {
+        await this.testStrategyRepository.delete(existingStrategy.id);
+      }
     }
 
     await this.planTestStrategy.execute(request.requirementId);
@@ -91,10 +97,18 @@ export class GenerateRequirementTestCases {
       }
     }
 
-    const ranked = rankOperationsForRequirement(
-      requirement,
-      await this.apiOperationRepository.findByProject(requirement.projectId),
-    );
+    const projectOperations = await this.apiOperationRepository.findByProject(requirement.projectId);
+    const ranked = rankOperationsForRequirement(requirement, projectOperations);
+    const diagnostics = getOperationMatchDiagnostics(requirement, projectOperations);
+    if (diagnostics.lowConfidence && projectOperations.length > 0) {
+      warnings.push(
+        'API mapping confidence is low for this requirement. Review each test case’s mapped operation before approving.',
+      );
+    }
+    const mappingPercent = mappingConfidencePercent(diagnostics, projectOperations.length);
+    await this.requirementRepository.update(requirement.id, {
+      confidence: mappingPercent,
+    } as Partial<typeof requirement>);
     if (ranked.length > 0 && requirement.relatedOperations.length === 0) {
       await this.requirementRepository.update(requirement.id, {
         relatedOperations: ranked.slice(0, 5).map((o) => o.id),
@@ -133,8 +147,8 @@ export class GenerateRequirementTestCases {
       }
 
       const operation = operations.find((o) => o.id === operationId);
-      const category = this.inferCategory(design, strategy);
-      const body = buildPayloadForScenario(category, operation);
+      const { category, focusFieldId, scenarioKind } = this.resolveStrategyContext(design, strategy);
+      const body = buildPayloadForScenario(category, operation, { focusFieldId, scenarioKind });
       const requestOverrides = {
         ...design.requestOverrides,
         body: Object.keys(body).length > 0 ? body : design.requestOverrides?.body,
@@ -151,14 +165,26 @@ export class GenerateRequirementTestCases {
     return this.testDesignRepository.findByRequirement(requirementId);
   }
 
-  private inferCategory(design: TestDesignEntity, strategy: TestStrategyEntity | null): StrategyCategory {
-    if (!strategy) return 'Positive';
+  private resolveStrategyContext(
+    design: TestDesignEntity,
+    strategy: TestStrategyEntity | null,
+  ): {
+    category: StrategyCategory;
+    focusFieldId?: string;
+    scenarioKind?: 'missing_field' | 'invalid_field' | 'duplicate' | 'default';
+  } {
+    if (!strategy) return { category: 'Positive' };
     for (const section of strategy.sections) {
-      if (section.items.some((i) => i.id === design.strategyItemId)) {
-        return section.category;
+      const item = section.items.find((i) => i.id === design.strategyItemId);
+      if (item) {
+        return {
+          category: section.category,
+          focusFieldId: item.focusFieldId,
+          scenarioKind: item.scenarioKind,
+        };
       }
     }
-    return 'Positive';
+    return { category: 'Positive' };
   }
 }
 

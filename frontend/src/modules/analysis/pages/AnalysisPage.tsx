@@ -214,7 +214,7 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = () => {
                       onClick={() => { setCardToDelete(card); setDeleteOpen(true); }}
                       aria-label='Delete analysis card'
                     >
-                      <Trash2 className='h-4 w-4 text-error' />
+                      <Trash2 className='h-4 w-4 text-error' aria-hidden />
                     </Button>
                   </div>
                 </CardHeader>

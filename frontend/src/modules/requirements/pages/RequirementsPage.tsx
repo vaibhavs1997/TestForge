@@ -1,7 +1,7 @@
-// Requirements page - displays Suggested, Approved, Archived sections
-import React, { useState, useEffect } from 'react';
+// Requirements page — capture acceptance criteria, generate test cases, curate inclusion
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, Eye, CheckCircle, XCircle, Archive, Sparkles, RefreshCw, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Edit2, Trash2, ToggleLeft, ToggleRight, Copy, FlaskConical, ArrowUp, ArrowDown, GitBranch, Clock, Upload, Play } from 'lucide-react';
+import { Plus, Eye, EyeOff, CheckCircle, XCircle, Archive, Sparkles, RefreshCw, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Edit2, Trash2, ToggleLeft, ToggleRight, Copy, FlaskConical, ArrowUp, ArrowDown, GitBranch, Clock, Upload } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../components/ui/Card';
 import { Badge } from '../../../components/ui/Badge';
@@ -14,16 +14,26 @@ import { useAnalysis } from '../../analysis/hooks';
 import { useAssertions } from '../../assertion/hooks/useAssertions';
 import { useAIProviders } from '../../ai-provider/hooks';
 import { requirementService } from '../services/requirementService';
-import type { Requirement, ApprovalStatus, ValidationCategory, TestStrategy, StrategyCategorySection, StrategyItem, TestDesign, Assertion, RuntimeBinding, ExecutionPlan, CleanupStep, AssertionReference } from '../types';
+import { testDesignService } from '../services/testDesignService';
+import type { Requirement, ApprovalStatus, ValidationCategory, TestStrategy, StrategyCategorySection, StrategyItem, TestDesign, Assertion, RuntimeBinding, ExecutionPlan, CleanupStep, AssertionReference, RequirementMappingContext } from '../types';
 import type { Assertion as ReusableAssertion } from '../../assertion/types';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery, useQueries } from '@tanstack/react-query';
 import { queryKeys } from '../../../constants';
-import { RequirementFormDialog } from '../components/RequirementFormDialog';
 import { RequirementCaptureCard } from '../components/RequirementCaptureCard';
+import { GeneratedTestCasesPanel } from '../components/GeneratedTestCasesPanel';
+import { TestCasesListBlock } from '../components/TestCasesListBlock';
 import { JiraImportDialog } from '../components/JiraImportDialog';
 import { RequirementsMoreMenu } from '../components/RequirementsMoreMenu';
 import type { RequirementFormData } from '../types';
-import { getRequirementReviewDisplay, getTestCaseLabel } from '../utils/requirementReviewDisplay';
+import { useProjectApiOperations } from '../../api/hooks/useProjectApiOperations';
+import { resolveOperationLabel } from '../utils/operationDisplay';
+import {
+  clearActiveRequirementId,
+  readActiveRequirementId,
+  readSuitePanelVisible,
+  writeActiveRequirementId,
+  writeSuitePanelVisible,
+} from '../utils/activeRequirementSession';
 
 export interface RequirementsPageProps {}
 
@@ -35,6 +45,8 @@ const getStatusBadgeVariant = (status: string) => {
       return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
     case 'Archived':
       return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+    case 'Draft':
+      return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
     default:
       return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300';
   }
@@ -50,6 +62,31 @@ const getConfidenceColor = (confidence: number) => {
   if (confidence >= 75) return 'text-green-600 dark:text-green-400';
   if (confidence >= 50) return 'text-yellow-600 dark:text-yellow-400';
   return 'text-red-600 dark:text-red-400';
+};
+
+const suiteConfidenceLabel = (source: Requirement['source']) =>
+  source === 'ProjectAnalysis' ? 'Analysis confidence' : 'API mapping';
+
+const resolveSuiteConfidence = (
+  requirement: Requirement,
+  mapping?: RequirementMappingContext,
+): { label: string; percent: number | null; low: boolean } => {
+  if (requirement.source === 'ProjectAnalysis' && !mapping) {
+    return {
+      label: suiteConfidenceLabel(requirement.source),
+      percent: requirement.confidence,
+      low: requirement.confidence < 50,
+    };
+  }
+  const percent =
+    mapping?.mappingConfidencePercent ??
+    (requirement.confidence > 0 ? requirement.confidence : null);
+  const low = mapping?.lowConfidence ?? (percent !== null ? percent < 50 : false);
+  return {
+    label: mapping || requirement.source !== 'ProjectAnalysis' ? 'API mapping' : suiteConfidenceLabel(requirement.source),
+    percent,
+    low,
+  };
 };
 
 const getPriorityBadgeVariant = (priority: string) => {
@@ -103,7 +140,32 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
     { label: 'Requirements' },
   ];
 
-  const { suggested, approved, archived, isLoading, isError, error, generateFromAnalysisAsync, isGenerating, update, updateAsync, remove, removeAsync, validateReadinessAsync, isValidating, validationResult, planTestStrategyAsync, isPlanningStrategy, testStrategy, generateTestDesignsAsync, isGeneratingDesigns, testDesigns, planExecutionAsync, isPlanningExecution, executionPlans, createAsync, isCreating } = useRequirements(projectId);
+  const { requirements, suggested, approved, archived, isLoading, isError, error, generateFromAnalysisAsync, isGenerating, updateAsync, removeAsync, validateReadinessAsync, isValidating, validationResult, planTestStrategyAsync, isPlanningStrategy, testStrategy, generateTestDesignsAsync, isGeneratingDesigns, planExecutionAsync, createAsync, isCreating } = useRequirements(projectId);
+
+  const listedSuiteRequirements = useMemo(
+    () => [...suggested, ...approved, ...archived],
+    [suggested, approved, archived],
+  );
+
+  const suiteMappingQueries = useQueries({
+    queries: listedSuiteRequirements.map((req) => ({
+      queryKey: queryKeys.requirementMappingContext(projectId, req.id),
+      queryFn: () => requirementService.getMappingContext(projectId, req.id),
+      staleTime: 60_000,
+      retry: false,
+      enabled: Boolean(projectId),
+    })),
+  });
+
+  const mappingByRequirementId = useMemo(() => {
+    const map = new Map<string, RequirementMappingContext>();
+    listedSuiteRequirements.forEach((req, index) => {
+      const data = suiteMappingQueries[index]?.data;
+      if (data) map.set(req.id, data);
+    });
+    return map;
+  }, [listedSuiteRequirements, suiteMappingQueries]);
+
   const { analysisCards, runAnalysisAsync, isAnalyzing } = useAnalysis(projectId);
   const { assertions: reusableAssertions } = useAssertions(projectId);
 
@@ -111,12 +173,115 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error'>('success');
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteAllPendingOpen, setDeleteAllPendingOpen] = useState(false);
+  const [isDeletingAllPending, setIsDeletingAllPending] = useState(false);
   const [requirementToDelete, setRequirementToDelete] = useState<Requirement | undefined>(undefined);
-  const [reviewOpen, setReviewOpen] = useState(false);
-  const [requirementToReview, setRequirementToReview] = useState<Requirement | undefined>(undefined);
+  const [activeRequirement, setActiveRequirement] = useState<Requirement | undefined>(undefined);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [isGeneratingTestCases, setIsGeneratingTestCases] = useState(false);
-  const [designCountByRequirement, setDesignCountByRequirement] = useState<Record<string, number>>({});
+  const [isApprovingSuite, setIsApprovingSuite] = useState(false);
+  const [isRejectingSuite, setIsRejectingSuite] = useState(false);
+  const [isAddingToPending, setIsAddingToPending] = useState(false);
+  const [suitePanelVisible, setSuitePanelVisible] = useState(false);
+  const [expandedSuiteId, setExpandedSuiteId] = useState<string | null>(null);
+  const suitePanelRef = useRef<HTMLDivElement>(null);
+
+  const setSuitePanelOpen = React.useCallback(
+    (visible: boolean) => {
+      setSuitePanelVisible(visible);
+      writeSuitePanelVisible(projectId, visible);
+    },
+    [projectId],
+  );
+
+  const selectActiveRequirement = React.useCallback(
+    (req: Requirement | undefined, options?: { showPanel?: boolean }) => {
+      setActiveRequirement(req);
+      if (req?.id) writeActiveRequirementId(projectId, req.id);
+      else clearActiveRequirementId(projectId);
+      if (options?.showPanel !== undefined) {
+        setSuitePanelOpen(options.showPanel);
+      }
+    },
+    [projectId, setSuitePanelOpen],
+  );
+
+  const openDraftSuite = requirements.find((r) => r.approvalStatus === 'Draft');
+
+  const workingOnOpenDraft =
+    Boolean(openDraftSuite) &&
+    Boolean(activeRequirement?.id) &&
+    activeRequirement?.id === openDraftSuite?.id &&
+    (isCreating || isGeneratingTestCases);
+
+  const captureBlockedByDraft = Boolean(openDraftSuite) && !workingOnOpenDraft;
+
+  const [captureFormKey, setCaptureFormKey] = useState(0);
+
+  const assertCanStartNewSuite = (): boolean => {
+    if (!openDraftSuite) return true;
+    setToastMessage(
+      `Finish the open suite "${openDraftSuite.title}" first: add it to pending review, approve it, or reject it.`,
+    );
+    setToastType('error');
+    setToastOpen(true);
+    suitePanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return false;
+  };
+
+  useEffect(() => {
+    if (isLoading || !projectId) return;
+
+    setActiveRequirement((current) => {
+      if (current?.id) {
+        const fresh = requirements.find((r) => r.id === current.id);
+        if (fresh) return fresh;
+      }
+
+      const storedId = readActiveRequirementId(projectId);
+      if (storedId) {
+        const stored = requirements.find((r) => r.id === storedId);
+        if (stored) {
+          if (stored.approvalStatus === 'Draft') {
+            setSuitePanelOpen(true);
+            return stored;
+          }
+          if (stored.approvalStatus === 'Suggested' || stored.approvalStatus === 'Approved') {
+            setSuitePanelOpen(readSuitePanelVisible(projectId));
+            return stored;
+          }
+          if (stored.approvalStatus === 'Rejected' || stored.approvalStatus === 'Archived') {
+            clearActiveRequirementId(projectId);
+            setSuitePanelOpen(false);
+          }
+        }
+      }
+
+      const orphanDraft = requirements.find((r) => r.approvalStatus === 'Draft');
+      if (orphanDraft) {
+        writeActiveRequirementId(projectId, orphanDraft.id);
+        setSuitePanelOpen(true);
+        return orphanDraft;
+      }
+
+      return current;
+    });
+  }, [isLoading, projectId, requirements, setSuitePanelOpen]);
+
+  useEffect(() => {
+    if (!projectId || isLoading) return;
+    const ids = new Set<string>();
+    if (activeRequirement?.id) ids.add(activeRequirement.id);
+    for (const r of suggested) ids.add(r.id);
+    if (expandedSuiteId) ids.add(expandedSuiteId);
+    for (const requirementId of ids) {
+      void queryClient.prefetchQuery({
+        queryKey: queryKeys.testDesigns(projectId, requirementId),
+        queryFn: () => testDesignService.listByRequirement(projectId, requirementId),
+        staleTime: 60_000,
+      });
+    }
+  }, [projectId, isLoading, activeRequirement?.id, suggested, expandedSuiteId, queryClient]);
   const [attachAssertionOpen, setAttachAssertionOpen] = useState(false);
   const [selectedDesignId, setSelectedDesignId] = useState<string | null>(null);
   const [selectedAssertionIds, setSelectedAssertionIds] = useState<Set<string>>(new Set());
@@ -165,14 +330,50 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
   const [aiExecutionPlanStep, setAiExecutionPlanStep] = useState<'select' | 'preview' | 'result'>('select');
   const [aiExecutionPlanResult, setAiExecutionPlanResult] = useState<any>(null);
 
-  const [addRequirementOpen, setAddRequirementOpen] = useState(false);
   const [jiraImportOpen, setJiraImportOpen] = useState(false);
   const [jiraConfigured, setJiraConfigured] = useState(false);
   const [jiraImporting, setJiraImporting] = useState(false);
   const importRequirementsInputRef = React.useRef<HTMLInputElement>(null);
 
-  const reviewRequirementId = reviewOpen && requirementToReview ? requirementToReview.id : undefined;
-  const artifacts = useRequirementArtifacts(projectId, reviewRequirementId);
+  const activeRequirementId = activeRequirement?.id;
+
+  const showTopGeneratedPanel =
+    suitePanelVisible &&
+    Boolean(activeRequirement) &&
+    activeRequirement?.approvalStatus === 'Draft';
+
+  const draftPanelOpen =
+    Boolean(openDraftSuite) &&
+    showTopGeneratedPanel &&
+    activeRequirement?.id === openDraftSuite?.id;
+
+  const showCaptureDraftBanner = captureBlockedByDraft && !draftPanelOpen;
+
+  const scrollToDraftPanel = () => {
+    if (!openDraftSuite) return;
+    selectActiveRequirement(openDraftSuite, { showPanel: true });
+    requestAnimationFrame(() => {
+      suitePanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
+  const artifactsRequirementId = showTopGeneratedPanel
+    ? activeRequirementId
+    : expandedSuiteId ?? undefined;
+
+  const artifacts = useRequirementArtifacts(projectId, artifactsRequirementId);
+
+  const { operations: projectOperations } = useProjectApiOperations(projectId);
+
+  const mappingContextQuery = useQuery({
+    queryKey: queryKeys.requirementMappingContext(projectId, artifactsRequirementId || ''),
+    queryFn: () => requirementService.getMappingContext(projectId, artifactsRequirementId!),
+    enabled: Boolean(projectId && artifactsRequirementId),
+    staleTime: 30_000,
+  });
+
+  const formatStrategyApiRef = (operationId: string) =>
+    resolveOperationLabel(projectOperations, operationId);
 
   useEffect(() => {
     requirementService
@@ -188,34 +389,16 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
     title: partial.title,
     description: partial.description ?? '',
     category: partial.category ?? 'General',
-    confidence: partial.confidence ?? 80,
+    confidence: partial.confidence ?? 0,
     source: partial.source ?? 'Manual',
     projectAnalysisId: partial.projectAnalysisId ?? null,
     reviewStatus: partial.reviewStatus ?? 'Pending',
-    approvalStatus: partial.approvalStatus ?? 'Suggested',
+    approvalStatus: partial.approvalStatus ?? 'Draft',
     relatedOperations: partial.relatedOperations ?? [],
     relatedFlows: partial.relatedFlows ?? [],
     relatedDatasets: partial.relatedDatasets ?? [],
     acceptanceCriteria: partial.acceptanceCriteria ?? [],
   });
-
-  const handleCreateRequirement = async (data: Omit<RequirementFormData, 'id'>) => {
-    try {
-      const created = await createAsync(buildManualRequirementPayload(data));
-      setAddRequirementOpen(false);
-      setToastMessage('Requirement created successfully');
-      setToastType('success');
-      if (created?.id) {
-        setRequirementToReview(created);
-        setReviewOpen(true);
-      }
-    } catch (err: any) {
-      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to create requirement');
-      setToastType('error');
-    } finally {
-      setToastOpen(true);
-    }
-  };
 
   const handleImportRequirementsFile = async (file: File | null) => {
     if (!file) return;
@@ -261,11 +444,49 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
     }
   };
 
+  const runGenerateTestCasesForRequirement = async (requirement: Requirement) => {
+    setIsGeneratingTestCases(true);
+    const aiProvider =
+      aiProviders.find((p) => p.isDefault && p.enabled) ?? aiProviders.find((p) => p.enabled);
+
+    try {
+      const result = await requirementService.generateTestCases(projectId, requirement.id, {
+        providerId: aiProvider?.id,
+        useAi: Boolean(aiProvider),
+        replaceExisting: true,
+      });
+      selectActiveRequirement(requirement, { showPanel: true });
+      queryClient.setQueryData(queryKeys.testDesigns(projectId, requirement.id), result.designs);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.requirements(projectId) });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.executionPlansForRequirement(projectId, requirement.id),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.requirementMappingContext(projectId, requirement.id),
+      });
+      const warn = result.warnings?.length ? ` ${result.warnings[0]}` : '';
+      setToastMessage(
+        result.usedAi
+          ? `Generated ${result.designs.length} test case${result.designs.length === 1 ? '' : 's'} mapped to your APIs.${warn}`
+          : `Generated ${result.designs.length} test case${result.designs.length === 1 ? '' : 's'} (built-in).${warn}`,
+      );
+      setToastType('success');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Failed to generate test cases';
+      setToastMessage(msg);
+      setToastType('error');
+    } finally {
+      setIsGeneratingTestCases(false);
+      setToastOpen(true);
+    }
+  };
+
   const handleCaptureFromCriteria = async (payload: {
     title: string;
     description: string;
     acceptanceCriteria: RequirementFormData['acceptanceCriteria'];
   }) => {
+    if (!assertCanStartNewSuite()) return;
     try {
       const created = await createAsync(
         buildManualRequirementPayload({
@@ -274,21 +495,21 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
           acceptanceCriteria: payload.acceptanceCriteria,
         }),
       );
-      setToastMessage('Requirement created — generate test cases in the review flow');
-      setToastType('success');
-      setToastOpen(true);
-      if (created?.id) {
-        setRequirementToReview(created);
-        setReviewOpen(true);
+      if (!created?.id) {
+        throw new Error('Requirement was not created');
       }
+      selectActiveRequirement(created, { showPanel: true });
+      setCaptureFormKey((k) => k + 1);
+      await runGenerateTestCasesForRequirement(created);
     } catch (err: any) {
-      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to create requirement');
+      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to generate test cases');
       setToastType('error');
       setToastOpen(true);
     }
   };
 
   const handleImportFromJira = async (issueKey: string) => {
+    if (!assertCanStartNewSuite()) return;
     setJiraImporting(true);
     try {
       const created = await requirementService.importFromJira(projectId, issueKey);
@@ -298,8 +519,8 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
       setToastType('success');
       setToastOpen(true);
       if (created?.id) {
-        setRequirementToReview(created);
-        setReviewOpen(true);
+        selectActiveRequirement(created, { showPanel: true });
+        await runGenerateTestCasesForRequirement(created);
       }
     } catch (err: any) {
       setToastMessage(err?.response?.data?.message || err?.message || 'Jira import failed');
@@ -310,25 +531,21 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
     }
   };
 
-  const displayDesigns: TestDesign[] =
-    artifacts.designs.length > 0
-      ? artifacts.designs
-      : (testDesigns as TestDesign[] | undefined) ?? [];
+  const displayDesigns: TestDesign[] = artifacts.designs;
 
-  const displayExecutionPlans: ExecutionPlan[] =
-    artifacts.executionPlans.length > 0
-      ? artifacts.executionPlans
-      : (executionPlans as ExecutionPlan[] | undefined) ?? [];
+  const displayExecutionPlans: ExecutionPlan[] = artifacts.executionPlans;
 
-  useEffect(() => {
-    if (!requirementToReview?.id || artifacts.designs.length === 0) return;
-    setDesignCountByRequirement((prev) => ({
-      ...prev,
-      [requirementToReview.id]: artifacts.designs.length,
-    }));
-  }, [requirementToReview?.id, artifacts.designs.length]);
+  const showSuiteInPanel = showTopGeneratedPanel;
+  const panelRequirement = showSuiteInPanel ? activeRequirement : undefined;
+  const panelDesigns = showSuiteInPanel ? displayDesigns : [];
 
-  const reviewDisplay = requirementToReview ? getRequirementReviewDisplay(requirementToReview) : null;
+  const suiteIsDraft = activeRequirement?.approvalStatus === 'Draft';
+  const suiteIsPending = activeRequirement?.approvalStatus === 'Suggested';
+  const canActOnOpenSuite =
+    showSuiteInPanel &&
+    Boolean(activeRequirement) &&
+    panelDesigns.length > 0 &&
+    (suiteIsDraft || suiteIsPending);
 
   const toggleDesignIncluded = async (design: TestDesign) => {
     const nextStatus = design.status === 'Disabled' ? 'Ready' : 'Disabled';
@@ -339,6 +556,25 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
       setToastOpen(true);
     } catch (err: any) {
       setToastMessage(err?.message || 'Failed to update test case');
+      setToastType('error');
+      setToastOpen(true);
+    }
+  };
+
+  const handleUpdateDesignOperation = async (design: TestDesign, operationId: string) => {
+    if (!operationId || operationId === design.operationId) return;
+    try {
+      await artifacts.updateDesign({ designId: design.id, operationId, rebuildPayload: true });
+      if (artifactsRequirementId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.requirementMappingContext(projectId, artifactsRequirementId),
+        });
+      }
+      setToastMessage('API mapping updated and request body refreshed for this scenario.');
+      setToastType('success');
+      setToastOpen(true);
+    } catch (err: any) {
+      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to update API mapping');
       setToastType('error');
       setToastOpen(true);
     }
@@ -396,84 +632,6 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
     } finally {
       setDeleteOpen(false);
       setToastOpen(true);
-    }
-  };
-
-  const closeReviewModal = () => {
-    setReviewOpen(false);
-    setRequirementToReview(undefined);
-  };
-
-  useEffect(() => {
-    if (!reviewOpen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeReviewModal();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [reviewOpen]);
-
-  const handleReview = (requirement: Requirement) => {
-    setRequirementToReview(requirement);
-    setReviewOpen(true);
-  };
-
-  const handleGenerateTestCasesSmart = async (requirement: Requirement) => {
-    setIsGeneratingTestCases(true);
-    const aiProvider =
-      aiProviders.find((p) => p.isDefault && p.enabled) ?? aiProviders.find((p) => p.enabled);
-
-    try {
-      const result = await requirementService.generateTestCases(projectId, requirement.id, {
-        providerId: aiProvider?.id,
-        useAi: Boolean(aiProvider),
-        replaceExisting: true,
-      });
-      await artifacts.invalidateArtifacts();
-      setDesignCountByRequirement((prev) => ({
-        ...prev,
-        [requirement.id]: result.designs.length,
-      }));
-      const warn = result.warnings?.length ? ` ${result.warnings[0]}` : '';
-      setToastMessage(
-        result.usedAi
-          ? `Test cases generated and mapped to your APIs.${warn}`
-          : `Test cases generated and mapped to your APIs (built-in).${warn}`,
-      );
-      setToastType('success');
-    } catch (err: any) {
-      const msg = err?.response?.data?.message || err?.message || 'Failed to generate test cases';
-      setToastMessage(msg);
-      setToastType('error');
-    } finally {
-      setIsGeneratingTestCases(false);
-      setToastOpen(true);
-    }
-  };
-
-  const handleRunTestsFromRequirement = async (requirement: Requirement) => {
-    setIsGeneratingTestCases(true);
-    const aiProvider =
-      aiProviders.find((p) => p.isDefault && p.enabled) ?? aiProviders.find((p) => p.enabled);
-    try {
-      if (displayDesigns.length === 0) {
-        await requirementService.generateTestCases(projectId, requirement.id, {
-          providerId: aiProvider?.id,
-          useAi: Boolean(aiProvider),
-          replaceExisting: true,
-        });
-        await artifacts.invalidateArtifacts();
-      }
-      await planExecutionAsync({ projectId, requirementId: requirement.id });
-      await artifacts.invalidateArtifacts();
-      closeReviewModal();
-      navigate(`/projects/${projectId}/execution?requirementId=${encodeURIComponent(requirement.id)}`);
-    } catch (err: any) {
-      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to prepare execution');
-      setToastType('error');
-      setToastOpen(true);
-    } finally {
-      setIsGeneratingTestCases(false);
     }
   };
 
@@ -604,16 +762,16 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
     setAiStrategyWarnings([]);
     setAiStrategyResult(null);
     setAiStrategyProviderId(aiProviders.find(p => p.isDefault)?.id || aiProviders[0]?.id || '');
-    setRequirementToReview(requirement);
+    selectActiveRequirement(requirement);
     setAiStrategyModalOpen(true);
   };
 
   const handleAIStrategyPreview = async () => {
-    if (!aiStrategyProviderId || !requirementToReview) return;
+    if (!aiStrategyProviderId || !activeRequirement) return;
     setAiLoading(true);
     setAiStrategyWarnings([]);
     try {
-      const result = await requirementService.generateStrategyWithAI(projectId, requirementToReview.id, { providerId: aiStrategyProviderId, previewOnly: true });
+      const result = await requirementService.generateStrategyWithAI(projectId, activeRequirement.id, { providerId: aiStrategyProviderId, previewOnly: true });
       setAiStrategyPreview(result.data?.preview || null);
       setAiStrategyWarnings(result.data?.warnings || result.warnings || []);
       setAiStrategyStep('preview');
@@ -627,11 +785,11 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
   };
 
   const handleAIStrategyGenerate = async () => {
-    if (!aiStrategyProviderId || !requirementToReview) return;
+    if (!aiStrategyProviderId || !activeRequirement) return;
     setAiLoading(true);
     setAiStrategyWarnings([]);
     try {
-      const result = await requirementService.generateStrategyWithAI(projectId, requirementToReview.id, { providerId: aiStrategyProviderId, previewOnly: false });
+      const result = await requirementService.generateStrategyWithAI(projectId, activeRequirement.id, { providerId: aiStrategyProviderId, previewOnly: false });
       setAiStrategyResult(result.data?.strategy || null);
       setAiStrategyWarnings(result.data?.warnings || result.warnings || []);
       setAiStrategyStep('result');
@@ -653,7 +811,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
     setAiDesignWarnings([]);
     setAiDesignResult(null);
     setAiDesignProviderId(aiProviders.find(p => p.isDefault)?.id || aiProviders[0]?.id || '');
-    setRequirementToReview(requirement);
+    selectActiveRequirement(requirement);
     setAiDesignModalOpen(true);
   };
 
@@ -668,11 +826,11 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
   };
 
   const handleAIDesignPreview = async () => {
-    if (!aiDesignProviderId || !requirementToReview) return;
+    if (!aiDesignProviderId || !activeRequirement) return;
     setAiLoading(true);
     setAiDesignWarnings([]);
     try {
-      const result = await requirementService.generateDesignWithAI(projectId, requirementToReview.id, { providerId: aiDesignProviderId, previewOnly: true });
+      const result = await requirementService.generateDesignWithAI(projectId, activeRequirement.id, { providerId: aiDesignProviderId, previewOnly: true });
       setAiDesignPreview(result.data?.preview || null);
       setAiDesignWarnings(result.data?.warnings || result.warnings || []);
       setAiDesignStep('preview');
@@ -686,11 +844,11 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
   };
 
   const handleAIDesignGenerate = async () => {
-    if (!aiDesignProviderId || !requirementToReview) return;
+    if (!aiDesignProviderId || !activeRequirement) return;
     setAiLoading(true);
     setAiDesignWarnings([]);
     try {
-      const result = await requirementService.generateDesignWithAI(projectId, requirementToReview.id, { providerId: aiDesignProviderId, previewOnly: false });
+      const result = await requirementService.generateDesignWithAI(projectId, activeRequirement.id, { providerId: aiDesignProviderId, previewOnly: false });
       setAiDesignResult(result.data?.designs || []);
       setAiDesignWarnings(result.data?.warnings || result.warnings || []);
       setAiDesignStep('result');
@@ -730,16 +888,16 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
     setAiExecutionPlanWarnings([]);
     setAiExecutionPlanResult(null);
     setAiExecutionPlanProviderId(aiProviders.find(p => p.isDefault)?.id || aiProviders[0]?.id || '');
-    setRequirementToReview(requirement);
+    selectActiveRequirement(requirement);
     setAiExecutionPlanModalOpen(true);
   };
 
   const handleAIExecutionPlanPreview = async () => {
-    if (!aiExecutionPlanProviderId || !requirementToReview) return;
+    if (!aiExecutionPlanProviderId || !activeRequirement) return;
     setAiLoading(true);
     setAiExecutionPlanWarnings([]);
     try {
-      const result = await requirementService.generateExecutionPlanWithAI(projectId, requirementToReview.id, { providerId: aiExecutionPlanProviderId, previewOnly: true });
+      const result = await requirementService.generateExecutionPlanWithAI(projectId, activeRequirement.id, { providerId: aiExecutionPlanProviderId, previewOnly: true });
       setAiExecutionPlanPreview(result.data?.preview || null);
       setAiExecutionPlanWarnings(result.data?.warnings || result.warnings || []);
       setAiExecutionPlanStep('preview');
@@ -753,11 +911,11 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
   };
 
   const handleAIExecutionPlanGenerate = async () => {
-    if (!aiExecutionPlanProviderId || !requirementToReview) return;
+    if (!aiExecutionPlanProviderId || !activeRequirement) return;
     setAiLoading(true);
     setAiExecutionPlanWarnings([]);
     try {
-      const result = await requirementService.generateExecutionPlanWithAI(projectId, requirementToReview.id, { providerId: aiExecutionPlanProviderId, previewOnly: false });
+      const result = await requirementService.generateExecutionPlanWithAI(projectId, activeRequirement.id, { providerId: aiExecutionPlanProviderId, previewOnly: false });
       setAiExecutionPlanResult(result.data?.plans || []);
       setAiExecutionPlanWarnings(result.data?.warnings || result.warnings || []);
       setAiExecutionPlanStep('result');
@@ -794,7 +952,194 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
     }
   };
 
-  const renderRequirementCard = (requirement: Requirement) => (
+  const handleToggleSuiteView = (requirement: Requirement) => {
+    if (requirement.approvalStatus === 'Draft') {
+      setExpandedSuiteId(null);
+      selectActiveRequirement(requirement, { showPanel: true });
+      requestAnimationFrame(() => {
+        suitePanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      return;
+    }
+
+    if (expandedSuiteId === requirement.id) {
+      setExpandedSuiteId(null);
+      if (activeRequirement?.id === requirement.id) {
+        selectActiveRequirement(undefined, { showPanel: false });
+      }
+      return;
+    }
+
+    setExpandedSuiteId(requirement.id);
+    selectActiveRequirement(requirement, { showPanel: false });
+  };
+
+  const handleAddToPendingReview = async () => {
+    if (!activeRequirement || activeRequirement.approvalStatus !== 'Draft') return;
+    setIsAddingToPending(true);
+    try {
+      await updateAsync(activeRequirement.id, {
+        approvalStatus: 'Suggested',
+        reviewStatus: 'Pending',
+      });
+      selectActiveRequirement(
+        {
+          ...activeRequirement,
+          approvalStatus: 'Suggested',
+          reviewStatus: 'Pending',
+        },
+        { showPanel: false },
+      );
+      setExpandedSuiteId(activeRequirement.id);
+      setToastMessage('Suite added to pending review. You can generate another suite or approve this one later.');
+      setToastType('success');
+    } catch (err: any) {
+      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to add suite to pending');
+      setToastType('error');
+    } finally {
+      setIsAddingToPending(false);
+      setToastOpen(true);
+    }
+  };
+
+  const handleApproveTestSuite = async (requirementOverride?: Requirement) => {
+    const requirement = requirementOverride ?? activeRequirement;
+    if (!requirement) return;
+
+    let designs: TestDesign[] = [];
+    try {
+      designs = await testDesignService.listByRequirement(projectId, requirement.id);
+    } catch {
+      designs = requirement.id === activeRequirement?.id ? displayDesigns : [];
+    }
+
+    const includedCount = designs.filter((d) => d.status !== 'Disabled').length;
+    if (includedCount === 0) {
+      setToastMessage('Generate test cases for this suite before approving (no included cases found).');
+      setToastType('error');
+      setToastOpen(true);
+      return;
+    }
+
+    setIsApprovingSuite(true);
+    try {
+      await planExecutionAsync({ projectId, requirementId: requirement.id });
+      await updateAsync(requirement.id, {
+        approvalStatus: 'Approved',
+        reviewStatus: 'Reviewed',
+      });
+      setExpandedSuiteId(null);
+      if (activeRequirement?.id === requirement.id) {
+        selectActiveRequirement(undefined, { showPanel: false });
+      }
+      setToastMessage(
+        `Test suite approved with ${includedCount} case${includedCount === 1 ? '' : 's'}. Run it from Execution.`,
+      );
+      setToastType('success');
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        'Failed to approve test suite';
+      setToastMessage(msg);
+      setToastType('error');
+    } finally {
+      setIsApprovingSuite(false);
+      setToastOpen(true);
+    }
+  };
+
+  const rejectRequirementSuite = async (requirement: Requirement) => {
+    setIsRejectingSuite(true);
+    try {
+      const rejectedId = requirement.id;
+      setExpandedSuiteId(null);
+      await updateAsync(rejectedId, {
+        approvalStatus: 'Rejected',
+        reviewStatus: 'Reviewed',
+      });
+      if (activeRequirement?.id === rejectedId) {
+        const next = requirements
+          .filter((r) => r.id !== rejectedId && r.approvalStatus === 'Suggested')
+          .sort((a, b) => b.updatedAt - a.updatedAt)[0];
+        if (next) {
+          setExpandedSuiteId(next.id);
+          selectActiveRequirement(next, { showPanel: false });
+        } else {
+          selectActiveRequirement(undefined, { showPanel: false });
+        }
+      }
+      setToastMessage(
+        requirement.approvalStatus === 'Draft'
+          ? `Draft "${requirement.title}" discarded. You can generate a new suite.`
+          : 'Test suite rejected. It has been moved to Archived.',
+      );
+      setToastType('success');
+    } catch (err: any) {
+      setToastMessage(err?.response?.data?.message || err?.message || 'Failed to reject test suite');
+      setToastType('error');
+    } finally {
+      setIsRejectingSuite(false);
+      setToastOpen(true);
+    }
+  };
+
+  const handleRejectTestSuite = async () => {
+    if (!activeRequirement) return;
+    await rejectRequirementSuite(activeRequirement);
+  };
+
+  const pendingReview = [...suggested].sort((a, b) => b.updatedAt - a.updatedAt);
+
+  const handleDeleteAllPending = async () => {
+    if (pendingReview.length === 0) return;
+    const toDelete = [...pendingReview];
+    setIsDeletingAllPending(true);
+    try {
+      for (const req of toDelete) {
+        await removeAsync(req.id);
+        if (activeRequirement?.id === req.id) {
+          selectActiveRequirement(undefined, { showPanel: false });
+        }
+        if (expandedSuiteId === req.id) {
+          setExpandedSuiteId(null);
+        }
+      }
+      setToastMessage(
+        `Deleted ${toDelete.length} pending suite${toDelete.length === 1 ? '' : 's'}.`,
+      );
+      setToastType('success');
+    } catch (err: any) {
+      setToastMessage(
+        err?.response?.data?.message || err?.message || 'Failed to delete all pending suites',
+      );
+      setToastType('error');
+    } finally {
+      setDeleteAllPendingOpen(false);
+      setIsDeletingAllPending(false);
+      setToastOpen(true);
+    }
+  };
+
+  const renderRequirementCard = (requirement: Requirement) => {
+    const isSuiteExpanded = expandedSuiteId === requirement.id;
+    const suiteDesignsLoaded =
+      isSuiteExpanded && artifactsRequirementId === requirement.id ? artifacts.designs : [];
+    const suiteDesignsLoading =
+      isSuiteExpanded && artifactsRequirementId === requirement.id && artifacts.isLoadingDesigns;
+    const canApproveInline =
+      isSuiteExpanded &&
+      requirement.approvalStatus === 'Suggested' &&
+      suiteDesignsLoaded.length > 0 &&
+      activeRequirement?.id === requirement.id;
+
+    const suiteConfidence = resolveSuiteConfidence(
+      requirement,
+      mappingByRequirementId.get(requirement.id),
+    );
+
+    return (
     <Card key={requirement.id} className='mb-3'>
       <CardContent className='p-4'>
         <div className='flex items-start justify-between'>
@@ -807,57 +1152,128 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
               <Badge className={getStatusBadgeVariant(requirement.approvalStatus)} variant='outline'>
                 {requirement.approvalStatus}
               </Badge>
-              {(designCountByRequirement[requirement.id] ?? 0) > 0 && (
-                <Badge variant='secondary'>{designCountByRequirement[requirement.id]} test cases</Badge>
+              {isSuiteExpanded && (
+                <Badge variant='secondary'>Test cases shown</Badge>
               )}
             </div>
-            <p className='text-xs text-text-secondary mb-2'>{requirement.description}</p>
-            <div className='flex items-center gap-3 text-xs text-text-secondary'>
+            <div className='flex items-center gap-3 text-xs text-text-secondary flex-wrap'>
               <span>Category: {requirement.category}</span>
-              <span>Confidence: <span className={getConfidenceColor(requirement.confidence)}>{requirement.confidence}%</span></span>
-              <span>Source: {requirement.source}</span>
+              <span className='inline-flex items-center gap-1'>
+                {suiteConfidence.label}:{' '}
+                <span className={getConfidenceColor(suiteConfidence.percent ?? 0)}>
+                  {suiteConfidence.percent !== null ? `${suiteConfidence.percent}%` : '—'}
+                </span>
+                {suiteConfidence.low ? (
+                  <Badge variant='outline' className='text-xs text-amber-800 dark:text-amber-200'>
+                    Low
+                  </Badge>
+                ) : null}
+              </span>
             </div>
-            {requirement.acceptanceCriteria.length > 0 && (
+            {!isSuiteExpanded && requirement.acceptanceCriteria.length > 0 && (
               <div className='mt-2'>
-                <p className='text-xs font-medium text-text-secondary mb-1'>Acceptance Criteria ({requirement.acceptanceCriteria.length})</p>
+                <p className='text-xs font-medium text-text-secondary mb-1'>
+                  Acceptance criteria ({requirement.acceptanceCriteria.length})
+                </p>
                 <ul className='list-disc list-inside text-xs text-text-secondary'>
-                  {requirement.acceptanceCriteria.slice(0, 3).map((ac) => (
+                  {requirement.acceptanceCriteria.slice(0, 2).map((ac) => (
                     <li key={ac.id}>{ac.text}</li>
                   ))}
-                  {requirement.acceptanceCriteria.length > 3 && (
-                    <li className='text-text-secondary'>... and {requirement.acceptanceCriteria.length - 3} more</li>
+                  {requirement.acceptanceCriteria.length > 2 && (
+                    <li className='text-text-secondary'>
+                      ... and {requirement.acceptanceCriteria.length - 2} more
+                    </li>
                   )}
                 </ul>
               </div>
             )}
           </div>
           <div className='ml-2 flex items-center gap-1'>
-            <Button variant='ghost' size='sm' onClick={() => handleReview(requirement)}>
-              <Eye className='h-4 w-4' />
+            <Button
+              variant='ghost'
+              size='sm'
+              onClick={() => handleToggleSuiteView(requirement)}
+              title={isSuiteExpanded ? 'Hide test cases' : 'Show test cases'}
+              aria-label={isSuiteExpanded ? 'Hide test cases' : 'Show test cases'}
+            >
+              {isSuiteExpanded ? (
+                <EyeOff className='h-4 w-4' aria-hidden />
+              ) : (
+                <Eye className='h-4 w-4' aria-hidden />
+              )}
             </Button>
-            {requirement.approvalStatus === 'Suggested' && (
-              <>
-                <Button variant='ghost' size='sm' onClick={() => handleStatusChange(requirement.id, 'Approved')}>
-                  <CheckCircle className='h-4 w-4 text-green-600' />
-                </Button>
-                <Button variant='ghost' size='sm' onClick={() => handleStatusChange(requirement.id, 'Rejected')}>
-                  <XCircle className='h-4 w-4 text-red-600' />
-                </Button>
-              </>
-            )}
-            {(requirement.approvalStatus === 'Approved' || requirement.approvalStatus === 'Rejected') && (
-              <Button variant='ghost' size='sm' onClick={() => handleStatusChange(requirement.id, 'Archived')}>
-                <Archive className='h-4 w-4' />
+            {requirement.approvalStatus === 'Approved' && (
+              <Button
+                variant='ghost'
+                size='sm'
+                onClick={() => void handleStatusChange(requirement.id, 'Archived')}
+                title='Archive'
+                aria-label='Archive requirement'
+              >
+                <Archive className='h-4 w-4' aria-hidden />
               </Button>
             )}
-            <Button variant='ghost' size='sm' onClick={() => { setRequirementToDelete(requirement); setDeleteOpen(true); }} aria-label='Delete requirement'>
-              <Trash2 className='h-4 w-4 text-text-secondary' />
+            <Button
+              variant='ghost'
+              size='sm'
+              onClick={() => {
+                setRequirementToDelete(requirement);
+                setDeleteOpen(true);
+              }}
+              aria-label='Delete requirement'
+            >
+              <Trash2 className='h-4 w-4 text-text-secondary' aria-hidden />
             </Button>
           </div>
         </div>
+
+        {isSuiteExpanded && requirement.approvalStatus !== 'Draft' ? (
+          <div className='mt-4 border-t border-border pt-4'>
+            {canApproveInline ? (
+              <div className='mb-3 flex flex-wrap items-center justify-end gap-2'>
+                <Button
+                  type='button'
+                  size='sm'
+                  onClick={() => void handleApproveTestSuite(requirement)}
+                  disabled={isApprovingSuite || isRejectingSuite}
+                >
+                  <CheckCircle className='mr-2 h-4 w-4' aria-hidden />
+                  {isApprovingSuite ? 'Approving…' : 'Approve test suite'}
+                </Button>
+                <Button
+                  type='button'
+                  size='sm'
+                  variant='outline'
+                  onClick={() => void handleRejectTestSuite()}
+                  disabled={isApprovingSuite || isRejectingSuite}
+                >
+                  <XCircle className='mr-2 h-4 w-4' aria-hidden />
+                  {isRejectingSuite ? 'Rejecting…' : 'Reject'}
+                </Button>
+              </div>
+            ) : null}
+            <TestCasesListBlock
+              requirement={requirement}
+              designs={suiteDesignsLoaded}
+              isLoading={suiteDesignsLoading}
+              onToggleIncluded={toggleDesignIncluded}
+              getPriorityBadgeClassName={getPriorityBadgeVariant}
+              operations={projectOperations}
+              onChangeOperation={handleUpdateDesignOperation}
+              isUpdatingMapping={artifacts.isUpdatingMapping}
+              allowMappingEdit={requirement.approvalStatus !== 'Approved' && requirement.approvalStatus !== 'Archived'}
+            />
+            {requirement.approvalStatus === 'Suggested' ? (
+              <p className='mt-2 text-xs text-text-secondary'>
+                Uncheck cases you do not want included when executing this suite.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
+  };
 
   const renderStrategySection = (section: StrategyCategorySection) => {
     const isExpanded = expandedCategories.has(section.category);
@@ -889,7 +1305,9 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
                       <div className='flex items-center gap-2 mb-1'>
                         <span className='text-xs font-medium text-text-secondary'>APIs:</span>
                         {item.relatedApis.map((api, idx) => (
-                          <Badge key={idx} variant='outline' className='text-xs'>{api}</Badge>
+                          <Badge key={idx} variant='outline' className='text-xs font-mono'>
+                            {formatStrategyApiRef(api)}
+                          </Badge>
                         ))}
                       </div>
                     )}
@@ -1085,7 +1503,6 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
           isGeneratingFromAnalysis={isGenerating}
           onGenerateWithAI={openAIGenerate}
           onImportJson={() => importRequirementsInputRef.current?.click()}
-          onAddRequirement={() => setAddRequirementOpen(true)}
         />
         <input
           ref={importRequirementsInputRef}
@@ -1097,58 +1514,103 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
       </div>
 
       <RequirementCaptureCard
-        onCreateFromCriteria={handleCaptureFromCriteria}
+        key={captureFormKey}
+        onGenerateTestCases={handleCaptureFromCriteria}
         onImportFromJira={() => setJiraImportOpen(true)}
-        isSubmitting={isCreating}
+        isSubmitting={isCreating || isGeneratingTestCases}
+        generateBlocked={captureBlockedByDraft}
+        generateBlockedMessage={
+          showCaptureDraftBanner && openDraftSuite
+            ? `You have an open draft "${openDraftSuite.title}". Continue it below, or reject it to start a new suite.`
+            : undefined
+        }
+        onViewOpenDraft={showCaptureDraftBanner && openDraftSuite ? scrollToDraftPanel : undefined}
+        onDiscardOpenDraft={
+          showCaptureDraftBanner && openDraftSuite
+            ? () => void rejectRequirementSuite(openDraftSuite)
+            : undefined
+        }
+        isDiscardingDraft={isRejectingSuite}
       />
       <JiraImportDialog
         open={jiraImportOpen}
         onClose={() => setJiraImportOpen(false)}
         onImport={handleImportFromJira}
-        isSubmitting={jiraImporting}
+        isSubmitting={jiraImporting || isGeneratingTestCases}
         jiraConfigured={jiraConfigured}
       />
 
-      {/* Suggested Section */}
-      <div className='mb-8'>
-        <div className='flex items-center gap-2 mb-4'>
-          <h2 className='text-lg font-semibold text-text'>Suggested</h2>
-          <Badge variant='secondary'>{suggested.length}</Badge>
-        </div>
-        {suggested.length === 0 ? (
-          <EmptyState
-            icon={<Sparkles className='h-8 w-8' />}
-            title='No suggested requirements'
-            description='Run project analysis to generate suggested requirements, or create them manually.'
-            action={
-              analysisCards.length > 0
-                ? { label: 'Generate from Analysis', onClick: () => handleGenerateFromAnalysis(analysisCards[0].id) }
-                : { label: 'Add Requirement', onClick: () => setAddRequirementOpen(true) }
-            }
-          />
-        ) : (
-          suggested.map(renderRequirementCard)
-        )}
+      <div ref={suitePanelRef}>
+        <GeneratedTestCasesPanel
+          requirement={panelRequirement}
+          designs={panelDesigns}
+          isGenerating={isGeneratingTestCases || isGeneratingDesigns}
+          isLoadingDesigns={artifacts.isLoadingDesigns && showSuiteInPanel}
+          onToggleIncluded={toggleDesignIncluded}
+          getPriorityBadgeClassName={getPriorityBadgeVariant}
+          onApproveSuite={handleApproveTestSuite}
+          onRejectSuite={handleRejectTestSuite}
+          onAddToPendingReview={handleAddToPendingReview}
+          isApproving={isApprovingSuite}
+          isRejecting={isRejectingSuite}
+          isAddingToPending={isAddingToPending}
+          canApproveSuite={canActOnOpenSuite}
+          canRejectSuite={canActOnOpenSuite}
+          canAddToPending={showSuiteInPanel && suiteIsDraft && panelDesigns.length > 0}
+          isSuiteApproved={panelRequirement?.approvalStatus === 'Approved'}
+          operations={projectOperations}
+          onChangeOperation={handleUpdateDesignOperation}
+          isUpdatingMapping={artifacts.isUpdatingMapping}
+          mappingBannerMessage={mappingContextQuery.data?.message}
+          mappingLowConfidence={mappingContextQuery.data?.lowConfidence}
+        />
       </div>
 
-      {/* Approved Section */}
+      {pendingReview.length > 0 && (
+        <div className='mb-8'>
+          <div className='mb-4 flex flex-wrap items-center justify-between gap-2'>
+            <div className='flex items-center gap-2'>
+              <h2 className='text-lg font-semibold text-text'>Pending review</h2>
+              <Badge variant='secondary'>{pendingReview.length}</Badge>
+            </div>
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              className='text-red-600 hover:text-red-700 dark:text-red-400'
+              disabled={isDeletingAllPending}
+              onClick={() => setDeleteAllPendingOpen(true)}
+              aria-label='Delete all pending review suites'
+            >
+              <Trash2 className='mr-2 h-4 w-4' aria-hidden />
+              {isDeletingAllPending ? 'Deleting…' : 'Delete all'}
+            </Button>
+          </div>
+          <p className='mb-3 text-sm text-text-secondary'>
+            Suites appear here after you choose Add to pending review on a generated suite. Use the eye icon on a card to show or hide test cases inside that card.
+          </p>
+          {pendingReview.map((req) => renderRequirementCard(req))}
+        </div>
+      )}
+
       <div className='mb-8'>
-        <div className='flex items-center gap-2 mb-4'>
+        <div className='mb-4 flex items-center gap-2'>
           <h2 className='text-lg font-semibold text-text'>Approved</h2>
           <Badge variant='secondary'>{approved.length}</Badge>
         </div>
         {approved.length === 0 ? (
           <Card className='p-6 text-center'>
-            <p className='text-sm text-text-secondary'>No approved requirements yet. Approve suggested requirements to see them here.</p>
+            <p className='text-sm text-text-secondary'>
+              No approved suites yet. Generate test cases, select which to keep, then click Approve test suite.
+            </p>
           </Card>
         ) : (
-          approved.map(renderRequirementCard)
+          approved.map((req) => renderRequirementCard(req))
         )}
       </div>
 
-      {/* Archived Section */}
-      <div>
-        <div className='flex items-center gap-2 mb-4'>
+      <div className='mb-8'>
+        <div className='mb-4 flex items-center gap-2'>
           <h2 className='text-lg font-semibold text-text'>Archived</h2>
           <Badge variant='secondary'>{archived.length}</Badge>
         </div>
@@ -1157,124 +1619,9 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
             <p className='text-sm text-text-secondary'>No archived requirements.</p>
           </Card>
         ) : (
-          archived.map(renderRequirementCard)
+          archived.map((req) => renderRequirementCard(req))
         )}
       </div>
-
-      {/* Review Dialog */}
-      {reviewOpen && requirementToReview && (
-        <div
-          className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4'
-          onClick={closeReviewModal}
-          role='dialog'
-          aria-modal='true'
-          aria-labelledby='requirement-review-title'
-        >
-          <div
-            className='max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800'
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className='mb-4 flex items-start justify-between gap-4'>
-              <div className='min-w-0 flex-1'>
-                <h3 id='requirement-review-title' className='text-lg font-semibold text-text'>
-                  {requirementToReview.title}
-                </h3>
-                {reviewDisplay?.showDescription && (
-                  <p className='text-sm text-text-secondary'>{reviewDisplay.description}</p>
-                )}
-              </div>
-              <Button type='button' variant='outline' size='sm' onClick={closeReviewModal} aria-label='Close'>
-                Close
-              </Button>
-            </div>
-
-            {reviewDisplay && reviewDisplay.criteria.length > 0 && (
-              <div className='mb-4 rounded-lg border border-border bg-surface/50 p-4'>
-                <h4 className='mb-2 text-sm font-medium text-text'>Acceptance criteria</h4>
-                <ul className='space-y-1'>
-                  {reviewDisplay.criteria.map((ac) => (
-                    <li key={ac.id} className='text-sm text-text-secondary'>
-                      • {ac.text}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <div className='mb-4 flex flex-wrap gap-2'>
-              <Button
-                onClick={() => void handleGenerateTestCasesSmart(requirementToReview)}
-                disabled={isGeneratingTestCases || isGeneratingDesigns}
-              >
-                <Sparkles className='mr-2 h-4 w-4' />
-                {isGeneratingTestCases || isGeneratingDesigns ? 'Generating test cases…' : 'Generate test cases'}
-              </Button>
-              <Button
-                variant='outline'
-                onClick={() => void handleRunTestsFromRequirement(requirementToReview)}
-                disabled={isGeneratingTestCases || isPlanningExecution}
-              >
-                <Play className='mr-2 h-4 w-4' />
-                Run tests
-              </Button>
-            </div>
-            <p className='mb-4 text-xs text-text-secondary'>
-              Test cases are matched to imported API operations and payloads are adjusted for positive, negative, and security scenarios.
-            </p>
-
-            <div>
-              <h4 className='mb-3 text-sm font-medium text-text'>
-                Test cases {displayDesigns.length > 0 ? `(${displayDesigns.length})` : ''}
-              </h4>
-              {displayDesigns.length > 0 ? (
-                <div className='overflow-x-auto rounded-lg border border-border'>
-                  <table className='w-full text-sm'>
-                    <thead className='bg-surface text-left text-xs text-text-secondary'>
-                      <tr>
-                        <th className='px-3 py-2'>Keep</th>
-                        <th className='px-3 py-2'>Test case</th>
-                        <th className='px-3 py-2'>Priority</th>
-                      </tr>
-                    </thead>
-                    <tbody className='divide-y divide-border'>
-                      {displayDesigns.map((design: TestDesign, index: number) => (
-                        <tr key={design.id} className={design.status === 'Disabled' ? 'opacity-50' : ''}>
-                          <td className='px-3 py-2'>
-                            <input
-                              type='checkbox'
-                              checked={design.status !== 'Disabled'}
-                              onChange={() => void toggleDesignIncluded(design)}
-                              aria-label='Keep this test case'
-                            />
-                          </td>
-                          <td className='px-3 py-2 text-sm text-text'>
-                            {getTestCaseLabel(design, requirementToReview.title, index)}
-                          </td>
-                          <td className='px-3 py-2'>
-                            <Badge className={getPriorityBadgeVariant(design.priority)} variant='outline'>
-                              {design.priority}
-                            </Badge>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className='rounded-lg border border-dashed border-border py-8 text-center text-sm text-text-secondary'>
-                  {isGeneratingTestCases || isGeneratingDesigns
-                    ? 'Creating test cases from your requirement…'
-                    : 'No test cases yet. Click Generate test cases above.'}
-                </p>
-              )}
-            </div>
-
-            <div className='mt-6 flex justify-end'>
-              <Button onClick={closeReviewModal}>Done</Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Assertion Picker Modal */}
       {attachAssertionOpen && selectedDesignId && (
@@ -2153,14 +2500,6 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
       )}
 
       {/* Dialogs */}
-      <RequirementFormDialog
-        open={addRequirementOpen}
-        onClose={() => setAddRequirementOpen(false)}
-        onSubmit={handleCreateRequirement}
-        isSubmitting={isCreating}
-        projectId={projectId}
-      />
-
       <ConfirmDialog
         open={deleteOpen}
         title='Delete Requirement'
@@ -2170,6 +2509,19 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
         variant='destructive'
         onConfirm={handleDelete}
         onCancel={() => setDeleteOpen(false)}
+      />
+
+      <ConfirmDialog
+        open={deleteAllPendingOpen}
+        title='Delete all pending suites'
+        message={`This will permanently delete all ${pendingReview.length} suite${
+          pendingReview.length === 1 ? '' : 's'
+        } in Pending review. Approved and archived suites are not affected.`}
+        confirmLabel={isDeletingAllPending ? 'Deleting…' : 'Delete all'}
+        cancelLabel='Cancel'
+        variant='destructive'
+        onConfirm={() => void handleDeleteAllPending()}
+        onCancel={() => setDeleteAllPendingOpen(false)}
       />
 
       <Toast

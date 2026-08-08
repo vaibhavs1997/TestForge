@@ -26,8 +26,13 @@ export class ExecutionController {
     }
     async listExecutions(req: Request, res: Response): Promise<void> {
         const projectId = req.params.projectId;
-        const runs = await this.executionRunRepository.findByProject(projectId);
-        res.status(200).json(createSuccessResponse(runs));
+        try {
+            const runs = await this.executionRunRepository.findByProject(projectId);
+            res.status(200).json(createSuccessResponse(runs));
+        } catch (err: unknown) {
+            console.error('[ExecutionController.listExecutions]', err);
+            res.status(200).json(createSuccessResponse([]));
+        }
     }
     async listExecutionPlans(req: Request, res: Response): Promise<void> {
         const projectId = req.params.projectId;

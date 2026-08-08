@@ -104,8 +104,11 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
     value: string,
     onChange: (v: string) => void,
     errorKey: keyof FieldErrors,
-    options?: { type?: string; autoComplete?: string; placeholder?: string; required?: boolean },
-  ) => (
+    options?: { type?: string; autoComplete?: string; placeholder?: string; required?: boolean; helperText?: string },
+  ) => {
+    const helperId = options?.helperText ? `${id}-helper` : undefined;
+    const errorId = `${id}-error`;
+    return (
     <div>
       <label className="mb-1 block text-sm font-medium text-text" htmlFor={id}>
         {label}
@@ -126,14 +129,22 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
           if (fieldErrors[errorKey]) clearError(errorKey);
         }}
         aria-invalid={Boolean(fieldErrors[errorKey])}
+        aria-describedby={
+          fieldErrors[errorKey] ? errorId : helperId
+        }
       />
       {fieldErrors[errorKey] ? (
-        <p className="mt-1 text-xs text-red-500" role="alert">
+        <p id={errorId} className="mt-1 text-xs text-red-500" role="alert">
           {fieldErrors[errorKey]}
+        </p>
+      ) : options?.helperText ? (
+        <p id={helperId} className="mt-1 text-xs text-text-secondary">
+          {options.helperText}
         </p>
       ) : null}
     </div>
   );
+  };
 
   return (
     <>
@@ -149,6 +160,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
         {textInput('reg-org', 'Organization name', organizationName, setOrganizationName, 'organizationName', {
           placeholder: 'Acme QA Team',
           required: true,
+          helperText: 'Your team or company name; used to isolate projects and data.',
         })}
         {textInput('reg-firstName', 'First name', firstName, setFirstName, 'firstName', {
           autoComplete: 'given-name',
@@ -162,6 +174,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
           type: 'email',
           autoComplete: 'email',
           required: true,
+          helperText: 'We use this email for sign-in and account notifications.',
         })}
         <PasswordField
           id="reg-password"
@@ -185,11 +198,13 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
           }}
           autoComplete="new-password"
           error={fieldErrors.confirmPassword}
+          hint="Re-enter the same password to confirm."
         />
 
         <div>
-          <label className="flex items-start gap-2 text-sm text-text-secondary">
+          <label className="flex items-start gap-2 text-sm text-text-secondary" htmlFor="reg-accept-terms">
             <input
+              id="reg-accept-terms"
               type="checkbox"
               checked={acceptTerms}
               onChange={(e) => {

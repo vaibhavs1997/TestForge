@@ -37,6 +37,8 @@ import { GenerateTestDesigns } from '../../application/requirements/GenerateTest
 import { PlanExecution } from '../../application/requirements/PlanExecution';
 import { GenerateRequirementTestCases } from '../../application/requirements/GenerateRequirementTestCases';
 import { ImportRequirementFromJira } from '../../application/requirements/ImportRequirementFromJira';
+import { UpdateTestDesign } from '../../application/requirements/UpdateTestDesign';
+import { GetRequirementMappingContext } from '../../application/requirements/GetRequirementMappingContext';
 import { asyncHandler } from '../middleware/AsyncHandler';
 
 const createRequirement = new CreateRequirement(requirementRepository);
@@ -94,6 +96,17 @@ const generateRequirementTestCases = new GenerateRequirementTestCases(
   planExecution,
 );
 
+const updateTestDesign = new UpdateTestDesign(
+  testDesignRepository,
+  apiOperationRepository,
+  testStrategyRepository,
+);
+
+const getRequirementMappingContext = new GetRequirementMappingContext(
+  requirementRepository,
+  apiOperationRepository,
+);
+
 // AI requirement generation (reused from container)
 const aiRequirementController = new AIRequirementController(
   generateRequirementsWithAI,
@@ -117,6 +130,8 @@ const requirementController = new RequirementController(
   planExecution,
   generateRequirementTestCases,
   importRequirementFromJira,
+  updateTestDesign,
+  getRequirementMappingContext,
   testDesignRepository,
   executionPlanRepository,
 );
@@ -140,6 +155,7 @@ router.get('/projects/:projectId/requirements/:requirementId/validate', asyncHan
 router.post('/projects/:projectId/requirements/:requirementId/generate-test-cases', asyncHandler((req, res) => requirementController.generateTestCases(req, res)));
 router.post('/projects/:projectId/requirements/:requirementId/strategy', asyncHandler((req, res) => requirementController.planTestStrategy(req, res)));
 router.post('/projects/:projectId/requirements/:requirementId/designs', asyncHandler((req, res) => requirementController.generateTestDesigns(req, res)));
+router.get('/projects/:projectId/requirements/:requirementId/mapping-context', asyncHandler((req, res) => requirementController.getMappingContext(req, res)));
 router.get('/projects/:projectId/requirements/:requirementId/test-designs', asyncHandler((req, res) => requirementController.listTestDesigns(req, res)));
 router.patch('/projects/:projectId/test-designs/:testDesignId', asyncHandler((req, res) => requirementController.updateTestDesign(req, res)));
 router.post('/projects/:projectId/requirements/:requirementId/execution-plans', asyncHandler((req, res) => requirementController.planExecution(req, res)));

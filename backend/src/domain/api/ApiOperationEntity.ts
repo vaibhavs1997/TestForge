@@ -3,6 +3,8 @@
 export class ApiOperationEntity {
   /** Example request JSON from OpenAPI / Postman import, used for scenario payloads. */
   sampleRequestBody: Record<string, unknown> | null = null;
+  /** OpenAPI request body schema `required` property names (mandatory fields only). */
+  requiredRequestBodyFields: string[] | null = null;
 
   constructor(
     public readonly id: string,

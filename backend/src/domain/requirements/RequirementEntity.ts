@@ -4,7 +4,7 @@
 
 export type RequirementSource = 'ProjectAnalysis' | 'Manual' | 'Jira';
 export type ReviewStatus = 'Pending' | 'Reviewed';
-export type ApprovalStatus = 'Suggested' | 'Approved' | 'Rejected' | 'Archived';
+export type ApprovalStatus = 'Draft' | 'Suggested' | 'Approved' | 'Rejected' | 'Archived';
 
 export interface AcceptanceCriterion {
   id: string;

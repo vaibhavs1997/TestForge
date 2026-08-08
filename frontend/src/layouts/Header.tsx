@@ -28,7 +28,7 @@ export const Header: React.FC = () => {
             to="/"
             className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
           >
-            <Home className="h-4 w-4" />
+            <Home className="h-4 w-4" aria-hidden />
             Home
           </Link>
         ) : (
@@ -36,7 +36,7 @@ export const Header: React.FC = () => {
             to="/projects"
             className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
           >
-            <FolderKanban className="h-4 w-4" />
+            <FolderKanban className="h-4 w-4" aria-hidden />
             Projects
           </Link>
         )}
@@ -45,7 +45,7 @@ export const Header: React.FC = () => {
           className="rounded-lg p-2 text-text-secondary hover:bg-surface hover:text-text transition-colors"
           aria-label="Toggle theme"
         >
-          {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+          {theme === 'light' ? <Moon className="h-5 w-5" aria-hidden /> : <Sun className="h-5 w-5" aria-hidden />}
         </button>
       </div>
     </header>

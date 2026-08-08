@@ -13,7 +13,7 @@ import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
 import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
 import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
 import { EventPublisher } from '../EventPublisher';
-import { extractOpenApiSampleRequestBody, extractPostmanSampleRequestBody } from './openApiSampleBody';
+import { extractOpenApiSampleRequestBody, extractOpenApiRequiredRequestBodyFields, extractPostmanSampleRequestBody } from './openApiSampleBody';
 
 // ─── DTOs ────────────────────────────────────────────────
 
@@ -43,6 +43,7 @@ interface ParsedOperation {
   authenticationType: string;
   status: string;
   sampleRequestBody: Record<string, unknown> | null;
+  requiredRequestBodyFields: string[] | null;
 }
 
 interface ParsedService {
@@ -227,6 +228,7 @@ function extractFromOpenApi(spec: any, warnings: string[]): ParsedService[] {
         authenticationType: authType,
         status: 'Active',
         sampleRequestBody: extractOpenApiSampleRequestBody(op as Record<string, unknown>),
+        requiredRequestBodyFields: extractOpenApiRequiredRequestBodyFields(op as Record<string, unknown>),
       });
     }
   }
@@ -308,6 +310,7 @@ function extractFromPostman(spec: any, warnings: string[]): ParsedService[] {
           authenticationType: authType,
           status: 'Active',
           sampleRequestBody: extractPostmanSampleRequestBody(req as Record<string, unknown>),
+          requiredRequestBodyFields: null,
         });
       }
     }
@@ -646,6 +649,7 @@ function parseGraphQLFields(body: string, typeName: string): ParsedOperation[] {
         authenticationType: 'None',
         status: 'Active',
         sampleRequestBody: null,
+        requiredRequestBodyFields: null,
       });
     }
   }
@@ -680,6 +684,7 @@ function extractFromGraphQLIntrospection(spec: any, warnings: string[]): ParsedS
         authenticationType: 'None',
         status: 'Active',
         sampleRequestBody: null,
+        requiredRequestBodyFields: null,
       });
     }
 
@@ -841,6 +846,7 @@ export class ImportApiContract {
             authenticationType: op.authenticationType,
             status: op.status,
             sampleRequestBody: op.sampleRequestBody,
+            requiredRequestBodyFields: op.requiredRequestBodyFields,
           });
           operationsUpdated++;
         } else {
@@ -859,6 +865,7 @@ export class ImportApiContract {
             now
           );
           operation.sampleRequestBody = op.sampleRequestBody;
+          operation.requiredRequestBodyFields = op.requiredRequestBodyFields;
           await this.apiOperationRepository.create(operation);
           operationsImported++;
         }

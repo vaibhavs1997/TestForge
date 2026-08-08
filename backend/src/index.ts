@@ -47,6 +47,7 @@ import { createActivityStreamRoutes } from './interfaces/realtime/ActivityStream
 import { createAuthRoutes } from './interfaces/auth/AuthRoutes';
 import { connectMongo, disconnectMongo } from './infrastructure/auth/mongoClient';
 import { loadEnv } from './config/loadEnv';
+import { logger } from './infrastructure/logging/Logger';
 
 loadEnv();
 
@@ -55,7 +56,7 @@ async function bootstrap(): Promise<void> {
   try {
     config = validateConfig();
   } catch (err) {
-    console.error(err instanceof Error ? err.message : 'Configuration validation failed');
+    logger.error('Configuration validation failed', { error: err instanceof Error ? err.message : err });
     process.exit(1);
   }
 
@@ -66,16 +67,13 @@ async function bootstrap(): Promise<void> {
     config.mongodbUri
       ? connectMongo(config.mongodbUri)
           .then(() => {
-            console.log('Connected to MongoDB (enterprise user accounts enabled)');
+            logger.info('Connected to MongoDB (enterprise user accounts enabled)');
           })
           .catch((err) => {
-            console.error(
-              'MongoDB connection failed — login/register will not work until this is fixed:',
-              err instanceof Error ? err.message : err,
-            );
-            console.error(
-              'Check Atlas Network Access (your IP), database user password (URL-encode @ as %40), and cluster hostname.',
-            );
+            logger.error('MongoDB connection failed — login/register will not work until this is fixed', {
+              error: err instanceof Error ? err.message : err,
+              hint: 'Check Atlas Network Access (your IP), database user password (URL-encode @ as %40), and cluster hostname.',
+            });
           })
       : Promise.resolve();
 
@@ -144,111 +142,116 @@ async function bootstrap(): Promise<void> {
 
   const serverStartTime = Date.now();
 
-// ── Health Endpoints ─────────────────────────────────────────────────────
-app.get('/health', (_req, res) => {
-  res.status(200).json({
-    status: 'ok',
-    uptime: Math.round((Date.now() - serverStartTime) / 1000),
-    version: config.version,
-    build: config.buildTimestamp,
-    gitCommit: config.gitCommit,
-  });
-});
-
-app.get('/ready', (_req, res) => {
-  res.status(200).json({
-    status: 'ready',
-    uptime: Math.round((Date.now() - serverStartTime) / 1000),
-    version: config.version,
-    build: config.buildTimestamp,
-  });
-});
-
-app.use('/api', apiRoutes);
-app.use('/api', environmentRoutes);
-app.use('/api', datasetRoutes);
-app.use('/api', mappingRoutes);
-app.use('/api', columnRoutes);
-app.use('/api', profileRoutes);
-app.use('/api', rowRoutes);
-app.use('/api', knowledgeRoutes);
-app.use('/api', analysisRoutes);
-app.use('/api', requirementRoutes);
-app.use('/api', executionRoutes);
-app.use('/api', executionProfileRoutes);
-app.use('/api', recommendationRoutes);
-app.use('/api', pipelineRoutes);
-app.use('/api', testSuiteRoutes);
-app.use('/api', reportRoutes);
-app.use('/api', integrationRoutes);
-app.use('/api', assertionRoutes);
-app.use('/api', importRoutes);
-app.use('/api', relationshipRoutes);
-app.use('/api', providerRoutes);
-app.use('/api', scheduleRoutes);
-app.use('/api', projectContextRoutes);
-app.use('/api', promptRoutes);
-app.use('/api', aiProviderRoutes);
-
-// Initialize Plugin module (must be before Notification to allow provider resolution)
-const pluginController = new PluginController(container.pluginService);
-app.use('/api', createPluginRoutes(pluginController));
-
-// Load built-in plugins on startup
-container.pluginLoader.loadBuiltInPlugins().catch(err => console.error('Failed to load plugins:', err));
-
-// Initialize Notification module (uses Plugin Registry for provider resolution)
-const notificationController = new NotificationController(container.notificationService);
-app.use('/api', createNotificationRoutes(notificationController));
-
-// Initialize Versioning module
-const versionController = new VersionController(container.versionService);
-app.use('/api', createVersionRoutes(versionController));
-
-// Initialize Audit Log module
-const auditLogController = new AuditLogController(container.auditLogService);
-app.use('/api', createAuditLogRoutes(auditLogController));
-
-// Initialize Backup & Restore module
-const backupService = new BackupService();
-app.use('/api', createBackupRoutes(backupService));
-
-// ── 404 Not Found Handler ───────────────────────────────────────────────────
-// Must be before error handler middleware
-app.use(notFoundHandler);
-
-// ── Error Handler Middleware ────────────────────────────────────────────────
-// Must be registered LAST, after all routes and middleware
-app.use(errorHandler);
-
-const server = app.listen(port, () => {
-  console.log(`Server running on port ${port} (${config.nodeEnv})`);
-  console.log(`Version: ${config.version}, Build: ${config.buildTimestamp}, Commit: ${config.gitCommit}`);
-});
-
-// ── Graceful Shutdown ────────────────────────────────────────────────────
-const shutdown = (signal: string) => {
-  console.log(`\nReceived ${signal}. Shutting down gracefully...`);
-
-  server.close(async () => {
-    container.activityStreamHub.stop();
-    await disconnectMongo();
-    console.log('HTTP server closed.');
-    process.exit(0);
+  // ── Health Endpoints ─────────────────────────────────────────────────────
+  app.get('/health', (_req, res) => {
+    res.status(200).json({
+      status: 'ok',
+      uptime: Math.round((Date.now() - serverStartTime) / 1000),
+      version: config.version,
+      build: config.buildTimestamp,
+      gitCommit: config.gitCommit,
+    });
   });
 
-  // Force exit after 10s if connections hang
-  setTimeout(() => {
-    console.error('Forced shutdown after timeout.');
-    process.exit(1);
-  }, 10000).unref();
-};
+  app.get('/ready', (_req, res) => {
+    res.status(200).json({
+      status: 'ready',
+      uptime: Math.round((Date.now() - serverStartTime) / 1000),
+      version: config.version,
+      build: config.buildTimestamp,
+    });
+  });
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+  app.use('/api', apiRoutes);
+  app.use('/api', environmentRoutes);
+  app.use('/api', datasetRoutes);
+  app.use('/api', mappingRoutes);
+  app.use('/api', columnRoutes);
+  app.use('/api', profileRoutes);
+  app.use('/api', rowRoutes);
+  app.use('/api', knowledgeRoutes);
+  app.use('/api', analysisRoutes);
+  app.use('/api', requirementRoutes);
+  app.use('/api', executionRoutes);
+  app.use('/api', executionProfileRoutes);
+  app.use('/api', recommendationRoutes);
+  app.use('/api', pipelineRoutes);
+  app.use('/api', testSuiteRoutes);
+  app.use('/api', reportRoutes);
+  app.use('/api', integrationRoutes);
+  app.use('/api', assertionRoutes);
+  app.use('/api', importRoutes);
+  app.use('/api', relationshipRoutes);
+  app.use('/api', providerRoutes);
+  app.use('/api', scheduleRoutes);
+  app.use('/api', projectContextRoutes);
+  app.use('/api', promptRoutes);
+  app.use('/api', aiProviderRoutes);
+
+  // Initialize Plugin module (must be before Notification to allow provider resolution)
+  const pluginController = new PluginController(container.pluginService);
+  app.use('/api', createPluginRoutes(pluginController));
+
+  // Load built-in plugins on startup
+  container.pluginLoader.loadBuiltInPlugins().catch((err) => 
+    logger.error('Failed to load plugins', { error: err instanceof Error ? err.message : err })
+  );
+
+  // Initialize Notification module (uses Plugin Registry for provider resolution)
+  const notificationController = new NotificationController(container.notificationService);
+  app.use('/api', createNotificationRoutes(notificationController));
+
+  // Initialize Versioning module
+  const versionController = new VersionController(container.versionService);
+  app.use('/api', createVersionRoutes(versionController));
+
+  // Initialize Audit Log module
+  const auditLogController = new AuditLogController(container.auditLogService);
+  app.use('/api', createAuditLogRoutes(auditLogController));
+
+  // Initialize Backup & Restore module
+  const backupService = new BackupService();
+  app.use('/api', createBackupRoutes(backupService));
+
+  // ── 404 Not Found Handler ───────────────────────────────────────────────────
+  // Must be before error handler middleware
+  app.use(notFoundHandler);
+
+  // ── Error Handler Middleware ────────────────────────────────────────────────
+  // Must be registered LAST, after all routes and middleware
+  app.use(errorHandler);
+
+  const server = app.listen(port, () => {
+    logger.info(`Server running on port ${port} (${config.nodeEnv})`, {
+      version: config.version,
+      buildTimestamp: config.buildTimestamp,
+      gitCommit: config.gitCommit,
+    });
+  });
+
+  // ── Graceful Shutdown ────────────────────────────────────────────────────
+  const shutdown = (signal: string) => {
+    logger.warn(`Received ${signal}. Shutting down gracefully...`);
+
+    server.close(async () => {
+      container.activityStreamHub.stop();
+      await disconnectMongo();
+      logger.info('HTTP server closed.');
+      process.exit(0);
+    });
+
+    // Force exit after 10s if connections hang
+    setTimeout(() => {
+      logger.error('Forced shutdown after timeout.');
+      process.exit(1);
+    }, 10000).unref();
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 bootstrap().catch((err) => {
-  console.error(err instanceof Error ? err.message : err);
+  logger.error('Failed to start server', { error: err instanceof Error ? err.message : err });
   process.exit(1);
 });

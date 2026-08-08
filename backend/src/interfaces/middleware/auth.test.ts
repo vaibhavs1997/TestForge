@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import jwt from 'jsonwebtoken';
 import { authenticate, authorizeProject } from './auth';
-import { AppError } from './ErrorHandler';
+import { AppError } from '../../shared/errors';
 
 describe('auth middleware', () => {
   const originalEnv = { ...process.env };

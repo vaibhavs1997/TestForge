@@ -78,9 +78,17 @@ export function validateConfig(env: NodeJS.ProcessEnv = process.env): AppConfig 
   const mongodbUri = env.MONGODB_URI?.trim() || undefined;
   const auth = getAuthConfig(env);
 
+  // Require authentication in production
+  const nodeEnv = env.NODE_ENV || 'development';
+  if (nodeEnv === 'production' && !auth.enabled) {
+    throw new Error(
+      'Configuration validation failed. Authentication is required in production. Set TESTFORGE_API_KEY or TESTFORGE_JWT_SECRET.'
+    );
+  }
+
   return {
     port,
-    nodeEnv: env.NODE_ENV || 'development',
+    nodeEnv,
     dbPath: env.DB_PATH || './data/testforge.db',
     persistenceDriver,
     corsOrigin: env.CORS_ORIGIN || '*',

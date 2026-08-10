@@ -1,6 +1,7 @@
 // API service for API Management
-import type { AxiosProgressEvent } from 'axios';
+import type { AxiosProgressEvent, AxiosRequestConfig } from 'axios';
 import { ApiClient } from '../../../services/ApiClient';
+import { apiAxios } from '../../../services/apiAxios';
 import type { ImportSummary } from '../types';
 
 export interface ApiServiceDto {
@@ -112,7 +113,9 @@ class ApiService extends ApiClient<ApiServiceDto> {
     }
   ): Promise<ApiOperationDto> {
     const path = `/projects/${projectId}/services/${serviceId}/apis/${apiId}`;
-    return this.post(path, payload, { method: 'PATCH' });
+    const url = `${this.baseUrl}${path}`;
+    const { data } = await apiAxios.patch(url, payload);
+    return data.data;
   }
 
   async deleteOperation(projectId: string, serviceId: string, apiId: string): Promise<void> {

@@ -63,6 +63,10 @@ export interface Operation {
   tags?: string[];
   version?: string;
   isCustom?: boolean;
+  /** Example request JSON from OpenAPI / Postman import */
+  sampleRequestBody?: Record<string, unknown> | null;
+  /** OpenAPI request body schema `required` property names (mandatory fields only) */
+  requiredRequestBodyFields?: string[] | null;
   createdAt?: number;
   updatedAt?: number;
 }

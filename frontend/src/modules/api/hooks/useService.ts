@@ -103,6 +103,8 @@ const mapOperation = (raw: any, serviceName?: string): Operation => ({
   authenticationType: raw.authenticationType,
   authentication: raw.authenticationType,
   tags: raw.tags || [],
+  sampleRequestBody: raw.sampleRequestBody ?? null,
+  requiredRequestBodyFields: raw.requiredRequestBodyFields ?? null,
   createdAt: raw.createdAt,
   updatedAt: raw.updatedAt,
 });

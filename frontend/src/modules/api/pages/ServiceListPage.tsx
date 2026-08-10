@@ -51,6 +51,44 @@ interface ServiceWithOperations extends Service {
   operations: OperationLocal[];
 }
 
+/** Local JSON editor that keeps raw text state and only emits parsed objects. */
+const RequestBodyEditor = ({
+  value,
+  onChange,
+}: {
+  value: Record<string, unknown> | null | undefined;
+  onChange: (value: Record<string, unknown> | null) => void;
+}) => {
+  const [raw, setRaw] = React.useState(() => JSON.stringify(value ?? {}, null, 2));
+
+  React.useEffect(() => {
+    setRaw(JSON.stringify(value ?? {}, null, 2));
+  }, [JSON.stringify(value)]);
+
+  const handleChange = (text: string) => {
+    setRaw(text);
+    if (!text.trim()) {
+      onChange({});
+      return;
+    }
+    try {
+      const parsed = JSON.parse(text);
+      onChange(parsed);
+    } catch {
+      // keep raw text while invalid; don't call onChange
+    }
+  };
+
+  return (
+    <textarea
+      value={raw}
+      onChange={(e) => handleChange(e.target.value)}
+      className='h-64 w-full rounded-lg border border-border bg-surface p-3 font-mono text-sm text-text'
+      spellCheck={false}
+    />
+  );
+};
+
 /** Convert a raw operation from the hook into the local shape the UI expects. */
 const toOperationLocal = (op: Operation, serviceName: string): OperationLocal => ({
   id: op.id,
@@ -67,6 +105,8 @@ const toOperationLocal = (op: Operation, serviceName: string): OperationLocal =>
   tags: op.tags || [],
   version: op.version,
   isCustom: true,
+  sampleRequestBody: op.sampleRequestBody ?? null,
+  requiredRequestBodyFields: op.requiredRequestBodyFields ?? null,
   createdAt: op.createdAt,
   updatedAt: op.updatedAt,
 });
@@ -86,12 +126,14 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
 
   // Fetch all operations for every service in this project
   const serviceIds = React.useMemo(() => services.map((s) => s.id), [services]);
-  const { operations: rawOperations, createOperationAsync } = useApiOperations(projectId, serviceIds);
+  const { operations: rawOperations, createOperationAsync, updateOperationAsync } = useApiOperations(projectId, serviceIds);
 
   const [search, setSearch] = React.useState('');
   const [selectedService, setSelectedService] = React.useState<ServiceWithOperations | null>(null);
   const [selectedOperation, setSelectedOperation] = React.useState<OperationLocal | null>(null);
   const [activeTab, setActiveTab] = React.useState('overview');
+  const [operationEditDraft, setOperationEditDraft] = React.useState<OperationLocal | null>(null);
+  const restoredDraftIds = React.useRef<Set<string>>(new Set());
   const [methodFilter, setMethodFilter] = React.useState('');
   const [createOpen, setCreateOpen] = React.useState(false);
   const [addApiOpen, setAddApiOpen] = React.useState(false);
@@ -102,6 +144,7 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
   const [importOpen, setImportOpen] = React.useState(false);
   const [toastOpen, setToastOpen] = React.useState(false);
   const [expandedServices, setExpandedServices] = React.useState<Set<string>>(new Set());
+  const [pendingAutoSelect, setPendingAutoSelect] = React.useState(false);
 
   // Import contract state
   const [uploadProgress, setUploadProgress] = React.useState(0);
@@ -143,16 +186,36 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
     return '';
   }, [selectedOperation, executionBaseUrl, selectedService?.baseUrl]);
 
-  // Auto-select and expand first service if none selected
+  // Auto-select and expand the first service + first operation when data is available.
+  // Handles the case where operations load asynchronously AFTER services.
   React.useEffect(() => {
-    if (!selectedService && servicesWithOperations.length > 0) {
-      setSelectedService(servicesWithOperations[0]);
-      setExpandedServices((prev) => new Set(prev).add(servicesWithOperations[0].id));
-      if (servicesWithOperations[0].operations.length > 0) {
-        setSelectedOperation(servicesWithOperations[0].operations[0]);
-      }
+    if (servicesWithOperations.length === 0) return;
+    const firstService = servicesWithOperations[0];
+
+    if (!selectedService) {
+      setSelectedService(firstService);
+      setExpandedServices((prev) => new Set(prev).add(firstService.id));
     }
-  }, [servicesWithOperations, selectedService]);
+
+    // Select the first operation once operations are available
+    if (!selectedOperation && firstService.operations.length > 0) {
+      setSelectedOperation(firstService.operations[0]);
+    }
+  }, [servicesWithOperations, selectedService, selectedOperation]);
+
+  // After an import completes, auto-select the first service + first operation.
+  // Keep the flag until BOTH services and operations have loaded.
+  React.useEffect(() => {
+    if (!pendingAutoSelect) return;
+    if (servicesWithOperations.length === 0) return; // services not loaded yet
+    const firstService = servicesWithOperations[0];
+    if (firstService.operations.length === 0) return; // operations not loaded yet — keep flag
+    setPendingAutoSelect(false);
+    setSelectedService(firstService);
+    setExpandedServices((prev) => new Set(prev).add(firstService.id));
+    setSelectedOperation(firstService.operations[0]);
+    setActiveTab('overview');
+  }, [pendingAutoSelect, servicesWithOperations]);
 
   // Clear selection when the service was deleted or list refreshed
   React.useEffect(() => {
@@ -204,6 +267,63 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
   const handleOperationClick = (operation: OperationLocal) => {
     setSelectedOperation(operation);
     setActiveTab('overview');
+  };
+
+  // Restore Request body draft from sessionStorage when switching operations or on mount.
+  React.useEffect(() => {
+    if (!selectedOperation) return;
+    if (restoredDraftIds.current.has(selectedOperation.id)) return;
+    const stored = sessionStorage.getItem(`operation-draft-${selectedOperation.id}`);
+    const base = stored ? { ...selectedOperation, sampleRequestBody: JSON.parse(stored) } : { ...selectedOperation };
+    setOperationEditDraft(base);
+    restoredDraftIds.current.add(selectedOperation.id);
+  }, [selectedOperation?.id]);
+
+  // Persist Request body draft to sessionStorage whenever it changes.
+  React.useEffect(() => {
+    if (!operationEditDraft?.id) return;
+    const { sampleRequestBody, ...rest } = operationEditDraft;
+    if (sampleRequestBody !== undefined) {
+      sessionStorage.setItem(`operation-draft-${operationEditDraft.id}`, JSON.stringify(sampleRequestBody));
+    }
+  }, [operationEditDraft?.id, operationEditDraft?.sampleRequestBody]);
+
+  const handleOperationDraftChange = (field: keyof OperationLocal, value: string | Record<string, unknown> | null) => {
+    setOperationEditDraft((prev) => (prev ? { ...prev, [field]: value } : prev));
+  };
+
+  const saveOperationEdit = async () => {
+    if (!selectedOperation || !operationEditDraft) return;
+    try {
+      const updated = await updateOperationAsync({
+        apiId: selectedOperation.id,
+        serviceId: selectedOperation.serviceId || '',
+        name: operationEditDraft.name || operationEditDraft.apiName || '',
+        method: operationEditDraft.method,
+        path: operationEditDraft.path,
+        description: operationEditDraft.description,
+        authenticationType: operationEditDraft.authenticationType,
+        status: operationEditDraft.status === 'active' ? 'Active' : 'Inactive',
+      });
+      // Sync the selected operation with the backend response so edits survive refresh/navigation
+      if (updated) {
+        setSelectedOperation((prev) => {
+          if (!prev) return prev;
+          const normalized = {
+            ...updated,
+            status: (updated.status === 'Active' ? 'active' : updated.status === 'Inactive' ? 'inactive' : updated.status) as OperationLocal['status'],
+            // Preserve sampleRequestBody from draft since backend doesn't return it
+            sampleRequestBody: (operationEditDraft?.sampleRequestBody ?? (updated as any).sampleRequestBody) as Record<string, unknown> | null | undefined,
+          } as OperationLocal;
+          return { ...prev, ...normalized };
+        });
+      }
+      setSummaryMessage('API endpoint updated successfully.');
+      setSummaryToastOpen(true);
+    } catch (error: any) {
+      setErrorMessage(error?.message || 'Failed to update API endpoint.');
+      setErrorToastOpen(true);
+    }
   };
 
   const handleCreate = (data: ServiceFormData) => {
@@ -279,6 +399,7 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
     const onImportSuccess = (summary: ImportSummary) => {
       setProgressToastOpen(false);
       setUploadProgress(0);
+      setPendingAutoSelect(true);
       applyImportSummaryToUi(summary, {
         onEnvironments: (envs) => {
           setDetectedEnvironments(envs);
@@ -332,6 +453,7 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
           .then((result) => {
             setProgressToastOpen(false);
             setUploadProgress(0);
+            setPendingAutoSelect(true);
             void queryClient.invalidateQueries({ queryKey: queryKeys.services(projectId) });
             void queryClient.invalidateQueries({ queryKey: queryKeys.operations(projectId) });
             void queryClient.invalidateQueries({ queryKey: queryKeys.environments(projectId) });
@@ -445,9 +567,8 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
   const tabs = [
     { id: 'overview', label: 'Overview' },
     { id: 'request', label: 'Request' },
-    { id: 'response', label: 'Response' },
-    { id: 'schema', label: 'Schema' },
-    { id: 'tests', label: 'Tests' },
+    { id: 'params', label: 'Params' },
+    { id: 'headers', label: 'Headers' },
     { id: 'history', label: 'History' },
   ];
 
@@ -506,12 +627,22 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
           placeholder='Search services or endpoints...'
           className='w-full sm:max-w-xl lg:max-w-2xl'
         />
-        <Select
-          options={methodFilterOptions}
-          value={methodFilter}
-          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setMethodFilter(e.target.value)}
-          className='h-10 w-full sm:w-44 sm:shrink-0'
-        />
+        <div className='flex items-center gap-3'>
+          <Select
+            options={methodFilterOptions}
+            value={methodFilter}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setMethodFilter(e.target.value)}
+            className='h-10 w-full sm:w-44 sm:shrink-0'
+          />
+          <ApiTryEnvironmentSelect
+            projectId={projectId}
+            environments={environments}
+            value={environmentId}
+            onChange={setEnvironmentId}
+            isLoading={environmentsLoading}
+            compact
+          />
+        </div>
       </div>
 
       {/* Main Content - Two Column Layout */}
@@ -591,11 +722,15 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
                                 : 'hover:bg-surface text-text-secondary'
                             }`}
                           >
-                            <div className='flex items-center gap-2'>
+                            <div className='flex min-w-0 items-center gap-2'>
                               <Badge className={`text-xs ${getMethodColor(operation.method)}`} variant='outline'>
                                 {operation.method}
                               </Badge>
-                              <span className='text-sm font-mono'>{operation.path}</span>
+                              <div className='min-w-0'>
+                                <div className='truncate text-sm font-medium'>
+                                  {operation.apiName || operation.name || operation.path}
+                                </div>
+                              </div>
                             </div>
                             <div className={`h-2 w-2 rounded-full ${operation.status === 'active' ? 'bg-green-500' : 'bg-gray-400'}`} />
                           </button>
@@ -626,14 +761,6 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
                     </Badge>
                   </div>
                   <div className='flex flex-wrap items-center justify-end gap-2'>
-                    <ApiTryEnvironmentSelect
-                      projectId={projectId}
-                      environments={environments}
-                      value={environmentId}
-                      onChange={setEnvironmentId}
-                      isLoading={environmentsLoading}
-                      compact
-                    />
                     <Button
                       variant='outline'
                       size='sm'
@@ -655,8 +782,8 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
                       <Play className='mr-2 h-4 w-4' />
                       Try It
                     </Button>
-                    <Button variant='ghost' size='sm'>
-                      <Edit className='h-4 w-4' />
+                    <Button variant='outline' size='sm' onClick={() => void saveOperationEdit()}>
+                      Save
                     </Button>
                     <Button variant='ghost' size='sm'>
                       <MoreVertical className='h-4 w-4' />
@@ -688,20 +815,21 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
               <div className='p-6'>
                 {activeTab === 'overview' && (
                   <div className='space-y-6'>
-                    {/* Operation Summary */}
-                    <div>
-                      <h3 className='text-sm font-semibold text-text mb-2'>Operation Summary</h3>
-                      <p className='text-sm text-text-secondary'>
-                        {selectedOperation.apiName || selectedOperation.description}
-                      </p>
-                    </div>
-
                     {/* Description */}
                     <div>
                       <h3 className='text-sm font-semibold text-text mb-2'>Description</h3>
-                      <p className='text-sm text-text-secondary'>
-                        {selectedOperation.description || 'No description provided.'}
-                      </p>
+                      {operationEditDraft ? (
+                        <textarea
+                          value={operationEditDraft.description}
+                          onChange={(e) => handleOperationDraftChange('description', e.target.value)}
+                          className='w-full rounded-lg border border-border bg-surface p-3 text-sm text-text'
+                          rows={3}
+                        />
+                      ) : (
+                        <p className='text-sm text-text-secondary'>
+                          {selectedOperation.description || 'No description provided.'}
+                        </p>
+                      )}
                     </div>
 
                     {/* Tags */}
@@ -727,18 +855,22 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
                         </p>
                       </div>
                       <div>
-                        <h3 className='text-sm font-semibold text-text mb-1'>API Name</h3>
+                        <h3 className='text-sm font-semibold text-text mb-1'>Version</h3>
                         <p className='text-sm text-text-secondary'>
-                          {selectedOperation.apiName || selectedOperation.description}
+                          {selectedOperation.version || 'v1'}
                         </p>
                       </div>
                       <div>
-                        <h3 className='text-sm font-semibold text-text mb-1'>HTTP Method</h3>
-                        <Badge className={getMethodColor(selectedOperation.method)}>{selectedOperation.method}</Badge>
-                      </div>
-                      <div>
                         <h3 className='text-sm font-semibold text-text mb-1'>Endpoint Path</h3>
-                        <code className='text-sm text-text-secondary'>{selectedOperation.path}</code>
+                        {operationEditDraft ? (
+                          <input
+                            value={operationEditDraft.path}
+                            onChange={(e) => handleOperationDraftChange('path', e.target.value)}
+                            className='w-full rounded-lg border border-border bg-surface p-2 text-sm font-mono text-text'
+                          />
+                        ) : (
+                          <code className='text-sm text-text-secondary'>{selectedOperation.path}</code>
+                        )}
                       </div>
                       <div>
                         <h3 className='text-sm font-semibold text-text mb-1'>Service base URL</h3>
@@ -757,15 +889,17 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
                       </div>
                       <div>
                         <h3 className='text-sm font-semibold text-text mb-1'>Authentication</h3>
-                        <p className='text-sm text-text-secondary'>
-                          {selectedOperation.authentication || 'None'}
-                        </p>
-                      </div>
-                      <div>
-                        <h3 className='text-sm font-semibold text-text mb-1'>Version</h3>
-                        <p className='text-sm text-text-secondary'>
-                          {selectedOperation.version || 'v1'}
-                        </p>
+                        {operationEditDraft ? (
+                          <input
+                            value={operationEditDraft.authenticationType || operationEditDraft.authentication || ''}
+                            onChange={(e) => handleOperationDraftChange('authenticationType', e.target.value)}
+                            className='w-full rounded-lg border border-border bg-surface p-2 text-sm text-text'
+                          />
+                        ) : (
+                          <p className='text-sm text-text-secondary'>
+                            {selectedOperation.authentication || 'None'}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -773,52 +907,38 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
 
                 {activeTab === 'request' && (
                   <div className='space-y-4'>
-                    <div className='rounded-lg border border-border bg-surface/40 p-4'>
-                      <h3 className='text-sm font-semibold text-text mb-2'>Request target</h3>
-                      <ApiTryEnvironmentSelect
-                        projectId={projectId}
-                        environments={environments}
-                        value={environmentId}
-                        onChange={setEnvironmentId}
-                        isLoading={environmentsLoading}
-                      />
-                      {operationFullUrl && (
-                        <p className='mt-3 text-sm'>
-                          <span className='font-medium text-text'>URL: </span>
-                          <code className='break-all text-text-secondary'>{operationFullUrl}</code>
-                        </p>
-                      )}
-                    </div>
-                    <h3 className='text-sm font-semibold text-text'>Request body &amp; headers</h3>
+                    <h3 className='text-sm font-semibold text-text'>Request Body</h3>
+                    <RequestBodyEditor
+                      value={operationEditDraft ? operationEditDraft.sampleRequestBody : selectedOperation.sampleRequestBody}
+                      onChange={(value) => handleOperationDraftChange('sampleRequestBody', value)}
+                    />
+                    {selectedOperation.requiredRequestBodyFields && selectedOperation.requiredRequestBodyFields.length > 0 && (
+                      <div>
+                        <h3 className='text-sm font-semibold text-text mb-2'>Required Fields</h3>
+                        <div className='flex flex-wrap gap-2'>
+                          {selectedOperation.requiredRequestBodyFields.map((field) => (
+                            <Badge key={field} variant='outline'>{field}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'params' && (
+                  <div className='space-y-4'>
+                    <h3 className='text-sm font-semibold text-text'>Params</h3>
                     <div className='rounded-lg border border-border p-4'>
-                      <p className='text-sm text-text-secondary'>No request schema defined.</p>
+                      <p className='text-sm text-text-secondary'>No parameters defined for this endpoint.</p>
                     </div>
                   </div>
                 )}
 
-                {activeTab === 'response' && (
+                {activeTab === 'headers' && (
                   <div className='space-y-4'>
-                    <h3 className='text-sm font-semibold text-text'>Response</h3>
+                    <h3 className='text-sm font-semibold text-text'>Headers</h3>
                     <div className='rounded-lg border border-border p-4'>
-                      <p className='text-sm text-text-secondary'>No response schema defined.</p>
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === 'schema' && (
-                  <div className='space-y-4'>
-                    <h3 className='text-sm font-semibold text-text'>Schema</h3>
-                    <div className='rounded-lg border border-border p-4'>
-                      <p className='text-sm text-text-secondary'>Schema not available.</p>
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === 'tests' && (
-                  <div className='space-y-4'>
-                    <h3 className='text-sm font-semibold text-text'>Tests</h3>
-                    <div className='rounded-lg border border-border p-4'>
-                      <p className='text-sm text-text-secondary'>No generated test cases.</p>
+                      <p className='text-sm text-text-secondary'>No headers defined for this endpoint.</p>
                     </div>
                   </div>
                 )}

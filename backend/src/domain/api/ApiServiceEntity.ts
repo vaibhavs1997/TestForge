@@ -10,7 +10,8 @@ export class ApiServiceEntity {
     public readonly tags: string[],
     public baseUrl: string,
     public readonly createdAt: number,
-    public updatedAt: number
+    public updatedAt: number,
+    public folderPath?: string
   ) {}
 }
 

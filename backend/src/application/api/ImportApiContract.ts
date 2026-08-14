@@ -262,20 +262,16 @@ function extractFromPostman(spec: any, warnings: string[]): ParsedService[] {
   const info = spec.info || {};
   const collectionName = String(info.name || 'Imported API');
   const collectionVersion = info.schema ? String(info.schema) : 'v2.1';
+  const baseUrl = inferPostmanCollectionBaseUrl(spec);
 
-  const svc: ParsedService = {
-    name: collectionName,
-    description: String(info.description || ''),
-    version: collectionVersion,
-    tags: [],
-    baseUrl: inferPostmanCollectionBaseUrl(spec),
-    operations: [],
-  };
+  // Collect operations grouped by folder path
+  const operationsByFolder = new Map<string, ParsedOperation[]>();
 
-  function processItems(items: any[]) {
+  function processItems(items: any[], parentPath: string = '') {
     for (const item of items) {
+      const currentPath = parentPath ? `${parentPath}/${item.name}` : item.name;
       if (item.item && Array.isArray(item.item)) {
-        processItems(item.item);
+        processItems(item.item, currentPath);
       } else if (item.request) {
         const req = item.request;
         const method = normalizeMethod(req.method);
@@ -302,7 +298,13 @@ function extractFromPostman(spec: any, warnings: string[]): ParsedService[] {
         const authType = req.auth ? mapPostmanAuth(req.auth) : 'None';
         const desc = item.description || req.description || req.summary || '';
 
-        svc.operations.push({
+        const folderPath = parentPath ? parentPath.replace(/^\//, '') : '';
+        
+        if (!operationsByFolder.has(folderPath)) {
+          operationsByFolder.set(folderPath, []);
+        }
+
+        operationsByFolder.get(folderPath)!.push({
           name: String(item.name || `${method} ${path}`),
           method,
           path,
@@ -318,11 +320,29 @@ function extractFromPostman(spec: any, warnings: string[]): ParsedService[] {
 
   processItems(spec.item || []);
 
-  if (svc.operations.length === 0) {
+  if (operationsByFolder.size === 0) {
     warnings.push('No API operations found in the Postman collection.');
+    return [];
   }
 
-  return [svc];
+  // Create one service per folder
+  const services: ParsedService[] = [];
+  
+  for (const [folderPath, operations] of operationsByFolder) {
+    const serviceName = folderPath ? folderPath.split('/').pop()! : collectionName;
+    
+    services.push({
+      name: serviceName,
+      description: String(info.description || ''),
+      version: collectionVersion,
+      tags: [],
+      baseUrl,
+      folderPath: folderPath || undefined,
+      operations,
+    });
+  }
+
+  return services;
 }
 
 function mapPostmanAuth(auth: any): string {
@@ -807,7 +827,8 @@ export class ImportApiContract {
           svc.tags,
           serviceBaseUrl,
           now,
-          now
+          now,
+          svc.folderPath
         );
         await this.apiServiceRepository.create(serviceEntity);
         servicesImported++;
@@ -823,6 +844,7 @@ export class ImportApiContract {
           version: svc.version,
           tags: svc.tags,
           ...(serviceBaseUrl ? { baseUrl: serviceBaseUrl } : {}),
+          ...(svc.folderPath !== undefined ? { folderPath: svc.folderPath } : {}),
         });
         servicesUpdated++;
       }

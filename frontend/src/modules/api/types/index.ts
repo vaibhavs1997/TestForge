@@ -22,6 +22,8 @@ export interface Service {
   /** Legacy ISO-string timestamps used by older UI code */
   createdDate?: string;
   updatedDate?: string;
+  /** Folder path from imported API contract (e.g., "folder/subfolder") */
+  folderPath?: string;
 }
 
 export interface ServiceFormData {

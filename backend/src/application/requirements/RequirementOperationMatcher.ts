@@ -2,6 +2,7 @@ import type { RequirementEntity } from '../../domain/requirements/RequirementEnt
 import type { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
 import type { StrategyCategory } from '../../domain/requirements/TestStrategyEntity';
 import { getAcceptanceCriteriaFocusText } from './requirementAcceptanceFocus';
+import { expandRequirementWithSynonyms, expandOperationWithSynonyms, getSynonymReasoning } from './OperationMappingSynonyms';
 
 const CREATE_HINTS = ['create', 'register', 'signup', 'sign-up', 'account', 'user'];
 const READ_HINTS = ['get', 'list', 'fetch', 'read'];
@@ -17,27 +18,63 @@ function tokenize(text: string): string[] {
 }
 
 function requirementCorpus(requirement: RequirementEntity): string {
-  return getAcceptanceCriteriaFocusText(requirement);
+  const base = getAcceptanceCriteriaFocusText(requirement);
+  // Include knowledge flow names and business rule context if available
+  const knowledgeParts: string[] = [];
+  if (requirement.relatedFlows && requirement.relatedFlows.length > 0) {
+    knowledgeParts.push(`flows: ${requirement.relatedFlows.join(',')}`);
+  }
+  if ((requirement as any).relatedBusinessRules && (requirement as any).relatedBusinessRules.length > 0) {
+    knowledgeParts.push(`rules: ${(requirement as any).relatedBusinessRules.join(',')}`);
+  }
+  if ((requirement as any).relatedRuntimeVariables && (requirement as any).relatedRuntimeVariables.length > 0) {
+    knowledgeParts.push(`variables: ${(requirement as any).relatedRuntimeVariables.join(',')}`);
+  }
+  // Expand with synonyms to bridge terminology gaps
+  const expandedBase = expandRequirementWithSynonyms(requirement);
+  const knowledgeContext = knowledgeParts.length > 0 ? ` ${knowledgeParts.join(' ')}` : '';
+  return `${expandedBase}${knowledgeContext}`;
 }
 
-function scoreOperation(op: ApiOperationEntity, tokens: string[], corpus: string): number {
-  const hay = `${op.name} ${op.path} ${op.method} ${op.description ?? ''}`.toLowerCase();
+function scoreOperation(op: ApiOperationEntity, tokens: string[], corpus: string): { score: number; reasons: string[] } {
+  const expandedOpText = expandOperationWithSynonyms(op);
+  const hay = expandedOpText.toLowerCase();
   let score = 0;
+  const reasons: string[] = [];
   for (const token of tokens) {
-    if (hay.includes(token)) score += 2;
+    if (hay.includes(token)) {
+      score += 2;
+      reasons.push(`Matched "${token}" in operation name/path/description`);
+    }
   }
+  // Add synonym-based reasoning
+  const synonymReasons = getSynonymReasoning(op as any, op);
+  reasons.push(...synonymReasons);
   if (CREATE_HINTS.some((h) => corpus.includes(h) && (hay.includes(h) || hay.includes('post')))) {
-    if (op.method === 'POST') score += 5;
+    if (op.method === 'POST') {
+      score += 5;
+      reasons.push(`Requirement suggests "create" action and operation is POST (+5)`);
+    }
   }
-  if (READ_HINTS.some((h) => corpus.includes(h)) && op.method === 'GET') score += 3;
-  if (UPDATE_HINTS.some((h) => corpus.includes(h)) && (op.method === 'PUT' || op.method === 'PATCH')) score += 3;
-  if (DELETE_HINTS.some((h) => corpus.includes(h)) && op.method === 'DELETE') score += 3;
-  return score;
+  if (READ_HINTS.some((h) => corpus.includes(h)) && op.method === 'GET') {
+    score += 3;
+    reasons.push(`Requirement suggests "read" action and operation is GET (+3)`);
+  }
+  if (UPDATE_HINTS.some((h) => corpus.includes(h)) && (op.method === 'PUT' || op.method === 'PATCH')) {
+    score += 3;
+    reasons.push(`Requirement suggests "update" action and operation is ${op.method} (+3)`);
+  }
+  if (DELETE_HINTS.some((h) => corpus.includes(h)) && op.method === 'DELETE') {
+    score += 3;
+    reasons.push(`Requirement suggests "delete" action and operation is DELETE (+3)`);
+  }
+  return { score, reasons };
 }
 
 export interface OperationMatchScore {
   operation: ApiOperationEntity;
   score: number;
+  reasons: string[];
 }
 
 export interface OperationMatchDiagnostics {
@@ -54,21 +91,21 @@ export function getOperationMatchDiagnostics(
   }
   const corpus = requirementCorpus(requirement).toLowerCase();
   const tokens = tokenize(corpus);
-  const scored: OperationMatchScore[] = operations.map((operation) => ({
-    operation,
-    score: scoreOperation(operation, tokens, corpus),
-  }));
+  const scored: OperationMatchScore[] = operations.map((operation) => {
+    const { score, reasons } = scoreOperation(operation, tokens, corpus);
+    return { operation, score, reasons };
+  });
   scored.sort((a, b) => b.score - a.score);
 
   const topScore = scored[0]?.score ?? 0;
   let ranked = scored;
-  if (topScore === 0) {
-    const post = operations.find((o) => o.method === 'POST');
-    if (post) {
-      const rest = scored.filter((s) => s.operation.id !== post.id);
-      ranked = [{ operation: post, score: 0 }, ...rest];
+    if (topScore === 0) {
+      const post = operations.find((o) => o.method === 'POST');
+      if (post) {
+        const rest = scored.filter((s) => s.operation.id !== post.id);
+        ranked = [{ operation: post, score: 0, reasons: ['No text match found; fallback to POST'] }, ...rest];
+      }
     }
-  }
 
   const secondScore = ranked[1]?.score ?? 0;
   const lowConfidence =
@@ -77,26 +114,42 @@ export function getOperationMatchDiagnostics(
   return { ranked, lowConfidence };
 }
 
-/** 0–100 score aligned with lowConfidence heuristics for UI. */
+/** Calibrated confidence percentage based on actual match quality indicators. */
 export function mappingConfidencePercent(
   diagnostics: OperationMatchDiagnostics,
   operationsAvailable: number,
 ): number {
   if (operationsAvailable === 0) return 0;
-  const topScore = diagnostics.ranked[0]?.score ?? 0;
+  const top = diagnostics.ranked[0];
+  if (!top) return 0;
+
+  const topScore = top.score;
   const secondScore = diagnostics.ranked[1]?.score ?? 0;
   const margin = topScore - secondScore;
+  const reasonCount = top.reasons.length;
+
+  // Base score from match quality
+  let percent = 0;
 
   if (topScore === 0) {
-    return diagnostics.lowConfidence ? 28 : 40;
+    // No semantic match at all — very low confidence
+    percent = diagnostics.lowConfidence ? 22 : 35;
+  } else if (reasonCount === 0) {
+    // Has score but no specific reasons (shouldn't happen, but guard)
+    percent = 40;
+  } else {
+    // Good semantic match
+    percent = 45 + topScore * 4 + Math.min(20, margin * 4);
   }
 
-  let percent = 32 + topScore * 5 + Math.min(18, margin * 5);
+  // Penalty for low confidence heuristics
   if (diagnostics.lowConfidence) {
-    percent = Math.min(percent, 48);
+    percent = Math.min(percent, 52);
   } else {
-    percent = Math.max(percent, 72);
+    // Bonus for strong, well-reasoned matches
+    percent = Math.max(percent, reasonCount >= 3 ? 78 : 65);
   }
+
   return Math.round(Math.min(100, Math.max(0, percent)));
 }
 
@@ -107,27 +160,58 @@ export function rankOperationsForRequirement(
   return getOperationMatchDiagnostics(requirement, operations).ranked.map((entry) => entry.operation);
 }
 
+/**
+ * Pick the best operation for a test category with validation.
+ * Throws if no suitable operation exists for the category.
+ */
 export function pickOperationForCategory(
   requirement: RequirementEntity,
   operations: ApiOperationEntity[],
   category: StrategyCategory,
 ): string {
   const ranked = rankOperationsForRequirement(requirement, operations);
-  if (ranked.length === 0) return '';
+  if (ranked.length === 0) {
+    throw new Error(`No API operations available for requirement "${requirement.title}"`);
+  }
+
+  let selected: ApiOperationEntity | undefined;
 
   switch (category) {
     case 'Negative':
     case 'Validation':
-      return ranked.find((o) => o.method === 'POST' || o.method === 'PUT' || o.method === 'PATCH')?.id ?? ranked[0].id;
+      selected = ranked.find((o) => o.method === 'POST' || o.method === 'PUT' || o.method === 'PATCH');
+      if (!selected) {
+        // Fallback: any non-GET method
+        selected = ranked.find((o) => o.method !== 'GET') ?? ranked[0];
+      }
+      break;
     case 'Security':
-      return ranked.find((o) => o.authenticationType && o.authenticationType !== 'None')?.id ?? ranked[0].id;
+      selected = ranked.find((o) => o.authenticationType && o.authenticationType !== 'None');
+      if (!selected) {
+        throw new Error(
+          `No authenticated API operation found for Security test on requirement "${requirement.title}". ` +
+          `Expected an operation with authentication (Bearer, Basic, API Key, OAuth).`,
+        );
+      }
+      break;
     case 'Positive':
     case 'Boundary':
     case 'Business Rules':
-      return ranked.find((o) => o.method === 'POST')?.id ?? ranked[0].id;
+      selected = ranked.find((o) => o.method === 'POST');
+      if (!selected) {
+        // For non-POST operations, warn but allow (e.g., GET for read-only positive tests)
+        selected = ranked.find((o) => o.method === 'GET') ?? ranked[0];
+      }
+      break;
     default:
-      return ranked[0].id;
+      selected = ranked[0];
   }
+
+  if (!selected) {
+    throw new Error(`Could not select an API operation for category "${category}" on requirement "${requirement.title}"`);
+  }
+
+  return selected.id;
 }
 
 export function buildPayloadForScenario(

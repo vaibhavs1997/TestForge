@@ -51,6 +51,237 @@ interface ServiceWithOperations extends Service {
   operations: OperationLocal[];
 }
 
+interface TreeNode {
+  name: string;
+  type: 'folder' | 'service';
+  path: string;
+  children?: TreeNode[];
+  service?: ServiceWithOperations;
+}
+
+interface FolderViewProps {
+  services: ServiceWithOperations[];
+  selectedService: ServiceWithOperations | null;
+  selectedOperation: OperationLocal | null;
+  expandedServices: Set<string>;
+  onToggleExpand: (id: string) => void;
+  onServiceClick: (service: ServiceWithOperations) => void;
+  onOperationClick: (operation: OperationLocal) => void;
+  onEditService: (event: React.MouseEvent, service: Service) => void;
+  onDeleteService: (event: React.MouseEvent, service: ServiceWithOperations) => void;
+  getMethodColor: (method: string) => string;
+}
+
+const FolderView = ({
+  services,
+  selectedService,
+  selectedOperation,
+  expandedServices,
+  onToggleExpand,
+  onServiceClick,
+  onOperationClick,
+  onEditService,
+  onDeleteService,
+  getMethodColor,
+}: FolderViewProps) => {
+  // Build a tree structure from services with folder paths
+  const tree = React.useMemo(() => {
+    const rootNodes: TreeNode[] = [];
+    const folderMap = new Map<string, TreeNode>();
+
+    // First pass: create all nodes
+    for (const service of services) {
+      const folderPath = service.folderPath?.trim() || '';
+      
+      if (folderPath) {
+        const parts = folderPath.split('/').filter(Boolean);
+        let currentPath = '';
+        
+        // Create folder hierarchy
+        for (let i = 0; i < parts.length; i++) {
+          const part = parts[i];
+          currentPath = currentPath ? `${currentPath}/${part}` : part;
+          
+          if (!folderMap.has(currentPath)) {
+            const node: TreeNode = {
+              name: part,
+              type: 'folder',
+              path: currentPath,
+              children: [],
+            };
+            folderMap.set(currentPath, node);
+            
+            // Add to parent or root
+            if (i === 0) {
+              rootNodes.push(node);
+            } else {
+              const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/'));
+              const parent = folderMap.get(parentPath);
+              if (parent && parent.children) {
+                parent.children.push(node);
+              }
+            }
+          }
+        }
+        
+        // Add service to the deepest folder
+        const deepestFolder = folderMap.get(folderPath);
+        if (deepestFolder && deepestFolder.children) {
+          deepestFolder.children.push({
+            name: service.name,
+            type: 'service',
+            path: folderPath,
+            service,
+          });
+        }
+      } else {
+        // No folder path - add to root
+        rootNodes.push({
+          name: service.name,
+          type: 'service',
+          path: '',
+          service,
+        });
+      }
+    }
+
+    // Sort: folders first, then services, alphabetically
+    const sortNodes = (nodes: TreeNode[]) => {
+      nodes.sort((a, b) => {
+        if (a.type !== b.type) {
+          return a.type === 'folder' ? -1 : 1;
+        }
+        return a.name.localeCompare(b.name);
+      });
+      nodes.forEach(node => {
+        if (node.children) {
+          sortNodes(node.children);
+        }
+      });
+    };
+
+    sortNodes(rootNodes);
+    return rootNodes;
+  }, [services]);
+
+  const renderNode = (node: TreeNode, depth: number): JSX.Element => {
+    if (node.type === 'folder') {
+      const folderId = `folder-${node.path}`;
+      const isExpanded = expandedServices.has(folderId);
+      
+      return (
+        <div key={node.path}>
+          <div
+            className='flex items-center gap-2 px-3 py-1.5 hover:bg-surface/50 cursor-pointer'
+            style={{ paddingLeft: `${depth * 16 + 12}px` }}
+            onClick={() => onToggleExpand(folderId)}
+          >
+            <ChevronRight
+              className={`h-4 w-4 shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+            />
+            <FolderOpen className='h-4 w-4 shrink-0 text-text-secondary' />
+            <span className='text-sm font-medium text-text'>{node.name}</span>
+          </div>
+          {isExpanded && node.children && (
+            <div>
+              {node.children.map(child => renderNode(child, depth + 1))}
+            </div>
+          )}
+        </div>
+      );
+    } else if (node.type === 'service' && node.service) {
+      const service = node.service;
+      const isSelected = selectedService?.id === service.id;
+      const isExpanded = expandedServices.has(service.id);
+      
+      return (
+        <div key={service.id}>
+          <div
+            className={`flex items-center gap-1 rounded-lg pr-1 transition-colors ${
+              isSelected ? 'bg-primary text-white' : 'hover:bg-surface text-text'
+            }`}
+            style={{ paddingLeft: `${depth * 16 + 12}px` }}
+          >
+            <button
+              type='button'
+              onClick={() => onServiceClick(service)}
+              className='flex min-w-0 flex-1 items-center px-3 py-2 text-left'
+            >
+              <div className='flex min-w-0 items-center gap-2'>
+                <ChevronRight
+                  className={`h-4 w-4 shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                />
+                <div className='min-w-0'>
+                  <div className='truncate text-sm font-medium'>{service.name}</div>
+                  <div className='text-xs opacity-75'>
+                    {service.operations.length} operation{service.operations.length === 1 ? '' : 's'}
+                  </div>
+                </div>
+              </div>
+            </button>
+            <div className='flex shrink-0 items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100'>
+              <Button
+                type='button'
+                variant='ghost'
+                size='sm'
+                className={`h-8 w-8 p-0 ${isSelected ? 'text-white hover:bg-white/20' : ''}`}
+                aria-label={`Edit ${service.name}`}
+                onClick={(e) => onEditService(e, service)}
+              >
+                <Edit className='h-4 w-4' aria-hidden />
+              </Button>
+              <Button
+                type='button'
+                variant='ghost'
+                size='sm'
+                className={`h-8 w-8 p-0 ${isSelected ? 'text-white hover:bg-white/20 hover:text-white' : 'text-red-600 hover:text-red-700 dark:text-red-400'}`}
+                aria-label={`Delete ${service.name}`}
+                onClick={(e) => onDeleteService(e, service)}
+              >
+                <Trash2 className='h-4 w-4' />
+              </Button>
+            </div>
+          </div>
+          {isExpanded && (
+            <div className='ml-4 space-y-1'>
+              {service.operations.map((operation) => (
+                <button
+                  key={operation.id}
+                  onClick={() => onOperationClick(operation)}
+                  className={`w-full flex items-center justify-between rounded px-3 py-2 text-left transition-colors ${
+                    selectedOperation?.id === operation.id
+                      ? 'bg-primary/10 text-primary'
+                      : 'hover:bg-surface text-text-secondary'
+                  }`}
+                >
+                  <div className='flex min-w-0 items-center gap-2'>
+                    <Badge className={`text-xs ${getMethodColor(operation.method)}`} variant='outline'>
+                      {operation.method}
+                    </Badge>
+                    <div className='min-w-0'>
+                      <div className='truncate text-sm font-medium'>
+                        {operation.apiName || operation.name || operation.path}
+                      </div>
+                    </div>
+                  </div>
+                  <div className={`h-2 w-2 rounded-full ${operation.status === 'active' ? 'bg-green-500' : 'bg-gray-400'}`} />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+    return <></>;
+  };
+
+  return (
+    <div className='space-y-1'>
+      {tree.map(node => renderNode(node, 0))}
+    </div>
+  );
+};
+
 /** Local JSON editor that keeps raw text state and only emits parsed objects. */
 const RequestBodyEditor = ({
   value,
@@ -247,16 +478,20 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
     }
   }, [servicesWithOperations, selectedService, selectedOperation]);
 
-  const handleServiceClick = (service: ServiceWithOperations) => {
+  const handleToggleExpand = (id: string) => {
     setExpandedServices((prev) => {
       const next = new Set(prev);
-      if (next.has(service.id)) {
-        next.delete(service.id);
+      if (next.has(id)) {
+        next.delete(id);
       } else {
-        next.add(service.id);
+        next.add(id);
       }
       return next;
     });
+  };
+
+  const handleServiceClick = (service: ServiceWithOperations) => {
+    handleToggleExpand(service.id);
     setSelectedService(service);
     if (service.operations.length > 0) {
       setSelectedOperation(service.operations[0]);
@@ -662,84 +897,18 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
                 <p className='text-sm text-text-secondary'>No services yet</p>
               </div>
             ) : (
-              <div className='space-y-1'>
-                {servicesWithOperations.map((service) => (
-                  <div key={service.id} className='group space-y-1'>
-                    <div
-                      className={`flex items-center gap-1 rounded-lg pr-1 transition-colors ${
-                        selectedService?.id === service.id ? 'bg-primary text-white' : 'hover:bg-surface text-text'
-                      }`}
-                    >
-                      <button
-                        type='button'
-                        onClick={() => handleServiceClick(service)}
-                        className='flex min-w-0 flex-1 items-center px-3 py-2 text-left'
-                      >
-                        <div className='flex min-w-0 items-center gap-2'>
-                          <ChevronRight
-                            className={`h-4 w-4 shrink-0 transition-transform ${expandedServices.has(service.id) ? 'rotate-90' : ''}`}
-                          />
-                          <div className='min-w-0'>
-                            <div className='truncate text-sm font-medium'>{service.name}</div>
-                            <div className='text-xs opacity-75'>
-                              {service.operations.length} operation{service.operations.length === 1 ? '' : 's'}
-                            </div>
-                          </div>
-                        </div>
-                      </button>
-                      <div className='flex shrink-0 items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100'>
-                        <Button
-                          type='button'
-                          variant='ghost'
-                          size='sm'
-                          className={`h-8 w-8 p-0 ${selectedService?.id === service.id ? 'text-white hover:bg-white/20' : ''}`}
-                          aria-label={`Edit ${service.name}`}
-                          onClick={(e) => openEditServiceDialog(e, service)}
-                        >
-                          <Edit className='h-4 w-4' aria-hidden />
-                        </Button>
-                        <Button
-                          type='button'
-                          variant='ghost'
-                          size='sm'
-                          className={`h-8 w-8 p-0 ${selectedService?.id === service.id ? 'text-white hover:bg-white/20 hover:text-white' : 'text-red-600 hover:text-red-700 dark:text-red-400'}`}
-                          aria-label={`Delete ${service.name}`}
-                          onClick={(e) => openDeleteServiceDialog(e, service)}
-                        >
-                          <Trash2 className='h-4 w-4' />
-                        </Button>
-                      </div>
-                    </div>
-                    {expandedServices.has(service.id) && (
-                      <div className='ml-4 space-y-1'>
-                        {service.operations.map((operation) => (
-                          <button
-                            key={operation.id}
-                            onClick={() => handleOperationClick(operation)}
-                            className={`w-full flex items-center justify-between rounded px-3 py-2 text-left transition-colors ${
-                              selectedOperation?.id === operation.id
-                                ? 'bg-primary/10 text-primary'
-                                : 'hover:bg-surface text-text-secondary'
-                            }`}
-                          >
-                            <div className='flex min-w-0 items-center gap-2'>
-                              <Badge className={`text-xs ${getMethodColor(operation.method)}`} variant='outline'>
-                                {operation.method}
-                              </Badge>
-                              <div className='min-w-0'>
-                                <div className='truncate text-sm font-medium'>
-                                  {operation.apiName || operation.name || operation.path}
-                                </div>
-                              </div>
-                            </div>
-                            <div className={`h-2 w-2 rounded-full ${operation.status === 'active' ? 'bg-green-500' : 'bg-gray-400'}`} />
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+              <FolderView
+                services={servicesWithOperations}
+                selectedService={selectedService}
+                selectedOperation={selectedOperation}
+                expandedServices={expandedServices}
+                onToggleExpand={handleToggleExpand}
+                onServiceClick={handleServiceClick}
+                onOperationClick={handleOperationClick}
+                onEditService={openEditServiceDialog}
+                onDeleteService={openDeleteServiceDialog}
+                getMethodColor={getMethodColor}
+              />
             )}
           </div>
         </Card>

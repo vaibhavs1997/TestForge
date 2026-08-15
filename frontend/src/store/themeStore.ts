@@ -18,25 +18,36 @@ interface ThemeState {
   toggleTheme: () => void;
 }
 
-export const useThemeStore = create<ThemeState>((set, get) => {
-  // Initialize theme from localStorage and apply to document
-  const initialTheme = (localStorage.getItem('theme') as 'light' | 'dark') || 'light';
-  if (initialTheme === 'dark') {
-    document.documentElement.classList.add('dark');
-  } else {
-    document.documentElement.classList.remove('dark');
+function getInitialTheme(): 'light' | 'dark' {
+  if (typeof window === 'undefined') {
+    return 'light';
   }
+
+  const storedTheme = window.localStorage.getItem('theme');
+  return storedTheme === 'dark' ? 'dark' : 'light';
+}
+
+function applyTheme(theme: 'light' | 'dark'): void {
+  if (typeof document === 'undefined') {
+    return;
+  }
+
+  document.documentElement.classList.toggle('dark', theme === 'dark');
+}
+
+export const useThemeStore = create<ThemeState>((set, get) => {
+  // Initialize theme from localStorage and apply it only in browser contexts.
+  const initialTheme = getInitialTheme();
+  applyTheme(initialTheme);
 
   return {
     theme: initialTheme,
     toggleTheme: () => {
       const newTheme = get().theme === 'light' ? 'dark' : 'light';
-      if (newTheme === 'dark') {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
+      applyTheme(newTheme);
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('theme', newTheme);
       }
-      localStorage.setItem('theme', newTheme);
       set({ theme: newTheme });
     },
   };

@@ -52,6 +52,7 @@ interface ParsedService {
   version: string;
   tags: string[];
   baseUrl?: string;
+  folderPath?: string;
   operations: ParsedOperation[];
 }
 

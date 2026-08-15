@@ -51,10 +51,7 @@ import { logger } from './infrastructure/logging/Logger';
 import { createRateLimiter } from './infrastructure/security/rateLimiter';
 import { sanitizeRequestBody, sanitizeQuery } from './infrastructure/security/sanitize';
 import { metrics } from './infrastructure/metrics/Metrics';
-import { createWebhookRoutes } from './interfaces/webhook/WebhookRoutes';
-import { ListWebhooks, GetWebhook, CreateWebhook, UpdateWebhook, DeleteWebhook, TriggerWebhooks } from './application/webhook/WebhookUseCases';
-import type { WebhookRepository } from './domain/webhook/WebhookRepository';
-import type { WebhookEntity } from './domain/webhook/WebhookEntity';
+import { registerWebhookModule } from './interfaces/webhook/WebhookModule';
 
 loadEnv();
 
@@ -249,29 +246,7 @@ async function bootstrap(): Promise<void> {
   app.use('/api', createBackupRoutes(backupService));
 
   // Initialize Webhook module
-  const webhookRepository: WebhookRepository = {
-    list: async () => [],
-    findById: async () => null,
-    findByProject: async () => [],
-    create: async (webhook) => ({ ...webhook, createdAt: Date.now(), updatedAt: Date.now() } as WebhookEntity),
-    update: async (id, data) => ({ id, ...data, updatedAt: Date.now() } as WebhookEntity),
-    delete: async () => undefined,
-  };
-  const webhookUseCases = {
-    list: new ListWebhooks(webhookRepository),
-    get: new GetWebhook(webhookRepository),
-    create: new CreateWebhook(webhookRepository),
-    update: new UpdateWebhook(webhookRepository),
-    delete: new DeleteWebhook(webhookRepository),
-    trigger: new TriggerWebhooks(webhookRepository),
-  };
-  app.use('/api', createWebhookRoutes(
-    webhookUseCases.list,
-    webhookUseCases.get,
-    webhookUseCases.create,
-    webhookUseCases.update,
-    webhookUseCases.delete,
-  ));
+  registerWebhookModule(app);
 
   // ── 404 Not Found Handler ───────────────────────────────────────────────────
   // Must be before error handler middleware

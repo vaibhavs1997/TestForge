@@ -1,8 +1,6 @@
 // Webhook API routes
 import { Router, Request, Response } from 'express';
 import { ListWebhooks, GetWebhook, CreateWebhook, UpdateWebhook, DeleteWebhook } from '../../application/webhook/WebhookUseCases';
-import { WebhookRepository } from '../../domain/webhook/WebhookRepository';
-import { WebhookEvent } from '../../domain/webhook/WebhookEntity';
 
 export function createWebhookRoutes(
   listWebhooks: ListWebhooks,

@@ -10,7 +10,6 @@ import {
   UnauthorizedError,
   ForbiddenError,
   NotImplementedError,
-  BadRequestError,
 } from '../../shared/errors';
 
 // Re-export AppError for convenience (legacy imports in some routes)
@@ -78,8 +77,8 @@ function mapErrorToAppError(err: any): AppError {
     return new ForbiddenError(message);
   }
 
-  // Default to 500
-  return new BadRequestError(message);
+  // Default to 500 for unknown failures so real server bugs are not mislabeled
+  return new AppError(500, message, ERROR_CODES.INTERNAL_SERVER_ERROR);
 }
 
 /**

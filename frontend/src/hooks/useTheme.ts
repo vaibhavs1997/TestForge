@@ -1,28 +1,14 @@
 // External libraries
-import { useState, useCallback } from 'react';
-
-// Shared constants
-
-// Shared types
-
-// Hooks
-
-// Services
-
-// Components
-
-// Styles
+import { useThemeStore } from '../store/themeStore';
 
 export const useTheme = () => {
-  const [state, setState] = useState(null);
-
-  const handleAction = useCallback(() => {
-    // Implementation
-  }, []);
+  const theme = useThemeStore((state) => state.theme);
+  const toggleTheme = useThemeStore((state) => state.toggleTheme);
 
   return {
-    state,
-    handleAction,
+    theme,
+    isDark: theme === 'dark',
+    toggleTheme,
   };
 };
 

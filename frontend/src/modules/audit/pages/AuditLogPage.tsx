@@ -6,6 +6,7 @@ import type { AuditLog, AuditModule, AuditAction } from '../types';
 import { useParams } from 'react-router-dom';
 import { AdminPageIntro } from '../../../components/shared/AdminPageIntro';
 import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
+import { PageEmpty, PageError, PageLoading } from '../../../components/shared/PageState';
 
 export function AuditLogPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -89,8 +90,17 @@ export function AuditLogPage() {
     return colors[module] || 'bg-gray-100 text-gray-800';
   };
 
-  if (loading) return <div className="p-4">Loading audit logs...</div>;
-  if (error) return <div className="p-4 text-red-500">Error: {String(error)}</div>;
+  if (loading) return <PageLoading title="Loading audit logs..." />;
+  if (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return (
+      <PageError
+        title="Failed to load audit logs"
+        message={message}
+        onRetry={refetch}
+      />
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl p-6">
@@ -227,9 +237,10 @@ export function AuditLogPage() {
         </div>
 
         {logs.length === 0 ? (
-          <div className="p-6 text-center text-gray-500">
-            No audit logs found.
-          </div>
+          <PageEmpty
+            title="No audit logs found"
+            description="Try adjusting filters or perform an action to generate audit activity."
+          />
         ) : (
           <table className="min-w-full">
             <thead className="bg-gray-50">

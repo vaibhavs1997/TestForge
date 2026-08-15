@@ -6,6 +6,7 @@ import type { Version, EntityType } from '../types';
 import { useParams } from 'react-router-dom';
 import { AdminPageIntro } from '../../../components/shared/AdminPageIntro';
 import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
+import { PageEmpty, PageError, PageLoading } from '../../../components/shared/PageState';
 
 export function VersionHistoryPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -65,8 +66,17 @@ export function VersionHistoryPage() {
     return colors[entityType] || 'bg-gray-100 text-gray-800';
   };
 
-  if (loading) return <div className="p-4">Loading versions...</div>;
-  if (error) return <div className="p-4 text-red-500">Error: {String(error)}</div>;
+  if (loading) return <PageLoading title="Loading versions..." />;
+  if (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return (
+      <PageError
+        title="Failed to load version history"
+        message={message}
+        onRetry={refetch}
+      />
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl p-6">
@@ -207,9 +217,10 @@ export function VersionHistoryPage() {
         </div>
         
         {filteredVersions.length === 0 ? (
-          <div className="p-6 text-center text-gray-500">
-            No versions found. Versions are created automatically when entities are modified.
-          </div>
+          <PageEmpty
+            title="No versions found"
+            description="Versions are created automatically when entities are modified."
+          />
         ) : (
           <div className="divide-y divide-gray-200">
             {filteredVersions

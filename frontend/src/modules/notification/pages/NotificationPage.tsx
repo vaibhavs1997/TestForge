@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNotifications, useProviders, useNotificationMutations } from '../hooks';
 import { notificationService } from '../services';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
+import { PageEmpty, PageError, PageLoading } from '../../../components/shared/PageState';
 import type { Notification, NotificationFormData, Provider } from '../types';
 import { useParams } from 'react-router-dom';
 
@@ -109,8 +110,16 @@ export function NotificationPage() {
     }
   };
 
-  if (loading) return <div className="p-4">Loading notifications...</div>;
-  if (error) return <div className="p-4 text-red-500">Error: {String(error)}</div>;
+  if (loading) return <PageLoading title="Loading notifications..." />;
+  if (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return (
+      <PageError
+        title="Failed to load notifications"
+        message={message}
+      />
+    );
+  }
 
   const breadcrumbItems = [
     { label: 'Projects', to: '/projects' },
@@ -154,79 +163,79 @@ export function NotificationPage() {
         />
       </div>
 
-      <div className="bg-white shadow rounded-lg overflow-hidden">
-        <table className="min-w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Event</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Provider</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Enabled</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {filteredNotifications.map((notification) => (
-              <tr key={notification.id}>
-                <td className="px-6 py-4 whitespace-nowrap">{notification.name}</td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="px-2 py-1 text-xs font-medium bg-gray-100 rounded">
-                    {notification.eventType}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  {providers.find(p => p.id === notification.providerId)?.name || notification.providerId}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <button
-                    onClick={() => handleToggleEnabled(notification)}
-                    className={`px-2 py-1 text-xs font-medium rounded ${
-                      notification.enabled
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}
-                  >
-                    {notification.enabled ? 'Enabled' : 'Disabled'}
-                  </button>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <button
-                    onClick={() => handleTest(notification.id)}
-                    className="text-blue-600 hover:text-blue-800 mr-2"
-                  >
-                    Test
-                  </button>
-                  <button
-                    onClick={() => handleEdit(notification)}
-                    className="text-indigo-600 hover:text-indigo-800 mr-2"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDuplicate(notification)}
-                    className="text-gray-600 hover:text-gray-800 mr-2"
-                  >
-                    Duplicate
-                  </button>
-                  <button
-                    onClick={() => { setDeleteId(notification.id); setDeleteOpen(true); }}
-                    className="text-red-600 hover:text-red-800"
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {filteredNotifications.length === 0 && (
+      {filteredNotifications.length === 0 ? (
+        <PageEmpty
+          title="No notifications found"
+          description="Create one to get started."
+        />
+      ) : (
+        <div className="bg-white shadow rounded-lg overflow-hidden">
+          <table className="min-w-full">
+            <thead className="bg-gray-50">
               <tr>
-                <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
-                  No notifications found. Create one to get started.
-                </td>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Event</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Provider</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Enabled</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {filteredNotifications.map((notification) => (
+                <tr key={notification.id}>
+                  <td className="px-6 py-4 whitespace-nowrap">{notification.name}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="px-2 py-1 text-xs font-medium bg-gray-100 rounded">
+                      {notification.eventType}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {providers.find(p => p.id === notification.providerId)?.name || notification.providerId}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <button
+                      onClick={() => handleToggleEnabled(notification)}
+                      className={`px-2 py-1 text-xs font-medium rounded ${
+                        notification.enabled
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      {notification.enabled ? 'Enabled' : 'Disabled'}
+                    </button>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <button
+                      onClick={() => handleTest(notification.id)}
+                      className="text-blue-600 hover:text-blue-800 mr-2"
+                    >
+                      Test
+                    </button>
+                    <button
+                      onClick={() => handleEdit(notification)}
+                      className="text-indigo-600 hover:text-indigo-800 mr-2"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDuplicate(notification)}
+                      className="text-gray-600 hover:text-gray-800 mr-2"
+                    >
+                      Duplicate
+                    </button>
+                    <button
+                      onClick={() => { setDeleteId(notification.id); setDeleteOpen(true); }}
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <ConfirmDialog
         open={deleteOpen}

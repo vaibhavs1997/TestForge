@@ -4,6 +4,7 @@ import { Search } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { HelperText } from '../forms/HelperText';
 import { describedByIds } from '../../utils/a11y';
+import { fieldControlBaseClass } from '../forms/fieldStyles';
 
 export interface SearchBarProps {
   /** Current search value */
@@ -80,7 +81,7 @@ export const SearchBar = ({
         aria-label={label}
         aria-describedby={describedByIds(helperText && helperId)}
         autoComplete="off"
-        className="h-10 w-full rounded-lg border border-border bg-background pl-10 pr-3 text-sm text-text placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1"
+        className={cn(fieldControlBaseClass, 'pl-10')}
       />
       {helperText ? (
         <HelperText id={helperId} className="mt-1 text-xs">

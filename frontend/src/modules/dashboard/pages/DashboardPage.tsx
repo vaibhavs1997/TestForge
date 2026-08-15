@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { Activity, FolderOpen, FlaskConical, BarChart3, Upload, Play, Globe } from 'lucide-react';
-import { ErrorAlert } from '../../../components/shared/ErrorAlert';
+import { PageError, PageLoading } from '../../../components/shared/PageState';
 import { EmptyState } from '../../../components/ui/EmptyState';
 
 // Styles
@@ -152,29 +152,15 @@ export const DashboardPage: React.FC<DashboardPageProps> = () => {
 
   const auditTarget = activeProjectId ? `/projects/${activeProjectId}/audit` : '/projects';
 
-  if (isLoading) {
-    return (
-      <div className="mx-auto max-w-7xl px-4 py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-text">Dashboard</h1>
-          <p className="mt-1 text-sm text-text-secondary">Loading...</p>
-        </div>
-      </div>
-    );
-  }
+  if (isLoading) return <PageLoading title="Loading dashboard..." message="Building your workspace overview." />;
 
   if (isError) {
     return (
-      <div className="mx-auto max-w-7xl px-4 py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-text">Dashboard</h1>
-        </div>
-        <ErrorAlert
-          title="Failed to load dashboard data"
-          message={error?.message || 'An unexpected error occurred while loading dashboard data.'}
-          onRetry={handleRetry}
-        />
-      </div>
+      <PageError
+        title="Failed to load dashboard data"
+        message={error?.message || 'An unexpected error occurred while loading dashboard data.'}
+        onRetry={handleRetry}
+      />
     );
   }
 

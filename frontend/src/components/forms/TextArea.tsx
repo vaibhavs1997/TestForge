@@ -13,6 +13,7 @@ import React, { forwardRef } from 'react';
 
 // Styles
 import { cn } from '../../utils/cn';
+import { fieldErrorClass, fieldHelperClass, fieldLabelClass, fieldTextAreaBaseClass } from './fieldStyles';
 
 export interface TextAreaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string;
@@ -28,7 +29,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
     return (
       <div className="w-full">
         {label && (
-          <label htmlFor={inputId} className="mb-1.5 block text-sm font-medium text-text">
+          <label htmlFor={inputId} className={fieldLabelClass}>
             {label}
             {required && <span className="ml-1 text-error" aria-hidden="true">*</span>}
           </label>
@@ -39,7 +40,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
           name={name}
           required={required}
           className={cn(
-            'flex min-h-20 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50',
+            fieldTextAreaBaseClass,
             error && 'border-error focus:ring-error',
             className
           )}
@@ -49,10 +50,10 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
           {...props}
         />
         {error && (
-          <p id={`${inputId}-error`} className="mt-1 text-sm text-error" role="alert">{error}</p>
+          <p id={`${inputId}-error`} className={fieldErrorClass} role="alert">{error}</p>
         )}
         {helperText && !error && (
-          <p id={`${inputId}-helper`} className="mt-1 text-sm text-text-secondary">{helperText}</p>
+          <p id={`${inputId}-helper`} className={fieldHelperClass}>{helperText}</p>
         )}
       </div>
     );

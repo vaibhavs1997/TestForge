@@ -4,6 +4,7 @@ import React, { useId } from 'react';
 import { cn } from '../../utils/cn';
 import { HelperText } from './HelperText';
 import { describedByIds, slugifyFieldId } from '../../utils/a11y';
+import { fieldLabelClass } from './fieldStyles';
 
 export interface FormFieldProps {
   label?: string;
@@ -47,7 +48,7 @@ export const FormField: React.FC<FormFieldProps> = ({
   return (
     <div className={cn('space-y-1', className)}>
       {label && (
-        <label htmlFor={controlId} className="block text-sm font-medium text-text">
+        <label htmlFor={controlId} className={fieldLabelClass}>
           {label}
           {required && <span className="ml-1 text-error" aria-hidden="true">*</span>}
         </label>

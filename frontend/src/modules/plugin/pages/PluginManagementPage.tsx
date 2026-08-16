@@ -5,6 +5,7 @@ import { pluginService } from '../services';
 import type { Plugin, PluginCategory } from '../types';
 import { AdminPageIntro } from '../../../components/shared/AdminPageIntro';
 import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
+import { PageEmpty, PageError, PageLoading } from '../../../components/shared/PageState';
 
 export function PluginManagementPage() {
   const { plugins, loading, error, refetch } = usePlugins();
@@ -79,8 +80,17 @@ export function PluginManagementPage() {
     }
   };
 
-  if (loading) return <div className="p-4">Loading plugins...</div>;
-  if (error) return <div className="p-4 text-red-500">Error: {String(error)}</div>;
+  if (loading) return <PageLoading title="Loading plugins..." />;
+  if (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return (
+      <PageError
+        title="Failed to load plugins"
+        message={message}
+        onRetry={refetch}
+      />
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl p-6">
@@ -123,9 +133,10 @@ export function PluginManagementPage() {
         </div>
 
         {filteredPlugins.length === 0 ? (
-          <div className="p-6 text-center text-gray-500">
-            No plugins found. Built-in plugins are loaded on server startup.
-          </div>
+          <PageEmpty
+            title="No plugins found"
+            description="Built-in plugins are loaded on server startup."
+          />
         ) : (
           <table className="min-w-full">
             <thead className="bg-gray-50">

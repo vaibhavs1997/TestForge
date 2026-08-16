@@ -6,3 +6,4 @@ export * from './Switch';
 export * from './FormField';
 export * from './HelperText';
 export * from './SearchBar';
+export * from './fieldStyles';

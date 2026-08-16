@@ -1,42 +1,37 @@
 // Prompt Builder service functions
-import axios from 'axios';
 import type { PromptTemplate, Prompt, BuiltPrompt, PreviewPromptRequest, BuildPromptRequest } from '../types';
 import { API_BASE_URL } from '../../../constants/api';
+import { apiRequest } from '../../../services/apiRequest';
 
 export const promptService = {
   // GET /api/projects/:projectId/prompts/templates
   listTemplates: async (projectId: string): Promise<PromptTemplate[]> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/prompts/templates`);
-    return data.data;
+    return apiRequest.get<PromptTemplate[]>(`${API_BASE_URL}/projects/${projectId}/prompts/templates`);
   },
 
   // GET /api/projects/:projectId/prompts
   listPrompts: async (projectId: string): Promise<Prompt[]> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/prompts`);
-    return data.data;
+    return apiRequest.get<Prompt[]>(`${API_BASE_URL}/projects/${projectId}/prompts`);
   },
 
   // GET /api/projects/:projectId/prompts/:promptId
   getPrompt: async (projectId: string, promptId: string): Promise<Prompt> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/prompts/${promptId}`);
-    return data.data;
+    return apiRequest.get<Prompt>(`${API_BASE_URL}/projects/${projectId}/prompts/${promptId}`);
   },
 
   // POST /api/projects/:projectId/prompts/preview
   previewPrompt: async (projectId: string, request: PreviewPromptRequest): Promise<BuiltPrompt> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/prompts/preview`, request);
-    return data.data;
+    return apiRequest.post<BuiltPrompt>(`${API_BASE_URL}/projects/${projectId}/prompts/preview`, request);
   },
 
   // POST /api/projects/:projectId/prompts/build
   buildPrompt: async (projectId: string, request: BuildPromptRequest): Promise<Prompt> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/prompts/build`, request);
-    return data.data;
+    return apiRequest.post<Prompt>(`${API_BASE_URL}/projects/${projectId}/prompts/build`, request);
   },
 
   // DELETE /api/projects/:projectId/prompts/:promptId
   deletePrompt: async (projectId: string, promptId: string): Promise<void> => {
-    await axios.delete(`${API_BASE_URL}/projects/${projectId}/prompts/${promptId}`);
+    await apiRequest.delete(`${API_BASE_URL}/projects/${projectId}/prompts/${promptId}`);
   },
 };
 

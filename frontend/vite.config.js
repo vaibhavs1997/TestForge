@@ -30,6 +30,8 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       setupFiles: [],
       css: true,
+      pool: 'threads',
+      maxWorkers: 1,
     },
     build: {
       rollupOptions: {

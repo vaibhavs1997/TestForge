@@ -2,10 +2,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCRUD } from '../../../hooks/useCRUD';
 import { apiService } from '../services/apiService';
-import type { ServiceFormData, OperationFormData, Operation, ImportSummary } from '../types';
+import type { ServiceFormData, OperationFormData, ImportSummary } from '../types';
 import type { AxiosProgressEvent } from 'axios';
 import { queryKeys } from '../../../constants';
 import { notificationInboxQueryKey } from '../../notification/hooks';
+import { toApiOperationView } from '../../../types/apiModels';
 
 // ─── Services ────────────────────────────────────────────────
 
@@ -88,27 +89,6 @@ export const useService = (projectId?: string) => {
 
 // ─── Operations ──────────────────────────────────────────────
 
-/** Map a backend ApiOperationDto to the front-end `Operation` interface. */
-const mapOperation = (raw: any, serviceName?: string): Operation => ({
-  id: raw.id,
-  serviceId: raw.serviceId,
-  serviceName,
-  apiName: raw.name,
-  name: raw.name,
-  method: raw.method,
-  path: raw.path,
-  description: raw.description,
-  // Backend stores "Active" / "Inactive"; the front-end grid expects lowercase.
-  status: (raw.status || 'active').toLowerCase() as Operation['status'],
-  authenticationType: raw.authenticationType,
-  authentication: raw.authenticationType,
-  tags: raw.tags || [],
-  sampleRequestBody: raw.sampleRequestBody ?? null,
-  requiredRequestBodyFields: raw.requiredRequestBodyFields ?? null,
-  createdAt: raw.createdAt,
-  updatedAt: raw.updatedAt,
-});
-
 export const useApiOperations = (projectId?: string, serviceIds?: string[]) => {
   const queryClient = useQueryClient();
   const servicesQueryKey = queryKeys.services(projectId || '');
@@ -123,7 +103,7 @@ export const useApiOperations = (projectId?: string, serviceIds?: string[]) => {
           serviceIds.map(async (sid) => {
             const service = await apiService.getService(projectId, sid).catch(() => null);
             const ops = await apiService.listOperations(projectId, sid).catch(() => []);
-            return ops.map((op: any) => mapOperation(op, service?.name));
+            return ops.map((op) => toApiOperationView(op, service?.name));
           }),
         );
         return results.flat();

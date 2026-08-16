@@ -1,18 +1,8 @@
 // Dataset Relationship types
 
-export interface Relationship {
-  id: string;
-  projectId: string;
-  parentDatasetId: string;
-  childDatasetId: string;
-  relationshipType: 'one-to-one' | 'one-to-many' | 'many-to-one' | 'many-to-many';
-  parentColumn: string;
-  childColumn: string;
-  cardinality: '1:1' | '1:N' | 'N:1';
-  enabled: boolean;
-  createdAt: number;
-  updatedAt: number;
-}
+import type { RelationshipDto } from '../../../types/moduleContracts';
+
+export type Relationship = RelationshipDto;
 
 export interface CreateRelationshipInput {
   parentDatasetId: string;

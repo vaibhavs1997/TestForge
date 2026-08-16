@@ -16,7 +16,7 @@ Last verified: core REST routes for a seeded project return `200` with `success:
 | `ProjectService` used `/api/projects` with base URL `/api` → **double `/api`** | Projects, dashboard, import center, notification inbox |
 | `HttpClient` did not unwrap `{ success, data }` | Same consumers as above |
 | `domain/audit/index.ts` re-exported types as values | **Backend crash** under `tsx`/ESM (`AuditAction` export) |
-| `TestDataLibraryPage` never called datasets API | Test data library always empty |
+| `TestDataLibraryPage` now calls the datasets API and the column/profile hooks | Test data library and dataset details are populated from live data |
 
 ## Global / shell
 
@@ -36,9 +36,9 @@ Last verified: core REST routes for a seeded project return `200` with `success:
 | Overview | `overview` | Hooks: APIs, envs, datasets, knowledge, analysis, requirements, suites, execution, reports | Aggregates live counts |
 | APIs | `apis` | Full CRUD + import file/URL | OK |
 | Environment | `environment` | CRUD + import helpers | OK |
-| Test data | `testdata/*` | Datasets **list wired**; column suggestions in dataset details still TODO | Mapping sub-route uses MappingPage |
+| Test data | `testdata/*` | Datasets list, column suggestions, and column persistence are wired | Mapping sub-route uses MappingPage |
 | Knowledge | `knowledge` | Backend knowledge routes | OK |
-| Requirements | `requirements/*` | Requirements/strategy/design routes | Assertion attach/detach TODOs in UI |
+| Requirements | `requirements/*` | Requirements/strategy/design routes | UI routes are wired |
 | Execution | `execution/*` | Execution routes | OK |
 | Reports | `reports` | Report routes | OK |
 | Recommendations | `recommendations` | Recommendation API | OK |
@@ -66,7 +66,6 @@ When `TESTFORGE_API_KEY` / JWT is enabled:
 
 ## Optional follow-ups
 
-- Wire dataset **columns** API in dataset detail panel.
 - Route **Backup** page under Settings or Admin.
 - Projects home **recent activity** from audit API.
 - `GET /projects/:id/dashboard` or remove unused `getDashboardData`.

@@ -351,7 +351,9 @@ export const EnvironmentPage: React.FC<EnvironmentPageProps> = () => {
                   </thead>
                   <tbody>
                     {filteredEnvironments.map((env) => {
-                      const authType = env.authentication?.type || 'None';
+                      const authType = typeof env.authentication === 'object' && env.authentication && 'type' in env.authentication
+                        ? String((env.authentication as { type?: string }).type || 'None')
+                        : 'None';
                       const varCount = Object.keys(env.variables || {}).length;
                       const lastUpdated = env.updatedAt ? new Date(env.updatedAt).toLocaleDateString() : 'Never';
 

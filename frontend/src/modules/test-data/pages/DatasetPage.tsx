@@ -52,7 +52,10 @@ import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptio
 import { projectStore } from '../../../store/projectStore';
 import { MappingPage } from './MappingPage';
 import { useMappings } from '../hooks/useMappings';
+import { useColumns, useColumnSuggestions } from '../hooks/useColumns';
+import { useProfiles } from '../hooks/useProfiles';
 import { providerService } from '../services/providerService';
+import type { ColumnDto, PopulationProfileDto } from '../../../types/moduleContracts';
 
 // Memoized category badge to avoid re-renders
 const CategoryBadge = React.memo<{ category: string }>(({ category }) => {
@@ -118,6 +121,40 @@ const DatasetCard = React.memo<{ dataset: any; onView: (d: any) => void; onEdit:
   </Card>
 ));
 DatasetCard.displayName = 'DatasetCard';
+
+function columnToProfileData(
+  column: ColumnDto,
+  profile?: PopulationProfileDto,
+): ColumnProfileData {
+  return {
+    id: column.id,
+    datasetId: column.datasetId,
+    name: column.name,
+    displayName: column.displayName,
+    dataType: column.dataType,
+    description: column.description ?? '',
+    strategyType: profile?.strategyType ?? 'Manual',
+    strategyConfig: profile?.configuration ?? {},
+    required: column.required,
+    nullable: column.nullable,
+    unique: column.unique,
+  };
+}
+
+function suggestionToProfileData(suggestion: ColumnSuggestion, datasetId: string): ColumnProfileData {
+  return {
+    datasetId,
+    name: suggestion.name,
+    displayName: suggestion.displayName,
+    dataType: suggestion.dataType,
+    description: suggestion.description,
+    strategyType: 'Manual',
+    strategyConfig: {},
+    required: suggestion.required,
+    nullable: suggestion.nullable,
+    unique: suggestion.unique,
+  };
+}
 
 // Types
 interface Dataset {
@@ -1376,23 +1413,6 @@ export const TestDataLibraryPage = () => {
                 </div>
               )}
 
-              {/* Unified Column + Population Editor */}
-              {editorOpen && (
-                <Suspense fallback={<div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'><div className='text-sm text-text-secondary'>Loading editor...</div></div>}>
-                  <ColumnProfileDialog
-                    open={editorOpen}
-                    onClose={() => setEditorOpen(false)}
-                    onSubmit={(data) => {
-                      setEditorOpen(false);
-                      setToastMessage(selectedColumn ? 'Column updated successfully' : 'Column added successfully');
-                      setToastOpen(true);
-                    }}
-                    column={selectedColumn}
-                    isSubmitting={false}
-                  />
-                </Suspense>
-              )}
-
               {editOpen && (
                 <Suspense fallback={<div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'><div className='text-sm text-text-secondary'>Loading...</div></div>}>
                   <DatasetDialog
@@ -1502,33 +1522,34 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
   setToastMessage,
   setToastOpen,
 }) => {
+  const {
+    columns: columnDtos = [],
+    createAsync: createColumnAsync,
+    updateAsync: updateColumnAsync,
+    removeAsync: removeColumnAsync,
+    isLoading: isLoadingColumns,
+    error: columnsError,
+  } = useColumns(dataset.projectId, dataset.id);
+  const {
+    profiles: profileDtos = [],
+    createAsync: createProfileAsync,
+    updateAsync: updateProfileAsync,
+    removeAsync: removeProfileAsync,
+  } = useProfiles(dataset.projectId, dataset.id);
+  const {
+    suggestions: suggestionDtos = [],
+    isLoading: isLoadingSuggestions,
+  } = useColumnSuggestions(dataset.projectId, dataset.name);
+
   const [columns, setColumns] = React.useState<ColumnProfileData[]>([]);
-  const [isLoadingColumns, setIsLoadingColumns] = React.useState(false);
-  const [columnsError, setColumnsError] = React.useState<string | null>(null);
+  const profileByColumnId = React.useMemo(
+    () => new Map(profileDtos.map((profile) => [profile.columnId, profile] as const)),
+    [profileDtos],
+  );
 
-  // Load columns on mount
   React.useEffect(() => {
-    const loadColumns = async () => {
-      try {
-        setIsLoadingColumns(true);
-        setColumnsError(null);
-        // TODO: Replace with real API call
-        // const data = await columnService.listColumns(dataset.id);
-        // setColumns(data);
-        
-        // For now, show empty state - no mock data
-        setColumns([]);
-      } catch (err) {
-        setColumnsError(err instanceof Error ? err.message : 'Failed to load columns');
-        logger.error('Failed to load columns', err);
-      } finally {
-        setIsLoadingColumns(false);
-      }
-    };
-
-    loadColumns();
-  }, [dataset.id]);
-
+    setColumns(columnDtos.map((column) => columnToProfileData(column, profileByColumnId.get(column.id))));
+  }, [columnDtos, profileByColumnId]);
 
   const filteredColumns = React.useMemo(() => {
     const term = structureSearch.trim().toLowerCase();
@@ -1539,6 +1560,69 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
       col.strategyType.toLowerCase().includes(term)
     );
   }, [structureSearch, columns]);
+
+  const activeSuggestions = React.useMemo(() => {
+    const currentNames = new Set(columns.map((column) => column.name.toLowerCase()));
+    return suggestionDtos.filter(
+      (suggestion) =>
+        !rejectedSuggestions.has(suggestion.name) &&
+        !currentNames.has(suggestion.name.toLowerCase()),
+    );
+  }, [suggestionDtos, rejectedSuggestions, columns]);
+
+  const persistColumn = async (data: ColumnProfileData) => {
+    const profilePayload = {
+      strategyType: data.strategyType,
+      configuration: data.strategyConfig ?? {},
+    };
+
+    if (data.id) {
+      const updatedColumn = await updateColumnAsync(data.id, {
+        name: data.name,
+        displayName: data.displayName,
+        dataType: data.dataType,
+        required: data.required,
+        unique: data.unique,
+        nullable: data.nullable,
+        description: data.description,
+      });
+      const existingProfile = profileByColumnId.get(data.id);
+      if (existingProfile) {
+        await updateProfileAsync(existingProfile.id, profilePayload);
+      } else {
+        await createProfileAsync({
+          projectId: dataset.projectId,
+          datasetId: dataset.id,
+          columnId: updatedColumn.id,
+          ...profilePayload,
+        });
+      }
+      return;
+    }
+
+    const createdColumn = await createColumnAsync({
+      projectId: dataset.projectId,
+      datasetId: dataset.id,
+      name: data.name,
+      displayName: data.displayName,
+      dataType: data.dataType,
+      required: data.required,
+      unique: data.unique,
+      nullable: data.nullable,
+      description: data.description,
+    });
+    await createProfileAsync({
+      projectId: dataset.projectId,
+      datasetId: dataset.id,
+      columnId: createdColumn.id,
+      ...profilePayload,
+    });
+  };
+
+  const acceptSuggestion = async (suggestion: ColumnSuggestion) => {
+    const nextColumn = suggestionToProfileData(suggestion, dataset.id);
+    await persistColumn(nextColumn);
+  };
 
   const handleAddColumn = () => {
     setSelectedColumn(undefined);
@@ -1553,10 +1637,22 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
     setEditorOpen(true);
   };
 
-  const handleDeleteColumn = (col: ColumnProfileData) => {
-    setColumns(columns.filter((c) => c.id !== col.id));
-    setToastMessage('Column deleted successfully');
-    setToastOpen(true);
+  const handleDeleteColumn = async (col: ColumnProfileData) => {
+    try {
+      const existingProfile = col.id ? profileByColumnId.get(col.id) : undefined;
+      if (existingProfile) {
+        await removeProfileAsync(existingProfile.id);
+      }
+      if (col.id) {
+        await removeColumnAsync(col.id);
+      }
+      setToastMessage('Column deleted successfully');
+      setToastOpen(true);
+    } catch (err) {
+      logger.error('Failed to delete column', err);
+      setToastMessage(err instanceof Error ? err.message : 'Failed to delete column');
+      setToastOpen(true);
+    }
   };
 
   const handleMoveColumn = (index: number, direction: 'up' | 'down') => {
@@ -1569,18 +1665,53 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
     setColumns(newColumns);
   };
 
-  const activeSuggestions: ColumnSuggestion[] = [];
+  const handleAcceptAllSuggestions = async () => {
+    if (activeSuggestions.length === 0) {
+      setToastMessage('No suggestions available');
+      setToastOpen(true);
+      return;
+    }
 
-  const handleAcceptAllSuggestions = () => {
-    // TODO: Load suggestions from API
-    setToastMessage('No suggestions available');
-    setToastOpen(true);
+    try {
+      let added = 0;
+      for (const suggestion of activeSuggestions) {
+        await acceptSuggestion(suggestion);
+        added += 1;
+      }
+      setSelectedSuggestionIds(new Set());
+      setShowSuggestions(false);
+      setToastMessage(`Added ${added} suggested column${added === 1 ? '' : 's'}.`);
+      setToastOpen(true);
+    } catch (err) {
+      logger.error('Failed to accept suggested columns', err);
+      setToastMessage(err instanceof Error ? err.message : 'Failed to add suggested columns');
+      setToastOpen(true);
+    }
   };
 
-  const handleAcceptSelectedSuggestions = () => {
-    // TODO: Load suggestions from API
-    setToastMessage('No suggestions available');
-    setToastOpen(true);
+  const handleAcceptSelectedSuggestions = async () => {
+    const selected = activeSuggestions.filter((suggestion) => selectedSuggestionIds.has(suggestion.name));
+    if (selected.length === 0) {
+      setToastMessage('Select at least one suggestion first.');
+      setToastOpen(true);
+      return;
+    }
+
+    try {
+      let added = 0;
+      for (const suggestion of selected) {
+        await acceptSuggestion(suggestion);
+        added += 1;
+      }
+      setSelectedSuggestionIds(new Set());
+      setShowSuggestions(false);
+      setToastMessage(`Added ${added} suggested column${added === 1 ? '' : 's'}.`);
+      setToastOpen(true);
+    } catch (err) {
+      logger.error('Failed to accept selected suggestions', err);
+      setToastMessage(err instanceof Error ? err.message : 'Failed to add selected suggestions');
+      setToastOpen(true);
+    }
   };
 
   const handleSkipSuggestions = () => {
@@ -1604,12 +1735,34 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
     const next = new Set(selectedSuggestionIds);
     next.delete(name);
     setSelectedSuggestionIds(next);
+    setRejectedSuggestions(new Set([...rejectedSuggestions, name]));
   };
 
   return (
     <div className='space-y-4'>
+      {isLoadingColumns && (
+        <Card className='border-dashed border-border bg-surface/50'>
+          <CardContent className='py-4 text-sm text-text-secondary'>
+            Loading columns...
+          </CardContent>
+        </Card>
+      )}
+      {columnsError && (
+        <Card className='border-red-200 bg-red-50'>
+          <CardContent className='py-4 text-sm text-red-700'>
+            {columnsError instanceof Error ? columnsError.message : 'Failed to load columns'}
+          </CardContent>
+        </Card>
+      )}
       {/* AI Recommendations Banner */}
-      {!showSuggestions && activeSuggestions.length > 0 && (
+      {!showSuggestions && isLoadingSuggestions && (
+        <Card className='border-dashed border-border bg-surface/50'>
+          <CardContent className='py-4 text-sm text-text-secondary'>
+            Looking for recommendations...
+          </CardContent>
+        </Card>
+      )}
+      {!showSuggestions && !isLoadingSuggestions && activeSuggestions.length > 0 && (
         <Card className='border-primary/30 bg-primary/5'>
           <CardContent className='flex items-center justify-between py-4'>
             <div className='flex items-center gap-3'>
@@ -1643,11 +1796,11 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
             </div>
             {activeSuggestions.length > 0 && (
               <div className='mt-3 flex items-center gap-2'>
-                <Button size='sm' variant='default' onClick={handleAcceptAllSuggestions}>
+                <Button size='sm' variant='default' onClick={() => void handleAcceptAllSuggestions()}>
                   <Check className='mr-1 h-4 w-4' />
                   Accept All
                 </Button>
-                <Button size='sm' variant='outline' onClick={handleAcceptSelectedSuggestions} disabled={selectedSuggestionIds.size === 0}>
+                <Button size='sm' variant='outline' onClick={() => void handleAcceptSelectedSuggestions()} disabled={selectedSuggestionIds.size === 0}>
                   Accept Selected ({selectedSuggestionIds.size})
                 </Button>
                 <Button size='sm' variant='ghost' onClick={handleSkipSuggestions}>
@@ -1771,7 +1924,7 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
                         <Button variant='ghost' size='sm' onClick={() => handleEditColumn(col)}>
                           <Edit className='h-3 w-3' />
                         </Button>
-                        <Button variant='ghost' size='sm' onClick={() => handleDeleteColumn(col)}>
+                        <Button variant='ghost' size='sm' onClick={() => void handleDeleteColumn(col)}>
                           <Trash2 className='h-3 w-3' />
                         </Button>
                       </div>
@@ -1802,6 +1955,32 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {editorOpen && (
+        <Suspense fallback={<div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'><div className='text-sm text-text-secondary'>Loading editor...</div></div>}>
+          <ColumnProfileDialog
+            open={editorOpen}
+            onClose={() => setEditorOpen(false)}
+            onSubmit={(data) => {
+              void (async () => {
+                try {
+                  await persistColumn(data);
+                  setEditorOpen(false);
+                  setSelectedColumn(undefined);
+                  setToastMessage(data.id ? 'Column updated successfully' : 'Column added successfully');
+                  setToastOpen(true);
+                } catch (err) {
+                  logger.error('Failed to save column', err);
+                  setToastMessage(err instanceof Error ? err.message : 'Failed to save column');
+                  setToastOpen(true);
+                }
+              })();
+            }}
+            column={selectedColumn}
+            isSubmitting={false}
+          />
+        </Suspense>
       )}
     </div>
   );

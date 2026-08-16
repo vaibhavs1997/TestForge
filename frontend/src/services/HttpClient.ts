@@ -5,24 +5,12 @@
 
 import { API_BASE_URL } from '../constants/api';
 import { getAuthAuthorizationHeader, notifyUnauthorized } from './authSession';
+import { getApiErrorMessage, unwrapApiData } from './apiHelpers';
 
 export interface ApiError {
   message: string;
   statusCode: number;
   details?: Record<string, unknown>;
-}
-
-interface SuccessEnvelope<T> {
-  success?: boolean;
-  data?: T;
-  message?: string;
-}
-
-function unwrap<T>(body: SuccessEnvelope<T> | T): T {
-  if (body && typeof body === 'object' && 'success' in body && (body as SuccessEnvelope<T>).success === true) {
-    return (body as SuccessEnvelope<T>).data as T;
-  }
-  return body as T;
 }
 
 export class HttpClient {
@@ -59,7 +47,7 @@ export class HttpClient {
     }
 
     const body = await response.json();
-    return unwrap<T>(body);
+    return unwrapApiData<T>(body);
   }
 
   async post<T>(path: string, body: unknown): Promise<T> {
@@ -74,7 +62,7 @@ export class HttpClient {
     }
 
     const json = await response.json();
-    return unwrap<T>(json);
+    return unwrapApiData<T>(json);
   }
 
   async patch<T>(path: string, body: unknown): Promise<T> {
@@ -89,7 +77,7 @@ export class HttpClient {
     }
 
     const json = await response.json();
-    return unwrap<T>(json);
+    return unwrapApiData<T>(json);
   }
 
   async put<T>(path: string, body: unknown): Promise<T> {
@@ -104,7 +92,7 @@ export class HttpClient {
     }
 
     const json = await response.json();
-    return unwrap<T>(json);
+    return unwrapApiData<T>(json);
   }
 
   async delete(path: string): Promise<void> {
@@ -123,7 +111,7 @@ export class HttpClient {
 
     const text = await response.text();
     if (!text) return;
-    unwrap(JSON.parse(text));
+    unwrapApiData(JSON.parse(text));
   }
 
   private async handleError(response: Response, path: string): Promise<ApiError> {
@@ -136,10 +124,7 @@ export class HttpClient {
     }
 
     const apiError: ApiError = {
-      message:
-        (typeof errorBody.message === 'string' && errorBody.message) ||
-        (typeof errorBody.error === 'string' && errorBody.error) ||
-        `HTTP ${response.status}: ${response.statusText}`,
+      message: getApiErrorMessage({ response: { data: errorBody } }, `HTTP ${response.status}: ${response.statusText}`),
       statusCode: response.status,
       details: errorBody,
     };

@@ -1,18 +1,6 @@
 // Environment service for Environment Management
 import { ApiClient } from '../../../services/ApiClient';
-
-export interface EnvironmentDto {
-  id: string;
-  projectId: string;
-  name: string;
-  baseUrl: string;
-  description: string;
-  authentication: any;
-  variables: Record<string, string>;
-  timeout: number;
-  createdAt: number;
-  updatedAt: number;
-}
+import type { EnvironmentDto } from '../../../types/apiModels';
 
 class EnvironmentService extends ApiClient<EnvironmentDto> {
   constructor() {

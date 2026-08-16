@@ -1,15 +1,7 @@
 // Profile service for Population Profiles
 import { ApiClient } from '../../../services/ApiClient';
-
-export interface PopulationProfileDto {
-  id: string;
-  datasetId: string;
-  columnId: string;
-  strategyType: string;
-  configuration: Record<string, any>;
-  createdAt: number;
-  updatedAt: number;
-}
+import type { PopulationProfileDto } from '../../../types/moduleContracts';
+import { normalizePopulationProfile } from '../../../utils/moduleAdapters';
 
 class PopulationProfileService extends ApiClient<PopulationProfileDto> {
   constructor() {
@@ -18,11 +10,11 @@ class PopulationProfileService extends ApiClient<PopulationProfileDto> {
 
   async listProfiles(projectId: string, datasetId?: string): Promise<PopulationProfileDto[]> {
     const params = datasetId ? { datasetId } : {};
-    return this.list(projectId, params);
+    return (await this.list(projectId, params)).map(normalizePopulationProfile);
   }
 
   async getProfile(projectId: string, profileId: string): Promise<PopulationProfileDto> {
-    return this.get(projectId, profileId);
+    return normalizePopulationProfile(await this.get(projectId, profileId));
   }
 
   async createProfile(
@@ -34,7 +26,7 @@ class PopulationProfileService extends ApiClient<PopulationProfileDto> {
       configuration?: Record<string, any>;
     }
   ): Promise<PopulationProfileDto> {
-    return this.create(projectId, payload);
+    return normalizePopulationProfile(await this.create(projectId, payload));
   }
 
   async updateProfile(
@@ -45,7 +37,7 @@ class PopulationProfileService extends ApiClient<PopulationProfileDto> {
       configuration?: Record<string, any>;
     }
   ): Promise<PopulationProfileDto> {
-    return this.patch(projectId, profileId, payload);
+    return normalizePopulationProfile(await this.patch(projectId, profileId, payload));
   }
 
   async deleteProfile(projectId: string, profileId: string): Promise<void> {

@@ -1,33 +1,10 @@
 // API service for API Management
-import type { AxiosProgressEvent, AxiosRequestConfig } from 'axios';
+import type { AxiosProgressEvent } from 'axios';
 import { ApiClient } from '../../../services/ApiClient';
-import { apiAxios } from '../../../services/apiAxios';
+import { apiRequest } from '../../../services/apiRequest';
+import type { ApiOperationDto, ApiServiceDto } from '../../../types/apiModels';
 import type { ImportSummary } from '../types';
-
-export interface ApiServiceDto {
-  id: string;
-  projectId: string;
-  name: string;
-  description: string;
-  version: string;
-  tags: string[];
-  baseUrl?: string;
-  createdAt: number;
-  updatedAt: number;
-}
-
-export interface ApiOperationDto {
-  id: string;
-  serviceId: string;
-  name: string;
-  method: string;
-  path: string;
-  description: string;
-  authenticationType: string;
-  status: string;
-  createdAt: number;
-  updatedAt: number;
-}
+import { API_BASE_URL } from '../../../constants/api';
 
 class ApiService extends ApiClient<ApiServiceDto> {
   constructor() {
@@ -112,15 +89,14 @@ class ApiService extends ApiClient<ApiServiceDto> {
       status?: string;
     }
   ): Promise<ApiOperationDto> {
-    const path = `/projects/${projectId}/services/${serviceId}/apis/${apiId}`;
-    const url = `${this.baseUrl}${path}`;
-    const { data } = await apiAxios.patch(url, payload);
-    return data.data;
+    return apiRequest.patch<ApiOperationDto>(
+      `${API_BASE_URL}/projects/${projectId}/services/${serviceId}/apis/${apiId}`,
+      payload,
+    );
   }
 
   async deleteOperation(projectId: string, serviceId: string, apiId: string): Promise<void> {
-    const path = `/projects/${projectId}/services/${serviceId}/apis/${apiId}`;
-    return this.delete(projectId, path.split('/').pop()!);
+    await apiRequest.delete(`${API_BASE_URL}/projects/${projectId}/services/${serviceId}/apis/${apiId}`);
   }
 
   // Import Contract

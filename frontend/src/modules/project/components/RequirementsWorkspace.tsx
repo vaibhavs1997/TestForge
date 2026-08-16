@@ -3,6 +3,7 @@ import { Routes, Route, NavLink, useLocation, useParams } from 'react-router-dom
 import { RequirementsPage } from '../../requirements/pages/RequirementsPage';
 import { AnalysisPage } from '../../analysis/pages/AnalysisPage';
 import { AssertionLibraryPage } from '../../assertion/pages/AssertionLibraryPage';
+import { projectModulePath, projectModuleRootPath } from '../../../routes/paths';
 
 interface RequirementsWorkspaceProps {
   projectId: string;
@@ -20,14 +21,14 @@ export const RequirementsWorkspace: React.FC<RequirementsWorkspaceProps> = ({ pr
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const activeProjectId = projectId || routeProjectId || '1';
 
-  const subPath = location.pathname.replace(`/projects/${activeProjectId}/requirements`, '');
+  const subPath = location.pathname.replace(projectModuleRootPath(activeProjectId, 'requirements'), '');
   const activeSub = subPath === '' || subPath === '/' ? '' : subPath;
 
   return (
     <div className='flex h-full flex-col'>
       <div className='flex items-center gap-1 border-b border-border bg-surface px-6 py-2'>
         {SUB_NAV_ITEMS.map((item) => {
-          const fullPath = `/projects/${activeProjectId}/requirements${item.path}`;
+          const fullPath = projectModulePath(activeProjectId, 'requirements', item.path);
           const isActive = activeSub === item.path || (item.path === '' && (activeSub === '' || activeSub === '/'));
           return (
             <NavLink

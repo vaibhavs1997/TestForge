@@ -1,12 +1,7 @@
 // Test Data Library row types
-export interface DatasetRow {
-  id: string;
-  projectId: string;
-  datasetId: string;
-  values: Record<string, any>;
-  createdAt: number;
-  updatedAt: number;
-}
+import type { DatasetRowDto } from '../../../types/moduleContracts';
+
+export type DatasetRow = DatasetRowDto;
 
 export interface CreateRowInput {
   projectId: string;

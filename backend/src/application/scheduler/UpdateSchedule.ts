@@ -1,6 +1,13 @@
 // UpdateSchedule - Application Use Case for updating a scheduled execution
 import { ScheduleEntity } from '../../domain/scheduler/ScheduleEntity';
 import type { ScheduleRepository } from '../../domain/scheduler/ScheduleRepository';
+import {
+  assertActiveSuite,
+  buildSchedulePatch,
+  normalizeScheduleDescription,
+  normalizeScheduleName,
+  normalizeScheduleTimezone,
+} from '../../domain/scheduler/SchedulePolicy';
 import { TestSuiteRepository } from '../../domain/suite/TestSuiteRepository';
 import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
 import { CronExpression } from './CronExpression';
@@ -30,33 +37,40 @@ export class UpdateSchedule {
       throw new Error(`Schedule with id ${input.id} not found`);
     }
 
-    const updateData: Partial<ScheduleEntity> = {};
+    let nextRun: number | null | undefined;
+    let normalizedName: string | undefined;
+    let normalizedDescription: string | undefined;
+    let normalizedEnabled: boolean | undefined;
+    let normalizedSuiteId: string | undefined;
+    let normalizedExecutionProfileId: string | undefined;
+    let normalizedEnvironmentId: string | null | undefined;
+    let normalizedCronExpression: string | undefined;
+    let normalizedTimezone: string | undefined;
 
     if (input.name !== undefined) {
-      ValidationHelpers.validateNotEmpty(input.name, 'Schedule name');
-      if (input.name.trim().toLowerCase() !== existing.name.toLowerCase()) {
+      normalizedName = normalizeScheduleName(input.name);
+      if (normalizedName.toLowerCase() !== existing.name.toLowerCase()) {
         try {
           await ValidationHelpers.validateUniqueName(
             this.scheduleRepository,
-            input.name,
+            normalizedName,
             input.projectId
           );
         } catch (error) {
-          if (error instanceof Error && error.message === `Resource with name "${input.name}" already exists in this project`) {
-            throw new Error(`Schedule with name "${input.name}" already exists in this project`);
+          if (error instanceof Error && error.message === `Resource with name "${normalizedName}" already exists in this project`) {
+            throw new Error(`Schedule with name "${normalizedName}" already exists in this project`);
           }
           throw error;
         }
       }
-      updateData.name = input.name.trim();
     }
 
     if (input.description !== undefined) {
-      updateData.description = input.description;
+      normalizedDescription = normalizeScheduleDescription(input.description);
     }
 
     if (input.enabled !== undefined) {
-      updateData.enabled = input.enabled;
+      normalizedEnabled = input.enabled;
     }
 
     if (input.suiteId !== undefined) {
@@ -65,18 +79,16 @@ export class UpdateSchedule {
       if (!suite) {
         throw new Error(`Test Suite with id ${suiteId} not found`);
       }
-      if (suite.status !== 'Active') {
-        throw new Error(`Cannot schedule disabled suite "${suite.name}" - suite must be Active`);
-      }
-      updateData.suiteId = suiteId;
+      assertActiveSuite(suite);
+      normalizedSuiteId = suiteId;
     }
 
     if (input.executionProfileId !== undefined) {
-      updateData.executionProfileId = ValidationHelpers.validateRequired(input.executionProfileId, 'Execution Profile');
+      normalizedExecutionProfileId = ValidationHelpers.validateRequired(input.executionProfileId, 'Execution Profile');
     }
 
     if (input.environmentId !== undefined) {
-      updateData.environmentId = input.environmentId;
+      normalizedEnvironmentId = input.environmentId;
     }
 
     if (input.cronExpression !== undefined) {
@@ -84,11 +96,11 @@ export class UpdateSchedule {
       if (!CronExpression.validate(input.cronExpression)) {
         throw new Error(`Invalid cron expression "${input.cronExpression}"`);
       }
-      updateData.cronExpression = cronExpression;
+      normalizedCronExpression = cronExpression;
     }
 
     if (input.timezone !== undefined) {
-      updateData.timezone = input.timezone;
+      normalizedTimezone = normalizeScheduleTimezone(input.timezone);
     }
 
     const recomputeNext = input.cronExpression !== undefined || input.enabled !== undefined;
@@ -98,14 +110,26 @@ export class UpdateSchedule {
       if (isEnabled) {
         try {
           const cron = new CronExpression(cronExpr);
-          updateData.nextRun = cron.nextRun(new Date());
+          nextRun = cron.nextRun(new Date());
         } catch {
-          updateData.nextRun = null;
+          nextRun = null;
         }
       } else {
-        updateData.nextRun = null;
+        nextRun = null;
       }
     }
+
+    const updateData = buildSchedulePatch({
+      name: normalizedName,
+      description: normalizedDescription,
+      enabled: normalizedEnabled,
+      suiteId: normalizedSuiteId,
+      executionProfileId: normalizedExecutionProfileId,
+      environmentId: normalizedEnvironmentId,
+      cronExpression: normalizedCronExpression,
+      timezone: normalizedTimezone,
+      nextRun,
+    });
 
     return this.scheduleRepository.update(input.id, updateData);
   }

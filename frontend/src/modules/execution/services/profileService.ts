@@ -2,31 +2,35 @@
 
 import { ApiClient } from '../../../services/ApiClient';
 import type { ExecutionProfile, CreateProfileInput } from '../types/profile';
+import type { ExecutionProfileDto } from '../../../types/moduleContracts';
+import { normalizeExecutionProfile } from '../../../utils/moduleAdapters';
 
-class ExecutionProfileService extends ApiClient<ExecutionProfile> {
+class ExecutionProfileService extends ApiClient<ExecutionProfileDto> {
   constructor() {
     super('/projects/:projectId/execution-profiles');
   }
 
   async listByProject(projectId: string): Promise<ExecutionProfile[]> {
-    return this.list(projectId);
+    const profiles = await this.list(projectId);
+    return profiles.map(normalizeExecutionProfile);
   }
 
   async getDefault(projectId: string): Promise<ExecutionProfile | null> {
     const path = `/projects/${projectId}/execution-profiles/default`;
-    return this.getCustom(path);
+    const profile = await this.getCustom<ExecutionProfileDto | null>(path);
+    return profile ? normalizeExecutionProfile(profile) : null;
   }
 
   async getById(projectId: string, profileId: string): Promise<ExecutionProfile> {
-    return this.get(projectId, profileId);
+    return normalizeExecutionProfile(await this.get(projectId, profileId));
   }
 
   async createProfile(projectId: string, input: CreateProfileInput): Promise<ExecutionProfile> {
-    return this.create(projectId, input);
+    return normalizeExecutionProfile(await this.create(projectId, input));
   }
 
   async updateProfile(projectId: string, profileId: string, updates: Partial<CreateProfileInput>): Promise<ExecutionProfile> {
-    return this.patch(projectId, profileId, updates);
+    return normalizeExecutionProfile(await this.patch(projectId, profileId, updates));
   }
 
   async deleteProfile(projectId: string, profileId: string): Promise<void> {
@@ -35,7 +39,7 @@ class ExecutionProfileService extends ApiClient<ExecutionProfile> {
 
   async duplicateProfile(projectId: string, profileId: string, newName: string): Promise<ExecutionProfile> {
     const path = `/projects/${projectId}/execution-profiles/${profileId}/duplicate`;
-    return this.post(path, { name: newName });
+    return normalizeExecutionProfile(await this.post(path, { name: newName }));
   }
 
   async duplicate(projectId: string, profileId: string, newName: string): Promise<ExecutionProfile> {

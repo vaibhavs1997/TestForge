@@ -1,10 +1,8 @@
 // NotificationPage - CRUD interface for managing notifications
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNotifications, useProviders, useNotificationMutations } from '../hooks';
-import { notificationService } from '../services';
+import React from 'react';
+import { useNotifications, useProviders, useNotificationMutations, useNotificationPage } from '../hooks';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
 import { PageEmpty, PageError, PageLoading } from '../../../components/shared/PageState';
-import type { Notification, NotificationFormData, Provider } from '../types';
 import { useParams } from 'react-router-dom';
 
 export function NotificationPage() {
@@ -12,103 +10,33 @@ export function NotificationPage() {
   const { data: notifications = [], isLoading: loading, isError, error } = useNotifications(projectId || null);
   const { data: providers = [] } = useProviders(projectId || null);
   const { createNotification, updateNotification, deleteNotification } = useNotificationMutations(projectId || undefined);
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingNotification, setEditingNotification] = useState<Notification | null>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [formData, setFormData] = useState<NotificationFormData>({
-    name: '',
-    eventType: 'ExecutionCompleted',
-    providerId: '',
-    recipients: [],
-    subjectTemplate: '',
-    bodyTemplate: '',
-    enabled: true,
+  const {
+    isModalOpen,
+    setIsModalOpen,
+    editingNotification,
+    deleteOpen,
+    setDeleteOpen,
+    setDeleteId,
+    searchQuery,
+    setSearchQuery,
+    formData,
+    setFormData,
+    filteredNotifications,
+    handleCreate,
+    handleEdit,
+    handleDuplicate,
+    handleDelete,
+    handleToggleEnabled,
+    handleSubmit,
+    handleTest,
+  } = useNotificationPage({
+    projectId: projectId || null,
+    notifications,
+    providers,
+    createNotification,
+    updateNotification,
+    deleteNotification,
   });
-
-  const filteredNotifications = notifications.filter(n =>
-    n.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const handleCreate = useCallback(() => {
-    setEditingNotification(null);
-    setFormData({
-      name: '',
-      eventType: 'ExecutionCompleted',
-      providerId: providers[0]?.id || '',
-      recipients: [],
-      subjectTemplate: 'Test execution {{status}}',
-      bodyTemplate: 'Execution run {{executionRunId}} completed with status: {{status}}',
-      enabled: true,
-    });
-    setIsModalOpen(true);
-  }, [providers]);
-
-  const handleEdit = useCallback((notification: Notification) => {
-    setEditingNotification(notification);
-    setFormData({
-      name: notification.name,
-      eventType: notification.eventType,
-      providerId: notification.providerId,
-      recipients: notification.recipients,
-      subjectTemplate: notification.subjectTemplate,
-      bodyTemplate: notification.bodyTemplate,
-      enabled: notification.enabled,
-    });
-    setIsModalOpen(true);
-  }, []);
-
-  const handleDuplicate = useCallback(async (notification: Notification) => {
-    const duplicated: NotificationFormData = {
-      name: `${notification.name} (Copy)`,
-      eventType: notification.eventType,
-      providerId: notification.providerId,
-      recipients: [...notification.recipients],
-      subjectTemplate: notification.subjectTemplate,
-      bodyTemplate: notification.bodyTemplate,
-      enabled: false,
-    };
-    await createNotification(duplicated);
-  }, [createNotification]);
-
-  const handleDelete = useCallback(async () => {
-    if (!deleteId) return;
-    await deleteNotification(deleteId);
-    setDeleteOpen(false);
-    setDeleteId(null);
-  }, [deleteId, deleteNotification]);
-
-  const handleToggleEnabled = useCallback(async (notification: Notification) => {
-    await updateNotification({ notificationId: notification.id, data: { enabled: !notification.enabled } });
-  }, [updateNotification]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!projectId) return;
-
-    try {
-      if (editingNotification) {
-        await updateNotification({ notificationId: editingNotification.id, data: formData });
-      } else {
-        await createNotification(formData);
-      }
-      setIsModalOpen(false);
-    } catch (err) {
-      console.error('Failed to save notification:', err);
-    }
-  };
-
-  const handleTest = async (id: string) => {
-    try {
-      await notificationService.testNotification(id);
-      alert('Test notification triggered successfully');
-    } catch (err) {
-      console.error('Failed to test notification:', err);
-      alert('Failed to trigger test notification');
-    }
-  };
 
   if (loading) return <PageLoading title="Loading notifications..." />;
   if (error) {

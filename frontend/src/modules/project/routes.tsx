@@ -32,6 +32,7 @@ import { projectStore } from '../../store/projectStore';
 
 // Project overview dashboard (existing component)
 import { PipelineDashboard } from './components/PipelineDashboard';
+import { projectModules } from '../../routes/paths';
 
 // Simple loading fallback for lazy routes
 const PageLoader = () => (
@@ -71,27 +72,27 @@ const ProjectWorkspace: React.FC = () => {
   return (
     <Routes>
       {/* Primary workflow */}
-      <Route path='overview' element={<PipelineDashboard projectId={projectId} />} />
-      <Route path='apis' element={<ApiRoutes />} />
-      <Route path='environment' element={<ProjectEnvironmentPage />} />
-      <Route path='testdata/*' element={<TestDataWorkspace projectId={projectId} />} />
-      <Route path='knowledge' element={<ProjectKnowledgePage />} />
-      <Route path='requirements/*' element={<RequirementsWorkspace projectId={projectId} />} />
-      <Route path='execution/*' element={<ExecutionWorkspace projectId={projectId} />} />
-      <Route path='reports/*' element={<ProjectReportPage />} />
+      <Route path={projectModules.overview} element={<PipelineDashboard projectId={projectId} />} />
+      <Route path={projectModules.apis} element={<ApiRoutes />} />
+      <Route path={projectModules.environment} element={<ProjectEnvironmentPage />} />
+      <Route path={`${projectModules.testData}/*`} element={<TestDataWorkspace projectId={projectId} />} />
+      <Route path={projectModules.knowledge} element={<ProjectKnowledgePage />} />
+      <Route path={`${projectModules.requirements}/*`} element={<RequirementsWorkspace projectId={projectId} />} />
+      <Route path={`${projectModules.execution}/*`} element={<ExecutionWorkspace projectId={projectId} />} />
+      <Route path={`${projectModules.reports}/*`} element={<ProjectReportPage />} />
 
       {/* Administration */}
-      <Route path='recommendations' element={<ProjectRecommendationsPage />} />
-      <Route path='pipeline' element={<PipelinePage projectId={projectId} />} />
-      <Route path='notifications' element={<ProjectNotificationPage />} />
-      <Route path='versions' element={<ProjectVersionHistoryPage />} />
-      <Route path='audit' element={<ProjectAuditLogPage />} />
-      <Route path='plugins' element={<ProjectPluginManagementPage />} />
-      <Route path='ai-providers' element={<AIProviderManagementPage projectId={projectId} />} />
+      <Route path={projectModules.recommendations} element={<ProjectRecommendationsPage />} />
+      <Route path={projectModules.pipeline} element={<PipelinePage projectId={projectId} />} />
+      <Route path={projectModules.notifications} element={<ProjectNotificationPage />} />
+      <Route path={projectModules.versions} element={<ProjectVersionHistoryPage />} />
+      <Route path={projectModules.audit} element={<ProjectAuditLogPage />} />
+      <Route path={projectModules.plugins} element={<ProjectPluginManagementPage />} />
+      <Route path={projectModules.aiProviders} element={<AIProviderManagementPage projectId={projectId} />} />
 
       {/* Developer Tools */}
-      <Route path='context' element={<ProjectContextPage projectId={projectId} />} />
-      <Route path='prompts' element={<PromptBuilderPage projectId={projectId} />} />
+      <Route path={projectModules.context} element={<ProjectContextPage projectId={projectId} />} />
+      <Route path={projectModules.prompts} element={<PromptBuilderPage projectId={projectId} />} />
 
       {/* Default to overview */}
       <Route index element={<PipelineDashboard projectId={projectId} />} />

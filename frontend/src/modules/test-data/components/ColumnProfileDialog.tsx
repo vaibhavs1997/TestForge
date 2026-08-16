@@ -280,7 +280,7 @@ export const ColumnProfileDialog = ({ open, onClose, onSubmit, column, isSubmitt
               )}
               {(strategyType === 'Provider' || strategyType === 'Runtime Response' || strategyType === 'Environment Variable') && (
                 <p className="text-xs text-text-secondary">
-                  {strategyType} configuration will be available in a future update.
+                  {strategyType} configuration is not exposed in this UI yet.
                 </p>
               )}
             </div>

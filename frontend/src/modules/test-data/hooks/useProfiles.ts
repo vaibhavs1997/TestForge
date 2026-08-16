@@ -1,7 +1,7 @@
 // TanStack Query hooks for Population Profiles
 import { useCRUD } from '../../../hooks/useCRUD';
 import { profileService } from '../services/profileService';
-import type { PopulationProfileDto } from '../services/profileService';
+import type { PopulationProfileDto } from '../../../types/moduleContracts';
 import { queryKeys } from '../../../constants';
 
 // ─── Profiles ──────────────────────────────────────────────────

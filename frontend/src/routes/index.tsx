@@ -9,6 +9,7 @@ import { RequireAuth } from '../modules/auth/components/RequireAuth';
 import { GuestOnly } from '../modules/auth/components/GuestOnly';
 import { EnterpriseAuthRoutes } from '../modules/auth/components/EnterpriseAuthRoutes';
 import { AuthModalRedirect } from '../modules/auth/components/AuthModalRedirect';
+import { appPaths, legacyProjectModuleRedirects, projectModulePath, type ProjectModule } from './paths';
 // Simple loading fallback for lazy routes
 const PageLoader = () => (
   <div className="flex h-screen items-center justify-center">
@@ -25,74 +26,61 @@ const ShowcasePage = lazy(() => import('../app/ShowcasePage'));
  * Redirects a top-level module URL (e.g. /apis) into the active project
  * workspace (e.g. /projects/:projectId/apis) so existing URLs keep working.
  */
-const ProjectModuleRedirect: React.FC<{ module: string }> = ({ module }) => {
+const ProjectModuleRedirect: React.FC<{ module: ProjectModule }> = ({ module }) => {
   const selectedProjectId = projectStore((state) => state.selectedProjectId);
-  const target = selectedProjectId
-    ? `/projects/${selectedProjectId}/${module}`
-    : '/projects';
+  const target = selectedProjectId ? projectModulePath(selectedProjectId, module) : appPaths.projects;
   return <Navigate to={target} replace />;
 };
 
 export const AppRoutes = () => (
   <Routes>
-    <Route path="/" element={<LandingPage />} />
+    <Route path={appPaths.root} element={<LandingPage />} />
     <Route element={<GuestOnly />}>
       <Route element={<EnterpriseAuthRoutes />}>
-        <Route path="/login" element={<AuthModalRedirect mode="login" />} />
-        <Route path="/register" element={<AuthModalRedirect mode="register" />} />
+        <Route path={appPaths.login} element={<AuthModalRedirect mode="login" />} />
+        <Route path={appPaths.register} element={<AuthModalRedirect mode="register" />} />
       </Route>
     </Route>
     <Route element={<RequireAuth />}>
       <Route element={<AppShell />}>
-      <Route path='/dashboard' element={
-        <Suspense fallback={<PageLoader />}>
-          <DashboardPage />
-        </Suspense>
-      } />
-      <Route path='/projects/*' element={<ProjectRoutes />} />
-      <Route path='/import' element={
-        <Suspense fallback={<PageLoader />}>
-          <ImportCenterPage />
-        </Suspense>
-      } />
-      <Route path='/settings' element={<SettingsRoutes />} />
-      <Route path='/showcase' element={
-        <Suspense fallback={<PageLoader />}>
-          <ShowcasePage />
-        </Suspense>
-      } />
+        <Route
+          path={appPaths.dashboard}
+          element={
+            <Suspense fallback={<PageLoader />}>
+              <DashboardPage />
+            </Suspense>
+          }
+        />
+        <Route path={`${appPaths.projects}/*`} element={<ProjectRoutes />} />
+        <Route
+          path={appPaths.importCenter}
+          element={
+            <Suspense fallback={<PageLoader />}>
+              <ImportCenterPage />
+            </Suspense>
+          }
+        />
+        <Route path={appPaths.settings} element={<SettingsRoutes />} />
+        <Route
+          path={appPaths.showcase}
+          element={
+            <Suspense fallback={<PageLoader />}>
+              <ShowcasePage />
+            </Suspense>
+          }
+        />
 
       {/*
         Backward-compatible top-level module routes.
         These redirect into the active project workspace so existing URLs
         continue to work while keeping a single source of truth for each module.
       */}
-      <Route path='/apis' element={<ProjectModuleRedirect module='apis' />} />
-      <Route path='/apis/*' element={<ProjectModuleRedirect module='apis' />} />
-      <Route path='/environments' element={<ProjectModuleRedirect module='environment' />} />
-      <Route path='/environments/*' element={<ProjectModuleRedirect module='environment' />} />
-      <Route path='/knowledge' element={<ProjectModuleRedirect module='knowledge' />} />
-      <Route path='/knowledge/*' element={<ProjectModuleRedirect module='knowledge' />} />
-      <Route path='/reports' element={<ProjectModuleRedirect module='reports' />} />
-      <Route path='/reports/*' element={<ProjectModuleRedirect module='reports' />} />
-      <Route path='/notifications' element={<ProjectModuleRedirect module='notifications' />} />
-      <Route path='/notifications/*' element={<ProjectModuleRedirect module='notifications' />} />
-      <Route path='/versions' element={<ProjectModuleRedirect module='versions' />} />
-      <Route path='/versions/*' element={<ProjectModuleRedirect module='versions' />} />
-      <Route path='/audit' element={<ProjectModuleRedirect module='audit' />} />
-      <Route path='/audit/*' element={<ProjectModuleRedirect module='audit' />} />
-      <Route path='/plugins' element={<ProjectModuleRedirect module='plugins' />} />
-      <Route path='/plugins/*' element={<ProjectModuleRedirect module='plugins' />} />
-      <Route path='/ai-providers' element={<ProjectModuleRedirect module='ai-providers' />} />
-      <Route path='/ai-providers/*' element={<ProjectModuleRedirect module='ai-providers' />} />
-      <Route path='/recommendations' element={<ProjectModuleRedirect module='recommendations' />} />
-      <Route path='/recommendations/*' element={<ProjectModuleRedirect module='recommendations' />} />
-      <Route path='/pipeline' element={<ProjectModuleRedirect module='pipeline' />} />
-      <Route path='/pipeline/*' element={<ProjectModuleRedirect module='pipeline' />} />
-      <Route path='/context' element={<ProjectModuleRedirect module='context' />} />
-      <Route path='/context/*' element={<ProjectModuleRedirect module='context' />} />
-      <Route path='/prompts' element={<ProjectModuleRedirect module='prompts' />} />
-      <Route path='/prompts/*' element={<ProjectModuleRedirect module='prompts' />} />
+        {legacyProjectModuleRedirects.map(({ path, module }) => (
+          <React.Fragment key={path}>
+            <Route path={path} element={<ProjectModuleRedirect module={module} />} />
+            <Route path={`${path}/*`} element={<ProjectModuleRedirect module={module} />} />
+          </React.Fragment>
+        ))}
       </Route>
     </Route>
   </Routes>

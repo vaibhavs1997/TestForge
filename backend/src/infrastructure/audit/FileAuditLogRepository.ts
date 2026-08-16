@@ -1,6 +1,7 @@
 import * as path from 'node:path';
 import { AuditLogEntity, AuditLogRepository } from '../../domain/audit';
 import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { filterAuditLogs, sortAuditLogsDescending } from './AuditLogRepositorySupport';
 
 function logsFilePath(): string {
   return path.join(process.cwd(), 'data', 'audit', 'logs.json');
@@ -60,35 +61,11 @@ export class FileAuditLogRepository implements AuditLogRepository {
       endDate?: number;
     },
   ): Promise<AuditLogEntity[]> {
-    let logs = await this.findByProject(projectId);
-
-    if (filters) {
-      if (filters.module) {
-        logs = logs.filter((log) => log.module === filters.module);
-      }
-      if (filters.entityType) {
-        logs = logs.filter((log) => log.entityType === filters.entityType);
-      }
-      if (filters.entityId) {
-        logs = logs.filter((log) => log.entityId === filters.entityId);
-      }
-      if (filters.action) {
-        logs = logs.filter((log) => log.action === filters.action);
-      }
-      if (filters.startDate) {
-        logs = logs.filter((log) => log.timestamp >= filters.startDate!);
-      }
-      if (filters.endDate) {
-        logs = logs.filter((log) => log.timestamp <= filters.endDate!);
-      }
-    }
-
-    return logs.sort((a, b) => b.timestamp - a.timestamp);
+    return sortAuditLogsDescending(filterAuditLogs(await this.findByProject(projectId), filters));
   }
 
   async list(): Promise<AuditLogEntity[]> {
-    const logs = await this.readAll();
-    return logs.sort((a, b) => b.timestamp - a.timestamp);
+    return sortAuditLogsDescending(await this.readAll());
   }
 }
 

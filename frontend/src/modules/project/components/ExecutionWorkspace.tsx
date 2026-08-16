@@ -4,6 +4,7 @@ import { ExecutionPage } from '../../execution/pages/ExecutionPage';
 import { ExecutionProfilePage } from '../../execution/pages/ExecutionProfilePage';
 import { SuitePage } from '../../suite/pages/SuitePage';
 import { SchedulerPage } from '../../scheduler/pages/SchedulerPage';
+import { projectModulePath, projectModuleRootPath } from '../../../routes/paths';
 
 interface ExecutionWorkspaceProps {
   projectId: string;
@@ -22,14 +23,14 @@ export const ExecutionWorkspace: React.FC<ExecutionWorkspaceProps> = ({ projectI
   const activeProjectId = projectId || routeProjectId || '1';
 
   // Determine active sub-tab from URL
-  const subPath = location.pathname.replace(`/projects/${activeProjectId}/execution`, '');
+  const subPath = location.pathname.replace(projectModuleRootPath(activeProjectId, 'execution'), '');
   const activeSub = subPath === '' || subPath === '/' ? '' : subPath;
 
   return (
     <div className='flex h-full flex-col'>
       <div className='flex items-center gap-1 border-b border-border bg-surface px-6 py-2'>
         {SUB_NAV_ITEMS.map((item) => {
-          const fullPath = `/projects/${activeProjectId}/execution${item.path}`;
+          const fullPath = projectModulePath(activeProjectId, 'execution', item.path);
           const isActive = activeSub === item.path;
           return (
             <NavLink

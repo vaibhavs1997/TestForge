@@ -1,7 +1,7 @@
 // Plugin service functions
-import axios from 'axios';
 import type { Plugin, PluginCategory, PluginHealth } from '../types';
 import { API_BASE_URL } from '../../../constants/api';
+import { apiRequest } from '../../../services/apiRequest';
 
 export const pluginService = {
   listPlugins: async (filters?: { category?: PluginCategory; projectId?: string; enabled?: boolean }): Promise<Plugin[]> => {
@@ -11,13 +11,11 @@ export const pluginService = {
       if (filters.projectId) params.set('projectId', filters.projectId);
       if (filters.enabled !== undefined) params.set('enabled', filters.enabled.toString());
     }
-    const { data } = await axios.get(`${API_BASE_URL}/plugins?${params.toString()}`);
-    return data.data;
+    return apiRequest.get<Plugin[]>(`${API_BASE_URL}/plugins?${params.toString()}`);
   },
 
   getPlugin: async (pluginId: string): Promise<Plugin> => {
-    const { data } = await axios.get(`${API_BASE_URL}/plugins/${pluginId}`);
-    return data.data;
+    return apiRequest.get<Plugin>(`${API_BASE_URL}/plugins/${pluginId}`);
   },
 
   createPlugin: async (plugin: {
@@ -30,37 +28,31 @@ export const pluginService = {
     enabled?: boolean;
     projectId?: string | null;
   }): Promise<Plugin> => {
-    const { data } = await axios.post(`${API_BASE_URL}/plugins`, plugin);
-    return data.data;
+    return apiRequest.post<Plugin>(`${API_BASE_URL}/plugins`, plugin);
   },
 
   enablePlugin: async (pluginId: string): Promise<Plugin> => {
-    const { data } = await axios.post(`${API_BASE_URL}/plugins/${pluginId}/enable`);
-    return data.data;
+    return apiRequest.post<Plugin>(`${API_BASE_URL}/plugins/${pluginId}/enable`);
   },
 
   disablePlugin: async (pluginId: string): Promise<Plugin> => {
-    const { data } = await axios.post(`${API_BASE_URL}/plugins/${pluginId}/disable`);
-    return data.data;
+    return apiRequest.post<Plugin>(`${API_BASE_URL}/plugins/${pluginId}/disable`);
   },
 
   updateConfiguration: async (pluginId: string, configuration: Record<string, any>): Promise<Plugin> => {
-    const { data } = await axios.patch(`${API_BASE_URL}/plugins/${pluginId}/configuration`, { configuration });
-    return data.data;
+    return apiRequest.patch<Plugin>(`${API_BASE_URL}/plugins/${pluginId}/configuration`, { configuration });
   },
 
   deletePlugin: async (pluginId: string): Promise<void> => {
-    await axios.delete(`${API_BASE_URL}/plugins/${pluginId}`);
+    await apiRequest.delete(`${API_BASE_URL}/plugins/${pluginId}`);
   },
 
   checkHealth: async (pluginId: string): Promise<PluginHealth> => {
-    const { data } = await axios.get(`${API_BASE_URL}/plugins/${pluginId}/health`);
-    return data.data;
+    return apiRequest.get<PluginHealth>(`${API_BASE_URL}/plugins/${pluginId}/health`);
   },
 
   resolveByCategoryAndCapability: async (category: string, capability: string): Promise<Plugin[]> => {
-    const { data } = await axios.get(`${API_BASE_URL}/plugins/resolve/${category}/${capability}`);
-    return data.data;
+    return apiRequest.get<Plugin[]>(`${API_BASE_URL}/plugins/resolve/${category}/${capability}`);
   },
 };
 

@@ -4,7 +4,8 @@ import { projectStore } from '../../../store/projectStore';
 import { useToast } from '../../../hooks/useToast';
 import { useWorkspaceProjects } from '../hooks/useWorkspaceProjects';
 import { getLastOpenedAt, touchProjectOpened } from '../utils/projectUiMeta';
-import type { Project as ApiProject } from '../../../services/ProjectService';
+import type { ProjectDto, ProjectWorkspaceModel } from '../../../types/apiModels';
+import { toProjectWorkspaceModel } from '../../../types/apiModels';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
@@ -17,6 +18,7 @@ import { RenameProjectModal } from '../components/RenameProjectModal';
 import { ProjectCardMenu } from '../components/ProjectCardMenu';
 import { Plus, LayoutGrid, Clock, User, FolderPlus, ArrowRight, ListChecks } from 'lucide-react';
 import { consumeAuthFlash } from '../../../utils/authFlash';
+import { projectModulePath } from '../../../routes/paths';
 
 export interface ProjectsHomePageProps {}
 
@@ -30,19 +32,14 @@ interface Activity {
 
 const MAX_RECENT_PROJECTS = 4;
 
-type UiProject = ApiProject & {
+type UiProject = ProjectWorkspaceModel & {
   icon: React.ReactNode;
-  lastOpenedAt: number;
-  uiStatus: 'active' | 'paused';
 };
 
-function toUiProject(p: ApiProject): UiProject {
-  const archived = p.status === 'archived';
+function toUiProject(p: ProjectDto): UiProject {
   return {
-    ...p,
+    ...toProjectWorkspaceModel(p, getLastOpenedAt(p.id, p.updatedAt)),
     icon: <FolderPlus className="h-8 w-8" />,
-    lastOpenedAt: getLastOpenedAt(p.id, p.updatedAt),
-    uiStatus: archived ? 'paused' : 'active',
   };
 }
 
@@ -74,7 +71,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
   const navigate = useNavigate();
   const { toast, showSuccess, showError } = useToast();
   const setSelectedProjectId = projectStore((state) => state.setSelectedProjectId);
-  const selectedProjectId = projectStore((state) => state.selectedProjectId);
+  const initialSelectedProjectIdRef = React.useRef(projectStore.getState().selectedProjectId);
 
   React.useEffect(() => {
     const flash = consumeAuthFlash();
@@ -86,10 +83,10 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
   }, [showSuccess, showError]);
 
   React.useEffect(() => {
-    if (selectedProjectId) {
+    if (initialSelectedProjectIdRef.current) {
       setSelectedProjectId(null);
     }
-  }, [selectedProjectId, setSelectedProjectId]);
+  }, [setSelectedProjectId]);
 
   const logActivity = (action: string, projectName: string) => {
     setRecentActivity((prev) => [
@@ -155,7 +152,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
       setCreateModalOpen(false);
       showSuccess(`Project "${data.projectName}" created successfully`);
       setSelectedProjectId(created.id);
-      navigate(`/projects/${created.id}/overview`);
+      navigate(projectModulePath(created.id, 'overview'));
     } catch (e) {
       console.error(e);
       showError(e instanceof Error ? e.message : 'Failed to create project');
@@ -166,7 +163,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
     touchProjectOpened(project.id);
     logActivity(`Opened project "${project.name}"`, project.name);
     setSelectedProjectId(project.id);
-    navigate(`/projects/${project.id}/overview`);
+    navigate(projectModulePath(project.id, 'overview'));
   };
 
   const handleRenameProject = async (newName: string) => {
@@ -198,15 +195,17 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
     }
   };
 
-  const handleArchiveProject = async () => {
+  const handleToggleArchiveProject = async () => {
     if (!archiveProject) return;
-    const archivedName = archiveProject.name;
+    const nextStatus = archiveProject.status === 'archived' ? 'active' : 'archived';
+    const actionLabel = nextStatus === 'archived' ? 'Archived' : 'Unarchived';
+    const successLabel = nextStatus === 'archived' ? 'archived successfully' : 'restored successfully';
     try {
-      await updateProjectAsync({ id: archiveProject.id, status: 'archived' });
-      logActivity(`Archived project "${archivedName}"`, archivedName);
+      await updateProjectAsync({ id: archiveProject.id, status: nextStatus });
+      logActivity(`${actionLabel} project "${archiveProject.name}"`, archiveProject.name);
       setArchiveOpen(false);
       setArchiveProject(undefined);
-      showSuccess(`Project "${archivedName}" archived successfully`);
+      showSuccess(`Project "${archiveProject.name}" ${successLabel}`);
     } catch (e) {
       console.error(e);
     }
@@ -285,7 +284,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
                         setRenameProject(project);
                         setRenameOpen(true);
                       }}
-                      onArchive={() => {
+                      onToggleArchive={() => {
                         setArchiveProject(project);
                         setArchiveOpen(true);
                       }}
@@ -293,6 +292,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
                         setDeleteProject(project);
                         setDeleteOpen(true);
                       }}
+                      isArchived={project.status === 'archived'}
                     />
                   </div>
                   <h3 className="mb-2 text-base font-semibold text-text">{project.name}</h3>
@@ -422,12 +422,16 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
 
       <ConfirmDialog
         open={archiveOpen}
-        title="Archive Project"
-        message={`Archiving "${archiveProject?.name}" will mark it as paused.`}
-        confirmLabel="Archive"
+        title={archiveProject?.status === 'archived' ? 'Unarchive Project' : 'Archive Project'}
+        message={
+          archiveProject?.status === 'archived'
+            ? `Restoring "${archiveProject?.name}" will make it active again.`
+            : `Archiving "${archiveProject?.name}" will mark it as paused.`
+        }
+        confirmLabel={archiveProject?.status === 'archived' ? 'Unarchive' : 'Archive'}
         cancelLabel="Cancel"
         variant="default"
-        onConfirm={() => void handleArchiveProject()}
+        onConfirm={() => void handleToggleArchiveProject()}
         onCancel={() => {
           setArchiveOpen(false);
           setArchiveProject(undefined);

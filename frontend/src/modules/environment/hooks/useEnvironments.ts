@@ -2,7 +2,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useCRUD } from '../../../hooks/useCRUD';
 import { environmentService } from '../services/environmentService';
-import type { EnvironmentDto } from '../services/environmentService';
+import type { EnvironmentDto } from '../../../types/apiModels';
 import { queryKeys } from '../../../constants';
 
 // ─── Environments ──────────────────────────────────────────────

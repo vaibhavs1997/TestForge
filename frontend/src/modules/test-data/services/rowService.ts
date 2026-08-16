@@ -3,26 +3,28 @@ import { AxiosProgressEvent } from 'axios';
 import { ApiClient } from '../../../services/ApiClient';
 import type { DatasetRow, CreateRowInput } from '../types';
 import type { ImportResult, ImportTemplate, ColumnMapping } from '../types/import';
+import type { DatasetRowDto } from '../../../types/moduleContracts';
+import { normalizeDatasetRow } from '../../../utils/moduleAdapters';
 
-class RowService extends ApiClient<DatasetRow> {
+class RowService extends ApiClient<DatasetRowDto> {
   constructor() {
     super('/projects/:projectId/test-data/rows');
   }
 
   async listRows(projectId: string, datasetId: string): Promise<DatasetRow[]> {
-    return this.list(projectId, { datasetId });
+    return (await this.list(projectId, { datasetId })).map(normalizeDatasetRow);
   }
 
   async getRow(projectId: string, rowId: string): Promise<DatasetRow> {
-    return this.get(projectId, rowId);
+    return normalizeDatasetRow(await this.get(projectId, rowId));
   }
 
   async createRow(projectId: string, input: CreateRowInput): Promise<DatasetRow> {
-    return this.create(projectId, input);
+    return normalizeDatasetRow(await this.create(projectId, input));
   }
 
   async updateRow(projectId: string, rowId: string, values: Record<string, any>): Promise<DatasetRow> {
-    return this.patch(projectId, rowId, { values });
+    return normalizeDatasetRow(await this.patch(projectId, rowId, { values }));
   }
 
   async deleteRow(projectId: string, rowId: string): Promise<void> {

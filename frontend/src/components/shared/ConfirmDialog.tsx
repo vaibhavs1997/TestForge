@@ -11,17 +11,28 @@ export interface ConfirmDialogProps {
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: 'default' | 'destructive';
-  onConfirm: () => void;
+  isLoading?: boolean;
+  onConfirm: () => void | Promise<void>;
   onCancel: () => void;
 }
 
 /**
  * Consistent confirmation dialog.
  *
- * Ordering: Cancel (left) → Confirm (right).
+ * Ordering: Cancel (left) -> Confirm (right).
  * Cancels always use the outline variant; the primary action is always rightmost.
  */
-export const ConfirmDialog = ({ open, title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel', variant = 'default', onConfirm, onCancel }: ConfirmDialogProps) => {
+export const ConfirmDialog = ({
+  open,
+  title,
+  message,
+  confirmLabel = 'Confirm',
+  cancelLabel = 'Cancel',
+  variant = 'default',
+  isLoading = false,
+  onConfirm,
+  onCancel,
+}: ConfirmDialogProps) => {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
@@ -34,8 +45,9 @@ export const ConfirmDialog = ({ open, title, message, confirmLabel = 'Confirm', 
 
     // Focus the cancel button by default (safe default for destructive actions)
     const timer = setTimeout(() => {
-      const cancelBtn = document.querySelector<HTMLElement>('[data-confirm-cancel]');
-      cancelBtn?.focus();
+      dialogRef.current
+        ?.querySelector<HTMLElement>('[data-confirm-cancel]')
+        ?.focus();
     }, 50);
 
     // Handle Escape key and focus trapping
@@ -48,7 +60,7 @@ export const ConfirmDialog = ({ open, title, message, confirmLabel = 'Confirm', 
 
       if (e.key === 'Tab' && dialogRef.current) {
         const focusableElements = dialogRef.current.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
         );
         const firstElement = focusableElements[0];
         const lastElement = focusableElements[focusableElements.length - 1];
@@ -82,8 +94,9 @@ export const ConfirmDialog = ({ open, title, message, confirmLabel = 'Confirm', 
       aria-modal='true'
       aria-labelledby='confirm-dialog-title'
       aria-describedby='confirm-dialog-message'
+      onClick={onCancel}
     >
-      <div ref={dialogRef} className='mx-4 w-full max-w-md' role='document'>
+      <div ref={dialogRef} className='mx-4 w-full max-w-md' role='document' onClick={(event) => event.stopPropagation()}>
         <Card>
           <CardHeader>
             <div className='flex items-center gap-3'>
@@ -100,8 +113,23 @@ export const ConfirmDialog = ({ open, title, message, confirmLabel = 'Confirm', 
             <p id='confirm-dialog-message' className='text-sm text-text-secondary'>{message}</p>
           </CardContent>
           <CardFooter className='justify-end gap-2 border-t border-border px-6 py-4'>
-            <Button data-confirm-cancel variant='outline' onClick={onCancel}>{cancelLabel}</Button>
-            <Button data-confirm-ok variant={variant === 'destructive' ? 'destructive' : 'default'} onClick={onConfirm}>{confirmLabel}</Button>
+            <Button
+              data-confirm-cancel
+              variant='outline'
+              onClick={onCancel}
+              disabled={isLoading}
+            >
+              {cancelLabel}
+            </Button>
+            <Button
+              data-confirm-ok
+              variant={variant === 'destructive' ? 'destructive' : 'default'}
+              onClick={onConfirm}
+              disabled={isLoading}
+              loading={isLoading}
+            >
+              {isLoading ? 'Loading...' : confirmLabel}
+            </Button>
           </CardFooter>
         </Card>
       </div>

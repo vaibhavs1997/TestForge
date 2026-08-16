@@ -8,6 +8,7 @@ import { useEnvironments } from '../../environment/hooks/useEnvironments';
 import { useRequirements } from '../../requirements/hooks';
 import { useExecution } from '../../execution/hooks';
 import { useReports } from '../../report/hooks';
+import { projectModulePath } from '../../../routes/paths';
 import {
   FolderOpen,
   Globe,
@@ -82,7 +83,7 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
         icon: FolderOpen,
         done: hasApis,
         detail: hasApis ? `${services.length} service(s), ${opCount} operation(s)` : 'No API imported yet',
-        path: `/projects/${projectId}/apis`,
+        path: projectModulePath(projectId, 'apis'),
         actionLabel: hasApis ? 'Manage APIs' : 'Import APIs',
       },
       {
@@ -92,7 +93,7 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
         icon: Globe,
         done: hasEnv,
         detail: hasEnv ? `${environments.length} environment(s)` : 'No environment configured',
-        path: `/projects/${projectId}/environment`,
+        path: projectModulePath(projectId, 'environment'),
         actionLabel: hasEnv ? 'Manage environment' : 'Add environment',
       },
       {
@@ -104,7 +105,7 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
         detail: hasRequirements
           ? `${requirements.length} requirement(s) · ${suggested.length} suggested`
           : 'No requirements yet',
-        path: `/projects/${projectId}/requirements`,
+        path: projectModulePath(projectId, 'requirements'),
         actionLabel: hasRequirements ? 'Open requirements' : 'Add requirement',
       },
       {
@@ -116,7 +117,7 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
         detail: latestRun
           ? `Last run ${latestRun.status} · ${formatAgo(latestRun.updatedAt)}`
           : 'No runs yet',
-        path: `/projects/${projectId}/execution`,
+        path: projectModulePath(projectId, 'execution'),
         actionLabel: hasRuns ? 'View runs' : 'Run tests',
       },
       {
@@ -129,8 +130,8 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
           ? `${latestReport.overallStatus} · ${formatAgo(latestReport.generatedAt)}`
           : 'No reports yet',
         path: latestReport
-          ? `/projects/${projectId}/reports/${latestReport.id}`
-          : `/projects/${projectId}/reports`,
+          ? projectModulePath(projectId, 'reports', latestReport.id)
+          : projectModulePath(projectId, 'reports'),
         actionLabel: hasReports ? 'Open latest report' : 'View reports',
       },
     ],
@@ -252,7 +253,7 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
               <Badge variant="outline">{runs.length} execution runs</Badge>
               <Badge variant="outline">{reports.length} reports</Badge>
             </div>
-            <Button variant="outline" size="sm" onClick={() => navigate(`/projects/${projectId}/pipeline`)}>
+            <Button variant="outline" size="sm" onClick={() => navigate(projectModulePath(projectId, 'pipeline'))}>
               Open pipeline view
             </Button>
           </CardContent>

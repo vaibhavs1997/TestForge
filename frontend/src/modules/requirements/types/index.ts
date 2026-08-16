@@ -1,4 +1,6 @@
 // Requirement Workspace domain types
+import type { ExecutionPlanDto } from '../../../types/moduleContracts';
+
 export type RequirementSource = 'ProjectAnalysis' | 'Manual' | 'Jira';
 export type ReviewStatus = 'Pending' | 'Reviewed';
 export type ApprovalStatus = 'Draft' | 'Suggested' | 'Approved' | 'Rejected' | 'Archived';
@@ -184,21 +186,4 @@ export interface RequestTemplate {
   body?: any;
 }
 
-export interface ExecutionPlan {
-  id: string;
-  projectId: string;
-  requirementId: string;
-  testDesignId: string;
-  executionOrder: number;
-  prerequisiteDesignIds: string[];
-  operationId: string;
-  environmentId: string;
-  datasetId: string;
-  runtimeBindings: RuntimeBinding[];
-  requestTemplate: RequestTemplate;
-  assertions: Assertion[];
-  cleanupSteps: CleanupStep[];
-  status: ExecutionPlanStatus;
-  createdAt: number;
-  updatedAt: number;
-}
+export type ExecutionPlan = ExecutionPlanDto;

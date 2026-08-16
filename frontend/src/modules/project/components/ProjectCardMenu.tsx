@@ -1,15 +1,16 @@
-// Dropdown menu for project card actions (Rename, Archive, Delete).
+// Dropdown menu for project card actions (Rename, Archive/Unarchive, Delete).
 import React from 'react';
-import { Edit3, Trash2, Archive } from 'lucide-react';
+import { Edit3, Trash2, Archive, RotateCcw } from 'lucide-react';
 import { cn } from '../../../utils/cn';
 
 export interface ProjectCardMenuProps {
   onRename: () => void;
-  onArchive: () => void;
+  onToggleArchive: () => void;
   onDelete: () => void;
+  isArchived?: boolean;
 }
 
-export const ProjectCardMenu = ({ onRename, onArchive, onDelete }: ProjectCardMenuProps) => {
+export const ProjectCardMenu = ({ onRename, onToggleArchive, onDelete, isArchived = false }: ProjectCardMenuProps) => {
   const [open, setOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
 
@@ -68,13 +69,13 @@ export const ProjectCardMenu = ({ onRename, onArchive, onDelete }: ProjectCardMe
           <button
             type='button'
             role='menuitem'
-            onClick={() => handleAction(onArchive)}
+            onClick={() => handleAction(onToggleArchive)}
             className={cn(
               'flex w-full items-center gap-2 px-3 py-2 text-sm text-text hover:bg-surface'
             )}
           >
-            <Archive className='h-4 w-4' />
-            Archive
+            {isArchived ? <RotateCcw className='h-4 w-4' /> : <Archive className='h-4 w-4' />}
+            {isArchived ? 'Unarchive' : 'Archive'}
           </button>
           <button
             type='button'

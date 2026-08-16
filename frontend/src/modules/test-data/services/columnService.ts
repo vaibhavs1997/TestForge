@@ -1,19 +1,7 @@
 // Column service for Dataset Columns
 import { ApiClient } from '../../../services/ApiClient';
-
-export interface ColumnDto {
-  id: string;
-  datasetId: string;
-  name: string;
-  displayName: string;
-  dataType: string;
-  required: boolean;
-  unique: boolean;
-  nullable: boolean;
-  description: string;
-  createdAt: number;
-  updatedAt: number;
-}
+import type { ColumnDto } from '../../../types/moduleContracts';
+import { normalizeColumn } from '../../../utils/moduleAdapters';
 
 export interface ColumnSuggestion {
   name: string;
@@ -33,11 +21,11 @@ class ColumnService extends ApiClient<ColumnDto> {
 
   async listColumns(projectId: string, datasetId?: string): Promise<ColumnDto[]> {
     const params = datasetId ? { datasetId } : {};
-    return this.list(projectId, params);
+    return (await this.list(projectId, params)).map(normalizeColumn);
   }
 
   async getColumn(projectId: string, columnId: string): Promise<ColumnDto> {
-    return this.get(projectId, columnId);
+    return normalizeColumn(await this.get(projectId, columnId));
   }
 
   async createColumn(
@@ -53,7 +41,7 @@ class ColumnService extends ApiClient<ColumnDto> {
       description?: string;
     }
   ): Promise<ColumnDto> {
-    return this.create(projectId, payload);
+    return normalizeColumn(await this.create(projectId, payload));
   }
 
   async updateColumn(
@@ -69,7 +57,7 @@ class ColumnService extends ApiClient<ColumnDto> {
       description?: string;
     }
   ): Promise<ColumnDto> {
-    return this.patch(projectId, columnId, payload);
+    return normalizeColumn(await this.patch(projectId, columnId, payload));
   }
 
   async deleteColumn(projectId: string, columnId: string): Promise<void> {

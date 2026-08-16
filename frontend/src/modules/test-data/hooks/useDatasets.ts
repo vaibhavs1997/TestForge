@@ -1,7 +1,7 @@
 // TanStack Query hooks for Test Data Library
 import { useCRUD } from '../../../hooks/useCRUD';
 import { datasetService } from '../services/datasetService';
-import type { DatasetDto } from '../services/datasetService';
+import type { DatasetDto } from '../../../types/moduleContracts';
 import { queryKeys } from '../../../constants';
 
 // ─── Datasets ──────────────────────────────────────────────────

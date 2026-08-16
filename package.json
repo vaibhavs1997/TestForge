@@ -10,7 +10,9 @@
     "build:backend": "cd backend && npm run build",
     "lint": "cd frontend && npm run lint && cd ../backend && npm run lint",
     "typecheck": "cd frontend && npm run typecheck && cd ../backend && npm run typecheck",
-    "test": "cd backend && npm test"
+    "test:frontend": "cd frontend && npm test",
+    "test:backend": "cd backend && npm test",
+    "test": "npm run test:frontend && npm run test:backend"
   },
   "workspaces": [
     "frontend",

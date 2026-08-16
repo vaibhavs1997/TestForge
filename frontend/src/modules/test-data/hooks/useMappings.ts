@@ -1,7 +1,7 @@
 // TanStack Query hooks for Data Source Mappings
 import { useCRUD } from '../../../hooks/useCRUD';
 import { mappingService } from '../services/mappingService';
-import type { DataSourceMappingDto } from '../services/mappingService';
+import type { DataSourceMappingDto } from '../../../types/moduleContracts';
 import { queryKeys } from '../../../constants';
 
 // ─── Mappings ──────────────────────────────────────────────────

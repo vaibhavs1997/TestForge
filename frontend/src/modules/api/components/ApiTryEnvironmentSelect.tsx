@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Globe } from 'lucide-react';
 import { Select } from '../../../components/forms/Select';
-import type { EnvironmentDto } from '../../environment/services/environmentService';
+import type { EnvironmentDto } from '../../../types/apiModels';
 
 /** Shown as the selected option when no environment is chosen. */
 export const API_TRY_ENV_EMPTY_LABEL =

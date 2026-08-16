@@ -1,7 +1,8 @@
 // Execution service functions
 import axios from 'axios';
 import { apiAxios } from '../../../services/apiAxios';
-import type { ExecutionRun } from '../types';
+import type { ExecutionPlanDto, ExecutionRunDto } from '../../../types/moduleContracts';
+import { normalizeExecutionPlan, normalizeExecutionRun } from '../../../utils/moduleAdapters';
 import type { ExecutionPlan } from '../../requirements/types';
 import { API_BASE_URL } from '../../../constants/api';
 
@@ -11,24 +12,24 @@ export const executionService = {
     executionPlanId: string,
     failureMode?: string,
     executionProfileId?: string,
-  ): Promise<ExecutionRun> => {
+  ): Promise<ExecutionRunDto> => {
     const { data } = await apiAxios.post(
       `${API_BASE_URL}/projects/${projectId}/executions/${executionPlanId}/start`,
       { failureMode, executionProfileId },
     );
-    return data.data;
+    return normalizeExecutionRun(data.data as ExecutionRunDto);
   },
 
-  getExecution: async (projectId: string, runId: string): Promise<ExecutionRun> => {
+  getExecution: async (projectId: string, runId: string): Promise<ExecutionRunDto> => {
     const { data } = await apiAxios.get(`${API_BASE_URL}/projects/${projectId}/executions/${runId}`);
-    return data.data;
+    return normalizeExecutionRun(data.data as ExecutionRunDto);
   },
 
-  listExecutions: async (projectId: string): Promise<ExecutionRun[]> => {
+  listExecutions: async (projectId: string): Promise<ExecutionRunDto[]> => {
     try {
       const { data } = await apiAxios.get(`${API_BASE_URL}/projects/${projectId}/executions`);
       const runs = data?.data;
-      return Array.isArray(runs) ? runs : [];
+      return Array.isArray(runs) ? runs.map((run) => normalizeExecutionRun(run as ExecutionRunDto)) : [];
     } catch (err) {
       if (axios.isAxiosError(err)) {
         const serverMessage = err.response?.data?.message;
@@ -42,7 +43,7 @@ export const executionService = {
 
   listExecutionPlans: async (projectId: string): Promise<ExecutionPlan[]> => {
     const { data } = await apiAxios.get(`${API_BASE_URL}/projects/${projectId}/execution-plans`);
-    return data.data ?? [];
+    return Array.isArray(data.data) ? (data.data as ExecutionPlanDto[]).map(normalizeExecutionPlan) : [];
   },
 };
 

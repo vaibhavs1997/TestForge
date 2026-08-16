@@ -23,13 +23,30 @@ import { useApiTryEnvironment } from '../hooks/useApiTryEnvironment';
 import { ApiTryEnvironmentSelect } from '../components/ApiTryEnvironmentSelect';
 import { joinBaseUrlAndPath } from '../utils/buildOperationUrl';
 import { environmentService } from '../../environment/services/environmentService';
-import type { Service, ServiceFormData, Operation, OperationStatus, ImportSummary, DetectedEnvironment } from '../types';
+import type { Service, ServiceFormData, ImportSummary, DetectedEnvironment } from '../types';
 import { applyImportSummaryToUi, type ImportUiOutcome } from '../utils/importSummary';
 import { ChevronRight, Plus, Import, MoreVertical, Play, Edit, Trash2, FolderOpen } from 'lucide-react';
 import { ApiOnboardingCard } from '../components/ApiOnboardingCard';
+import { toApiOperationView, type ApiOperationView } from '../../../types/apiModels';
 
 type SortField = 'name' | 'protocol' | 'version' | 'status' | 'updatedDate';
 type SortDir = 'asc' | 'desc';
+
+function stringifyJsonPretty(value: Record<string, unknown> | null | undefined): string {
+  try {
+    return JSON.stringify(value ?? {}, null, 2);
+  } catch {
+    return '{}';
+  }
+}
+
+function parseJsonSafely(text: string): { ok: true; value: unknown } | { ok: false } {
+  try {
+    return { ok: true, value: JSON.parse(text) };
+  } catch {
+    return { ok: false };
+  }
+}
 
 const methodFilterOptions = [
   { value: '', label: 'All Methods' },
@@ -41,11 +58,7 @@ const methodFilterOptions = [
 ];
 
 // Local Operation interface for UI use — mirrors what ServiceListPage expects.
-interface OperationLocal extends Operation {
-  serviceName: string;
-  apiName: string;
-  isCustom: boolean;
-}
+type OperationLocal = ApiOperationView;
 
 interface ServiceWithOperations extends Service {
   operations: OperationLocal[];
@@ -290,11 +303,11 @@ const RequestBodyEditor = ({
   value: Record<string, unknown> | null | undefined;
   onChange: (value: Record<string, unknown> | null) => void;
 }) => {
-  const [raw, setRaw] = React.useState(() => JSON.stringify(value ?? {}, null, 2));
+  const [raw, setRaw] = React.useState(() => stringifyJsonPretty(value));
 
   React.useEffect(() => {
-    setRaw(JSON.stringify(value ?? {}, null, 2));
-  }, [JSON.stringify(value)]);
+    setRaw(stringifyJsonPretty(value));
+  }, [value]);
 
   const handleChange = (text: string) => {
     setRaw(text);
@@ -320,27 +333,7 @@ const RequestBodyEditor = ({
   );
 };
 
-/** Convert a raw operation from the hook into the local shape the UI expects. */
-const toOperationLocal = (op: Operation, serviceName: string): OperationLocal => ({
-  id: op.id,
-  serviceId: op.serviceId,
-  serviceName,
-  apiName: op.apiName || op.name || '',
-  name: op.name,
-  method: op.method,
-  path: op.path,
-  description: op.description,
-  status: (op.status || 'active') as OperationStatus,
-  authentication: op.authentication,
-  authenticationType: op.authenticationType,
-  tags: op.tags || [],
-  version: op.version,
-  isCustom: true,
-  sampleRequestBody: op.sampleRequestBody ?? null,
-  requiredRequestBodyFields: op.requiredRequestBodyFields ?? null,
-  createdAt: op.createdAt,
-  updatedAt: op.updatedAt,
-});
+ 
 
 export const ServiceListPage = ({ projectId: propProjectId, projectName }: { projectId?: string; projectName?: string }) => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
@@ -392,13 +385,17 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
   const [detectedEnvironments, setDetectedEnvironments] = React.useState<DetectedEnvironment[]>([]);
   const [selectedEnvIds, setSelectedEnvIds] = React.useState<Set<string>>(new Set());
   const [isCreatingEnvironments, setIsCreatingEnvironments] = React.useState(false);
+  const selectedOperationId = selectedOperation?.id;
+  const selectedOperationBody = selectedOperation?.sampleRequestBody;
+  const operationDraftId = operationEditDraft?.id;
+  const operationDraftBody = operationEditDraft?.sampleRequestBody;
 
   // Build services with operations, merging fetched operations per service
   const servicesWithOperations: ServiceWithOperations[] = React.useMemo(() => {
     return services.map((service) => {
       const serviceOps = rawOperations
         .filter((op) => op.serviceId === service.id)
-        .map((op) => toOperationLocal(op, service.name));
+        .map((op) => toApiOperationView(op, service.name));
       return {
         ...service,
         operations: serviceOps,
@@ -506,22 +503,31 @@ export const ServiceListPage = ({ projectId: propProjectId, projectName }: { pro
 
   // Restore Request body draft from sessionStorage when switching operations or on mount.
   React.useEffect(() => {
-    if (!selectedOperation) return;
-    if (restoredDraftIds.current.has(selectedOperation.id)) return;
-    const stored = sessionStorage.getItem(`operation-draft-${selectedOperation.id}`);
-    const base = stored ? { ...selectedOperation, sampleRequestBody: JSON.parse(stored) } : { ...selectedOperation };
+    if (!selectedOperationId || !selectedOperation) return;
+    if (restoredDraftIds.current.has(selectedOperationId)) return;
+
+    const stored = sessionStorage.getItem(`operation-draft-${selectedOperationId}`);
+    const parsed = stored ? parseJsonSafely(stored) : null;
+    if (stored && parsed && !parsed.ok) {
+      sessionStorage.removeItem(`operation-draft-${selectedOperationId}`);
+    }
+
+    const base = parsed?.ok
+      ? { ...selectedOperation, sampleRequestBody: parsed.value as Record<string, unknown> | null }
+      : { ...selectedOperation };
     setOperationEditDraft(base);
-    restoredDraftIds.current.add(selectedOperation.id);
-  }, [selectedOperation?.id]);
+    restoredDraftIds.current.add(selectedOperationId);
+  }, [selectedOperationId, selectedOperation, selectedOperationBody]);
 
   // Persist Request body draft to sessionStorage whenever it changes.
   React.useEffect(() => {
-    if (!operationEditDraft?.id) return;
-    const { sampleRequestBody, ...rest } = operationEditDraft;
-    if (sampleRequestBody !== undefined) {
-      sessionStorage.setItem(`operation-draft-${operationEditDraft.id}`, JSON.stringify(sampleRequestBody));
+    if (!operationDraftId) return;
+    if (operationDraftBody !== undefined) {
+      sessionStorage.setItem(`operation-draft-${operationDraftId}`, JSON.stringify(operationDraftBody));
+    } else {
+      sessionStorage.removeItem(`operation-draft-${operationDraftId}`);
     }
-  }, [operationEditDraft?.id, operationEditDraft?.sampleRequestBody]);
+  }, [operationDraftId, operationDraftBody]);
 
   const handleOperationDraftChange = (field: keyof OperationLocal, value: string | Record<string, unknown> | null) => {
     setOperationEditDraft((prev) => (prev ? { ...prev, [field]: value } : prev));

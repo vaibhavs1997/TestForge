@@ -99,3 +99,5 @@ export const useNotificationMutations = (projectId?: string) => {
     isDeleting: deleteMutation.isPending,
   };
 };
+
+export { useNotificationPage } from './useNotificationPage';

@@ -2,7 +2,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useCRUD } from '../../../hooks/useCRUD';
 import { columnService } from '../services/columnService';
-import type { ColumnDto, ColumnSuggestion } from '../services/columnService';
+import type { ColumnSuggestion } from '../services/columnService';
+import type { ColumnDto } from '../../../types/moduleContracts';
 import { queryKeys } from '../../../constants';
 
 // ─── Columns ───────────────────────────────────────────────────

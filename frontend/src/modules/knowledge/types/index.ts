@@ -1,29 +1,21 @@
 // Knowledge Hub domain types
-export type FlowStatus = 'Draft' | 'Confirmed' | 'Deprecated';
-export type RuleSeverity = 'High' | 'Medium' | 'Low';
-export type VariableScope = 'Global' | 'Project' | 'Environment' | 'Flow';
-export type DependencyType = 'Service' | 'Database' | 'Queue' | 'Cache' | 'External' | 'Token' | 'Config';
+import type {
+  BusinessRuleDto,
+  DependencyDto,
+  DocumentationDto,
+  KnowledgeFlowDto,
+  KnowledgeFlowStepDto,
+  RuntimeVariableDto,
+} from '../../../types/moduleContracts';
 
-export interface FlowStep {
-  id: string;
-  title: string;
-  linkedApiOperationId?: string;
-  description: string;
-  expectedResult: string;
-  notes: string;
-}
+export type FlowStatus = KnowledgeFlowDto['status'];
+export type RuleSeverity = BusinessRuleDto['severity'];
+export type VariableScope = RuntimeVariableDto['scope'];
+export type DependencyType = DependencyDto['dependencyType'];
 
-export interface KnowledgeFlow {
-  id: string;
-  projectId: string;
-  name: string;
-  description: string;
-  tags: string[];
-  status: FlowStatus;
-  steps: FlowStep[];
-  createdAt: number;
-  updatedAt: number;
-}
+export type FlowStep = KnowledgeFlowStepDto;
+
+export type KnowledgeFlow = KnowledgeFlowDto;
 
 export interface KnowledgeFlowFormData {
   id?: string;
@@ -35,22 +27,7 @@ export interface KnowledgeFlowFormData {
   steps: FlowStep[];
 }
 
-export interface BusinessRule {
-  id: string;
-  projectId: string;
-  name: string;
-  description: string;
-  ruleType: string;
-  condition: string;
-  expectedOutcome: string;
-  severity: RuleSeverity;
-  linkedApiOperationIds: string[];
-  linkedRequirementIds: string[];
-  tags: string[];
-  isActive: boolean;
-  createdAt: number;
-  updatedAt: number;
-}
+export type BusinessRule = BusinessRuleDto;
 
 export interface BusinessRuleFormData {
   id?: string;
@@ -67,20 +44,7 @@ export interface BusinessRuleFormData {
   isActive: boolean;
 }
 
-export interface RuntimeVariable {
-  id: string;
-  projectId: string;
-  name: string;
-  description: string;
-  scope: VariableScope;
-  defaultValue: string;
-  isSensitive: boolean;
-  linkedApiOperationIds: string[];
-  linkedRequirementIds: string[];
-  tags: string[];
-  createdAt: number;
-  updatedAt: number;
-}
+export type RuntimeVariable = RuntimeVariableDto;
 
 export interface RuntimeVariableFormData {
   id?: string;
@@ -95,21 +59,7 @@ export interface RuntimeVariableFormData {
   tags: string[];
 }
 
-export interface Dependency {
-  id: string;
-  projectId: string;
-  name: string;
-  description: string;
-  dependencyType: DependencyType;
-  target: string;
-  version: string;
-  isRequired: boolean;
-  linkedApiOperationIds: string[];
-  linkedRequirementIds: string[];
-  tags: string[];
-  createdAt: number;
-  updatedAt: number;
-}
+export type Dependency = DependencyDto;
 
 export interface DependencyFormData {
   id?: string;
@@ -125,20 +75,7 @@ export interface DependencyFormData {
   tags: string[];
 }
 
-export interface Documentation {
-  id: string;
-  projectId: string;
-  title: string;
-  content: string;
-  category: string;
-  tags: string[];
-  linkedApiOperationIds: string[];
-  linkedRequirementIds: string[];
-  author: string;
-  version: string;
-  createdAt: number;
-  updatedAt: number;
-}
+export type Documentation = DocumentationDto;
 
 export interface DocumentationFormData {
   id?: string;

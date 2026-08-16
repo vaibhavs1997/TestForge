@@ -1,5 +1,5 @@
 import React from 'react';
-import type { EnvironmentDto } from '../../environment/services/environmentService';
+import type { EnvironmentDto } from '../../../types/apiModels';
 
 const STORAGE_PREFIX = 'testforge:api-try-environment';
 

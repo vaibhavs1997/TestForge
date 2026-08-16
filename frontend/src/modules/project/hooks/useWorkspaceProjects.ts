@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { projectService, type Project } from '../../../services/ProjectService';
+import { projectService } from '../../../services/ProjectService';
+import type { ProjectDto } from '../../../types/apiModels';
 import { queryKeys } from '../../../constants';
 
 export function useWorkspaceProjects() {
@@ -29,7 +30,7 @@ export function useWorkspaceProjects() {
         name: data.name,
         description: data.description,
         status: data.status,
-      } as Partial<Project> & { status?: 'active' | 'archived' }),
+      } as Partial<ProjectDto> & { status?: 'active' | 'archived' }),
     onSuccess: invalidate,
   });
 

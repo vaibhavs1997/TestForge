@@ -8,21 +8,23 @@ import { ListApiServices } from '../../application/api/ListApiServices';
 import { CreateApiOperation } from '../../application/api/CreateApiOperation';
 import { UpdateApiOperation } from '../../application/api/UpdateApiOperation';
 import { DeleteApiOperation } from '../../application/api/DeleteApiOperation';
+import { DeleteApiContract } from '../../application/api/DeleteApiContract';
 import { GetApiOperation } from '../../application/api/GetApiOperation';
 import { ListApiOperations } from '../../application/api/ListApiOperations';
+import { ExecuteApiRequest } from '../../application/api/ExecuteApiRequest';
 import { ImportApiContract, ImportSummary } from '../../application/api/ImportApiContract';
+import { RefreshApiContract, RefreshApiContractResult } from '../../application/api/RefreshApiContract';
 import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
 import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
-import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity';
-import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
 import { createSuccessResponse } from "../../shared/ApiResponse";
 import { fetchContractFromUrl } from '../../infrastructure/http/fetchContractFromUrl';
+import { serializeApiOperation, serializeApiService } from './ApiDtos';
 export class ApiController {
-    constructor(private readonly createApiService: CreateApiService, private readonly updateApiService: UpdateApiService, private readonly deleteApiService: DeleteApiService, private readonly getApiService: GetApiService, private readonly listApiServices: ListApiServices, private readonly createApiOperation: CreateApiOperation, private readonly updateApiOperation: UpdateApiOperation, private readonly deleteApiOperation: DeleteApiOperation, private readonly getApiOperation: GetApiOperation, private readonly listApiOperations: ListApiOperations, private readonly importApiContract: ImportApiContract, private readonly apiServiceRepository: ApiServiceRepository, private readonly apiOperationRepository: ApiOperationRepository) { }
+    constructor(private readonly createApiService: CreateApiService, private readonly updateApiService: UpdateApiService, private readonly deleteApiService: DeleteApiService, private readonly getApiService: GetApiService, private readonly listApiServices: ListApiServices, private readonly createApiOperation: CreateApiOperation, private readonly updateApiOperation: UpdateApiOperation, private readonly deleteApiOperation: DeleteApiOperation, private readonly getApiOperation: GetApiOperation, private readonly listApiOperations: ListApiOperations, private readonly importApiContract: ImportApiContract, private readonly refreshApiContract: RefreshApiContract, private readonly deleteApiContract: DeleteApiContract, private readonly executeApiRequest: ExecuteApiRequest, private readonly apiServiceRepository: ApiServiceRepository, private readonly apiOperationRepository: ApiOperationRepository) { }
     async listServices(req: Request, res: Response): Promise<void> {
         const projectId = req.params.projectId;
         const services = await this.listApiServices.execute(projectId);
-        res.status(200).json(createSuccessResponse(services));
+        res.status(200).json(createSuccessResponse(services.map(serializeApiService)));
     }
     async createService(req: Request, res: Response): Promise<void> {
         const projectId = req.params.projectId;
@@ -40,7 +42,7 @@ export class ApiController {
     async getService(req: Request, res: Response): Promise<void> {
         const { serviceId } = req.params;
         const service = await this.getApiService.execute(serviceId);
-        res.status(200).json(createSuccessResponse(service));
+        res.status(200).json(createSuccessResponse(serializeApiService(service)));
     }
     async updateService(req: Request, res: Response): Promise<void> {
         const { serviceId } = req.params;
@@ -53,7 +55,7 @@ export class ApiController {
             tags,
             baseUrl,
         });
-        res.status(200).json(createSuccessResponse(service));
+        res.status(200).json(createSuccessResponse(serializeApiService(service)));
     }
     async deleteService(req: Request, res: Response): Promise<void> {
         const { projectId, serviceId } = req.params;
@@ -63,7 +65,7 @@ export class ApiController {
     async listOperations(req: Request, res: Response): Promise<void> {
         const { projectId, serviceId } = req.params;
         const operations = await this.listApiOperations.execute(projectId, serviceId);
-        res.status(200).json(createSuccessResponse(operations));
+        res.status(200).json(createSuccessResponse(operations.map(serializeApiOperation)));
     }
     async createOperation(req: Request, res: Response): Promise<void> {
         const { projectId, serviceId } = req.params;
@@ -78,12 +80,12 @@ export class ApiController {
             authenticationType,
             status,
         });
-        res.status(201).json(createSuccessResponse(operation));
+        res.status(201).json(createSuccessResponse(serializeApiOperation(operation)));
     }
     async getOperation(req: Request, res: Response): Promise<void> {
         const { apiId } = req.params;
         const operation = await this.getApiOperation.execute(apiId);
-        res.status(200).json(createSuccessResponse(operation));
+        res.status(200).json(createSuccessResponse(serializeApiOperation(operation)));
     }
     async updateOperation(req: Request, res: Response): Promise<void> {
         const { apiId } = req.params;
@@ -97,12 +99,33 @@ export class ApiController {
             authenticationType,
             status,
         });
-        res.status(200).json(createSuccessResponse(operation));
+        res.status(200).json(createSuccessResponse(serializeApiOperation(operation)));
     }
     async deleteOperation(req: Request, res: Response): Promise<void> {
         const { apiId } = req.params;
         await this.deleteApiOperation.execute(apiId);
         res.status(204).send();
+    }
+    async deleteContract(req: Request, res: Response): Promise<void> {
+        const { projectId } = req.params;
+        const result = await this.deleteApiContract.execute(projectId);
+        res.status(200).json(createSuccessResponse(result));
+    }
+    async refreshContract(req: Request, res: Response): Promise<void> {
+        const { projectId, serviceId } = req.params;
+        const result: RefreshApiContractResult = await this.refreshApiContract.execute(projectId, serviceId);
+        res.status(200).json(createSuccessResponse(result));
+    }
+    async executeOperation(req: Request, res: Response): Promise<void> {
+        const { requestUrl, method, headers, body, timeoutMs } = req.body ?? {};
+        const result = await this.executeApiRequest.execute({
+            requestUrl,
+            method,
+            headers,
+            body,
+            timeoutMs,
+        });
+        res.status(200).json(createSuccessResponse(result));
     }
     async importContract(req: Request, res: Response): Promise<void> {
         const { projectId } = req.params;

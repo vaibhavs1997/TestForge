@@ -11,7 +11,7 @@ import { ExecutionWorkspace } from './components/ExecutionWorkspace';
 import { TestDataWorkspace } from './components/TestDataWorkspace';
 
 // Existing module pages reused directly inside the workspace
-import { ApiRoutes } from '../api';
+import { ApiExecutionPage } from '../api-execution';
 import { EnvironmentPage } from '../environment/pages/EnvironmentPage';
 import { KnowledgePage } from '../knowledge/pages/KnowledgePage';
 import { ReportRoutes } from '../report/routes';
@@ -73,7 +73,8 @@ const ProjectWorkspace: React.FC = () => {
     <Routes>
       {/* Primary workflow */}
       <Route path={projectModules.overview} element={<PipelineDashboard projectId={projectId} />} />
-      <Route path={projectModules.apis} element={<ApiRoutes />} />
+      <Route path={projectModules.apis} element={<ApiExecutionPage />} />
+      <Route path={projectModules.apiExecution} element={<ApiExecutionPage />} />
       <Route path={projectModules.environment} element={<ProjectEnvironmentPage />} />
       <Route path={`${projectModules.testData}/*`} element={<TestDataWorkspace projectId={projectId} />} />
       <Route path={projectModules.knowledge} element={<ProjectKnowledgePage />} />

@@ -7,6 +7,7 @@ interface AuthState {
   loginRequired: boolean | null;
   user: AuthUser | null;
   isHydrated: boolean;
+  manualLogoutUntil: number;
   loadConfig: () => Promise<void>;
   hydrateSession: () => Promise<void>;
   setSession: (accessToken: string, user: AuthUser) => void;
@@ -24,10 +25,18 @@ function userFromMe(me: Awaited<ReturnType<typeof authApi.me>>): AuthUser | null
   };
 }
 
+function isUnauthorizedSessionError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const maybeError = error as { statusCode?: unknown; status?: unknown };
+  const code = Number(maybeError.statusCode ?? maybeError.status);
+  return code === 401 || code === 403;
+}
+
 export const authStore = create<AuthState>((set) => ({
   loginRequired: null,
   user: null,
   isHydrated: false,
+  manualLogoutUntil: 0,
 
   loadConfig: async () => {
     try {
@@ -54,8 +63,10 @@ export const authStore = create<AuthState>((set) => ({
         setStoredJwt(null);
         set({ user: null, isHydrated: true });
       }
-    } catch {
-      setStoredJwt(null);
+    } catch (error) {
+      if (isUnauthorizedSessionError(error)) {
+        setStoredJwt(null);
+      }
       set({ user: null, isHydrated: true });
     }
   },
@@ -68,7 +79,7 @@ export const authStore = create<AuthState>((set) => ({
   logout: () => {
     setStoredJwt(null);
     projectStore.getState().setSelectedProjectId(null);
-    set({ user: null });
+    set({ user: null, manualLogoutUntil: Date.now() + 3000 });
   },
 }));
 

@@ -10,9 +10,12 @@ import { ListApiServices } from './ListApiServices';
 import { CreateApiOperation } from './CreateApiOperation';
 import { UpdateApiOperation } from './UpdateApiOperation';
 import { DeleteApiOperation } from './DeleteApiOperation';
+import { DeleteApiContract } from './DeleteApiContract';
 import { GetApiOperation } from './GetApiOperation';
 import { ListApiOperations } from './ListApiOperations';
+import { ExecuteApiRequest } from './ExecuteApiRequest';
 import { ImportApiContract } from './ImportApiContract';
+import { RefreshApiContract } from './RefreshApiContract';
 import type { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
 import type { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
 import type { EventPublisher } from '../EventPublisher';
@@ -54,13 +57,20 @@ export class ApiModule {
     const createApiOperation = new CreateApiOperation(deps.apiOperationRepository, deps.apiServiceRepository);
     const updateApiOperation = new UpdateApiOperation(deps.apiOperationRepository, deps.apiServiceRepository);
     const deleteApiOperation = new DeleteApiOperation(deps.apiOperationRepository);
+    const deleteApiContract = new DeleteApiContract(
+      deps.apiServiceRepository,
+      deps.apiOperationRepository,
+      deps.eventPublisher,
+    );
     const getApiOperation = new GetApiOperation(deps.apiOperationRepository);
     const listApiOperations = new ListApiOperations(deps.apiOperationRepository);
+    const executeApiRequest = new ExecuteApiRequest();
     const importApiContract = new ImportApiContract(
       deps.apiServiceRepository,
       deps.apiOperationRepository,
       deps.eventPublisher,
     );
+    const refreshApiContract = new RefreshApiContract(deps.apiServiceRepository, importApiContract);
 
     this.controller = new ApiController(
       createApiService,
@@ -74,6 +84,9 @@ export class ApiModule {
       getApiOperation,
       listApiOperations,
       importApiContract,
+      refreshApiContract,
+      deleteApiContract,
+      executeApiRequest,
       deps.apiServiceRepository,
       deps.apiOperationRepository,
     );
@@ -92,6 +105,9 @@ export class ApiModule {
     router.get('/projects/:projectId/services/:serviceId/apis/:apiId', asyncHandler((req, res) => apiController.getOperation(req, res)));
     router.patch('/projects/:projectId/services/:serviceId/apis/:apiId', asyncHandler((req, res) => apiController.updateOperation(req, res)));
     router.delete('/projects/:projectId/services/:serviceId/apis/:apiId', asyncHandler((req, res) => apiController.deleteOperation(req, res)));
+    router.post('/projects/:projectId/services/:serviceId/api-contract/refresh', asyncHandler((req, res) => apiController.refreshContract(req, res)));
+    router.delete('/projects/:projectId/api-contract', asyncHandler((req, res) => apiController.deleteContract(req, res)));
+    router.post('/projects/:projectId/api-execution', asyncHandler((req, res) => apiController.executeOperation(req, res)));
 
     router.post('/projects/:projectId/import', upload.single('file'), asyncHandler((req, res) => apiController.importContract(req, res)));
     router.post('/projects/:projectId/import/url', asyncHandler((req, res) => apiController.importContractFromUrl(req, res)));

@@ -5,6 +5,25 @@ function sampleValueForSchema(schema: Record<string, unknown> | null | undefined
   if (schema.example !== undefined) return schema.example;
   if (schema.default !== undefined) return schema.default;
 
+  if (Array.isArray(schema.allOf) && schema.allOf.length > 0) {
+    const merged = schema.allOf
+      .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item))
+      .map((item) => sampleValueForSchema(item));
+    const objectParts = merged.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item));
+    if (objectParts.length > 0) {
+      return Object.assign({}, ...objectParts);
+    }
+    return merged[0] ?? null;
+  }
+
+  if (Array.isArray(schema.oneOf) && schema.oneOf.length > 0) {
+    return sampleValueForSchema(schema.oneOf[0] as Record<string, unknown>);
+  }
+
+  if (Array.isArray(schema.anyOf) && schema.anyOf.length > 0) {
+    return sampleValueForSchema(schema.anyOf[0] as Record<string, unknown>);
+  }
+
   const type = schema.type as string | undefined;
   if (type === 'string') {
     const format = schema.format as string | undefined;

@@ -15,6 +15,10 @@ apiAxios.interceptors.request.use((config) => {
       config.headers.Authorization = authorization;
     }
   }
+  config.headers = config.headers ?? {};
+  config.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+  config.headers.Pragma = 'no-cache';
+  config.headers.Expires = '0';
   return config;
 });
 

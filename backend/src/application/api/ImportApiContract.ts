@@ -14,6 +14,7 @@ import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
 import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
 import { EventPublisher } from '../EventPublisher';
 import { extractOpenApiSampleRequestBody, extractOpenApiRequiredRequestBodyFields, extractPostmanSampleRequestBody } from './openApiSampleBody';
+import { buildOpenApiServiceImportKey, resolveOpenApiOperationContract } from './openApiResolution';
 
 // ─── DTOs ────────────────────────────────────────────────
 
@@ -39,11 +40,15 @@ interface ParsedOperation {
   name: string;
   method: string;
   path: string;
+  requestUrl?: string;
   description: string;
   authenticationType: string;
   status: string;
   sampleRequestBody: Record<string, unknown> | null;
   requiredRequestBodyFields: string[] | null;
+  tags?: string[];
+  contentTypes?: string[];
+  sourceOperation?: Record<string, unknown> | null;
 }
 
 interface ParsedService {
@@ -53,6 +58,8 @@ interface ParsedService {
   tags: string[];
   baseUrl?: string;
   folderPath?: string;
+  importKey?: string;
+  sourceContract?: Record<string, unknown> | null;
   operations: ParsedOperation[];
 }
 
@@ -135,11 +142,32 @@ function operationName(op: any, path: string, method: string): string {
   return `${method.toUpperCase()} ${path}`;
 }
 
-function extractAuthType(spec: any, operation: any): string {
-  const schemes: Record<string, any> = spec?.components?.securitySchemes || spec?.securityDefinitions || {};
-  const opSecurity: any[] = operation?.security ?? spec?.security ?? [];
+function resolveOpenApiServerUrl(server: any, spec: any): string {
+  const rawUrl = String(server?.url || '').trim();
+  if (!rawUrl) return '';
 
-  const allSecurity = [...opSecurity, ...(spec?.security ?? [])];
+  const variables = server?.variables && typeof server.variables === 'object' ? server.variables : {};
+  return rawUrl.replace(/\{([^}]+)\}/g, (match, key: string) => {
+    const variable = variables[key];
+    if (variable && typeof variable === 'object') {
+      const candidate = variable.default ?? (Array.isArray(variable.enum) ? variable.enum[0] : undefined);
+      if (candidate !== undefined && candidate !== null) return String(candidate);
+    }
+
+    const specVariable = spec?.variables?.[key];
+    if (specVariable && typeof specVariable === 'object' && specVariable.default !== undefined) {
+      return String(specVariable.default);
+    }
+
+    return match;
+  });
+}
+
+function extractAuthType(spec: any, pathItem: any, operation: any): string {
+  const schemes: Record<string, any> = spec?.components?.securitySchemes || spec?.securityDefinitions || {};
+  const opSecurity: any[] = operation?.security ?? pathItem?.security ?? spec?.security ?? [];
+
+  const allSecurity = [...opSecurity, ...(pathItem?.security ?? []), ...(spec?.security ?? [])];
   const schemeNames = new Set<string>();
   for (const sec of allSecurity) {
     if (typeof sec === 'object' && sec !== null) {
@@ -166,46 +194,31 @@ function extractFromOpenApi(spec: any, warnings: string[]): ParsedService[] {
   const specVersion = String(info.version || 'v1');
   const specDescription = String(info.description || '');
   const paths = spec.paths || {};
+  const specBaseUrl = openApiPrimaryBaseUrl(spec);
+  const servicesByKey: Map<string, ParsedService> = new Map();
+  let sawTaggedOperation = false;
 
-  // Collect all tags from the spec
-  const allTags: string[] = [];
-  for (const pathItem of Object.values(paths)) {
-    if (typeof pathItem !== 'object' || pathItem === null) continue;
-    for (const [method, operation] of Object.entries(pathItem)) {
-      if (!(typeof operation === 'object' && operation !== null)) continue;
-      const tags: string[] = (operation as any).tags || [];
-      for (const t of tags) {
-        if (!allTags.includes(String(t))) allTags.push(String(t));
-      }
-    }
-  }
-
-  // Group operations by their first tag (or spec title if no tags)
-  const servicesByTag: Map<string, ParsedService> = new Map();
-
-  const ensureService = (tagName: string): ParsedService => {
-    if (!servicesByTag.has(tagName)) {
-      servicesByTag.set(tagName, {
-        name: tagName,
-        description: '',
+  const ensureService = (serviceName: string, folderPath?: string): ParsedService => {
+    const importKey = buildOpenApiServiceImportKey({
+      specTitle,
+      serviceName,
+      folderPath,
+    });
+    if (!servicesByKey.has(importKey)) {
+      servicesByKey.set(importKey, {
+        name: serviceName,
+        description: specDescription,
         version: specVersion,
         tags: [],
+        baseUrl: specBaseUrl || undefined,
+        folderPath,
+        importKey,
+        sourceContract: JSON.parse(JSON.stringify(spec)),
         operations: [],
       });
     }
-    return servicesByTag.get(tagName) as ParsedService;
+    return servicesByKey.get(importKey) as ParsedService;
   };
-
-  // If no tags at all, create a default service with the spec title
-  if (allTags.length === 0) {
-    const defaultSvc = ensureService(specTitle);
-    defaultSvc.description = specDescription;
-  }
-
-  for (const tag of allTags) {
-    const svc = servicesByTag.get(String(tag));
-    if (svc) svc.tags.push(String(tag));
-  }
 
   for (const [path, pathItem] of Object.entries(paths)) {
     if (typeof pathItem !== 'object' || pathItem === null) continue;
@@ -214,44 +227,76 @@ function extractFromOpenApi(spec: any, warnings: string[]): ParsedService[] {
       if (!['get', 'post', 'put', 'patch', 'delete', 'options', 'head'].includes(method)) continue;
       const op = operation as any;
 
-      const tags: string[] = op.tags || [];
+      const resolved = resolveOpenApiOperationContract(spec, String(path), method);
+      const tags: string[] = resolved?.tags?.length ? resolved.tags : (Array.isArray(op.tags) ? op.tags.map(String) : []);
       const serviceName = tags.length > 0 ? String(tags[0]) : specTitle;
       const svc = ensureService(serviceName);
+      sawTaggedOperation = sawTaggedOperation || tags.length > 0;
+      for (const tag of tags) {
+        if (!svc.tags.includes(tag)) svc.tags.push(tag);
+      }
 
-      const authType = extractAuthType(spec, op);
-      const desc = op.summary ? `${op.summary}. ${op.description || ''}`.trim() : (op.description || '');
+      const authType = extractAuthType(spec, pathItem, op);
+      const desc = resolved?.summary ? `${resolved.summary}. ${resolved.description || ''}`.trim() : (resolved?.description || op.description || '');
+      const requestUrl = specBaseUrl ? joinExecutableUrl(specBaseUrl, String(path)) : String(path);
+      const requestBody = resolved?.requestBody ?? (op.requestBody ? JSON.parse(JSON.stringify(op.requestBody)) : null);
+      const responses = resolved?.responses ?? (op.responses ? JSON.parse(JSON.stringify(op.responses)) : null);
+      const parameters = resolved?.parameters ?? [];
+      const sourceOperation = {
+        path: String(path),
+        method: normalizeMethod(method),
+        operationId: resolved?.operationId ?? (op.operationId ? String(op.operationId) : undefined),
+        summary: resolved?.summary ?? (op.summary ? String(op.summary) : undefined),
+        description: resolved?.description ?? (op.description ? String(op.description) : undefined),
+        tags,
+        servers: resolved?.servers ?? [],
+        security: resolved?.security ?? [],
+        parameters,
+        requestBody,
+        responses,
+        requestContentTypes: resolved?.requestContentTypes ?? [],
+        responseContentTypes: resolved?.responseContentTypes ?? [],
+        rawPathItem: resolved?.rawPathItem ?? null,
+        rawOperation: resolved?.rawOperation ?? null,
+      };
 
       svc.operations.push({
         name: operationName(op, path, method),
         method: normalizeMethod(method),
         path: String(path),
+        requestUrl,
         description: desc || '',
         authenticationType: authType,
         status: 'Active',
-        sampleRequestBody: extractOpenApiSampleRequestBody(op as Record<string, unknown>),
-        requiredRequestBodyFields: extractOpenApiRequiredRequestBodyFields(op as Record<string, unknown>),
+        sampleRequestBody: extractOpenApiSampleRequestBody({
+          ...(op as Record<string, unknown>),
+          requestBody,
+        }),
+        requiredRequestBodyFields: extractOpenApiRequiredRequestBodyFields({
+          ...(op as Record<string, unknown>),
+          requestBody,
+        }),
+        tags,
+        contentTypes: sourceOperation.requestContentTypes,
+        sourceOperation,
       });
     }
   }
 
-  const result = Array.from(servicesByTag.values());
-  const specBaseUrl = openApiPrimaryBaseUrl(spec);
-  if (specBaseUrl) {
-    for (const svc of result) {
-      if (!svc.baseUrl) svc.baseUrl = specBaseUrl;
-    }
-  }
-
-  if (allTags.length === 0 && result.length === 0) {
+  const result = Array.from(servicesByKey.values());
+  if (result.length === 0) {
     result.push({
       name: specTitle,
       description: specDescription,
       version: specVersion,
       tags: [],
       baseUrl: specBaseUrl,
+      sourceContract: JSON.parse(JSON.stringify(spec)),
       operations: [],
     });
-    warnings.push('No operations found in the specification.');
+    if (!sawTaggedOperation) {
+      warnings.push('No operations found in the specification.');
+    }
   }
 
   return result;
@@ -264,6 +309,7 @@ function extractFromPostman(spec: any, warnings: string[]): ParsedService[] {
   const collectionName = String(info.name || 'Imported API');
   const collectionVersion = info.schema ? String(info.schema) : 'v2.1';
   const baseUrl = inferPostmanCollectionBaseUrl(spec);
+  const variables = readPostmanVariables(spec);
 
   // Collect operations grouped by folder path
   const operationsByFolder = new Map<string, ParsedOperation[]>();
@@ -278,6 +324,7 @@ function extractFromPostman(spec: any, warnings: string[]): ParsedService[] {
         const method = normalizeMethod(req.method);
         let path = '/';
         let rawPath = '';
+        let requestUrl = '';
 
         if (typeof req.url === 'string') {
           rawPath = req.url;
@@ -287,14 +334,16 @@ function extractFromPostman(spec: any, warnings: string[]): ParsedService[] {
 
         try {
           const url = new URL(rawPath);
-          path = url.pathname;
+          path = normalizeImportedPath(url.pathname);
         } catch {
           if (rawPath.startsWith('/')) {
-            path = rawPath;
+            path = normalizeImportedPath(rawPath);
           } else if (rawPath.includes('/')) {
-            path = '/' + rawPath.substring(rawPath.indexOf('/'));
+            path = normalizeImportedPath('/' + rawPath.substring(rawPath.indexOf('/')));
           }
         }
+
+        requestUrl = resolvePostmanExecutableRequestUrl(req.url, baseUrl, variables) || joinExecutableUrl(baseUrl, path);
 
         const authType = req.auth ? mapPostmanAuth(req.auth) : 'None';
         const desc = item.description || req.description || req.summary || '';
@@ -309,6 +358,7 @@ function extractFromPostman(spec: any, warnings: string[]): ParsedService[] {
           name: String(item.name || `${method} ${path}`),
           method,
           path,
+          requestUrl,
           description: desc || '',
           authenticationType: authType,
           status: 'Active',
@@ -400,7 +450,7 @@ function isPlausibleEnvironmentUrl(raw: string, key: string): boolean {
 
 function openApiPrimaryBaseUrl(spec: any): string {
   if (Array.isArray(spec?.servers) && spec.servers[0]?.url) {
-    return normalizeBaseUrl(String(spec.servers[0].url));
+    return normalizeBaseUrl(resolveOpenApiServerUrl(spec.servers[0], spec));
   }
   const host = String(spec?.host || '').trim();
   if (host) {
@@ -428,52 +478,10 @@ function readPostmanVariables(spec: any): Map<string, string> {
   return map;
 }
 
-function firstHttpUrlInVariableValues(variables: Map<string, string>): string {
-  for (const value of variables.values()) {
-    if (!value || value.includes('{{')) continue;
-    if (/^https?:\/\//i.test(value)) {
-      return normalizeBaseUrl(value);
-    }
-  }
-  return '';
-}
-
-function resolvePostmanVariableRef(value: string, variables: Map<string, string>): string {
-  const match = value.trim().match(/^\{\{([^}]+)\}\}$/);
-  if (!match) return value;
-  return variables.get(match[1].trim()) ?? value;
-}
-
-function inferPostmanCollectionBaseUrl(spec: any): string {
+function firstPostmanRequestOrigin(spec: any): string {
   const variables = readPostmanVariables(spec);
-
-  const fromAnyUrl = firstHttpUrlInVariableValues(variables);
-  if (fromAnyUrl) return fromAnyUrl;
-
-  const preferredKeys = [
-    'baseurl',
-    'base_url',
-    'url',
-    'host',
-    'domain',
-    'issuer',
-    'apiurl',
-    'api_url',
-    'custom-url',
-    'custom_url',
-    'zitadel',
-  ];
-
-  for (const preferred of preferredKeys) {
-    for (const [key, value] of variables) {
-      if (!value || value.includes('{{')) continue;
-      if (key.toLowerCase() === preferred || key.toLowerCase().includes(preferred)) {
-        return normalizeBaseUrl(value);
-      }
-    }
-  }
-
   let originFromRequest = '';
+
   const visitItems = (items: any[]) => {
     for (const item of items) {
       if (originFromRequest) return;
@@ -481,20 +489,24 @@ function inferPostmanCollectionBaseUrl(spec: any): string {
         visitItems(item.item);
         continue;
       }
+
       const url = item.request?.url;
       if (!url) continue;
+
       if (typeof url === 'string') {
         const abs = url.match(/^(https?:\/\/[^\s/]+)/i);
         if (abs) {
           originFromRequest = abs[1];
           return;
         }
+
         const resolved = resolvePostmanVariableRef(url.split('/')[0], variables);
         if (/^https?:\/\//i.test(resolved)) {
           originFromRequest = normalizeBaseUrl(resolved);
           return;
         }
       }
+
       if (typeof url === 'object') {
         const raw = url.raw ? String(url.raw) : '';
         if (raw) {
@@ -528,8 +540,127 @@ function inferPostmanCollectionBaseUrl(spec: any): string {
       }
     }
   };
+
   visitItems(spec.item || []);
   return originFromRequest ? normalizeBaseUrl(originFromRequest) : '';
+}
+
+function firstHttpUrlInVariableValues(variables: Map<string, string>): string {
+  for (const value of variables.values()) {
+    if (!value || value.includes('{{')) continue;
+    if (/^https?:\/\//i.test(value)) {
+      return normalizeBaseUrl(value);
+    }
+  }
+  return '';
+}
+
+function joinExecutableUrl(baseUrl: string, operationPath: string): string {
+  const trimmedBase = baseUrl.trim();
+  const trimmedPath = normalizeImportedPath(operationPath);
+  if (!trimmedBase) return trimmedPath;
+  if (!trimmedPath) return trimmedBase;
+
+  try {
+    const parsed = new URL(trimmedBase);
+    const basePath = parsed.pathname && parsed.pathname !== '/' ? parsed.pathname.replace(/\/$/, '') : '';
+    const opPath = trimmedPath.startsWith('/') ? trimmedPath : `/${trimmedPath}`;
+    return `${parsed.origin}${basePath}${opPath}`;
+  } catch {
+    const left = trimmedBase.endsWith('/') ? trimmedBase.slice(0, -1) : trimmedBase;
+    const right = trimmedPath.startsWith('/') ? trimmedPath : `/${trimmedPath}`;
+    return `${left}${right}`;
+  }
+}
+
+function normalizeImportedPath(input: string): string {
+  const trimmed = input.trim();
+  if (!trimmed) return '';
+  const collapsed = trimmed.replace(/\/{2,}/g, '/');
+  if (!collapsed.startsWith('/')) {
+    return `/${collapsed}`;
+  }
+  return collapsed;
+}
+
+function resolvePostmanExecutableRequestUrl(url: any, baseUrl: string, variables: Map<string, string>): string {
+  if (!url) return '';
+
+  if (typeof url === 'string') {
+    const resolved = replacePostmanVariables(url, variables);
+    if (/^https?:\/\//i.test(resolved)) return resolved;
+    return joinExecutableUrl(baseUrl, resolved);
+  }
+
+  if (typeof url === 'object') {
+    const raw = url.raw ? replacePostmanVariables(String(url.raw), variables) : '';
+    if (raw) {
+      if (/^https?:\/\//i.test(raw)) return raw;
+      const absFromRaw = raw.match(/^(https?:\/\/[^/?#]+)/i);
+      if (absFromRaw) return raw;
+      return joinExecutableUrl(baseUrl, raw);
+    }
+
+    const protocol = url.protocol ? replacePostmanVariables(String(url.protocol), variables).replace(/:$/, '') : '';
+    const hostParts = Array.isArray(url.host) ? url.host : url.host ? [url.host] : [];
+    const host = hostParts.map((part: string) => replacePostmanVariables(String(part), variables)).join('.');
+    const pathParts = Array.isArray(url.path) ? url.path : url.path ? [url.path] : [];
+    const path = pathParts.length > 0 ? `/${pathParts.map((part: string) => replacePostmanVariables(String(part), variables)).filter(Boolean).join('/')}` : '';
+
+    if (protocol && host) {
+      return `${protocol}://${host}${path}`;
+    }
+    if (host) {
+      return joinExecutableUrl(baseUrl, path || host);
+    }
+  }
+
+  return '';
+}
+
+function replacePostmanVariables(value: string, variables: Map<string, string>): string {
+  return value.replace(/\{\{([^}]+)\}\}/g, (_match, key: string) => variables.get(String(key).trim()) ?? _match);
+}
+
+function resolvePostmanVariableRef(value: string, variables: Map<string, string>): string {
+  const match = value.trim().match(/^\{\{([^}]+)\}\}$/);
+  if (!match) return value;
+  return variables.get(match[1].trim()) ?? value;
+}
+
+function inferPostmanCollectionBaseUrl(spec: any): string {
+  const requestOrigin = firstPostmanRequestOrigin(spec);
+  if (requestOrigin) return requestOrigin;
+
+  const variables = readPostmanVariables(spec);
+
+  const fromAnyUrl = firstHttpUrlInVariableValues(variables);
+  if (fromAnyUrl) return fromAnyUrl;
+
+  const preferredKeys = [
+    'baseurl',
+    'base_url',
+    'url',
+    'host',
+    'domain',
+    'issuer',
+    'apiurl',
+    'api_url',
+    'custom-url',
+    'custom_url',
+    'zitadel',
+  ];
+
+  for (const preferred of preferredKeys) {
+    for (const [key, value] of variables) {
+      if (!value || value.includes('{{')) continue;
+      if (key.toLowerCase() === preferred || key.toLowerCase().includes(preferred)) {
+        return normalizeBaseUrl(value);
+      }
+    }
+  }
+
+  return '';
 }
 
 function detectEnvironments(spec: any): DetectedEnvironment[] {
@@ -581,23 +712,32 @@ function detectEnvironments(spec: any): DetectedEnvironment[] {
 
   // Postman collection variables (common for base URL / issuer)
   if (spec?.item || spec?.info?.schema?.includes?.('postman')) {
-    const variables = readPostmanVariables(spec);
-    for (const [key, value] of variables) {
-      if (!value || value.includes('{{')) continue;
-      if (!isPlausibleEnvironmentUrl(value, key)) continue;
-      const baseUrl = normalizeBaseUrl(value);
-      const envKey = `${key.toLowerCase()}-${baseUrl.toLowerCase()}`;
+    const requestOrigin = firstPostmanRequestOrigin(spec);
+    if (requestOrigin) {
+      const envKey = `request-origin-${requestOrigin.toLowerCase()}`;
       if (!seen.has(envKey)) {
         seen.add(envKey);
-        environments.push({ name: key, baseUrl });
+        environments.push({ name: 'Request origin', baseUrl: requestOrigin });
       }
-    }
-    const collectionBase = inferPostmanCollectionBaseUrl(spec);
-    if (collectionBase) {
-      const envKey = `collection-${collectionBase.toLowerCase()}`;
-      if (!seen.has(envKey)) {
-        seen.add(envKey);
-        environments.push({ name: 'Collection default', baseUrl: collectionBase });
+    } else {
+      const variables = readPostmanVariables(spec);
+      for (const [key, value] of variables) {
+        if (!value || value.includes('{{')) continue;
+        if (!isPlausibleEnvironmentUrl(value, key)) continue;
+        const baseUrl = normalizeBaseUrl(value);
+        const envKey = `${key.toLowerCase()}-${baseUrl.toLowerCase()}`;
+        if (!seen.has(envKey)) {
+          seen.add(envKey);
+          environments.push({ name: key, baseUrl });
+        }
+      }
+      const collectionBase = inferPostmanCollectionBaseUrl(spec);
+      if (collectionBase) {
+        const envKey = `collection-${collectionBase.toLowerCase()}`;
+        if (!seen.has(envKey)) {
+          seen.add(envKey);
+          environments.push({ name: 'Collection default', baseUrl: collectionBase });
+        }
       }
     }
   }
@@ -740,6 +880,7 @@ export class ImportApiContract {
     projectId: string;
     fileName: string;
     content: string;
+    preserveUnmatchedOperations?: boolean;
   }): Promise<ImportSummary> {
     const warnings: string[] = [];
     const content = stripBom(params.content);
@@ -809,15 +950,22 @@ export class ImportApiContract {
     let operationsUpdated = 0;
     let operationsRemoved = 0;
 
+    const existingServices = await this.apiServiceRepository.findByProject(params.projectId);
     const operationKey = (method: string, path: string) =>
       `${method.toUpperCase()}:${path}`;
 
     for (const svc of parsedServices) {
       let serviceEntity: ApiServiceEntity | null = null;
-
-      const exists = await this.apiServiceRepository.existsByName(svc.name, params.projectId);
       const serviceBaseUrl = svc.baseUrl || fallbackBaseUrl || '';
-      if (!exists) {
+
+      const matchedByImportKey = svc.importKey
+        ? existingServices.find((s: any) => s.importKey === svc.importKey)
+        : null;
+      const matchedByName = existingServices.find(
+        (s: any) => s.name.toLowerCase() === svc.name.toLowerCase() && !s.importKey,
+      ) ?? null;
+
+      if (!matchedByImportKey && !matchedByName) {
         const now = Date.now();
         serviceEntity = new ApiServiceEntity(
           randomUUID(),
@@ -831,11 +979,13 @@ export class ImportApiContract {
           now,
           svc.folderPath
         );
+        serviceEntity.importKey = svc.importKey || null;
+        serviceEntity.sourceContract = svc.sourceContract ?? null;
         await this.apiServiceRepository.create(serviceEntity);
+        existingServices.push(serviceEntity);
         servicesImported++;
       } else {
-        const existing = await this.apiServiceRepository.findByProject(params.projectId);
-        serviceEntity = existing.find((s: any) => s.name.toLowerCase() === svc.name.toLowerCase()) ?? null;
+        serviceEntity = matchedByImportKey || matchedByName;
         if (!serviceEntity) {
           warnings.push(`Service "${svc.name}" exists but could not be retrieved. Skipping its operations.`);
           continue;
@@ -846,6 +996,8 @@ export class ImportApiContract {
           tags: svc.tags,
           ...(serviceBaseUrl ? { baseUrl: serviceBaseUrl } : {}),
           ...(svc.folderPath !== undefined ? { folderPath: svc.folderPath } : {}),
+          importKey: svc.importKey || null,
+          sourceContract: svc.sourceContract ?? null,
         });
         servicesUpdated++;
       }
@@ -870,6 +1022,10 @@ export class ImportApiContract {
             status: op.status,
             sampleRequestBody: op.sampleRequestBody,
             requiredRequestBodyFields: op.requiredRequestBodyFields,
+            requestUrl: op.requestUrl,
+            tags: op.tags ?? [],
+            contentTypes: op.contentTypes ?? [],
+            sourceOperation: op.sourceOperation ?? null,
           });
           operationsUpdated++;
         } else {
@@ -889,15 +1045,21 @@ export class ImportApiContract {
           );
           operation.sampleRequestBody = op.sampleRequestBody;
           operation.requiredRequestBodyFields = op.requiredRequestBodyFields;
+          operation.requestUrl = op.requestUrl ?? null;
+          operation.tags = op.tags ?? [];
+          operation.contentTypes = op.contentTypes ?? [];
+          operation.sourceOperation = op.sourceOperation ?? null;
           await this.apiOperationRepository.create(operation);
           operationsImported++;
         }
       }
 
-      for (const existingOp of existingOps) {
-        if (!importedKeys.has(operationKey(existingOp.method, existingOp.path))) {
-          await this.apiOperationRepository.delete(existingOp.id);
-          operationsRemoved++;
+      if (!params.preserveUnmatchedOperations) {
+        for (const existingOp of existingOps) {
+          if (!importedKeys.has(operationKey(existingOp.method, existingOp.path))) {
+            await this.apiOperationRepository.delete(existingOp.id);
+            operationsRemoved++;
+          }
         }
       }
     }

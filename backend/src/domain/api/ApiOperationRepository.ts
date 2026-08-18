@@ -7,5 +7,6 @@ export interface ApiOperationRepository {
   findByProject(projectId: string): Promise<any[]>;
   findByProjectAndService(projectId: string, serviceId: string): Promise<any[]>;
   deleteByServiceId(projectId: string, serviceId: string): Promise<void>;
+  deleteByProject(projectId: string): Promise<number>;
   list(): Promise<any[]>;
 }

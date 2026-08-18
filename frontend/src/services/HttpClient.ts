@@ -36,11 +36,22 @@ export class HttpClient {
     return `${this.baseUrl}${normalized}`;
   }
 
+  private buildRequestInit(method: string, body?: unknown): RequestInit {
+    return {
+      method,
+      cache: 'no-store',
+      headers: {
+        ...this.buildHeaders(),
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        Pragma: 'no-cache',
+        Expires: '0',
+      },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    };
+  }
+
   async get<T>(path: string): Promise<T> {
-    const response = await fetch(this.url(path), {
-      method: 'GET',
-      headers: this.buildHeaders(),
-    });
+    const response = await fetch(this.url(path), this.buildRequestInit('GET'));
 
     if (!response.ok) {
       throw await this.handleError(response, path);
@@ -51,11 +62,7 @@ export class HttpClient {
   }
 
   async post<T>(path: string, body: unknown): Promise<T> {
-    const response = await fetch(this.url(path), {
-      method: 'POST',
-      headers: this.buildHeaders(),
-      body: JSON.stringify(body),
-    });
+    const response = await fetch(this.url(path), this.buildRequestInit('POST', body));
 
     if (!response.ok) {
       throw await this.handleError(response, path);
@@ -66,11 +73,7 @@ export class HttpClient {
   }
 
   async patch<T>(path: string, body: unknown): Promise<T> {
-    const response = await fetch(this.url(path), {
-      method: 'PATCH',
-      headers: this.buildHeaders(),
-      body: JSON.stringify(body),
-    });
+    const response = await fetch(this.url(path), this.buildRequestInit('PATCH', body));
 
     if (!response.ok) {
       throw await this.handleError(response, path);
@@ -81,11 +84,7 @@ export class HttpClient {
   }
 
   async put<T>(path: string, body: unknown): Promise<T> {
-    const response = await fetch(this.url(path), {
-      method: 'PUT',
-      headers: this.buildHeaders(),
-      body: JSON.stringify(body),
-    });
+    const response = await fetch(this.url(path), this.buildRequestInit('PUT', body));
 
     if (!response.ok) {
       throw await this.handleError(response, path);
@@ -96,10 +95,7 @@ export class HttpClient {
   }
 
   async delete(path: string): Promise<void> {
-    const response = await fetch(this.url(path), {
-      method: 'DELETE',
-      headers: this.buildHeaders(),
-    });
+    const response = await fetch(this.url(path), this.buildRequestInit('DELETE'));
 
     if (!response.ok) {
       throw await this.handleError(response, path);

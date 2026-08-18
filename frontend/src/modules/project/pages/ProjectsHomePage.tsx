@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { projectStore } from '../../../store/projectStore';
 import { useToast } from '../../../hooks/useToast';
 import { useWorkspaceProjects } from '../hooks/useWorkspaceProjects';
-import { getLastOpenedAt, touchProjectOpened } from '../utils/projectUiMeta';
+import { appendProjectActivity, getLastOpenedAt, loadProjectActivity, touchProjectOpened } from '../utils/projectUiMeta';
 import type { ProjectDto, ProjectWorkspaceModel } from '../../../types/apiModels';
 import { toProjectWorkspaceModel } from '../../../types/apiModels';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/Card';
@@ -21,14 +21,6 @@ import { consumeAuthFlash } from '../../../utils/authFlash';
 import { projectModulePath } from '../../../routes/paths';
 
 export interface ProjectsHomePageProps {}
-
-interface Activity {
-  id: string;
-  action: string;
-  projectName: string;
-  user: string;
-  timestamp: string;
-}
 
 const MAX_RECENT_PROJECTS = 4;
 
@@ -52,7 +44,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [archiveProject, setArchiveProject] = React.useState<UiProject | undefined>(undefined);
   const [archiveOpen, setArchiveOpen] = React.useState(false);
-  const [recentActivity, setRecentActivity] = React.useState<Activity[]>([]);
+  const [recentActivity, setRecentActivity] = React.useState(() => loadProjectActivity());
   const [showAllProjects, setShowAllProjects] = React.useState(false);
 
   const {
@@ -89,16 +81,8 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
   }, [setSelectedProjectId]);
 
   const logActivity = (action: string, projectName: string) => {
-    setRecentActivity((prev) => [
-      {
-        id: Date.now().toString(),
-        action,
-        projectName,
-        user: 'You',
-        timestamp: 'Just now',
-      },
-      ...prev,
-    ]);
+    appendProjectActivity(action, projectName);
+    setRecentActivity(loadProjectActivity());
   };
 
   const filteredProjects = React.useMemo(() => {
@@ -113,13 +97,23 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
     return [...filtered].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt);
   }, [projects, search]);
 
+  const activeProjects = React.useMemo(
+    () => filteredProjects.filter((project) => project.uiStatus === 'active'),
+    [filteredProjects],
+  );
+
+  const archivedProjects = React.useMemo(
+    () => filteredProjects.filter((project) => project.uiStatus === 'paused'),
+    [filteredProjects],
+  );
+
   const displayedProjects = React.useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (term || showAllProjects) return filteredProjects;
-    return filteredProjects.slice(0, MAX_RECENT_PROJECTS);
-  }, [filteredProjects, search, showAllProjects]);
+    if (term || showAllProjects) return activeProjects;
+    return activeProjects.slice(0, MAX_RECENT_PROJECTS);
+  }, [activeProjects, search, showAllProjects]);
 
-  const showViewAllProjects = projects.length > MAX_RECENT_PROJECTS;
+  const showViewAllProjects = activeProjects.length > MAX_RECENT_PROJECTS;
 
   const getStatusBadge = (status: UiProject['uiStatus']) => (
     <Badge variant={status === 'active' ? 'success' : 'secondary'}>{status === 'active' ? 'active' : 'paused'}</Badge>
@@ -148,7 +142,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
         description: data.description || undefined,
       });
       touchProjectOpened(created.id);
-      logActivity(`Created project "${data.projectName}"`, data.projectName);
+      logActivity('Created project', data.projectName);
       setCreateModalOpen(false);
       showSuccess(`Project "${data.projectName}" created successfully`);
       setSelectedProjectId(created.id);
@@ -161,7 +155,6 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
 
   const handleOpenProject = (project: UiProject) => {
     touchProjectOpened(project.id);
-    logActivity(`Opened project "${project.name}"`, project.name);
     setSelectedProjectId(project.id);
     navigate(projectModulePath(project.id, 'overview'));
   };
@@ -171,7 +164,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
     const oldName = renameProject.name;
     try {
       await updateProjectAsync({ id: renameProject.id, name: newName });
-      logActivity(`Renamed project "${oldName}" to "${newName}"`, newName);
+      logActivity('Renamed project', `${oldName} → ${newName}`);
       setRenameOpen(false);
       setRenameProject(undefined);
       showSuccess(`Project renamed to "${newName}" successfully`);
@@ -185,7 +178,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
     const deletedName = deleteProject.name;
     try {
       await deleteProjectAsync(deleteProject.id);
-      logActivity(`Deleted project "${deletedName}"`, deletedName);
+      logActivity('Deleted project', deletedName);
       setDeleteOpen(false);
       setDeleteProject(undefined);
       showSuccess(`Project "${deletedName}" deleted successfully`);
@@ -202,7 +195,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
     const successLabel = nextStatus === 'archived' ? 'archived successfully' : 'restored successfully';
     try {
       await updateProjectAsync({ id: archiveProject.id, status: nextStatus });
-      logActivity(`${actionLabel} project "${archiveProject.name}"`, archiveProject.name);
+      logActivity(actionLabel, archiveProject.name);
       setArchiveOpen(false);
       setArchiveProject(undefined);
       showSuccess(`Project "${archiveProject.name}" ${successLabel}`);
@@ -251,7 +244,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
         <SearchBar value={search} onChange={setSearch} placeholder="Search projects..." className="sm:w-96" />
       </div>
 
-      <div className="mb-8">
+      <section className="mb-8 rounded-2xl border border-border bg-surface/40 p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-text">Recent Projects</h2>
           {showViewAllProjects && !search.trim() && (
@@ -261,11 +254,17 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
           )}
         </div>
 
-        {filteredProjects.length === 0 ? (
+        {activeProjects.length === 0 ? (
           <EmptyState
             icon={<LayoutGrid className="h-12 w-12" />}
             title="No projects found"
-            description={search ? 'Try adjusting your search criteria.' : 'Create your first project to get started.'}
+            description={
+              search
+                ? 'Try adjusting your search criteria.'
+                : archivedProjects.length > 0
+                  ? 'All of your projects are archived right now.'
+                  : 'Create your first project to get started.'
+            }
             action={search ? undefined : { label: 'Create Project', onClick: () => setCreateModalOpen(true) }}
           />
         ) : (
@@ -322,10 +321,10 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
             ))}
           </div>
         )}
-      </div>
+      </section>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <Card className="h-full">
           <CardHeader>
             <CardTitle>Recent Activity</CardTitle>
           </CardHeader>
@@ -334,19 +333,20 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
               <p className="text-sm text-text-secondary">Actions on this page will appear here.</p>
             ) : (
               <div className="space-y-4">
-                {recentActivity.slice(0, 4).map((activity) => (
+                {recentActivity.slice(0, 5).map((activity) => (
                   <div key={activity.id} className="flex items-start gap-4">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900">
                       <LayoutGrid className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-text">{activity.action}</p>
+                      <p className="mt-0.5 text-sm text-text-secondary">{activity.projectName}</p>
                       <div className="mt-1 flex items-center gap-2 text-xs text-text-secondary">
                         <User className="h-3 w-3" />
                         <span>{activity.user}</span>
                         <span>•</span>
                         <Clock className="h-3 w-3" />
-                        <span>{activity.timestamp}</span>
+                        <span>{formatRelativeTime(activity.timestamp)}</span>
                       </div>
                     </div>
                   </div>
@@ -356,7 +356,75 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="h-full">
+          <CardHeader className="flex flex-row items-center justify-between gap-4">
+            <div>
+              <CardTitle>Archived Projects</CardTitle>
+              <CardDescription>
+                Archived projects move here automatically and return to Recent Projects when restored.
+              </CardDescription>
+            </div>
+            <Badge variant="secondary">{archivedProjects.length}</Badge>
+          </CardHeader>
+          <CardContent>
+            {archivedProjects.length === 0 ? (
+              <p className="text-sm text-text-secondary">
+                {search.trim() ? 'No archived projects match your search.' : 'Archived projects will appear here.'}
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {archivedProjects.map((project) => (
+                  <Card
+                    key={project.id}
+                    className="w-full cursor-pointer border-dashed transition-shadow hover:shadow-lg"
+                    onClick={() => handleOpenProject(project)}
+                  >
+                    <CardContent className="pt-6">
+                      <div className="mb-4 flex items-start justify-between">
+                        <div className="text-primary">{project.icon}</div>
+                        <ProjectCardMenu
+                          onRename={() => {
+                            setRenameProject(project);
+                            setRenameOpen(true);
+                          }}
+                          onToggleArchive={() => {
+                            setArchiveProject(project);
+                            setArchiveOpen(true);
+                          }}
+                          onDelete={() => {
+                            setDeleteProject(project);
+                            setDeleteOpen(true);
+                          }}
+                          isArchived={project.status === 'archived'}
+                        />
+                      </div>
+                      <h3 className="mb-2 text-base font-semibold text-text">{project.name}</h3>
+                      <p className="mb-4 line-clamp-2 text-xs text-text-secondary">
+                        {project.description || 'No description'}
+                      </p>
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-text-secondary">Last opened</span>
+                          <span className="font-medium text-text">{formatRelativeTime(project.lastOpenedAt)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-text-secondary">Status</span>
+                          <Badge variant="secondary">archived</Badge>
+                        </div>
+                        <p className="mt-3 flex items-center gap-1 text-xs font-medium text-primary">
+                          Restore
+                          <ArrowRight className="h-3 w-3" />
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="h-full">
           <CardHeader>
             <CardTitle>New project checklist</CardTitle>
             <CardDescription>

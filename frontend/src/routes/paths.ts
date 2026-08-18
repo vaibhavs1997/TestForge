@@ -12,6 +12,7 @@ export const appPaths = {
 export const projectModules = {
   overview: 'overview',
   apis: 'apis',
+  apiExecution: 'api-execution',
   environment: 'environment',
   testData: 'testdata',
   knowledge: 'knowledge',
@@ -33,6 +34,7 @@ export type ProjectModule = typeof projectModules[keyof typeof projectModules];
 
 export const legacyProjectModuleRedirects = [
   { path: '/apis', module: projectModules.apis },
+  { path: '/api-execution', module: projectModules.apiExecution },
   { path: '/environments', module: projectModules.environment },
   { path: '/knowledge', module: projectModules.knowledge },
   { path: '/reports', module: projectModules.reports },

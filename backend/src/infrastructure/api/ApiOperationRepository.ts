@@ -92,6 +92,14 @@ export class ApiOperationRepository {
     }
   }
 
+  async deleteByProject(projectId: string): Promise<number> {
+    const filePath = this.getOperationsFilePath(projectId);
+    const operations = await this.readOperations(projectId);
+    const count = operations.length;
+    await writeJsonArray(filePath, []);
+    return count;
+  }
+
   async findByService(serviceId: string): Promise<ApiOperationEntity[]> {
     const projectIds = this.listProjectIds();
     for (const projectId of projectIds) {

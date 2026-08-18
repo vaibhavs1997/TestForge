@@ -79,6 +79,14 @@ export class ApiServiceRepository {
     return true;
   }
 
+  async deleteByProject(projectId: string): Promise<number> {
+    const filePath = this.getServicesFilePath(projectId);
+    const raw = await readJsonArray<unknown>(filePath);
+    const count = raw.filter(isServiceRecord).length;
+    await writeJsonArray(filePath, []);
+    return count;
+  }
+
   async findById(id: string): Promise<ApiServiceEntity | null> {
     const projectIds = this.listProjectIds();
     for (const projectId of projectIds) {

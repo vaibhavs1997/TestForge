@@ -7,7 +7,6 @@ import { auditService } from '../../audit/services';
 import { mapAuditLogsToInbox } from '../utils/mapAuditToInbox';
 import type { NotificationInboxItem } from '../types/inbox';
 
-import { NOTIFICATION_INBOX_POLL_INTERVAL_MS } from '../../../constants/timeouts';
 import { useActivityStream } from '../../../hooks/useActivityStream';
 
 const INBOX_QUERY_KEY = ['notification-inbox'] as const;
@@ -17,8 +16,8 @@ export function notificationInboxQueryKey() {
   return INBOX_QUERY_KEY;
 }
 
-export function useNotificationInbox(options?: { pollIntervalMs?: number; enabled?: boolean }) {
-  const pollIntervalMs = options?.pollIntervalMs ?? NOTIFICATION_INBOX_POLL_INTERVAL_MS;
+export function useNotificationInbox(options?: { pollIntervalMs?: number | false; enabled?: boolean }) {
+  const pollIntervalMs = options?.pollIntervalMs ?? false;
   const enabled = options?.enabled !== false;
   useActivityStream(enabled);
 
@@ -40,7 +39,7 @@ export function useNotificationInbox(options?: { pollIntervalMs?: number; enable
     staleTime: 0,
     refetchInterval: pollIntervalMs,
     refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 }
 

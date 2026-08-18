@@ -6,7 +6,7 @@ import type { ServiceFormData, OperationFormData, ImportSummary } from '../types
 import type { AxiosProgressEvent } from 'axios';
 import { queryKeys } from '../../../constants';
 import { notificationInboxQueryKey } from '../../notification/hooks';
-import { toApiOperationView } from '../../../types/apiModels';
+import { toApiOperationView, toApiServiceView } from '../../../types/apiModels';
 
 // ─── Services ────────────────────────────────────────────────
 
@@ -27,7 +27,11 @@ export const useServices = (projectId?: string) => {
   } = useCRUD({
     queryKey: queryKeys.services(projectId || ''),
     service: {
-      list: () => (projectId ? apiService.listServices(projectId) : Promise.resolve([])),
+      list: async () => {
+        if (!projectId) return [];
+        const services = await apiService.listServices(projectId);
+        return services.map((service) => toApiServiceView(service));
+      },
       create: (data: ServiceFormData) =>
         apiService.createService(data.projectId, {
           name: data.name,
@@ -72,6 +76,16 @@ export const useServices = (projectId?: string) => {
 
 export const useService = (projectId?: string) => {
   const services = useServices(projectId);
+  const queryClient = useQueryClient();
+  const refreshMutation = useMutation({
+    mutationFn: ({ serviceId }: { serviceId: string }) => apiService.refreshApiContract(projectId || '', serviceId),
+    onSuccess: () => {
+      if (projectId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.services(projectId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.operations(projectId) });
+      }
+    },
+  });
   return {
     services: services.services,
     allServices: services.services,
@@ -84,6 +98,9 @@ export const useService = (projectId?: string) => {
     remove: services.remove,
     removeAsync: services.removeAsync,
     refetchServices: services.refetch,
+    refreshContract: refreshMutation.mutate,
+    refreshContractAsync: refreshMutation.mutateAsync,
+    isRefreshingContract: refreshMutation.isPending,
   };
 };
 
@@ -103,7 +120,8 @@ export const useApiOperations = (projectId?: string, serviceIds?: string[]) => {
           serviceIds.map(async (sid) => {
             const service = await apiService.getService(projectId, sid).catch(() => null);
             const ops = await apiService.listOperations(projectId, sid).catch(() => []);
-            return ops.map((op) => toApiOperationView(op, service?.name));
+            const serviceName = service ? toApiServiceView(service).name : undefined;
+            return ops.map((op) => toApiOperationView(op, serviceName));
           }),
         );
         return results.flat();

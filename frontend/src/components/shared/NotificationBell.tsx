@@ -6,7 +6,6 @@ import { useNotificationInbox } from '../../modules/notification/hooks';
 import { useNotificationReadStore } from '../../store/notificationReadStore';
 import type { NotificationInboxItem } from '../../modules/notification/types/inbox';
 import { Toast } from './Toast';
-import { NOTIFICATION_INBOX_POLL_INTERVAL_MS } from '../../constants/timeouts';
 import { appPaths, projectModulePath } from '../../routes/paths';
 
 const INBOX_FAST_POLL_MS = 2000;
@@ -37,7 +36,7 @@ export const NotificationBell: React.FC = () => {
   const [liveToastMessage, setLiveToastMessage] = useState('');
 
   const { data: items = [], isLoading, isError } = useNotificationInbox({
-    pollIntervalMs: open ? INBOX_FAST_POLL_MS : NOTIFICATION_INBOX_POLL_INTERVAL_MS,
+    pollIntervalMs: open ? INBOX_FAST_POLL_MS : false,
   });
   const { isRead, markRead, markAllRead } = useNotificationReadStore();
   const { projectId } = useParams<{ projectId?: string }>();

@@ -6,26 +6,43 @@ import { Sun, Moon, Home, FolderKanban } from 'lucide-react';
 // Components
 import { NotificationBell } from '../components/shared/NotificationBell';
 import { SessionBadge } from '../components/shared/SessionBadge';
-import { BrandLogo } from '../components/brand/BrandLogo';
 import { useThemeStore } from '../store/themeStore';
+import { appPaths } from '../routes/paths';
 
 export const Header: React.FC = () => {
   const { theme, toggleTheme } = useThemeStore();
   const location = useLocation();
-  const isOnProjectsArea = location.pathname.startsWith('/projects');
+  const isInsideProject = /^\/projects\/[^/]+/.test(location.pathname);
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-surface px-6">
       <div className="flex min-w-0 flex-1 items-center md:hidden">
-        <BrandLogo variant="compact" />
+        <span className="text-lg font-semibold tracking-tight text-text">TestForge</span>
       </div>
       <div className="hidden flex-1 md:block" aria-hidden />
       <div className="flex items-center gap-3">
         <SessionBadge />
         <NotificationBell />
-        {isOnProjectsArea ? (
+        {isInsideProject ? (
+          <>
+            <Link
+              to={appPaths.root}
+              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
+            >
+              <Home className="h-4 w-4" aria-hidden />
+              Home
+            </Link>
+            <Link
+              to={appPaths.projects}
+              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
+            >
+              <FolderKanban className="h-4 w-4" aria-hidden />
+              Projects
+            </Link>
+          </>
+        ) : location.pathname.startsWith(appPaths.projects) ? (
           <Link
-            to="/"
+            to={appPaths.root}
             className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
           >
             <Home className="h-4 w-4" aria-hidden />
@@ -33,7 +50,7 @@ export const Header: React.FC = () => {
           </Link>
         ) : (
           <Link
-            to="/projects"
+            to={appPaths.projects}
             className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
           >
             <FolderKanban className="h-4 w-4" aria-hidden />

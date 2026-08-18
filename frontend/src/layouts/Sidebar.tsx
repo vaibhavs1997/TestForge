@@ -2,8 +2,6 @@
 import React, { useState } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
 
-// Assets
-import { BrandLogo } from '../components/brand/BrandLogo';
 import {
   Settings,
   FolderKanban,
@@ -135,8 +133,10 @@ export const Sidebar: React.FC = () => {
 
   return (
     <aside className="flex w-64 flex-col border-r border-border bg-surface">
-      <div className='flex h-[4.5rem] items-center border-b border-border px-4'>
-        <BrandLogo variant="sidebar" className="w-full max-w-none" />
+      <div className='flex h-16 items-center border-b border-border px-7'>
+        <div className="flex items-center">
+          <span className="text-xl font-semibold tracking-tight text-text leading-none">TestForge</span>
+        </div>
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto p-4" aria-label="Main navigation">
         {!isInsideProject && primaryNavigationItems.map((item) => {

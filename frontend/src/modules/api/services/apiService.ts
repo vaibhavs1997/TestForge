@@ -2,7 +2,13 @@
 import type { AxiosProgressEvent } from 'axios';
 import { ApiClient } from '../../../services/ApiClient';
 import { apiRequest } from '../../../services/apiRequest';
-import type { ApiOperationDto, ApiServiceDto } from '../../../types/apiModels';
+import type {
+  ApiContractRefreshResultDto,
+  ApiExecutionRequestDto,
+  ApiExecutionResponseDto,
+  ApiOperationDto,
+  ApiServiceDto,
+} from '../../../types/apiModels';
 import type { ImportSummary } from '../types';
 import { API_BASE_URL } from '../../../constants/api';
 
@@ -47,6 +53,16 @@ class ApiService extends ApiClient<ApiServiceDto> {
 
   async deleteService(projectId: string, serviceId: string): Promise<void> {
     return this.delete(projectId, serviceId);
+  }
+
+  async deleteApiContract(projectId: string): Promise<{ servicesDeleted: number; operationsDeleted: number }> {
+    return apiRequest.delete(`${API_BASE_URL}/projects/${projectId}/api-contract`);
+  }
+
+  async refreshApiContract(projectId: string, serviceId: string): Promise<ApiContractRefreshResultDto> {
+    return apiRequest.post<ApiContractRefreshResultDto>(
+      `${API_BASE_URL}/projects/${projectId}/services/${serviceId}/api-contract/refresh`,
+    );
   }
 
   // Operations
@@ -97,6 +113,16 @@ class ApiService extends ApiClient<ApiServiceDto> {
 
   async deleteOperation(projectId: string, serviceId: string, apiId: string): Promise<void> {
     await apiRequest.delete(`${API_BASE_URL}/projects/${projectId}/services/${serviceId}/apis/${apiId}`);
+  }
+
+  async executeOperation(
+    projectId: string,
+    payload: ApiExecutionRequestDto,
+  ): Promise<ApiExecutionResponseDto> {
+    return apiRequest.post<ApiExecutionResponseDto>(
+      `${API_BASE_URL}/projects/${projectId}/api-execution`,
+      payload,
+    );
   }
 
   // Import Contract

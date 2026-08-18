@@ -7,7 +7,6 @@ import {
   FolderKanban,
   LayoutDashboard,
   FolderOpen,
-  Globe,
   Database,
   BookOpen,
   ListChecks,
@@ -20,6 +19,8 @@ import {
   Bot,
   ChevronDown,
   ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
   Shield,
 } from 'lucide-react';
 import { projectStore } from '../store/projectStore';
@@ -36,7 +37,6 @@ interface NavItem {
 const PRIMARY_NAV_ITEMS: NavItem[] = [
   { key: 'overview', label: 'Get started', icon: LayoutDashboard },
   { key: 'apis', label: 'APIs', icon: FolderOpen },
-  { key: 'environment', label: 'Environment', icon: Globe },
   { key: 'testdata', label: 'Test Data', icon: Database },
   { key: 'knowledge', label: 'Knowledge', icon: BookOpen },
   { key: 'requirements', label: 'Requirements', icon: ListChecks },
@@ -59,6 +59,7 @@ export const Sidebar: React.FC = () => {
 
   // Collapsible section state
   const [adminOpen, setAdminOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   // Project-centric primary navigation (outside project workspace)
   const primaryNavigationItems = [
@@ -96,7 +97,7 @@ export const Sidebar: React.FC = () => {
         key={item.key}
         to={tabPath}
         className={() =>
-          `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+          `flex items-center gap-3 rounded-lg py-2 text-sm font-medium transition-colors ${collapsed ? 'justify-center px-2' : 'px-3'} ${
             isActive
               ? 'bg-primary text-white'
               : 'text-text-secondary hover:bg-surface hover:text-text'
@@ -104,7 +105,7 @@ export const Sidebar: React.FC = () => {
         }
       >
         <Icon className="h-4 w-4" aria-hidden />
-        {item.label}
+        {!collapsed && item.label}
       </NavLink>
     );
   };
@@ -118,7 +119,7 @@ export const Sidebar: React.FC = () => {
         key={item.key}
         to={tabPath}
         className={() =>
-          `flex items-center gap-3 rounded-lg ${indent ? 'px-3 pl-9' : 'px-3'} py-2 text-sm font-medium transition-colors ${
+          `flex items-center gap-3 rounded-lg ${collapsed ? 'justify-center px-2' : indent ? 'px-3 pl-9' : 'px-3'} py-2 text-sm font-medium transition-colors ${
             isActive
               ? 'bg-primary text-white'
               : 'text-text-secondary hover:bg-surface hover:text-text'
@@ -126,19 +127,31 @@ export const Sidebar: React.FC = () => {
         }
       >
         <Icon className="h-4 w-4" aria-hidden />
-        {item.label}
+        {!collapsed && item.label}
       </NavLink>
     );
   };
 
   return (
-    <aside className="flex w-64 flex-col border-r border-border bg-surface">
-      <div className='flex h-16 items-center border-b border-border px-7'>
-        <div className="flex items-center">
-          <span className="text-xl font-semibold tracking-tight text-text leading-none">TestForge</span>
-        </div>
+    <aside className={`flex flex-shrink-0 flex-col border-r border-border bg-surface transition-[width] duration-200 ${collapsed ? 'w-16' : 'w-64'}`}>
+      <div className={`flex h-16 items-center border-b border-border ${collapsed ? 'justify-center px-2' : 'justify-between px-7'}`}>
+        {!collapsed && <div className="flex items-center">
+          <span className="text-xl font-semibold leading-none tracking-tight text-text">TestForge</span>
+        </div>}
+        {collapsed && <span className="text-sm font-semibold tracking-tight text-text">TF</span>}
       </div>
-      <nav className="flex-1 space-y-1 overflow-y-auto p-4" aria-label="Main navigation">
+      <nav className={`flex-1 space-y-1 overflow-y-auto ${collapsed ? 'p-2' : 'p-4'}`} aria-label="Main navigation">
+        {collapsed && <div className='mb-3 flex justify-center'>
+          <button
+            type="button"
+            onClick={() => setCollapsed((current) => !current)}
+            className="rounded-lg p-2 text-text-secondary transition-colors hover:bg-background hover:text-text"
+            aria-label={collapsed ? 'Expand navigation sidebar' : 'Collapse navigation sidebar'}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? <PanelLeftOpen className="h-4 w-4" aria-hidden /> : <PanelLeftClose className="h-4 w-4" aria-hidden />}
+          </button>
+        </div>}
         {!isInsideProject && primaryNavigationItems.map((item) => {
           const Icon = item.icon;
           return (
@@ -146,7 +159,7 @@ export const Sidebar: React.FC = () => {
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
-                `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                `flex items-center gap-3 rounded-lg py-2 text-sm font-medium transition-colors ${collapsed ? 'justify-center px-2' : 'px-3'} ${
                   isActiveRoute(item.to)
                     ? 'bg-primary text-white'
                     : 'text-text-secondary hover:bg-surface hover:text-text'
@@ -154,7 +167,7 @@ export const Sidebar: React.FC = () => {
               }
             >
               <Icon className="h-4 w-4" aria-hidden />
-              {item.label}
+              {!collapsed && item.label}
             </NavLink>
           );
         })}
@@ -162,14 +175,32 @@ export const Sidebar: React.FC = () => {
         {isInsideProject && activeProjectId && (
           <div className="pt-4">
             <div className="space-y-1">
-              {PRIMARY_NAV_ITEMS.map(renderNavItem)}
+              {PRIMARY_NAV_ITEMS.map((item, index) => {
+                if (!collapsed && index === 0) {
+                  return (
+                    <div key={item.key} className='flex items-center gap-1'>
+                      <div className='min-w-0 flex-1'>{renderNavItem(item)}</div>
+                      <button
+                        type='button'
+                        onClick={() => setCollapsed(true)}
+                        className='rounded-lg p-2 text-text-secondary transition-colors hover:bg-background hover:text-text'
+                        aria-label='Collapse navigation sidebar'
+                        title='Collapse sidebar'
+                      >
+                        <PanelLeftClose className='h-4 w-4' aria-hidden />
+                      </button>
+                    </div>
+                  );
+                }
+                return renderNavItem(item);
+              })}
 
               {/* Administration Section - Collapsible */}
               <div className="pt-3">
                 <button
                   type="button"
                   onClick={() => setAdminOpen(!adminOpen)}
-                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    className={`flex w-full items-center gap-3 rounded-lg py-2 text-sm font-medium transition-colors ${collapsed ? 'justify-center px-2' : 'px-3'} ${
                     isAdminActive
                       ? 'text-text'
                       : 'text-text-secondary hover:bg-surface hover:text-text'
@@ -183,9 +214,9 @@ export const Sidebar: React.FC = () => {
                     <ChevronRight className="h-4 w-4" aria-hidden />
                   )}
                   <Shield className="h-4 w-4" aria-hidden />
-                  Administration
+                  {!collapsed && 'Administration'}
                 </button>
-                {(adminOpen || isAdminActive) && (
+                {!collapsed && (adminOpen || isAdminActive) && (
                   <div className="mt-1 space-y-1">
                     {ADMIN_NAV_ITEMS.map((item) => renderCollapsibleItem(item))}
                   </div>
@@ -195,8 +226,8 @@ export const Sidebar: React.FC = () => {
           </div>
         )}
       </nav>
-      <div className="border-t border-border p-4">
-        <p className="text-xs text-text-secondary">TestForge v0.1.0</p>
+      <div className={`border-t border-border ${collapsed ? 'p-2 text-center' : 'p-4'}`}>
+        {!collapsed && <p className="text-xs text-text-secondary">TestForge v0.1.0</p>}
       </div>
     </aside>
   );

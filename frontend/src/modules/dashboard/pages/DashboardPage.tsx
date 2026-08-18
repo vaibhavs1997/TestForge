@@ -120,7 +120,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = () => {
       description: 'Configure base URLs',
       icon: <Globe className="h-6 w-6" />,
       onClick: () => {
-        if (activeProjectId) navigate(`/projects/${activeProjectId}/environment`);
+        if (activeProjectId) navigate(`/projects/${activeProjectId}/apis`);
         else navigate('/projects');
       },
     },

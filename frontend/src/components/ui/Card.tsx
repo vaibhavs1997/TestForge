@@ -18,16 +18,19 @@ import { cn } from '../../utils/cn';
 
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {}
 
-export const Card: React.FC<CardProps> = ({ className, children, ...props }) => {
+export const Card = React.forwardRef<HTMLDivElement, CardProps>(({ className, children, ...props }, ref) => {
   return (
     <div
+      ref={ref}
       className={cn('rounded-xl border border-border bg-background text-text shadow-sm', className)}
       {...props}
     >
       {children}
     </div>
   );
-};
+});
+
+Card.displayName = 'Card';
 
 // --- CardHeader ---
 

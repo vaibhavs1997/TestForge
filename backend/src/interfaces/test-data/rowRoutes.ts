@@ -26,7 +26,8 @@ const rowController = new RowController(
   updateRow,
   deleteRow,
   getRow,
-  listRows
+  listRows,
+  datasetRowRepository
 );
 
 const router = Router();
@@ -37,6 +38,7 @@ router.post('/projects/:projectId/test-data/rows', asyncHandler((req, res) => ro
 router.get('/projects/:projectId/test-data/rows/:rowId', asyncHandler((req, res) => rowController.get(req, res)));
 router.patch('/projects/:projectId/test-data/rows/:rowId', asyncHandler((req, res) => rowController.update(req, res)));
 router.delete('/projects/:projectId/test-data/rows/:rowId', asyncHandler((req, res) => rowController.delete(req, res)));
+router.post('/projects/:projectId/test-data/rows/reserve', asyncHandler((req, res) => rowController.reserve(req, res)));
 
 export { router as rowRoutes };
 export default router;

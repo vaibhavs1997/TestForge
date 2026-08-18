@@ -1,6 +1,6 @@
 // Knowledge Hub — unified list, type filters, and document import
 import React from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRightLeft,
@@ -14,6 +14,8 @@ import {
   BookOpen,
   Upload,
   ChevronDown,
+  Database,
+  Globe,
 } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
@@ -28,9 +30,10 @@ import { RuleDialog } from '../components/RuleDialog';
 import { VariableDialog } from '../components/VariableDialog';
 import { DependencyDialog } from '../components/DependencyDialog';
 import { ImportKnowledgeModal } from '../components/ImportKnowledgeModal';
-import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
 import { useKnowledgeFlows, useBusinessRules, useRuntimeVariables, useDependencies, useDocumentation } from '../hooks';
 import { knowledgeService } from '../services';
+import { datasetService } from '../../test-data/services/datasetService';
+import { projectStore } from '../../../store/projectStore';
 import { toUnifiedItems, type KnowledgeTypeFilter, type UnifiedKnowledgeItem } from '../utils/unifiedKnowledge';
 import type {
   KnowledgeSection,
@@ -132,7 +135,14 @@ function renderItemMeta(item: UnifiedKnowledgeItem) {
         </>
       );
     case 'documentation':
-      return <Badge variant='outline'>{String(raw.category || 'General')}</Badge>;
+      return (
+        <>
+          <Badge variant='outline'>{String(raw.category || 'General')}</Badge>
+          {Array.isArray(raw.linkedApiOperationIds) && raw.linkedApiOperationIds.length > 0 ? (
+            <Badge variant='secondary'>{raw.linkedApiOperationIds.length} API link{raw.linkedApiOperationIds.length === 1 ? '' : 's'}</Badge>
+          ) : null}
+        </>
+      );
     default:
       return null;
   }
@@ -140,9 +150,10 @@ function renderItemMeta(item: UnifiedKnowledgeItem) {
 
 export const KnowledgePage: React.FC = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
-  const projectId = routeProjectId ?? '';
-  const navigate = useNavigate();
+  const selectedProjectId = projectStore((state) => state.selectedProjectId);
+  const projectId = routeProjectId ?? selectedProjectId ?? '';
   const queryClient = useQueryClient();
+  const [workspaceStats, setWorkspaceStats] = React.useState({ importedApis: 0, datasets: 0 });
 
   const flowHooks = useKnowledgeFlows(projectId);
   const ruleHooks = useBusinessRules(projectId);
@@ -185,6 +196,28 @@ export const KnowledgePage: React.FC = () => {
   const [toastMessage, setToastMessage] = React.useState('');
   const [toastType, setToastType] = React.useState<'success' | 'error'>('success');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    const importsKey = `testforge:api-workspace:imports:project:${projectId}`;
+    const loadWorkspaceStats = async () => {
+      let importedApis = 0;
+      try {
+        const raw = localStorage.getItem(importsKey);
+        const artifacts = raw ? JSON.parse(raw) as Array<{ kind: string; endpoints?: unknown[] }> : [];
+        importedApis = artifacts.filter((artifact) => artifact.kind === 'api').reduce((count, artifact) => count + (artifact.endpoints?.length || 0), 0);
+      } catch { importedApis = 0; }
+      try {
+        const datasets = await datasetService.listDatasets(projectId);
+        if (!cancelled) setWorkspaceStats({ importedApis, datasets: datasets.length });
+      } catch {
+        if (!cancelled) setWorkspaceStats({ importedApis, datasets: 0 });
+      }
+    };
+    void loadWorkspaceStats();
+    return () => { cancelled = true; };
+  }, [projectId]);
 
   React.useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -430,16 +463,11 @@ export const KnowledgePage: React.FC = () => {
   return (
     <div className='min-h-screen'>
       <div className='mx-auto max-w-7xl px-6 py-8'>
-        <WorkflowOptionalBanner
-          description="Reference material for flows, rules, and docs. Most teams can skip this until they need shared context beyond requirements and APIs."
-          projectId={projectId}
-          primaryLink={{ label: 'Requirements', path: `/projects/${projectId}/requirements` }}
-        />
         <div className='mb-6 flex flex-wrap items-start justify-between gap-4'>
           <div>
             <h1 className='text-2xl font-bold text-text'>Knowledge</h1>
             <p className='mt-1 max-w-2xl text-sm text-text-secondary'>
-              Flows, rules, dependencies, variables, and documentation. Import documents or add items manually.
+              Upload documentation, tag it, and connect it to the API and Test Data workspace.
             </p>
           </div>
           <div className='flex flex-wrap items-center gap-2'>
@@ -476,6 +504,12 @@ export const KnowledgePage: React.FC = () => {
               </div>
             )}
           </div>
+        </div>
+
+        <div className='mb-6 grid gap-3 sm:grid-cols-3'>
+          <div className='rounded-lg border border-border bg-surface p-4'><div className='flex items-center gap-2 text-xs font-medium text-text-secondary'><Globe className='h-4 w-4' /> API endpoints</div><p className='mt-2 text-2xl font-semibold text-text'>{workspaceStats.importedApis}</p><p className='mt-1 text-xs text-text-secondary'>Imported in the API workspace</p></div>
+          <div className='rounded-lg border border-border bg-surface p-4'><div className='flex items-center gap-2 text-xs font-medium text-text-secondary'><Database className='h-4 w-4' /> Test data datasets</div><p className='mt-2 text-2xl font-semibold text-text'>{workspaceStats.datasets}</p><p className='mt-1 text-xs text-text-secondary'>Available for endpoint workflows</p></div>
+          <div className='rounded-lg border border-border bg-surface p-4'><div className='flex items-center gap-2 text-xs font-medium text-text-secondary'><BookOpen className='h-4 w-4' /> Knowledge items</div><p className='mt-2 text-2xl font-semibold text-text'>{allItems.length}</p><p className='mt-1 text-xs text-text-secondary'>Persisted project context</p></div>
         </div>
 
         <div className='mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6'>

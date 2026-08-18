@@ -15,6 +15,10 @@ class RowService extends ApiClient<DatasetRowDto> {
     return (await this.list(projectId, { datasetId })).map(normalizeDatasetRow);
   }
 
+  async reserveRow(projectId: string, datasetId: string, consumerId: string): Promise<DatasetRow> {
+    return normalizeDatasetRow(await this.post(`/projects/${projectId}/test-data/rows/reserve`, { datasetId, consumerId }));
+  }
+
   async getRow(projectId: string, rowId: string): Promise<DatasetRow> {
     return normalizeDatasetRow(await this.get(projectId, rowId));
   }

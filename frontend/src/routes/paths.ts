@@ -35,7 +35,7 @@ export type ProjectModule = typeof projectModules[keyof typeof projectModules];
 export const legacyProjectModuleRedirects = [
   { path: '/apis', module: projectModules.apis },
   { path: '/api-execution', module: projectModules.apiExecution },
-  { path: '/environments', module: projectModules.environment },
+  { path: '/environments', module: projectModules.apis },
   { path: '/knowledge', module: projectModules.knowledge },
   { path: '/reports', module: projectModules.reports },
   { path: '/notifications', module: projectModules.notifications },

@@ -10,6 +10,7 @@ function getDataRoot(): string {
 }
 
 export class DatasetRowRepository {
+  private readonly reservationLocks = new Map<string, Promise<void>>();
   private getProjectDir(projectId: string): string {
     return path.join(getDataRoot(), projectId);
   }
@@ -100,6 +101,29 @@ export class DatasetRowRepository {
   async listByProject(projectId: string): Promise<DatasetRowEntity[]> {
     const filePath = this.getFilePath(projectId);
     return this.readItems(filePath);
+  }
+
+  async reserveFirstAvailable(projectId: string, datasetId: string, consumerId: string): Promise<DatasetRowEntity | null> {
+    const lockKey = `${projectId}:${datasetId}`;
+    const previous = this.reservationLocks.get(lockKey) || Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolve) => { release = resolve; });
+    this.reservationLocks.set(lockKey, previous.then(() => current));
+    await previous;
+    try {
+      this.ensureProjectDir(projectId);
+      const filePath = this.getFilePath(projectId);
+      const items = await this.readItems(filePath);
+      const row = items.find((item: DatasetRowEntity) => item.datasetId === datasetId && !item.reservedBy);
+      if (!row) return null;
+      const reserved = { ...row, reservedBy: consumerId, reservedAt: Date.now(), updatedAt: Date.now() };
+      items[items.indexOf(row)] = reserved;
+      await writeJsonArray(filePath, items);
+      return reserved;
+    } finally {
+      release();
+      if (this.reservationLocks.get(lockKey) === current) this.reservationLocks.delete(lockKey);
+    }
   }
 
   async existsByName(name: string, projectId: string): Promise<boolean> {

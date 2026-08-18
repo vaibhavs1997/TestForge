@@ -27,6 +27,7 @@ import {
   Keyboard,
   FileUp,
   Wand2,
+  Clock3,
 } from 'lucide-react';
 import { DataTabContent } from '../components/DataTabContent';
 import { ProvidersSection } from '../components/ProvidersSection';
@@ -46,9 +47,8 @@ import { rowService } from '../services/rowService';
 import { relationshipService } from '../services/relationshipService';
 import { Check, X as XIcon, ArrowUp, ArrowDown, Plus as PlusIcon, Upload, FileSpreadsheet, FileJson } from 'lucide-react';
 import { logger } from '../../../utils/logger';
-import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import { datasetService } from '../services/datasetService';
-import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
 import { projectStore } from '../../../store/projectStore';
 import { MappingPage } from './MappingPage';
 import { useMappings } from '../hooks/useMappings';
@@ -177,7 +177,7 @@ interface Dataset {
 }
 
 type ViewMode = 'card' | 'table';
-type TestDataSection = 'datasets' | 'mappings' | 'relationships' | 'providers' | 'datasources' | 'generators';
+type TestDataSection = 'datasets' | 'scenarios' | 'bindings' | 'reservations' | 'mappings' | 'relationships' | 'providers' | 'datasources' | 'generators';
 
 const CATEGORY_OPTIONS = ['General', 'Customer', 'Product', 'Order', 'Payment', 'User', 'Custom'];
 
@@ -188,6 +188,9 @@ const SECTION_CHIPS: {
   comingSoon?: boolean;
 }[] = [
   { id: 'datasets', label: 'Datasets', icon: Database },
+  { id: 'scenarios', label: 'Scenarios', icon: FlaskConical },
+  { id: 'bindings', label: 'API Bindings', icon: Link2 },
+  { id: 'reservations', label: 'Reservations', icon: Clock3 },
   { id: 'mappings', label: 'Mappings', icon: Link2 },
   { id: 'relationships', label: 'Relationships', icon: Network },
   { id: 'providers', label: 'Providers', icon: Sparkles },
@@ -198,7 +201,6 @@ const SECTION_CHIPS: {
 export const TestDataLibraryPage = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const location = useLocation();
-  const navigate = useNavigate();
   const storeProjectId = projectStore((s) => s.selectedProjectId);
   const resolvedProjectId = projectId ?? storeProjectId ?? '';
   const [search, setSearch] = React.useState('');
@@ -257,6 +259,9 @@ export const TestDataLibraryPage = () => {
   const sectionCounts = React.useMemo(
     () => ({
       datasets: datasets.length,
+      scenarios: 0,
+      bindings: 0,
+      reservations: 0,
       mappings: (mappings ?? []).length,
       relationships: relationshipCount,
       providers: providerCount,
@@ -660,16 +665,6 @@ export const TestDataLibraryPage = () => {
   return (
     <div className='min-h-screen'>
       <div className='mx-auto max-w-7xl px-6 py-8'>
-        {resolvedProjectId && (
-          <WorkflowOptionalBanner
-            projectId={resolvedProjectId}
-            description="Tabular data for data-driven tests. Generated API tests work without datasets unless a test case references one."
-            primaryLink={{
-              label: 'Requirements',
-              path: `/projects/${resolvedProjectId}/requirements`,
-            }}
-          />
-        )}
         <div className='mb-6 flex flex-wrap items-start justify-between gap-4'>
           <div>
             <h1 className='text-2xl font-bold text-text'>Test data</h1>
@@ -698,7 +693,6 @@ export const TestDataLibraryPage = () => {
             </div>
           )}
         </div>
-
         <div className='mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6'>
           {SECTION_CHIPS.map((chip) => {
             const Icon = chip.icon;
@@ -749,6 +743,10 @@ export const TestDataLibraryPage = () => {
               setToastMessage={setToastMessage}
               setToastOpen={setToastOpen}
             />
+          )}
+
+          {(activeSection === 'scenarios' || activeSection === 'bindings' || activeSection === 'reservations') && (
+            <DataFlowSection section={activeSection} projectId={resolvedProjectId} datasets={datasets} />
           )}
 
           {activeSection === 'mappings' && <MappingPage embedded />}
@@ -814,14 +812,6 @@ export const TestDataLibraryPage = () => {
                   title='No datasets yet'
                   description='Most API tests use generated payloads from your contract. Add a dataset when you need reusable rows (e.g. login users).'
                   action={{ label: 'Create dataset', onClick: () => setEditOpen(true) }}
-                  secondaryAction={
-                    resolvedProjectId
-                      ? {
-                          label: 'Back to requirements',
-                          onClick: () => navigate(`/projects/${resolvedProjectId}/requirements`),
-                        }
-                      : undefined
-                  }
                 />
               )}
 
@@ -1447,6 +1437,7 @@ export const TestDataLibraryPage = () => {
               <Toast message={toastMessage} open={toastOpen} onClose={() => setToastOpen(false)} type={toastType} />
             </>
           )}
+          <ApiDataReadiness projectId={resolvedProjectId} />
       </div>
     </div>
   );
@@ -1990,6 +1981,141 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
 export { DataTabContent } from '../components/DataTabContent';
 
 // ─── Relationships Section ──────────────────────────────────────────────
+interface DataScenario {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: number;
+}
+
+interface ApiDataRecommendation {
+  collection: string;
+  endpoint: string;
+  method: string;
+  field: string;
+  category: string;
+  recommendation: string;
+  reason: string;
+}
+
+const ApiDataReadiness: React.FC<{ projectId: string }> = ({ projectId }) => {
+  const [recommendations, setRecommendations] = React.useState<ApiDataRecommendation[]>([]);
+
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`testforge:api-workspace:imports:project:${projectId}`);
+      const artifacts = raw ? JSON.parse(raw) as Array<{ kind: string; name: string; endpoints?: Array<any> }> : [];
+      const rows: ApiDataRecommendation[] = [];
+      artifacts.filter((artifact) => artifact.kind === 'api').forEach((collection) => {
+        (collection.endpoints || []).forEach((endpoint) => {
+          const draft = endpoint.requestTemplate || {};
+          const fields = [
+            ...(draft.pathParams || []).map((row: any) => row.key),
+            ...(draft.queryParams || []).map((row: any) => row.key),
+            ...(draft.formDataRows || []).map((row: any) => row.key),
+            ...(draft.urlEncodedRows || []).map((row: any) => row.key),
+          ].filter(Boolean);
+          const parsedBody = typeof draft.rawBody === 'string' ? (() => { try { return JSON.parse(draft.rawBody); } catch { return {}; } })() : {};
+          if (parsedBody && typeof parsedBody === 'object' && !Array.isArray(parsedBody)) fields.push(...Object.keys(parsedBody));
+          Array.from(new Set(fields.map((field: string) => field.trim()))).forEach((field) => {
+            const normalized = field.toLowerCase();
+            const endpointContext = `${endpoint.name || ''} ${endpoint.url || ''}`.toLowerCase();
+            const identityFlow = /login|signin|authenticate|token|session|password\/reset/.test(endpointContext);
+            let category = 'Static input';
+            let recommendation = 'Keep request value';
+            let reason = 'No dynamic strategy is required.';
+            if (/email|e-mail/.test(normalized)) {
+              category = identityFlow ? 'Existing identity' : 'Unique identity';
+              recommendation = identityFlow ? 'Existing dataset email' : 'Unique email or dataset email';
+              reason = identityFlow ? 'Login and authentication flows need an existing account.' : 'Registration-style flows usually need a fresh address.';
+            } else if (/timestamp|epoch|created.?at|updated.?at|time/.test(normalized)) {
+              category = 'Generated value';
+              recommendation = 'Unix timestamp (number)';
+              reason = 'This field looks time-based and can be generated at execution time.';
+            } else if (/uuid|guid/.test(normalized)) {
+              category = 'Generated identity';
+              recommendation = 'UUID or dataset value';
+              reason = 'Use a UUID for new entities or a dataset value for existing entities.';
+            } else if (/id|account|user/.test(normalized)) {
+              category = 'Linked value';
+              recommendation = 'Previous response or dataset';
+              reason = 'This field may depend on an entity created by an earlier request.';
+            } else if (/password|secret|key|token/.test(normalized)) {
+              category = 'Sensitive value';
+              recommendation = 'Environment or existing dataset';
+              reason = 'Sensitive values should not be randomly generated by default.';
+            }
+            rows.push({ collection: collection.name, endpoint: endpoint.name || endpoint.path || 'Unnamed endpoint', method: endpoint.method || 'REQUEST', field, category, recommendation, reason });
+          });
+        });
+      });
+      setRecommendations(rows);
+    } catch {
+      setRecommendations([]);
+    }
+  }, [projectId]);
+
+  if (recommendations.length === 0) return null;
+  const managedFields = recommendations.filter((item) => item.category !== 'Static input');
+  const staticFields = recommendations.filter((item) => item.category === 'Static input');
+  const usage = new Map<string, { field: string; endpoints: Set<string>; category: string; recommendation: string }>();
+  managedFields.forEach((item) => {
+    const existing = usage.get(item.field.toLowerCase());
+    if (existing) existing.endpoints.add(`${item.collection}:${item.endpoint}`);
+    else usage.set(item.field.toLowerCase(), { field: item.field, endpoints: new Set([`${item.collection}:${item.endpoint}`]), category: item.category, recommendation: item.recommendation });
+  });
+  const managedFieldSummary = Array.from(usage.values());
+  const renderEndpointRows = (items: ApiDataRecommendation[]) => <div className='space-y-3'>{items.map((item, index) => <div key={`${item.collection}-${item.endpoint}-${item.field}-${index}`} className='grid gap-3 rounded-lg border border-border bg-background/50 p-3 md:grid-cols-[1.1fr_1fr_1fr_1.5fr] md:items-center'><div><div className='flex items-center gap-2'><Badge variant='secondary'>{item.method}</Badge><span className='font-medium text-text'>{item.endpoint}</span></div><p className='mt-1 text-xs text-text-secondary'>{item.collection}</p></div><div><p className='text-xs text-text-secondary'>Field</p><p className='font-medium text-text'>{item.field}</p></div><div><p className='text-xs text-text-secondary'>Category</p><Badge variant='outline'>{item.category}</Badge></div><div><p className='text-xs text-text-secondary'>Recommendation</p><p className='font-medium text-text'>{item.recommendation}</p><p className='mt-1 text-xs text-text-secondary'>{item.reason}</p></div></div>)}</div>;
+  return <Card className='mb-6 border-primary/30 bg-primary/5'><CardHeader><div className='flex items-start justify-between gap-4'><div><CardTitle>API Data Readiness</CardTitle><p className='mt-1 text-sm text-text-secondary'>Detected request fields and how they should be supplied during API execution.</p></div><Badge variant='outline'>{managedFields.length} managed fields</Badge></div></CardHeader><CardContent className='space-y-6'>
+    <section><div className='mb-3 flex items-center justify-between'><div><h3 className='font-semibold text-text'>Fields requiring test data</h3><p className='text-xs text-text-secondary'>These fields should use generated values, datasets, or previous responses.</p></div><Badge variant='secondary'>{managedFieldSummary.length} unique fields</Badge></div><div className='mb-4 grid gap-2 md:grid-cols-3'>{managedFieldSummary.map((item) => <div key={item.field} className='rounded-lg border border-primary/20 bg-primary/10 p-3'><div className='flex items-center justify-between gap-2'><span className='font-medium text-text'>{item.field}</span><Badge variant='outline'>{item.endpoints.size} API{item.endpoints.size === 1 ? '' : 's'}</Badge></div><p className='mt-1 text-xs text-text-secondary'>{item.category} · {item.recommendation}</p></div>)}</div>{renderEndpointRows(managedFields)}</section>
+    {staticFields.length > 0 && <section className='border-t border-border pt-5'><div className='mb-3 flex items-center justify-between'><div><h3 className='font-semibold text-text'>Fields using existing payload values</h3><p className='text-xs text-text-secondary'>These fields currently do not need managed test data.</p></div><Badge variant='outline'>{staticFields.length} fields</Badge></div>{renderEndpointRows(staticFields)}</section>}
+    <p className='text-xs text-text-secondary'>Configure managed fields from the selected API endpoint under Runtime test data. This page provides the central overview.</p>
+  </CardContent></Card>;
+};
+
+const DataFlowSection: React.FC<{ section: 'scenarios' | 'bindings' | 'reservations'; projectId: string; datasets: Dataset[] }> = ({ section, projectId, datasets }) => {
+  const scenarioKey = `testforge:test-data:scenarios:${projectId}`;
+  const [scenarios, setScenarios] = React.useState<DataScenario[]>([]);
+  const [scenarioName, setScenarioName] = React.useState('');
+  const [reservedRows, setReservedRows] = React.useState<Array<{ dataset: string; rowId: string; reservedAt?: number }>>([]);
+
+  React.useEffect(() => {
+    try {
+      const stored = localStorage.getItem(scenarioKey);
+      setScenarios(stored ? JSON.parse(stored) as DataScenario[] : []);
+    } catch { setScenarios([]); }
+  }, [scenarioKey]);
+
+  React.useEffect(() => {
+    if (section !== 'reservations' || !projectId) return;
+    let cancelled = false;
+    void Promise.all(datasets.map(async (dataset) => {
+      const rows = await rowService.listRows(projectId, dataset.id);
+      return rows.filter((row) => Boolean((row as any).reservedBy)).map((row) => ({ dataset: dataset.name, rowId: row.id, reservedAt: (row as any).reservedAt }));
+    })).then((groups) => { if (!cancelled) setReservedRows(groups.flat()); }).catch(() => { if (!cancelled) setReservedRows([]); });
+    return () => { cancelled = true; };
+  }, [datasets, projectId, section]);
+
+  const addScenario = () => {
+    const name = scenarioName.trim();
+    if (!name) return;
+    const next = [...scenarios, { id: `${Date.now()}`, name, description: 'Reusable data context for API execution', createdAt: Date.now() }];
+    setScenarios(next);
+    localStorage.setItem(scenarioKey, JSON.stringify(next));
+    setScenarioName('');
+  };
+
+  if (section === 'scenarios') return <Card><CardHeader><CardTitle>Data Scenarios</CardTitle><p className='text-sm text-text-secondary'>Reusable data contexts for registration, login, admin, and other API workflows.</p></CardHeader><CardContent className='space-y-4'><div className='flex gap-2'><input value={scenarioName} onChange={(event) => setScenarioName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') addScenario(); }} placeholder='Scenario name, e.g. Existing Login User' className='h-10 flex-1 rounded-lg border border-border bg-background px-3 text-sm text-text outline-none' /><Button onClick={addScenario}><Plus className='mr-2 h-4 w-4' />Create scenario</Button></div>{scenarios.length === 0 ? <EmptyState title='No scenarios yet' description='Create a scenario to group reusable dataset values for API workflows.' /> : <div className='grid gap-3 md:grid-cols-2'>{scenarios.map((scenario) => <div key={scenario.id} className='rounded-lg border border-border p-4'><div className='flex items-center justify-between'><span className='font-medium text-text'>{scenario.name}</span><Badge variant='outline'>Reusable</Badge></div><p className='mt-2 text-sm text-text-secondary'>{scenario.description}</p></div>)}</div>}</CardContent></Card>;
+
+  if (section === 'bindings') {
+    let bindings: Array<{ field: string; strategy: string }> = [];
+    try { const runtime = JSON.parse(localStorage.getItem(`testforge:api-workspace:runtime-data:project:${projectId}`) || '{}') as Record<string, Array<{ field: string; strategy: string }>>; bindings = Object.values(runtime).flat(); } catch { bindings = []; }
+    return <Card><CardHeader><CardTitle>API Bindings</CardTitle><p className='text-sm text-text-secondary'>Runtime mappings that feed test data into API requests.</p></CardHeader><CardContent>{bindings.length === 0 ? <EmptyState title='No API bindings yet' description='Configure Runtime test data from an API endpoint Settings tab.' /> : <div className='space-y-2'>{bindings.map((binding, index) => <div key={`${binding.field}-${index}`} className='flex items-center justify-between rounded-lg border border-border p-3'><span className='font-medium text-text'>{binding.field}</span><Badge variant='secondary'>{binding.strategy}</Badge></div>)}</div>}</CardContent></Card>;
+  }
+
+  return <Card><CardHeader><CardTitle>Reservations</CardTitle><p className='text-sm text-text-secondary'>Rows consumed by API execution are reserved server-side and will not be reused.</p></CardHeader><CardContent>{reservedRows.length === 0 ? <EmptyState title='No reserved rows' description='Reserved rows appear here after a dataset-backed API request runs.' /> : <div className='space-y-2'>{reservedRows.map((row) => <div key={row.rowId} className='flex items-center justify-between rounded-lg border border-border p-3'><div><span className='font-medium text-text'>{row.dataset}</span><span className='ml-3 text-xs text-text-secondary'>{row.rowId}</span></div><Badge variant='outline'>{row.reservedAt ? new Date(row.reservedAt).toLocaleString() : 'Reserved'}</Badge></div>)}</div>}</CardContent></Card>;
+};
+
 interface RelationshipsSectionProps {
   datasets: Dataset[];
   projectId: string;

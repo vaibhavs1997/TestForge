@@ -1,6 +1,6 @@
 // External libraries
 import React, { Suspense, lazy } from 'react';
-import { Route, Routes, useParams } from 'react-router-dom';
+import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 
 // Project pages
 import { ProjectsHomePage } from './pages';
@@ -12,7 +12,6 @@ import { TestDataWorkspace } from './components/TestDataWorkspace';
 
 // Existing module pages reused directly inside the workspace
 import { ApiExecutionPage } from '../api-execution';
-import { EnvironmentPage } from '../environment/pages/EnvironmentPage';
 import { KnowledgePage } from '../knowledge/pages/KnowledgePage';
 import { ReportRoutes } from '../report/routes';
 
@@ -60,7 +59,6 @@ const ProjectWorkspace: React.FC = () => {
   if (!projectId) return <ProjectsHomePage />;
 
   // Wrapper components that pass projectId as a prop to pages that use useParams
-  const ProjectEnvironmentPage = () => <EnvironmentPage />;
   const ProjectKnowledgePage = () => <KnowledgePage />;
   const ProjectReportPage = () => <ReportRoutes />;
   const ProjectRecommendationsPage = () => <RecommendationsPage />;
@@ -75,7 +73,7 @@ const ProjectWorkspace: React.FC = () => {
       <Route path={projectModules.overview} element={<PipelineDashboard projectId={projectId} />} />
       <Route path={projectModules.apis} element={<ApiExecutionPage />} />
       <Route path={projectModules.apiExecution} element={<ApiExecutionPage />} />
-      <Route path={projectModules.environment} element={<ProjectEnvironmentPage />} />
+      <Route path={projectModules.environment} element={<Navigate to={projectModules.apis} replace />} />
       <Route path={`${projectModules.testData}/*`} element={<TestDataWorkspace projectId={projectId} />} />
       <Route path={projectModules.knowledge} element={<ProjectKnowledgePage />} />
       <Route path={`${projectModules.requirements}/*`} element={<RequirementsWorkspace projectId={projectId} />} />

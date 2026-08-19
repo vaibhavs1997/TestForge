@@ -47,7 +47,7 @@ export class RequirementController {
     }
     async createRequirement(req: Request, res: Response): Promise<void> {
         const projectId = req.params.projectId;
-        const { title, description, category, confidence, source, projectAnalysisId, reviewStatus, approvalStatus, relatedOperations, relatedFlows, relatedDatasets, acceptanceCriteria, jiraIssueKey } = req.body;
+        const { title, description, category, confidence, source, projectAnalysisId, reviewStatus, approvalStatus, relatedOperations, relatedFlows, relatedDatasets, acceptanceCriteria, jiraIssueKey, generationPending, generationExpiresAt } = req.body;
         const requirement = await this.createRequirementUseCase.execute({
             projectId,
             title,
@@ -63,6 +63,8 @@ export class RequirementController {
             relatedDatasets,
             acceptanceCriteria,
             jiraIssueKey,
+            generationPending,
+            generationExpiresAt,
         });
         res.status(201).json(createSuccessResponse(requirement));
     }

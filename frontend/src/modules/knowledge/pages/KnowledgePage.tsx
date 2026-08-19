@@ -192,6 +192,8 @@ export const KnowledgePage: React.FC = () => {
 
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [itemToDelete, setItemToDelete] = React.useState<UnifiedKnowledgeItem | undefined>();
+  const [deleteAllOpen, setDeleteAllOpen] = React.useState(false);
+  const [isDeletingAll, setIsDeletingAll] = React.useState(false);
   const [toastOpen, setToastOpen] = React.useState(false);
   const [toastMessage, setToastMessage] = React.useState('');
   const [toastType, setToastType] = React.useState<'success' | 'error'>('success');
@@ -449,6 +451,34 @@ export const KnowledgePage: React.FC = () => {
     }
   };
 
+  const handleDeleteAll = async () => {
+    if (allItems.length === 0) {
+      setDeleteAllOpen(false);
+      return;
+    }
+
+    setIsDeletingAll(true);
+    try {
+      // Delete sequentially so concurrent repository writes cannot overwrite one another.
+      for (const item of flows) await flowHooks.removeAsync(item.id);
+      for (const item of rules) await ruleHooks.removeAsync(item.id);
+      for (const item of variables) await variableHooks.removeAsync(item.id);
+      for (const item of dependencies) await dependencyHooks.removeAsync(item.id);
+      for (const item of docs) await docHooks.removeAsync(item.id);
+
+      invalidateKnowledge();
+      setTypeFilter('all');
+      setSearch('');
+      showToast('All knowledge deleted', 'success');
+    } catch (err: any) {
+      invalidateKnowledge();
+      showToast(err?.response?.data?.message || err?.message || 'Failed to delete all knowledge', 'error');
+    } finally {
+      setIsDeletingAll(false);
+      setDeleteAllOpen(false);
+    }
+  };
+
   const primaryCreateSection: KnowledgeSection | null =
     typeFilter !== 'all' ? typeFilter : null;
 
@@ -536,13 +566,22 @@ export const KnowledgePage: React.FC = () => {
           })}
         </div>
 
-        <div className='mb-6'>
+        <div className='mb-6 flex flex-wrap items-center justify-between gap-3'>
           <SearchBar
             value={search}
             onChange={setSearch}
             placeholder='Search all knowledge…'
             className='sm:max-w-md'
           />
+          <Button
+            type='button'
+            variant='destructive'
+            onClick={() => setDeleteAllOpen(true)}
+            disabled={allItems.length === 0 || isDeletingAll}
+          >
+            <Trash2 className='mr-2 h-4 w-4' />
+            Delete all
+          </Button>
         </div>
 
         {isLoading ? (
@@ -748,6 +787,20 @@ export const KnowledgePage: React.FC = () => {
         onCancel={() => {
           setDeleteOpen(false);
           setItemToDelete(undefined);
+        }}
+      />
+
+      <ConfirmDialog
+        open={deleteAllOpen}
+        title='Delete all knowledge?'
+        message={`This will permanently delete all ${allItems.length} knowledge item${allItems.length === 1 ? '' : 's'} from this project.`}
+        confirmLabel='Delete all'
+        cancelLabel='Keep knowledge'
+        variant='destructive'
+        isLoading={isDeletingAll}
+        onConfirm={handleDeleteAll}
+        onCancel={() => {
+          if (!isDeletingAll) setDeleteAllOpen(false);
         }}
       />
 

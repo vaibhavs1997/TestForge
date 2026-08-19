@@ -104,7 +104,8 @@ export class DependencyRepository {
   }
 
   private async readItems(filePath: string): Promise<Dependency[]> {
-    return readJsonArray(filePath);
+    const dependencies = await readJsonArray<Dependency>(filePath);
+    return dependencies.filter((dependency) => dependency && typeof dependency.name === 'string' && dependency.name.trim().length > 0);
   }
 }
 

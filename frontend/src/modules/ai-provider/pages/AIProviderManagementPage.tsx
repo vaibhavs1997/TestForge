@@ -1,7 +1,7 @@
 // AIProviderManagementPage - Manages AI provider configurations for a project.
 // Features: Provider list, cards, default provider, enable/disable, test connection,
 // configuration editor, search, filters, model selector, cost estimation preview, health indicator.
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAIProviders, useAIProviderTypes } from '../hooks';
 import { aiProviderService } from '../services';
 import type { AIProvider, AIProviderType, AIProviderFormData } from '../types';
@@ -52,6 +52,66 @@ const EMPTY_FORM: AIProviderFormData = {
   enabled: true,
   default: false,
 };
+
+interface FilterSelectProps {
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onChange: (value: string) => void;
+  ariaLabel: string;
+}
+
+function FilterSelect({ value, options, onChange, ariaLabel }: FilterSelectProps) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const selectedOption = options.find(option => option.value === value) ?? options[0];
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        aria-expanded={open}
+        onClick={() => setOpen(current => !current)}
+        className="flex h-10 w-full items-center justify-between rounded-xl border border-border bg-background/80 px-3 text-left text-sm text-text outline-none transition-colors hover:border-primary/60 focus:border-primary"
+      >
+        <span>{selectedOption?.label}</span>
+        <span className={`ml-3 text-xs text-text-secondary transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true">v</span>
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full z-30 mt-1 w-full overflow-hidden rounded-xl border border-border bg-surface p-1 shadow-xl">
+          {options.map(option => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => {
+                onChange(option.value);
+                setOpen(false);
+              }}
+              className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                option.value === value
+                  ? 'bg-primary/15 text-primary'
+                  : 'text-text hover:bg-background/60'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function AIProviderManagementPage({ projectId }: AIProviderManagementPageProps) {
   const { providers, loading, error, refetch } = useAIProviders(projectId);
@@ -253,42 +313,42 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
       </AdminPageIntro>
 
       {/* Filters */}
-      <div className="mb-6 rounded-lg border border-border bg-surface p-4">
+      <div className="mb-6 rounded-2xl border border-border bg-surface p-4">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div>
-            <label className="block text-sm font-medium mb-1">Search</label>
+            <label className="mb-1 block text-sm font-medium text-text">Search</label>
             <input
               type="text"
               placeholder="Search by name, model, or provider..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-3 py-2 border rounded"
+              className="h-10 w-full rounded-xl border border-border bg-background/80 px-3 text-sm text-text placeholder:text-text-secondary outline-none transition-colors focus:border-primary"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Provider Type</label>
-            <select
+            <label className="mb-1 block text-sm font-medium text-text">Provider Type</label>
+            <FilterSelect
               value={filterProvider}
-              onChange={(e) => setFilterProvider(e.target.value as AIProviderType | '')}
-              className="w-full px-3 py-2 border rounded"
-            >
-              <option value="">All Providers</option>
-              {types.map(type => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </select>
+              onChange={(value) => setFilterProvider(value as AIProviderType | '')}
+              ariaLabel="Filter by provider type"
+              options={[
+                { value: '', label: 'All Providers' },
+                ...types.map(type => ({ value: type, label: type })),
+              ]}
+            />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Status</label>
-            <select
+            <label className="mb-1 block text-sm font-medium text-text">Status</label>
+            <FilterSelect
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value as 'all' | 'enabled' | 'disabled')}
-              className="w-full px-3 py-2 border rounded"
-            >
-              <option value="all">All Status</option>
-              <option value="enabled">Enabled</option>
-              <option value="disabled">Disabled</option>
-            </select>
+              onChange={(value) => setFilterStatus(value as 'all' | 'enabled' | 'disabled')}
+              ariaLabel="Filter by status"
+              options={[
+                { value: 'all', label: 'All Status' },
+                { value: 'enabled', label: 'Enabled' },
+                { value: 'disabled', label: 'Disabled' },
+              ]}
+            />
           </div>
         </div>
       </div>

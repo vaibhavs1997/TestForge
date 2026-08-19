@@ -99,7 +99,7 @@ export const ExecutionWorkspace: React.FC<ExecutionWorkspaceProps> = ({ projectI
       </aside>
       <div className='min-w-0 flex-1 overflow-y-auto'>
         <ExecutionRenderBoundary>
-          <Routes>
+          <Routes key={location.pathname}>
           {/* Execute - main execution page (also contains validation history in details) */}
           <Route path='/' element={<ExecutionPage />} />
           {/* Validation History - reuse execution page (history is shown in the runs list + details) */}

@@ -55,7 +55,6 @@ export const GeneratedTestCasesPanel: React.FC<GeneratedTestCasesPanelProps> = (
   mappingBannerMessage,
   mappingLowConfidence,
 }) => {
-  const title = '';
   const includedCount = designs.filter((d) => d.status !== 'Disabled').length;
 
   return (
@@ -71,15 +70,6 @@ export const GeneratedTestCasesPanel: React.FC<GeneratedTestCasesPanelProps> = (
               </Badge>
             )}
           </div>
-          {title ? (
-            <p className='hidden'>
-              For <span className='font-medium text-text'>{title}</span> — uncheck cases you do not want in the suite.
-            </p>
-          ) : (
-            <p className='hidden'>
-              Enter acceptance criteria above and click Generate Test Cases.
-            </p>
-          )}
         </div>
         <div className='flex flex-wrap items-center gap-2'>
           {designs.length > 0 && (

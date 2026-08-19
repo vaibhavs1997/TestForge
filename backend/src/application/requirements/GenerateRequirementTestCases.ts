@@ -93,6 +93,10 @@ export class GenerateRequirementTestCases {
     }
 
     const designs = await this.enrichDesignMappings(request.requirementId, requirement.projectId);
+    if (requirement.generationPending && designs.length === 0) {
+      await this.requirementRepository.delete(requirement.id);
+      throw new Error('No test cases could be generated for this requirement.');
+    }
     const executionPlanIds: string[] = [];
 
     if (request.buildRunPlan && designs.some((d) => d.status !== 'Disabled')) {
@@ -122,6 +126,15 @@ export class GenerateRequirementTestCases {
       } as Partial<typeof requirement>);
     }
 
+    if (requirement.generationPending) {
+      await this.requirementRepository.update(requirement.id, {
+        approvalStatus: 'Suggested',
+        reviewStatus: 'Reviewed',
+        generationPending: false,
+        generationExpiresAt: null,
+      } as Partial<typeof requirement>);
+    }
+
     return { designs, executionPlanIds, usedAi, warnings };
   }
 
@@ -138,24 +151,25 @@ export class GenerateRequirementTestCases {
 
     for (const design of designs) {
       let operationId = design.operationId;
-      const opExists = operationId && operations.some((o) => o.id === operationId);
-      if (!opExists) {
-        let category: StrategyCategory = 'Positive';
-        if (strategy) {
-          for (const section of strategy.sections) {
-            const item = section.items.find((i) => i.id === design.strategyItemId);
-            if (item) {
-              category = section.category;
-              break;
-            }
+      let category: StrategyCategory = 'Positive';
+      if (strategy) {
+        for (const section of strategy.sections) {
+          const item = section.items.find((i) => i.id === design.strategyItemId);
+          if (item) {
+            category = section.category;
+            break;
           }
         }
-        operationId = pickOperationForCategory(requirement, operations, category);
       }
 
+      // Validate every AI or strategy-provided operation against the guarded
+      // matcher. A valid ID can still be semantically unrelated to the case.
+      const mappedOperationId = pickOperationForCategory(requirement, operations, category);
+      operationId = mappedOperationId;
+
       const operation = operations.find((o) => o.id === operationId);
-      const { category, focusFieldId, scenarioKind } = this.resolveStrategyContext(design, strategy);
-      const body = buildPayloadForScenario(category, operation, { focusFieldId, scenarioKind });
+      const { category: scenarioCategory, focusFieldId, scenarioKind } = this.resolveStrategyContext(design, strategy);
+      const body = buildPayloadForScenario(scenarioCategory, operation, { focusFieldId, scenarioKind });
       const requestOverrides = {
         ...design.requestOverrides,
         body: Object.keys(body).length > 0 ? body : design.requestOverrides?.body,

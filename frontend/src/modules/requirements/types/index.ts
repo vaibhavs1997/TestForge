@@ -28,6 +28,8 @@ export interface Requirement {
   jiraIssueKey?: string | null;
   createdAt: number;
   updatedAt: number;
+  generationPending?: boolean;
+  generationExpiresAt?: number | null;
 }
 
 export interface RequirementFormData {
@@ -45,6 +47,8 @@ export interface RequirementFormData {
   relatedFlows: string[];
   relatedDatasets: string[];
   acceptanceCriteria: AcceptanceCriterion[];
+  generationPending?: boolean;
+  generationExpiresAt?: number | null;
 }
 
 export type ValidationStatus = 'READY' | 'MISSING' | 'WARNING' | 'INCOMPLETE';

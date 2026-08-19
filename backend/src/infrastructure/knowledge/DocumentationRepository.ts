@@ -104,7 +104,8 @@ export class DocumentationRepository {
   }
 
   private async readItems(filePath: string): Promise<Documentation[]> {
-    return readJsonArray(filePath);
+    const documentation = await readJsonArray<Documentation>(filePath);
+    return documentation.filter((doc) => doc && typeof doc.title === 'string' && doc.title.trim().length > 0);
   }
 }
 

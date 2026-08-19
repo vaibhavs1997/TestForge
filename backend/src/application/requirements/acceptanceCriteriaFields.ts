@@ -57,10 +57,10 @@ function detectMentionedFieldIds(acText: string): string[] {
 }
 
 function extractContextPhrase(acText: string): string | undefined {
-  const dewalt = acText.match(/\bon\s+(dewalt\s+us|dewalt|us\s+store|us\s+site)\b/i);
-  if (dewalt) return dewalt[1].trim();
-  const onRegion = acText.match(/\bon\s+([a-z][a-z0-9\s]{2,30})\b/i);
-  if (onRegion && !/account|user|system/i.test(onRegion[1])) return onRegion[1].trim();
+  // Capture product, market, or platform context without maintaining a
+  // contract-specific allowlist (for example, a particular brand or site).
+  const context = acText.match(/\b(?:on|in|for|within|from)\s+([a-z][a-z0-9]*(?:\s+[a-z][a-z0-9]*){0,5})/i);
+  if (context && !/account|user|system/i.test(context[1])) return context[1].trim();
   return undefined;
 }
 

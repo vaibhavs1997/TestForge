@@ -1,7 +1,9 @@
 import React from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { projectStore } from '../../../store/projectStore';
 import { useEnvironments } from '../../environment/hooks/useEnvironments';
+import { useServices } from '../../api/hooks';
 import { environmentService } from '../../environment/services/environmentService';
 import { EnvironmentDialog, type EnvironmentDialogData } from '../../environment/components/EnvironmentDialog';
 import { ImportEnvironmentModal, type ImportEnvironmentModalData } from '../../environment/components/ImportEnvironmentModal';
@@ -42,10 +44,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { Badge } from '../../../components/ui/Badge';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { JsonViewer } from '../../../components/shared/JsonViewer';
+import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
+import { EntityDialog } from '../../../components/dialogs/EntityDialog';
 import { datasetService } from '../../test-data/services/datasetService';
 import { rowService } from '../../test-data/services/rowService';
 import type { DatasetDto } from '../../../types/moduleContracts';
 import { apiService } from '../../api/services/apiService';
+import { queryKeys } from '../../../constants';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
 type BodyMode = 'none' | 'form-data' | 'x-www-form-urlencoded' | 'raw' | 'binary' | 'graphql';
@@ -1388,7 +1393,13 @@ export const ApiExecutionPage: React.FC = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const selectedProjectId = projectStore((state) => state.selectedProjectId);
   const projectId = routeProjectId ?? selectedProjectId ?? '1';
-  const { environments: managedEnvironments = [], updateAsync: updateManagedEnvironment } = useEnvironments(projectId);
+  const queryClient = useQueryClient();
+  const { services: sharedApiServices = [] } = useServices(projectId);
+  const {
+    environments: managedEnvironments = [],
+    updateAsync: updateManagedEnvironment,
+    removeAsync: removeManagedEnvironment,
+  } = useEnvironments(projectId);
   const importedKey = React.useMemo(() => storageKey(projectId, 'imports'), [projectId]);
   const manualKey = React.useMemo(() => storageKey(projectId, 'manuals'), [projectId]);
   const savedKey = React.useMemo(() => storageKey(projectId, 'saved'), [projectId]);
@@ -1408,6 +1419,8 @@ export const ApiExecutionPage: React.FC = () => {
   const saveConfirmationTimerRef = React.useRef<number | null>(null);
   const managedEnvironmentIdsRef = React.useRef<Set<string>>(new Set());
   const syncedApiArtifactIdsRef = React.useRef<Set<string>>(new Set());
+  const apiSyncPromisesRef = React.useRef<Set<Promise<unknown>>>(new Set());
+  const apiSyncDisabledRef = React.useRef(false);
 
   const [importedArtifacts, setImportedArtifacts] = React.useState<ImportedArtifact[]>([]);
   const [manualRequests, setManualRequests] = React.useState<ManualRequestRecord[]>([]);
@@ -1441,6 +1454,10 @@ export const ApiExecutionPage: React.FC = () => {
   const [environmentEditorOpen, setEnvironmentEditorOpen] = React.useState(false);
   const [environmentImportOpen, setEnvironmentImportOpen] = React.useState(false);
   const [environmentEditorTarget, setEnvironmentEditorTarget] = React.useState<EnvironmentDto | undefined>();
+  const [environmentDeleteTarget, setEnvironmentDeleteTarget] = React.useState<EnvironmentDto | null>(null);
+  const [apiDeleteConfirmOpen, setApiDeleteConfirmOpen] = React.useState(false);
+  const [apiImportFiles, setApiImportFiles] = React.useState<File[]>([]);
+  const [apiImportBusy, setApiImportBusy] = React.useState(false);
   const [environmentSearch, setEnvironmentSearch] = React.useState('');
   const [environmentActionBusy, setEnvironmentActionBusy] = React.useState(false);
 
@@ -1577,8 +1594,12 @@ export const ApiExecutionPage: React.FC = () => {
       syncedApiArtifactIdsRef.current.add(artifact.id);
       const extension = artifact.sourceFormat.toLowerCase().includes('yaml') ? 'yaml' : 'json';
       const file = new File([artifact.rawText], `${artifact.name || 'import'}.${extension}`, { type: 'application/json' });
-      void apiService.importContract(projectId, file).catch(() => {
+      const syncPromise = apiService.importContract(projectId, file);
+      apiSyncPromisesRef.current.add(syncPromise);
+      void syncPromise.catch(() => {
         syncedApiArtifactIdsRef.current.delete(artifact.id);
+      }).finally(() => {
+        apiSyncPromisesRef.current.delete(syncPromise);
       });
     }
   }, [importedArtifacts, lastHydrated, projectId]);
@@ -1743,19 +1764,32 @@ export const ApiExecutionPage: React.FC = () => {
   React.useEffect(() => {
     if (selection?.kind === 'manual') {
       const record = manualRequests.find((item) => item.id === selection.id);
-      if (record) setDraft(cloneJson(record.draft));
+      if (record) {
+        setDraft((current) => JSON.stringify(sanitizeDraftForStorage(current)) === JSON.stringify(record.draft)
+          ? current
+          : cloneJson(record.draft));
+      }
     }
     if (selection?.kind === 'saved') {
       const record = savedRequests.find((item) => item.id === selection.id);
-      if (record) setDraft(cloneJson(record.draft));
+      if (record) {
+        setDraft((current) => JSON.stringify(sanitizeDraftForStorage(current)) === JSON.stringify(record.draft)
+          ? current
+          : cloneJson(record.draft));
+      }
     }
   }, [selection, manualRequests, savedRequests]);
 
   React.useEffect(() => {
     if (!selection || selection.kind !== 'manual') return;
-    setManualRequests((current) =>
-      current.map((item) => (item.id === selection.id ? { ...item, draft: sanitizeDraftForStorage(draft), updatedAt: Date.now() } : item)),
-    );
+    const nextDraft = sanitizeDraftForStorage(draft);
+    setManualRequests((current) => {
+      const record = current.find((item) => item.id === selection.id);
+      if (!record || JSON.stringify(record.draft) === JSON.stringify(nextDraft)) return current;
+      return current.map((item) => (item.id === selection.id
+        ? { ...item, draft: nextDraft, updatedAt: Date.now() }
+        : item));
+    });
   }, [draft, selection]);
 
   const setSelectedSelection = (next: SelectionState | null, nextDraft: RequestDraft) => {
@@ -1865,22 +1899,105 @@ export const ApiExecutionPage: React.FC = () => {
     setActiveRequestLog('Response cleared');
   };
 
-  const deleteImportedApis = async () => {
-    if (importedArtifacts.filter((item) => item.kind === 'api').length === 0) return;
-    if (!window.confirm('Delete all imported API contracts from this project?')) return;
-    try {
-      await apiService.deleteApiContract(projectId);
-    } catch {
-      setActiveRequestLog('Could not delete shared API contracts');
-      return;
-    }
+  const deleteImportedApis = () => {
+    if (importedArtifacts.filter((item) => item.kind === 'api').length === 0 && sharedApiServices.length === 0) return;
+    setApiDeleteConfirmOpen(false);
+    apiSyncDisabledRef.current = true;
+    syncedApiArtifactIdsRef.current.clear();
+
+    // Clear the visible workspace first so a slow shared cleanup cannot block
+    // navigation or leave the user looking at stale imported APIs.
     setImportedArtifacts((current) => current.filter((item) => item.kind !== 'api'));
+    // Remove the local snapshot immediately as well. Otherwise a remount
+    // hydrates the deleted contract and the migration effect can recreate it.
+    const remainingImports = importedArtifacts.filter((item) => item.kind !== 'api');
+    localStorage.setItem(importedKey, JSON.stringify(remainingImports.map(persistedImportedArtifact)));
     if (selection?.kind === 'api-endpoint') {
       setSelection(null);
       setDraft(createDraft());
       setResponse(emptyResponseState());
     }
     setActiveRequestLog('Deleted imported API contracts');
+
+    // Wait for any local-to-backend migrations already in flight. Otherwise a
+    // late import can recreate the contracts immediately after this delete.
+    void Promise.allSettled(Array.from(apiSyncPromisesRef.current))
+      .then(() => apiService.deleteApiContract(projectId))
+      .then(() => Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.services(projectId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.operations(projectId) }),
+      ]))
+      .catch(() => {
+        setActiveRequestLog('Deleted local API imports; shared API cleanup could not be confirmed');
+      });
+  };
+
+  const importApiFiles = async (files: File[]) => {
+    if (files.length === 0) return;
+    setApiImportBusy(true);
+    try {
+      const parsedFiles = await Promise.all(
+        files.map(async (file) => ({ file, artifact: await parseImportedFile(file) })),
+      );
+      const collections = parsedFiles
+        .map(({ artifact }) => artifact)
+        .filter((item): item is ImportedApiCollection => item.kind === 'api');
+      const envs = parsedFiles
+        .map(({ artifact }) => artifact)
+        .filter((item): item is ImportedEnvironment => item.kind === 'env');
+      const unknowns = parsedFiles
+        .map(({ artifact }) => artifact)
+        .filter((item): item is ImportedUnknown => item.kind === 'unknown');
+      if (collections.length > 0) apiSyncDisabledRef.current = false;
+
+      let syncedApiCount = 0;
+      for (const { file, artifact } of parsedFiles) {
+        if (artifact.kind !== 'api') continue;
+        try {
+          const summary = await apiService.importContract(projectId, file);
+          syncedApiCount += (summary.operationsImported ?? 0) + (summary.operationsUpdated ?? 0);
+        } catch {
+          setActiveRequestLog(`API imported locally but shared synchronization failed for ${file.name}`);
+        }
+      }
+
+      let syncedEnvironments = envs;
+      if (envs.length > 0) {
+        try {
+          const result = await environmentService.batchUpsertEnvironments(projectId, envs.map((environment) => ({
+            name: environment.name,
+            baseUrl: environment.variables.baseUrl || environment.variables.BASE_URL || '',
+            variables: environment.variables,
+          })));
+          syncedEnvironments = result.environments.map(environmentDtoToArtifact);
+        } catch {
+          setActiveRequestLog('Environment saved locally; shared environment sync failed');
+        }
+      }
+
+      setImportedArtifacts((current) => [...current, ...collections, ...syncedEnvironments, ...unknowns]);
+      if (syncedEnvironments.length > 0 && !activeEnvironmentId) setActiveEnvironmentId(syncedEnvironments[0].id);
+      const firstCollection = collections[0];
+      const firstEndpoint = firstCollection?.endpoints[0];
+      if (firstEndpoint) {
+        setExpandedCollections((current) => ({ ...current, [firstCollection.id]: true }));
+        setSelection({ kind: 'api-endpoint', id: firstEndpoint.id, collectionId: firstCollection.id, endpointId: firstEndpoint.id });
+        setDraft(cloneJson(firstEndpoint.requestTemplate));
+      } else if (envs[0] && !selection) {
+        setSelection(null);
+        setDraft(createDraft());
+      }
+      if (syncedApiCount > 0) {
+        setActiveRequestLog(`Synchronized ${syncedApiCount} API operation${syncedApiCount === 1 ? '' : 's'} for Requirements`);
+      }
+      if (collections.length > 0) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.services(projectId) });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.operations(projectId) });
+      }
+    } finally {
+      setApiImportBusy(false);
+      setApiImportFiles([]);
+    }
   };
 
   const captureOAuthToken = (responseState: ResponseState) => {
@@ -2019,13 +2136,19 @@ export const ApiExecutionPage: React.FC = () => {
     }
   };
 
-  const deleteManagedEnvironment = async (environment: EnvironmentDto) => {
-    if (!window.confirm(`Delete environment "${environment.name}"?`)) return;
+  const requestDeleteManagedEnvironment = (environment: EnvironmentDto) => {
+    setEnvironmentDeleteTarget(environment);
+  };
+
+  const deleteManagedEnvironment = async () => {
+    if (!environmentDeleteTarget) return;
+    const environment = environmentDeleteTarget;
     setEnvironmentActionBusy(true);
     try {
-      await environmentService.deleteEnvironment(projectId, environment.id);
+      await removeManagedEnvironment(environment.id);
       if (activeEnvironmentId === environment.id) setActiveEnvironmentId('');
       setActiveRequestLog(`Deleted environment ${environment.name}`);
+      setEnvironmentDeleteTarget(null);
     } finally {
       setEnvironmentActionBusy(false);
     }
@@ -2457,7 +2580,7 @@ export const ApiExecutionPage: React.FC = () => {
                 <Settings2 className='mr-2 h-4 w-4' />
                 Manage environments
               </Button>
-              <Button type='button' variant='outline' className='h-11 w-44 border-error/30 bg-error/10 px-4 text-sm font-medium text-error hover:bg-error/20 disabled:border-border disabled:bg-background/40 disabled:text-text-secondary disabled:opacity-100' onClick={deleteImportedApis} disabled={importedArtifacts.filter((item) => item.kind === 'api').length === 0}>
+              <Button type='button' variant='outline' className='h-11 w-44 border-error/30 bg-error/10 px-4 text-sm font-medium text-error hover:bg-error/20 disabled:border-border disabled:bg-background/40 disabled:text-text-secondary disabled:opacity-100' onClick={() => setApiDeleteConfirmOpen(true)} disabled={importedArtifacts.filter((item) => item.kind === 'api').length === 0}>
                 <Trash2 className='mr-2 h-4 w-4' />
                 Delete APIs
               </Button>
@@ -2470,60 +2593,11 @@ export const ApiExecutionPage: React.FC = () => {
             multiple
             accept='.json,.yaml,.yml,.env,.env.local,.txt,.har'
             className='hidden'
-            onChange={async (event) => {
+            onChange={(event) => {
               const files = event.target.files;
               if (!files?.length) return;
-              const parsedFiles = await Promise.all(
-                Array.from(files).map(async (file) => ({ file, artifact: await parseImportedFile(file) })),
-              );
-              const collections = parsedFiles
-                .map(({ artifact }) => artifact)
-                .filter((item): item is ImportedApiCollection => item.kind === 'api');
-              const envs = parsedFiles
-                .map(({ artifact }) => artifact)
-                .filter((item): item is ImportedEnvironment => item.kind === 'env');
-              const unknowns = parsedFiles
-                .map(({ artifact }) => artifact)
-                .filter((item): item is ImportedUnknown => item.kind === 'unknown');
-              let syncedApiCount = 0;
-              for (const { file, artifact } of parsedFiles) {
-                if (artifact.kind !== 'api') continue;
-                try {
-                  const summary = await apiService.importContract(projectId, file);
-                  syncedApiCount += (summary.operationsImported ?? 0) + (summary.operationsUpdated ?? 0);
-                } catch {
-                  setActiveRequestLog(`API imported locally but shared synchronization failed for ${file.name}`);
-                }
-              }
-              let syncedEnvironments = envs;
-              if (envs.length > 0) {
-                try {
-                  const result = await environmentService.batchUpsertEnvironments(projectId, envs.map((environment) => ({
-                    name: environment.name,
-                    baseUrl: environment.variables.baseUrl || environment.variables.BASE_URL || '',
-                    variables: environment.variables,
-                  })));
-                  syncedEnvironments = result.environments.map(environmentDtoToArtifact);
-                } catch {
-                  setActiveRequestLog('Environment saved locally; shared environment sync failed');
-                }
-              }
-              setImportedArtifacts((current) => [...current, ...collections, ...syncedEnvironments, ...unknowns]);
-              if (syncedEnvironments.length > 0 && !activeEnvironmentId) setActiveEnvironmentId(syncedEnvironments[0].id);
-              const firstCollection = collections[0];
-              const firstEndpoint = firstCollection?.endpoints[0];
-              if (firstEndpoint) {
-                setExpandedCollections((current) => ({ ...current, [firstCollection.id]: true }));
-                setSelection({ kind: 'api-endpoint', id: firstEndpoint.id, collectionId: firstCollection.id, endpointId: firstEndpoint.id });
-                setDraft(cloneJson(firstEndpoint.requestTemplate));
-              } else if (envs[0] && !selection) {
-                setSelection(null);
-                setDraft(createDraft());
-              }
+              setApiImportFiles(Array.from(files));
               event.target.value = '';
-              if (syncedApiCount > 0) {
-                setActiveRequestLog(`Synchronized ${syncedApiCount} API operation${syncedApiCount === 1 ? '' : 's'} for Requirements`);
-              }
             }}
           />
 
@@ -3494,7 +3568,7 @@ export const ApiExecutionPage: React.FC = () => {
                     </button>
                     <div className='flex shrink-0 gap-2'>
                       <Button type='button' variant='outline' size='sm' className='border-border bg-background/40 text-text' onClick={() => { setEnvironmentEditorTarget(environment); setEnvironmentEditorOpen(true); }}>Edit</Button>
-                      <Button type='button' variant='outline' size='sm' className='border-error/30 bg-error/10 text-error' onClick={() => void deleteManagedEnvironment(environment)} disabled={environmentActionBusy}><Trash2 className='h-4 w-4' /></Button>
+                      <Button type='button' variant='outline' size='sm' className='border-error/30 bg-error/10 text-error' onClick={() => requestDeleteManagedEnvironment(environment)} disabled={environmentActionBusy}><Trash2 className='h-4 w-4' /></Button>
                     </div>
                   </div>
                 </div>
@@ -3519,6 +3593,58 @@ export const ApiExecutionPage: React.FC = () => {
           timeout: environmentEditorTarget.timeout || 30000,
         } : undefined}
       />
+      <ConfirmDialog
+        open={Boolean(environmentDeleteTarget)}
+        title='Delete environment?'
+        message={environmentDeleteTarget ? `Delete environment "${environmentDeleteTarget.name}"? This removes its variables and OAuth token configuration.` : ''}
+        confirmLabel='Delete environment'
+        cancelLabel='Keep environment'
+        variant='destructive'
+        isLoading={environmentActionBusy}
+        onConfirm={() => void deleteManagedEnvironment()}
+        onCancel={() => {
+          if (!environmentActionBusy) setEnvironmentDeleteTarget(null);
+        }}
+      />
+      <ConfirmDialog
+        open={apiDeleteConfirmOpen}
+        title='Delete imported APIs?'
+        message='This removes all imported API contracts and their operations from this project. This action cannot be undone.'
+        confirmLabel='Delete APIs'
+        cancelLabel='Keep APIs'
+        variant='destructive'
+        onConfirm={deleteImportedApis}
+        onCancel={() => setApiDeleteConfirmOpen(false)}
+      />
+      <EntityDialog
+        open={apiImportFiles.length > 0}
+        title='Review API import'
+        description='Confirm the files below before they are parsed and added to this project.'
+        submitLabel='Import files'
+        isLoading={apiImportBusy}
+        size='md'
+        onClose={() => {
+          if (!apiImportBusy) setApiImportFiles([]);
+        }}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void importApiFiles(apiImportFiles);
+        }}
+      >
+        <div className='space-y-2'>
+          <p className='text-xs font-medium uppercase tracking-wide text-text-secondary'>
+            {apiImportFiles.length} file{apiImportFiles.length === 1 ? '' : 's'} selected
+          </p>
+          <div className='max-h-64 overflow-y-auto rounded-xl border border-border bg-background/40 p-2'>
+            {apiImportFiles.map((file) => (
+              <div key={`${file.name}-${file.lastModified}`} className='flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm text-text hover:bg-surface'>
+                <span className='truncate'>{file.name}</span>
+                <span className='shrink-0 text-xs text-text-secondary'>{Math.max(1, Math.ceil(file.size / 1024))} KB</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </EntityDialog>
       <ImportEnvironmentModal open={environmentImportOpen} onClose={() => setEnvironmentImportOpen(false)} onImport={(data) => void handleEnvironmentImport(data)} isImporting={environmentActionBusy} />
     </div>
   );

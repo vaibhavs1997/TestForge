@@ -104,7 +104,8 @@ export class RuntimeVariableRepository {
   }
 
   private async readItems(filePath: string): Promise<RuntimeVariable[]> {
-    return readJsonArray(filePath);
+    const variables = await readJsonArray<RuntimeVariable>(filePath);
+    return variables.filter((variable) => variable && typeof variable.name === 'string' && variable.name.trim().length > 0);
   }
 }
 

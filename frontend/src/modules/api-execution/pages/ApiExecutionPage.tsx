@@ -45,6 +45,7 @@ import { JsonViewer } from '../../../components/shared/JsonViewer';
 import { datasetService } from '../../test-data/services/datasetService';
 import { rowService } from '../../test-data/services/rowService';
 import type { DatasetDto } from '../../../types/moduleContracts';
+import { apiService } from '../../api/services/apiService';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
 type BodyMode = 'none' | 'form-data' | 'x-www-form-urlencoded' | 'raw' | 'binary' | 'graphql';
@@ -244,6 +245,20 @@ function responseCacheKey(selection: SelectionState | null): string | null {
 }
 
 const HTTP_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
+const HTTP_METHOD_TEXT_CLASSES: Record<HttpMethod, string> = {
+  GET: 'text-primary',
+  POST: 'text-success',
+  PUT: 'text-warning',
+  PATCH: 'text-warning',
+  DELETE: 'text-error',
+  HEAD: 'text-primary',
+  OPTIONS: 'text-text-secondary',
+};
+
+function httpMethodTextClass(method: string): string {
+  return HTTP_METHOD_TEXT_CLASSES[method as HttpMethod] ?? 'text-text';
+}
+
 const BODY_MODES: Array<{ value: BodyMode; label: string }> = [
   { value: 'none', label: 'none' },
   { value: 'form-data', label: 'form-data' },
@@ -404,6 +419,10 @@ function replaceTemplateVariables(text: string, variables: Record<string, string
     const key = rawKey.trim();
     return variables[key] ?? '';
   });
+}
+
+function normalizeBearerToken(value: string): string {
+  return value.trim().replace(/^Bearer\s+/i, '').trim().replace(/^['"]|['"]$/g, '');
 }
 
 function extractPathParams(url: string): string[] {
@@ -1321,7 +1340,8 @@ function buildBodyFromDraft(draft: RequestDraft): { body: BodyInit | null; heade
 function getAuthHeadersAndQuery(auth: AuthDraft): { headers: Record<string, string>; query: Record<string, string> } {
   if (auth.type === 'none') return { headers: {}, query: {} };
   if (auth.type === 'bearer') {
-    return auth.bearerToken.trim() ? { headers: { Authorization: `Bearer ${auth.bearerToken.trim()}` }, query: {} } : { headers: {}, query: {} };
+    const token = normalizeBearerToken(auth.bearerToken);
+    return token ? { headers: { Authorization: `Bearer ${token}` }, query: {} } : { headers: {}, query: {} };
   }
   if (auth.type === 'basic') {
     if (!auth.username && !auth.password) return { headers: {}, query: {} };
@@ -1335,7 +1355,8 @@ function getAuthHeadersAndQuery(auth: AuthDraft): { headers: Record<string, stri
     return { headers: { [auth.keyName]: auth.keyValue }, query: {} };
   }
   if (auth.type === 'oauth2') {
-    return auth.oauth2Token.trim() ? { headers: { Authorization: `Bearer ${auth.oauth2Token.trim()}` }, query: {} } : { headers: {}, query: {} };
+    const token = normalizeBearerToken(auth.oauth2Token);
+    return token ? { headers: { Authorization: `Bearer ${token}` }, query: {} } : { headers: {}, query: {} };
   }
   return { headers: {}, query: {} };
 }
@@ -1386,6 +1407,7 @@ export const ApiExecutionPage: React.FC = () => {
   const responsePanelRef = React.useRef<HTMLDivElement>(null);
   const saveConfirmationTimerRef = React.useRef<number | null>(null);
   const managedEnvironmentIdsRef = React.useRef<Set<string>>(new Set());
+  const syncedApiArtifactIdsRef = React.useRef<Set<string>>(new Set());
 
   const [importedArtifacts, setImportedArtifacts] = React.useState<ImportedArtifact[]>([]);
   const [manualRequests, setManualRequests] = React.useState<ManualRequestRecord[]>([]);
@@ -1406,6 +1428,7 @@ export const ApiExecutionPage: React.FC = () => {
   const [bottomTab, setBottomTab] = React.useState<BottomTab>('related');
   const [requestTab, setRequestTab] = React.useState<'params' | 'headers' | 'authorization' | 'body' | 'scripts' | 'tests' | 'settings'>('params');
   const [methodMenuOpen, setMethodMenuOpen] = React.useState(false);
+  const [environmentMenuOpen, setEnvironmentMenuOpen] = React.useState(false);
   const [expandedCollections, setExpandedCollections] = React.useState<Record<string, boolean>>({});
   const [expandedFolders, setExpandedFolders] = React.useState<Record<string, boolean>>({});
   const [activeRequestLog, setActiveRequestLog] = React.useState<string>('Ready to send');
@@ -1541,6 +1564,24 @@ export const ApiExecutionPage: React.FC = () => {
     if (!lastHydrated) return;
     localStorage.setItem(importedKey, JSON.stringify(importedArtifacts.map(persistedImportedArtifact)));
   }, [importedArtifacts, importedKey, lastHydrated]);
+
+  // Migrate collections previously stored only in the API workspace into the
+  // shared backend repository used by Requirements and other project pages.
+  React.useEffect(() => {
+    if (!lastHydrated) return;
+    const apiArtifacts = importedArtifacts.filter(
+      (artifact): artifact is ImportedApiCollection => artifact.kind === 'api' && Boolean(artifact.rawText?.trim()),
+    );
+    for (const artifact of apiArtifacts) {
+      if (syncedApiArtifactIdsRef.current.has(artifact.id)) continue;
+      syncedApiArtifactIdsRef.current.add(artifact.id);
+      const extension = artifact.sourceFormat.toLowerCase().includes('yaml') ? 'yaml' : 'json';
+      const file = new File([artifact.rawText], `${artifact.name || 'import'}.${extension}`, { type: 'application/json' });
+      void apiService.importContract(projectId, file).catch(() => {
+        syncedApiArtifactIdsRef.current.delete(artifact.id);
+      });
+    }
+  }, [importedArtifacts, lastHydrated, projectId]);
 
   React.useEffect(() => {
     if (!lastHydrated) return;
@@ -1824,9 +1865,15 @@ export const ApiExecutionPage: React.FC = () => {
     setActiveRequestLog('Response cleared');
   };
 
-  const deleteImportedApis = () => {
+  const deleteImportedApis = async () => {
     if (importedArtifacts.filter((item) => item.kind === 'api').length === 0) return;
     if (!window.confirm('Delete all imported API contracts from this project?')) return;
+    try {
+      await apiService.deleteApiContract(projectId);
+    } catch {
+      setActiveRequestLog('Could not delete shared API contracts');
+      return;
+    }
     setImportedArtifacts((current) => current.filter((item) => item.kind !== 'api'));
     if (selection?.kind === 'api-endpoint') {
       setSelection(null);
@@ -1841,7 +1888,7 @@ export const ApiExecutionPage: React.FC = () => {
     const payload = parseJsonSafely(responseState.body);
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return;
     const tokenPayload = payload as Record<string, unknown>;
-    const accessToken = String(tokenPayload.access_token || tokenPayload.accessToken || '').trim();
+    const accessToken = normalizeBearerToken(String(tokenPayload.access_token || tokenPayload.accessToken || ''));
     if (!accessToken) return;
     const expiresIn = Number(tokenPayload.expires_in || 0);
     const activeEnvironmentArtifact = importedArtifacts.find((artifact): artifact is ImportedEnvironment => artifact.kind === 'env' && artifact.id === activeEnvironmentId);
@@ -2342,7 +2389,7 @@ export const ApiExecutionPage: React.FC = () => {
   ];
 
   return (
-    <div className='relative min-h-full bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-sm text-text'>
+    <div className='relative min-h-full bg-background text-sm text-text'>
       <div className='pointer-events-none absolute inset-0 opacity-60'>
         <div className='absolute -left-24 top-24 h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl' />
         <div className='absolute right-0 top-0 h-80 w-80 rounded-full bg-blue-500/10 blur-3xl' />
@@ -2353,33 +2400,64 @@ export const ApiExecutionPage: React.FC = () => {
         <div className='mb-4 p-0'>
           <div className='relative z-10 flex justify-end'>
             <div className='flex flex-wrap items-center justify-end gap-3'>
-              <Button type='button' variant='outline' className='h-11 w-44 border-white/15 bg-white/5 px-4 text-sm font-medium text-white' onClick={() => fileInputRef.current?.click()}>
+              <Button type='button' variant='outline' className='h-11 w-44 border-border bg-background/40 px-4 text-sm font-medium text-text' onClick={() => fileInputRef.current?.click()}>
                 <UploadCloud className='mr-2 h-4 w-4' />
                 Import API
               </Button>
-              <Button type='button' variant='outline' className='h-11 w-44 border-white/15 bg-white/5 px-4 text-sm font-medium text-white' onClick={createNewRequest}>
+              <Button type='button' variant='outline' className='h-11 w-44 border-border bg-background/40 px-4 text-sm font-medium text-text' onClick={createNewRequest}>
                 <Plus className='mr-2 h-4 w-4' />
                 New Request
               </Button>
-              <select
-                value={activeEnvironmentId}
-                onChange={(event) => setActiveEnvironmentId(event.target.value)}
-                className='h-11 w-44 rounded-lg border border-violet-400/30 bg-violet-400/10 px-4 text-sm font-medium text-violet-100 outline-none focus:border-violet-300/60'
-                aria-label='Select environment'
-                title='Select environment for request execution'
-              >
-                <option value='' className='bg-slate-900 text-white'>No environment</option>
-                {environments.map((environment) => (
-                  <option key={environment.id} value={environment.id} className='bg-slate-900 text-white'>
-                    {environment.name}
-                  </option>
-                ))}
-              </select>
-              <Button type='button' variant='outline' className='h-11 border-white/15 bg-white/5 px-4 text-sm font-medium text-white' onClick={() => setEnvironmentManagerOpen(true)}>
+              <div className='relative w-44'>
+                <button
+                  type='button'
+                  onClick={() => setEnvironmentMenuOpen((current) => !current)}
+                  className='flex h-11 w-full items-center justify-between rounded-lg border border-violet-400/30 bg-violet-400/10 px-4 text-left text-sm font-medium text-primary outline-none transition-colors hover:bg-violet-400/15 focus:border-violet-300/60'
+                  aria-expanded={environmentMenuOpen}
+                  aria-haspopup='listbox'
+                  aria-label='Select environment'
+                  title='Select environment for request execution'
+                >
+                  <span className='truncate'>{selectedEnvironment?.name ?? 'No environment'}</span>
+                  <ChevronDown className={`ml-2 h-4 w-4 shrink-0 transition-transform ${environmentMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {environmentMenuOpen && (
+                  <div className='absolute left-0 top-full z-30 mt-1 w-full overflow-hidden rounded-lg border border-border bg-surface p-1 shadow-xl' role='listbox'>
+                    <button
+                      type='button'
+                      role='option'
+                      aria-selected={!activeEnvironmentId}
+                      onClick={() => {
+                        setActiveEnvironmentId('');
+                        setEnvironmentMenuOpen(false);
+                      }}
+                      className={`block w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${!activeEnvironmentId ? 'bg-background/60 text-primary' : 'text-text hover:bg-background/60'}`}
+                    >
+                      No environment
+                    </button>
+                    {environments.map((environment) => (
+                      <button
+                        key={environment.id}
+                        type='button'
+                        role='option'
+                        aria-selected={activeEnvironmentId === environment.id}
+                        onClick={() => {
+                          setActiveEnvironmentId(environment.id);
+                          setEnvironmentMenuOpen(false);
+                        }}
+                        className={`block w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${activeEnvironmentId === environment.id ? 'bg-background/60 text-primary' : 'text-text hover:bg-background/60'}`}
+                      >
+                        {environment.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <Button type='button' variant='outline' className='h-11 border-border bg-background/40 px-4 text-sm font-medium text-text' onClick={() => setEnvironmentManagerOpen(true)}>
                 <Settings2 className='mr-2 h-4 w-4' />
                 Manage environments
               </Button>
-              <Button type='button' variant='outline' className='h-11 w-44 border-red-400/30 bg-red-400/10 px-4 text-sm font-medium text-red-100 hover:bg-red-400/20' onClick={deleteImportedApis} disabled={importedArtifacts.filter((item) => item.kind === 'api').length === 0}>
+              <Button type='button' variant='outline' className='h-11 w-44 border-error/30 bg-error/10 px-4 text-sm font-medium text-error hover:bg-error/20 disabled:border-border disabled:bg-background/40 disabled:text-text-secondary disabled:opacity-100' onClick={deleteImportedApis} disabled={importedArtifacts.filter((item) => item.kind === 'api').length === 0}>
                 <Trash2 className='mr-2 h-4 w-4' />
                 Delete APIs
               </Button>
@@ -2395,10 +2473,28 @@ export const ApiExecutionPage: React.FC = () => {
             onChange={async (event) => {
               const files = event.target.files;
               if (!files?.length) return;
-              const imported = await Promise.all(Array.from(files).map((file) => parseImportedFile(file)));
-              const collections = imported.filter((item): item is ImportedApiCollection => item.kind === 'api');
-              const envs = imported.filter((item): item is ImportedEnvironment => item.kind === 'env');
-              const unknowns = imported.filter((item): item is ImportedUnknown => item.kind === 'unknown');
+              const parsedFiles = await Promise.all(
+                Array.from(files).map(async (file) => ({ file, artifact: await parseImportedFile(file) })),
+              );
+              const collections = parsedFiles
+                .map(({ artifact }) => artifact)
+                .filter((item): item is ImportedApiCollection => item.kind === 'api');
+              const envs = parsedFiles
+                .map(({ artifact }) => artifact)
+                .filter((item): item is ImportedEnvironment => item.kind === 'env');
+              const unknowns = parsedFiles
+                .map(({ artifact }) => artifact)
+                .filter((item): item is ImportedUnknown => item.kind === 'unknown');
+              let syncedApiCount = 0;
+              for (const { file, artifact } of parsedFiles) {
+                if (artifact.kind !== 'api') continue;
+                try {
+                  const summary = await apiService.importContract(projectId, file);
+                  syncedApiCount += (summary.operationsImported ?? 0) + (summary.operationsUpdated ?? 0);
+                } catch {
+                  setActiveRequestLog(`API imported locally but shared synchronization failed for ${file.name}`);
+                }
+              }
               let syncedEnvironments = envs;
               if (envs.length > 0) {
                 try {
@@ -2425,57 +2521,60 @@ export const ApiExecutionPage: React.FC = () => {
                 setDraft(createDraft());
               }
               event.target.value = '';
+              if (syncedApiCount > 0) {
+                setActiveRequestLog(`Synchronized ${syncedApiCount} API operation${syncedApiCount === 1 ? '' : 's'} for Requirements`);
+              }
             }}
           />
 
           {selectedEnvironment && (
             <div className='mt-4 flex flex-wrap items-center gap-2'>
-              <Badge variant='outline' className='border-white/15 bg-white/5 text-slate-100'>Environment active</Badge>
-              <Badge variant='outline' className='border-white/15 bg-white/5 text-slate-100'>{selectedEnvironment.name}</Badge>
-              <span className='text-xs text-slate-400'>{Object.keys(selectedEnvironment.variables).length} variables</span>
+              <Badge variant='outline' className='border-border bg-background/40 text-text'>Environment active</Badge>
+              <Badge variant='outline' className='border-border bg-background/40 text-text'>{selectedEnvironment.name}</Badge>
+              <span className='text-xs text-text-secondary'>{Object.keys(selectedEnvironment.variables).length} variables</span>
             </div>
           )}
         </div>
 
         <div className='grid items-start gap-4 lg:grid-cols-[minmax(340px,0.3fr)_minmax(0,0.7fr)]'>
-          <Card className='flex min-h-0 flex-col overflow-hidden border-white/10 bg-white/5 text-white shadow-2xl backdrop-blur-xl' style={{ height: explorerHeight ? `${explorerHeight}px` : 'calc(100vh - 180px)' }}>
+          <Card className='flex min-h-0 flex-col overflow-hidden border-border bg-background/40 text-text shadow-2xl backdrop-blur-xl' style={{ height: explorerHeight ? `${explorerHeight}px` : 'calc(100vh - 180px)' }}>
             <CardHeader className='pb-4'>
               <div className='flex items-center justify-between'>
-                <CardTitle className='text-base text-white'>API Explorer</CardTitle>
+                <CardTitle className='text-base text-text'>API Explorer</CardTitle>
               </div>
             </CardHeader>
             <CardContent className='min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain scrollbar-none'>
-              <section className='rounded-2xl border border-white/10 bg-slate-950/40 p-3'>
+              <section className='rounded-2xl border border-border bg-surface p-3'>
                 <div className='mb-3 flex items-center justify-between'>
                   <div className='flex items-center gap-2'>
                     <FolderOpen className='h-4 w-4 text-cyan-300' />
-                    <span className='font-medium text-white'>Imported APIs</span>
+                    <span className='font-medium text-text'>Imported APIs</span>
                   </div>
-                  <Badge variant='outline' className='border-white/10 bg-white/5 text-slate-100'>{explorerTabCounts.imported}</Badge>
+                  <Badge variant='outline' className='border-border bg-background/40 text-text'>{explorerTabCounts.imported}</Badge>
                 </div>
                 <div className='space-y-2'>
                   {visibleApiCollections.length > 0 ? visibleApiCollections.map((collection) => {
                     const expanded = expandedCollections[collection.id] !== false;
                     return (
-                      <div key={collection.id} className='rounded-2xl border border-white/10 bg-white/5'>
+                      <div key={collection.id} className='rounded-2xl border border-border bg-background/40'>
                         <button
                           type='button'
                           className='flex w-full items-center justify-between gap-3 px-3 py-2 text-left'
                           onClick={() => toggleCollection(collection.id)}
                         >
                           <div className='min-w-0'>
-                            <div className='truncate text-sm font-semibold text-white'>{collection.name}</div>
-                            <div className='text-[11px] text-slate-400'>{collection.endpoints.length} endpoints</div>
+                            <div className='truncate text-sm font-semibold text-text'>{collection.name}</div>
+                            <div className='text-[11px] text-text-secondary'>{collection.endpoints.length} endpoints</div>
                           </div>
-                          {expanded ? <ChevronDown className='h-4 w-4 text-slate-400' /> : <ChevronRight className='h-4 w-4 text-slate-400' />}
+                          {expanded ? <ChevronDown className='h-4 w-4 text-text-secondary' /> : <ChevronRight className='h-4 w-4 text-text-secondary' />}
                         </button>
                         {expanded && (
-                          <div className='border-t border-white/10 p-2'>
+                          <div className='border-t border-border p-2'>
                             {groupEndpointsByFolder(collection.endpoints, collection.name).map(([folder, endpoints]) => (
                               <div key={folder} className='mb-3 last:mb-0'>
                                 <button
                                   type='button'
-                                  className='mb-1 flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                                  className='mb-1 flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-text-secondary hover:bg-background/40 hover:text-text'
                                   onClick={() => toggleFolder(`${collection.id}:${folder}`)}
                                 >
                                   <FolderOpen className='h-3.5 w-3.5 text-cyan-300' />
@@ -2491,10 +2590,10 @@ export const ApiExecutionPage: React.FC = () => {
                                       type='button'
                                       onClick={() => selectApiEndpoint(collection, endpoint)}
                                       className={`mb-1 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left transition-colors last:mb-0 ${
-                                        active ? 'bg-cyan-400/15 text-cyan-100' : 'hover:bg-white/5 text-slate-200'
+                                        active ? 'bg-primary/15 text-primary' : 'hover:bg-background/40 text-text'
                                       }`}
                                     >
-                                      <Badge variant='outline' className='border-white/10 bg-white/5 text-[10px] text-slate-100'>{endpoint.method}</Badge>
+                                      <Badge variant='outline' className={`border-border bg-background/40 text-[10px] ${httpMethodTextClass(endpoint.method)}`}>{endpoint.method}</Badge>
                                       <div className='min-w-0'>
                                         <div className='truncate text-xs font-medium'>{endpoint.name}</div>
                                       </div>
@@ -2520,16 +2619,16 @@ export const ApiExecutionPage: React.FC = () => {
               </section>
 
               {false && <>
-              <section className='rounded-2xl border border-white/10 bg-slate-950/40 p-3'>
+              <section className='rounded-2xl border border-border bg-surface p-3'>
                 <div className='mb-3 flex items-center justify-between'>
                   <div className='flex items-center gap-2'>
                     <ClipboardList className='h-4 w-4 text-emerald-300' />
-                    <span className='font-medium text-white'>Manual Requests</span>
+                    <span className='font-medium text-text'>Manual Requests</span>
                   </div>
                   <div className='flex items-center gap-2'>
-                    <Badge variant='outline' className='border-white/10 bg-white/5 text-slate-100'>{explorerTabCounts.manual}</Badge>
-                    <button type='button' className='rounded-lg p-1 text-slate-400 hover:bg-white/5 hover:text-white' onClick={createNewRequest}><Plus className='h-4 w-4' /></button>
-                    <button type='button' className='rounded-lg p-1 text-slate-400 hover:bg-white/5 hover:text-white' onClick={clearManualRequests}><Trash2 className='h-4 w-4' /></button>
+                    <Badge variant='outline' className='border-border bg-background/40 text-text'>{explorerTabCounts.manual}</Badge>
+                    <button type='button' className='rounded-lg p-1 text-text-secondary hover:bg-background/40 hover:text-text' onClick={createNewRequest}><Plus className='h-4 w-4' /></button>
+                    <button type='button' className='rounded-lg p-1 text-text-secondary hover:bg-background/40 hover:text-text' onClick={clearManualRequests}><Trash2 className='h-4 w-4' /></button>
                   </div>
                 </div>
                 <div className='space-y-2'>
@@ -2541,33 +2640,33 @@ export const ApiExecutionPage: React.FC = () => {
                         type='button'
                         onClick={() => selectManualRequest(item)}
                         className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition-colors ${
-                          active ? 'bg-cyan-400/15 text-cyan-100' : 'hover:bg-white/5 text-slate-200'
+                          active ? 'bg-primary/15 text-primary' : 'hover:bg-background/40 text-text'
                         }`}
                       >
                         <div className='min-w-0'>
                           <div className='truncate text-sm font-medium'>{item.draft.name}</div>
-                          <div className='truncate text-[11px] text-slate-400'>{item.draft.method} · {item.draft.url}</div>
+                          <div className='truncate text-[11px] text-text-secondary'>{item.draft.method} · {item.draft.url}</div>
                         </div>
-                        <button type='button' className='rounded-lg p-1 text-slate-400 hover:bg-white/5 hover:text-white' onClick={(e) => { e.stopPropagation(); removeItem('manual', item.id); }}>
+                        <button type='button' className='rounded-lg p-1 text-text-secondary hover:bg-background/40 hover:text-text' onClick={(e) => { e.stopPropagation(); removeItem('manual', item.id); }}>
                           <X className='h-4 w-4' />
                         </button>
                       </button>
                     );
                   }) : (
-                    <p className='px-1 py-2 text-xs text-slate-400'>No manual requests yet. Create one with New Request.</p>
+                    <p className='px-1 py-2 text-xs text-text-secondary'>No manual requests yet. Create one with New Request.</p>
                   )}
                 </div>
               </section>
 
-              <section className='rounded-2xl border border-white/10 bg-slate-950/40 p-3'>
+              <section className='rounded-2xl border border-border bg-surface p-3'>
                 <div className='mb-3 flex items-center justify-between'>
                   <div className='flex items-center gap-2'>
                     <Save className='h-4 w-4 text-blue-300' />
-                    <span className='font-medium text-white'>Saved Requests</span>
+                    <span className='font-medium text-text'>Saved Requests</span>
                   </div>
                   <div className='flex items-center gap-2'>
-                    <Badge variant='outline' className='border-white/10 bg-white/5 text-slate-100'>{explorerTabCounts.saved}</Badge>
-                    <button type='button' className='rounded-lg p-1 text-slate-400 hover:bg-white/5 hover:text-white' onClick={clearSavedRequests}><Trash2 className='h-4 w-4' /></button>
+                    <Badge variant='outline' className='border-border bg-background/40 text-text'>{explorerTabCounts.saved}</Badge>
+                    <button type='button' className='rounded-lg p-1 text-text-secondary hover:bg-background/40 hover:text-text' onClick={clearSavedRequests}><Trash2 className='h-4 w-4' /></button>
                   </div>
                 </div>
                 <div className='space-y-2'>
@@ -2579,31 +2678,31 @@ export const ApiExecutionPage: React.FC = () => {
                         type='button'
                         onClick={() => selectSavedRequest(item)}
                         className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition-colors ${
-                          active ? 'bg-blue-400/15 text-blue-100' : 'hover:bg-white/5 text-slate-200'
+                          active ? 'bg-primary/15 text-primary' : 'hover:bg-background/40 text-text'
                         }`}
                       >
                         <div className='min-w-0'>
                           <div className='truncate text-sm font-medium'>{item.draft.name}</div>
-                          <div className='truncate text-[11px] text-slate-400'>{item.draft.method} · {item.draft.url}</div>
+                          <div className='truncate text-[11px] text-text-secondary'>{item.draft.method} · {item.draft.url}</div>
                         </div>
-                        <button type='button' className='rounded-lg p-1 text-slate-400 hover:bg-white/5 hover:text-white' onClick={(e) => { e.stopPropagation(); removeItem('saved', item.id); }}>
+                        <button type='button' className='rounded-lg p-1 text-text-secondary hover:bg-background/40 hover:text-text' onClick={(e) => { e.stopPropagation(); removeItem('saved', item.id); }}>
                           <X className='h-4 w-4' />
                         </button>
                       </button>
                     );
                   }) : (
-                    <p className='px-1 py-2 text-xs text-slate-400'>Saved requests will appear here.</p>
+                    <p className='px-1 py-2 text-xs text-text-secondary'>Saved requests will appear here.</p>
                   )}
                 </div>
               </section>
 
-              <section className='rounded-2xl border border-white/10 bg-slate-950/40 p-3'>
+              <section className='rounded-2xl border border-border bg-surface p-3'>
                 <div className='mb-3 flex items-center justify-between'>
                   <div className='flex items-center gap-2'>
                     <Globe className='h-4 w-4 text-violet-300' />
-                    <span className='font-medium text-white'>Environments</span>
+                    <span className='font-medium text-text'>Environments</span>
                   </div>
-                  <Badge variant='outline' className='border-white/10 bg-white/5 text-slate-100'>{explorerTabCounts.env}</Badge>
+                  <Badge variant='outline' className='border-border bg-background/40 text-text'>{explorerTabCounts.env}</Badge>
                 </div>
                 <div className='space-y-2'>
                   {visibleEnvironments.length > 0 ? visibleEnvironments.map((env) => {
@@ -2614,34 +2713,34 @@ export const ApiExecutionPage: React.FC = () => {
                         type='button'
                         onClick={() => setActiveEnvironmentId(env.id)}
                         className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition-colors ${
-                          active ? 'bg-violet-400/15 text-violet-100' : 'hover:bg-white/5 text-slate-200'
+                          active ? 'bg-primary/15 text-primary' : 'hover:bg-background/40 text-text'
                         }`}
                       >
                         <div className='min-w-0'>
                           <div className='truncate text-sm font-medium'>{env.name}</div>
-                          <div className='truncate text-[11px] text-slate-400'>{Object.keys(env.variables).length} variables</div>
+                          <div className='truncate text-[11px] text-text-secondary'>{Object.keys(env.variables).length} variables</div>
                         </div>
-                        <Badge variant='outline' className='border-white/10 bg-white/5 text-[10px] text-slate-100'>ENV</Badge>
+                        <Badge variant='outline' className='border-border bg-background/40 text-[10px] text-text'>ENV</Badge>
                       </button>
                     );
                   }) : (
-                    <p className='px-1 py-2 text-xs text-slate-400'>Import `.env` files to see them here.</p>
+                    <p className='px-1 py-2 text-xs text-text-secondary'>Import `.env` files to see them here.</p>
                   )}
                 </div>
               </section>
 
-              <section className='rounded-2xl border border-white/10 bg-slate-950/40 p-3'>
+              <section className='rounded-2xl border border-border bg-surface p-3'>
                 <div className='mb-3 flex items-center justify-between'>
                   <div className='flex items-center gap-2'>
-                    <Database className='h-4 w-4 text-amber-300' />
-                    <span className='font-medium text-white'>Unknown / raw</span>
+                    <Database className='h-4 w-4 text-warning' />
+                    <span className='font-medium text-text'>Unknown / raw</span>
                   </div>
-                  <Badge variant='outline' className='border-white/10 bg-white/5 text-slate-100'>{unknownImports.length}</Badge>
+                  <Badge variant='outline' className='border-border bg-background/40 text-text'>{unknownImports.length}</Badge>
                 </div>
-                <div className='space-y-2 text-xs text-slate-400'>
+                <div className='space-y-2 text-xs text-text-secondary'>
                   {unknownImports.length > 0 ? unknownImports.map((item) => (
-                    <div key={item.id} className='rounded-xl border border-white/10 bg-white/5 p-2'>
-                      <div className='font-medium text-slate-200'>{item.name}</div>
+                    <div key={item.id} className='rounded-xl border border-border bg-background/40 p-2'>
+                      <div className='font-medium text-text'>{item.name}</div>
                       <div>{item.summary}</div>
                     </div>
                   )) : <p>Raw files will appear here if they are not recognized as API or environment files.</p>}
@@ -2652,22 +2751,22 @@ export const ApiExecutionPage: React.FC = () => {
           </Card>
 
           <div className='space-y-4'>
-            <Card ref={requestWorkspaceRef} className='border-white/10 bg-white/5 text-white shadow-2xl backdrop-blur-xl'>
+            <Card ref={requestWorkspaceRef} className='border-border bg-background/40 text-text shadow-2xl backdrop-blur-xl'>
               <CardHeader className='pb-3'>
                 <div className='flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between'>
                   <div className='min-w-0 flex-1'>
-                    <div className={`flex w-full min-w-0 items-center rounded-xl border bg-slate-950/50 ${
+                    <div className={`flex w-full min-w-0 items-center rounded-xl border bg-surface ${
                       missingUrlVariables.length > 0
-                        ? 'border-white/10'
+                        ? 'border-border'
                         : hasResolvedUrlVariables
                           ? 'border-emerald-400/60 bg-emerald-400/5 shadow-[0_0_0_1px_rgba(52,211,153,0.12)]'
                           : 'border-white/20'
                     }`}>
-                      <div className='relative shrink-0 border-r border-white/15'>
+                      <div className='relative shrink-0 border-r border-border'>
                         <button
                           type='button'
                           onClick={() => setMethodMenuOpen((current) => !current)}
-                          className='flex h-12 w-28 items-center justify-between gap-2 px-4 text-left text-sm font-semibold text-amber-300 outline-none hover:bg-white/5'
+                          className={`flex h-12 w-28 items-center justify-between gap-2 px-4 text-left text-sm font-semibold outline-none hover:bg-background/40 ${httpMethodTextClass(draft.method)}`}
                           aria-expanded={methodMenuOpen}
                           aria-haspopup='listbox'
                           aria-label='Request method'
@@ -2676,7 +2775,7 @@ export const ApiExecutionPage: React.FC = () => {
                           <ChevronDown className={`h-4 w-4 transition-transform ${methodMenuOpen ? 'rotate-180' : ''}`} />
                         </button>
                         {methodMenuOpen && (
-                          <div className='absolute left-0 top-full z-30 mt-1 w-28 overflow-hidden rounded-lg border border-white/15 bg-slate-900 shadow-xl' role='listbox'>
+                          <div className='absolute left-0 top-full z-30 mt-1 w-28 overflow-hidden rounded-lg border border-border bg-surface shadow-xl' role='listbox'>
                             {HTTP_METHODS.map((method) => (
                               <button
                                 key={method}
@@ -2687,7 +2786,7 @@ export const ApiExecutionPage: React.FC = () => {
                                   setDraft((current) => ({ ...current, method }));
                                   setMethodMenuOpen(false);
                                 }}
-                                className={`block w-full px-4 py-2 text-left text-sm font-medium hover:bg-white/10 ${draft.method === method ? 'bg-white/10 text-amber-300' : 'text-white'}`}
+                                className={`block w-full px-4 py-2 text-left text-sm font-medium hover:bg-background/60 ${draft.method === method ? 'bg-background/60' : ''} ${httpMethodTextClass(method)}`}
                               >
                                 {method}
                               </button>
@@ -2698,14 +2797,14 @@ export const ApiExecutionPage: React.FC = () => {
                       <input
                         value={draft.url}
                         onChange={(event) => setDraft((current) => ({ ...current, url: event.target.value }))}
-                        className={`h-12 min-w-0 flex-1 bg-transparent px-4 text-sm outline-none placeholder:text-slate-500 ${missingUrlVariables.length > 0 ? 'text-slate-400' : 'text-white'}`}
+                        className={`h-12 min-w-0 flex-1 bg-transparent px-4 text-sm outline-none placeholder:text-text-secondary ${missingUrlVariables.length > 0 ? 'text-text-secondary' : 'text-text'}`}
                         placeholder='Enter request URL'
                         aria-label='Request URL'
                         title={urlVariablePreview || 'No environment variables in this URL'}
                       />
                       {urlTemplateVariables.length > 0 && (
                         <span className={`mr-3 shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${
-                          missingUrlVariables.length > 0 ? 'bg-white/10 text-slate-500' : 'bg-emerald-400/15 text-emerald-300'
+                          missingUrlVariables.length > 0 ? 'bg-background/60 text-text-secondary' : 'bg-success/15 text-success'
                         }`} title={missingUrlVariables.length > 0 ? `Missing environment variables: ${missingUrlVariables.join(', ')}` : 'Environment variables resolved'}>
                           {missingUrlVariables.length > 0 ? 'Inactive' : 'Active'}
                         </span>
@@ -2714,11 +2813,11 @@ export const ApiExecutionPage: React.FC = () => {
                   </div>
                   <div className='flex flex-wrap items-center gap-2'>
                     {saveConfirmation && (
-                      <span role='status' className='rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-xs font-medium text-emerald-200'>
+                      <span role='status' className='rounded-lg border border-success/25 bg-success/10 px-3 py-2 text-xs font-medium text-success'>
                         {saveConfirmation}
                       </span>
                     )}
-                    <Button type='button' variant='outline' className='border-white/15 bg-white/5 text-white' onClick={saveCurrentRequest}>
+                    <Button type='button' variant='outline' className='border-border bg-background/40 text-text' onClick={saveCurrentRequest}>
                       <Save className='mr-2 h-4 w-4' />
                       Save
                     </Button>
@@ -2730,14 +2829,14 @@ export const ApiExecutionPage: React.FC = () => {
                 </div>
               </CardHeader>
               <CardContent className='space-y-4'>
-                <div className='flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-slate-950/40 p-2'>
+                <div className='flex flex-wrap gap-2 rounded-2xl border border-border bg-surface p-2'>
                   {(['params', 'headers', 'authorization', 'body', 'scripts', 'tests', 'settings'] as const).map((tab) => (
                     <button
                       key={tab}
                       type='button'
                       onClick={() => setRequestTab(tab)}
                       className={`rounded-xl px-3 py-2 text-sm transition-colors ${
-                        requestTab === tab ? 'bg-cyan-400/15 text-cyan-100' : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                        requestTab === tab ? 'bg-primary/15 text-primary' : 'text-text-secondary hover:bg-background/40 hover:text-text'
                       }`}
                     >
                       {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -2747,37 +2846,37 @@ export const ApiExecutionPage: React.FC = () => {
 
                 {requestTab === 'params' && (
                   <div className='space-y-4'>
-                    <section className='rounded-2xl border border-white/10 bg-slate-950/40 p-3'>
+                    <section className='rounded-2xl border border-border bg-surface p-3'>
                       <div className='mb-3 flex items-center justify-between'>
-                        <h3 className='font-medium text-white'>Path Parameters</h3>
-                        <Badge variant='outline' className='border-white/10 bg-white/5 text-slate-100'>{draft.pathParams.length}</Badge>
+                        <h3 className='font-medium text-text'>Path Parameters</h3>
+                        <Badge variant='outline' className='border-border bg-background/40 text-text'>{draft.pathParams.length}</Badge>
                       </div>
                       <div className='space-y-2'>
                         {draft.pathParams.length > 0 ? draft.pathParams.map((row, index) => (
                           <div key={row.id} className='grid gap-2 md:grid-cols-[1fr_1fr_140px_1fr_auto]'>
-                            <input value={row.key} onChange={(e) => setDraft((current) => ({ ...current, pathParams: current.pathParams.map((item) => item.id === row.id ? { ...item, key: e.target.value } : item) }))} className='h-10 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none' placeholder='Key' />
-                            <input value={row.value} onChange={(e) => setDraft((current) => ({ ...current, pathParams: current.pathParams.map((item) => item.id === row.id ? { ...item, value: e.target.value } : item) }))} className='h-10 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none' placeholder='Value' />
-                            <select className='h-10 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none'>
+                            <input value={row.key} onChange={(e) => setDraft((current) => ({ ...current, pathParams: current.pathParams.map((item) => item.id === row.id ? { ...item, key: e.target.value } : item) }))} className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Key' />
+                            <input value={row.value} onChange={(e) => setDraft((current) => ({ ...current, pathParams: current.pathParams.map((item) => item.id === row.id ? { ...item, value: e.target.value } : item) }))} className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Value' />
+                            <select className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none'>
                               <option>string</option>
                               <option>number</option>
                               <option>boolean</option>
                             </select>
-                            <input value={row.description} onChange={(e) => setDraft((current) => ({ ...current, pathParams: current.pathParams.map((item) => item.id === row.id ? { ...item, description: e.target.value } : item) }))} className='h-10 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none' placeholder='Description' />
-                            <button type='button' className='rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-slate-200' onClick={() => setDraft((current) => ({ ...current, pathParams: current.pathParams.filter((item) => item.id !== row.id) }))}>
+                            <input value={row.description} onChange={(e) => setDraft((current) => ({ ...current, pathParams: current.pathParams.map((item) => item.id === row.id ? { ...item, description: e.target.value } : item) }))} className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Description' />
+                            <button type='button' className='rounded-xl border border-border bg-background/40 px-3 text-sm text-text' onClick={() => setDraft((current) => ({ ...current, pathParams: current.pathParams.filter((item) => item.id !== row.id) }))}>
                               Remove
                             </button>
                           </div>
                         )) : (
-                          <p className='text-sm text-slate-400'>No path parameters detected.</p>
+                          <p className='text-sm text-text-secondary'>No path parameters detected.</p>
                         )}
                       </div>
                     </section>
 
-                    <section className='rounded-2xl border border-white/10 bg-slate-950/40 p-3'>
+                    <section className='rounded-2xl border border-border bg-surface p-3'>
                       <div className='mb-3 flex items-center justify-between'>
-                        <h3 className='font-medium text-white'>Query Parameters</h3>
+                        <h3 className='font-medium text-text'>Query Parameters</h3>
                         <div className='flex gap-2'>
-                          <Button type='button' variant='outline' className='border-white/15 bg-white/5 text-white' size='sm' onClick={() => setDraft((current) => ({ ...current, queryParams: [...current.queryParams, createIdRow()] }))}>
+                          <Button type='button' variant='outline' className='border-border bg-background/40 text-text' size='sm' onClick={() => setDraft((current) => ({ ...current, queryParams: [...current.queryParams, createIdRow()] }))}>
                             <Plus className='mr-2 h-4 w-4' />
                             Add
                           </Button>
@@ -2787,25 +2886,25 @@ export const ApiExecutionPage: React.FC = () => {
                         {draft.queryParams.map((row) => (
                           <div key={row.id} className='grid gap-2 md:grid-cols-[72px_1fr_1fr_1fr_auto]'>
                             <input type='checkbox' checked={row.enabled} onChange={(e) => setDraft((current) => ({ ...current, queryParams: current.queryParams.map((item) => item.id === row.id ? { ...item, enabled: e.target.checked } : item) }))} className='h-4 w-4 rounded border-white/20 accent-cyan-400' />
-                            <input value={row.key} onChange={(e) => setDraft((current) => ({ ...current, queryParams: current.queryParams.map((item) => item.id === row.id ? { ...item, key: e.target.value } : item) }))} className='h-10 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none' placeholder='Key' />
-                            <input value={row.value} onChange={(e) => setDraft((current) => ({ ...current, queryParams: current.queryParams.map((item) => item.id === row.id ? { ...item, value: e.target.value } : item) }))} className='h-10 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none' placeholder='Value' />
-                            <input value={row.description} onChange={(e) => setDraft((current) => ({ ...current, queryParams: current.queryParams.map((item) => item.id === row.id ? { ...item, description: e.target.value } : item) }))} className='h-10 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none' placeholder='Description' />
-                            <button type='button' className='rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-slate-200' onClick={() => setDraft((current) => ({ ...current, queryParams: current.queryParams.filter((item) => item.id !== row.id) }))}>
+                            <input value={row.key} onChange={(e) => setDraft((current) => ({ ...current, queryParams: current.queryParams.map((item) => item.id === row.id ? { ...item, key: e.target.value } : item) }))} className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Key' />
+                            <input value={row.value} onChange={(e) => setDraft((current) => ({ ...current, queryParams: current.queryParams.map((item) => item.id === row.id ? { ...item, value: e.target.value } : item) }))} className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Value' />
+                            <input value={row.description} onChange={(e) => setDraft((current) => ({ ...current, queryParams: current.queryParams.map((item) => item.id === row.id ? { ...item, description: e.target.value } : item) }))} className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Description' />
+                            <button type='button' className='rounded-xl border border-border bg-background/40 px-3 text-sm text-text' onClick={() => setDraft((current) => ({ ...current, queryParams: current.queryParams.filter((item) => item.id !== row.id) }))}>
                               Remove
                             </button>
                           </div>
                         ))}
-                        {draft.queryParams.length === 0 && <p className='text-sm text-slate-400'>Add query parameters to build the request URL.</p>}
+                        {draft.queryParams.length === 0 && <p className='text-sm text-text-secondary'>Add query parameters to build the request URL.</p>}
                       </div>
                     </section>
                   </div>
                 )}
 
                 {requestTab === 'headers' && (
-                  <section className='space-y-3 rounded-2xl border border-white/10 bg-slate-950/40 p-3'>
+                  <section className='space-y-3 rounded-2xl border border-border bg-surface p-3'>
                     <div className='flex items-center justify-between'>
-                      <h3 className='font-medium text-white'>Headers</h3>
-                      <Button type='button' variant='outline' className='border-white/15 bg-white/5 text-white' size='sm' onClick={() => setDraft((current) => ({ ...current, headers: [...current.headers, createHeaderRow()] }))}>
+                      <h3 className='font-medium text-text'>Headers</h3>
+                      <Button type='button' variant='outline' className='border-border bg-background/40 text-text' size='sm' onClick={() => setDraft((current) => ({ ...current, headers: [...current.headers, createHeaderRow()] }))}>
                         <Plus className='mr-2 h-4 w-4' />
                         Add header
                       </Button>
@@ -2813,9 +2912,9 @@ export const ApiExecutionPage: React.FC = () => {
                     <div className='space-y-2'>
                       {draft.headers.map((row) => (
                         <div key={row.id} className='grid gap-2 md:grid-cols-[1fr_1fr_auto]'>
-                          <input value={row.name} onChange={(e) => setDraft((current) => ({ ...current, headers: current.headers.map((item) => item.id === row.id ? { ...item, name: e.target.value } : item) }))} className='h-10 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none' placeholder='Header name' />
-                          <input value={row.value} onChange={(e) => setDraft((current) => ({ ...current, headers: current.headers.map((item) => item.id === row.id ? { ...item, value: e.target.value } : item) }))} className='h-10 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none' placeholder='Header value' />
-                          <button type='button' className='rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-slate-200' onClick={() => setDraft((current) => ({ ...current, headers: current.headers.filter((item) => item.id !== row.id) }))}>
+                          <input value={row.name} onChange={(e) => setDraft((current) => ({ ...current, headers: current.headers.map((item) => item.id === row.id ? { ...item, name: e.target.value } : item) }))} className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Header name' />
+                          <input value={row.value} onChange={(e) => setDraft((current) => ({ ...current, headers: current.headers.map((item) => item.id === row.id ? { ...item, value: e.target.value } : item) }))} className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Header value' />
+                          <button type='button' className='rounded-xl border border-border bg-background/40 px-3 text-sm text-text' onClick={() => setDraft((current) => ({ ...current, headers: current.headers.filter((item) => item.id !== row.id) }))}>
                             Remove
                           </button>
                         </div>
@@ -2825,13 +2924,13 @@ export const ApiExecutionPage: React.FC = () => {
                 )}
 
                 {requestTab === 'authorization' && (
-                  <section className='space-y-4 rounded-2xl border border-white/10 bg-slate-950/40 p-3'>
+                  <section className='space-y-4 rounded-2xl border border-border bg-surface p-3'>
                     <div className='flex items-center justify-between'>
-                      <h3 className='font-medium text-white'>Authorization</h3>
-                      <Shield className='h-4 w-4 text-slate-400' />
+                      <h3 className='font-medium text-text'>Authorization</h3>
+                      <Shield className='h-4 w-4 text-text-secondary' />
                     </div>
                     <label className='block'>
-                      <span className='mb-1.5 block text-sm font-medium text-slate-200'>Auth type</span>
+                      <span className='mb-1.5 block text-sm font-medium text-text'>Auth type</span>
                       <select value={draft.auth.type} onChange={(e) => setDraft((current) => {
                         const type = e.target.value as AuthType;
                         return {
@@ -2843,43 +2942,43 @@ export const ApiExecutionPage: React.FC = () => {
                             oauth2Token: type === 'oauth2' && !current.auth.oauth2Token ? '{{accessToken}}' : current.auth.oauth2Token,
                           },
                         };
-                      })} className='h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none'>
+                      })} className='h-10 w-full rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none'>
                         {AUTH_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                       </select>
                     </label>
-                    <div className='flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2'>
-                      <span className='text-sm text-slate-300'>OAuth token</span>
-                      <Badge variant={oauthTokenState === 'Active' ? 'success' : oauthTokenState === 'Expired' ? 'destructive' : 'outline'} className={oauthTokenState === 'Missing token' ? 'border-white/15 bg-white/5 text-slate-400' : ''}>
+                    <div className='flex items-center justify-between rounded-xl border border-border bg-background/40 px-3 py-2'>
+                      <span className='text-sm text-text-secondary'>OAuth token</span>
+                      <Badge variant={oauthTokenState === 'Active' ? 'success' : oauthTokenState === 'Expired' ? 'destructive' : 'outline'} className={oauthTokenState === 'Missing token' ? 'border-border bg-background/40 text-text-secondary' : ''}>
                         {oauthTokenState}
                       </Badge>
                     </div>
                     {draft.auth.type === 'bearer' && (
                       <div className='space-y-2'>
-                        <input value={draft.auth.bearerToken} onChange={(e) => setDraft((current) => ({ ...current, auth: { ...current.auth, bearerToken: e.target.value } }))} className='h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none' placeholder='{{accessToken}} or enter a token' />
+                        <input value={draft.auth.bearerToken} onChange={(e) => setDraft((current) => ({ ...current, auth: { ...current.auth, bearerToken: e.target.value } }))} className='h-10 w-full rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='{{accessToken}} or enter a token' />
                         {environmentToken && <p className='text-xs text-emerald-200'>Using the active environment token automatically.</p>}
                       </div>
                     )}
                     {draft.auth.type === 'basic' && (
                       <div className='grid gap-2 md:grid-cols-2'>
-                        <input value={draft.auth.username} onChange={(e) => setDraft((current) => ({ ...current, auth: { ...current.auth, username: e.target.value } }))} className='h-10 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none' placeholder='Username' />
-                        <input value={draft.auth.password} onChange={(e) => setDraft((current) => ({ ...current, auth: { ...current.auth, password: e.target.value } }))} className='h-10 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none' placeholder='Password' type='password' />
+                        <input value={draft.auth.username} onChange={(e) => setDraft((current) => ({ ...current, auth: { ...current.auth, username: e.target.value } }))} className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Username' />
+                        <input value={draft.auth.password} onChange={(e) => setDraft((current) => ({ ...current, auth: { ...current.auth, password: e.target.value } }))} className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Password' type='password' />
                       </div>
                     )}
                     {draft.auth.type === 'apiKey' && (
                       <div className='grid gap-2 md:grid-cols-3'>
-                        <input value={draft.auth.keyName} onChange={(e) => setDraft((current) => ({ ...current, auth: { ...current.auth, keyName: e.target.value } }))} className='h-10 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none' placeholder='Header/query name' />
-                        <select value={draft.auth.keyLocation} onChange={(e) => setDraft((current) => ({ ...current, auth: { ...current.auth, keyLocation: e.target.value as 'header' | 'query' | 'cookie' } }))} className='h-10 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none'>
+                        <input value={draft.auth.keyName} onChange={(e) => setDraft((current) => ({ ...current, auth: { ...current.auth, keyName: e.target.value } }))} className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Header/query name' />
+                        <select value={draft.auth.keyLocation} onChange={(e) => setDraft((current) => ({ ...current, auth: { ...current.auth, keyLocation: e.target.value as 'header' | 'query' | 'cookie' } }))} className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none'>
                           <option value='header'>Header</option>
                           <option value='query'>Query</option>
                           <option value='cookie'>Cookie</option>
                         </select>
-                        <input value={draft.auth.keyValue} onChange={(e) => setDraft((current) => ({ ...current, auth: { ...current.auth, keyValue: e.target.value } }))} className='h-10 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none' placeholder='Value' />
+                        <input value={draft.auth.keyValue} onChange={(e) => setDraft((current) => ({ ...current, auth: { ...current.auth, keyValue: e.target.value } }))} className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Value' />
                       </div>
                     )}
                     {draft.auth.type === 'oauth2' && (
                       <div className='space-y-2'>
-                        <input value={draft.auth.oauth2Token} onChange={(e) => setDraft((current) => ({ ...current, auth: { ...current.auth, oauth2Token: e.target.value } }))} className='h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none' placeholder='{{accessToken}} or enter a token' />
-                        <input value={draft.auth.oauth2Scopes} onChange={(e) => setDraft((current) => ({ ...current, auth: { ...current.auth, oauth2Scopes: e.target.value } }))} className='h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none' placeholder='Scopes, space separated' />
+                        <input value={draft.auth.oauth2Token} onChange={(e) => setDraft((current) => ({ ...current, auth: { ...current.auth, oauth2Token: e.target.value } }))} className='h-10 w-full rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='{{accessToken}} or enter a token' />
+                        <input value={draft.auth.oauth2Scopes} onChange={(e) => setDraft((current) => ({ ...current, auth: { ...current.auth, oauth2Scopes: e.target.value } }))} className='h-10 w-full rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Scopes, space separated' />
                         {environmentToken && !draft.auth.oauth2Token && <p className='text-xs text-emerald-200'>Using the active environment token automatically.</p>}
                       </div>
                     )}
@@ -2887,7 +2986,7 @@ export const ApiExecutionPage: React.FC = () => {
                 )}
 
                 {requestTab === 'body' && (
-                  <section className='space-y-4 rounded-2xl border border-white/10 bg-slate-950/40 p-3'>
+                  <section className='space-y-4 rounded-2xl border border-border bg-surface p-3'>
                     <div className='flex flex-wrap gap-2'>
                       {BODY_MODES.map((option) => (
                         <button
@@ -2895,20 +2994,20 @@ export const ApiExecutionPage: React.FC = () => {
                           type='button'
                           onClick={() => setDraft((current) => ({ ...current, bodyMode: option.value }))}
                           className={`rounded-full border px-4 py-2 text-sm transition-colors ${
-                            draft.bodyMode === option.value ? 'border-cyan-400/40 bg-cyan-400/15 text-cyan-100' : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+                            draft.bodyMode === option.value ? 'border-cyan-400/40 bg-primary/15 text-primary' : 'border-border bg-background/40 text-text-secondary hover:bg-background/60'
                           }`}
                         >
                           {option.label}
                         </button>
                       ))}
                     </div>
-                    {draft.bodyMode === 'none' && <p className='rounded-2xl border border-dashed border-white/10 bg-white/5 p-4 text-sm text-slate-400'>No body will be sent.</p>}
+                    {draft.bodyMode === 'none' && <p className='rounded-2xl border border-dashed border-border bg-background/40 p-4 text-sm text-text-secondary'>No body will be sent.</p>}
                     {draft.bodyMode === 'raw' && (
                       <div className='space-y-3'>
-                        <select value={draft.rawBodyType} onChange={(e) => setDraft((current) => ({ ...current, rawBodyType: e.target.value as RawBodyType }))} className='h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none'>
+                        <select value={draft.rawBodyType} onChange={(e) => setDraft((current) => ({ ...current, rawBodyType: e.target.value as RawBodyType }))} className='h-10 w-full rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none'>
                           {RAW_BODY_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                         </select>
-                        <textarea value={draft.rawBody} onChange={(e) => setDraft((current) => ({ ...current, rawBody: e.target.value }))} rows={12} className='w-full rounded-2xl border border-white/10 bg-slate-950/60 p-3 font-mono text-sm text-white outline-none' />
+                        <textarea value={draft.rawBody} onChange={(e) => setDraft((current) => ({ ...current, rawBody: e.target.value }))} rows={12} className='w-full rounded-2xl border border-border bg-background/80 p-3 font-mono text-sm text-text outline-none' />
                       </div>
                     )}
                     {draft.bodyMode === 'form-data' && (
@@ -2916,13 +3015,13 @@ export const ApiExecutionPage: React.FC = () => {
                         {draft.formDataRows.map((row) => (
                           <div key={row.id} className='grid gap-2 md:grid-cols-[72px_1fr_1fr_1fr_auto]'>
                             <input type='checkbox' checked={row.enabled} onChange={(e) => setDraft((current) => ({ ...current, formDataRows: current.formDataRows.map((item) => item.id === row.id ? { ...item, enabled: e.target.checked } : item) }))} className='h-4 w-4 rounded border-white/20 accent-cyan-400' />
-                            <input value={row.key} onChange={(e) => setDraft((current) => ({ ...current, formDataRows: current.formDataRows.map((item) => item.id === row.id ? { ...item, key: e.target.value } : item) }))} className='h-10 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none' placeholder='Key' />
-                            <input value={row.value} onChange={(e) => setDraft((current) => ({ ...current, formDataRows: current.formDataRows.map((item) => item.id === row.id ? { ...item, value: e.target.value } : item) }))} className='h-10 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none' placeholder='Value' />
-                            <input value={row.description} onChange={(e) => setDraft((current) => ({ ...current, formDataRows: current.formDataRows.map((item) => item.id === row.id ? { ...item, description: e.target.value } : item) }))} className='h-10 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none' placeholder='Description' />
-                            <button type='button' className='rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-slate-200' onClick={() => setDraft((current) => ({ ...current, formDataRows: current.formDataRows.filter((item) => item.id !== row.id) }))}>Remove</button>
+                            <input value={row.key} onChange={(e) => setDraft((current) => ({ ...current, formDataRows: current.formDataRows.map((item) => item.id === row.id ? { ...item, key: e.target.value } : item) }))} className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Key' />
+                            <input value={row.value} onChange={(e) => setDraft((current) => ({ ...current, formDataRows: current.formDataRows.map((item) => item.id === row.id ? { ...item, value: e.target.value } : item) }))} className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Value' />
+                            <input value={row.description} onChange={(e) => setDraft((current) => ({ ...current, formDataRows: current.formDataRows.map((item) => item.id === row.id ? { ...item, description: e.target.value } : item) }))} className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Description' />
+                            <button type='button' className='rounded-xl border border-border bg-background/40 px-3 text-sm text-text' onClick={() => setDraft((current) => ({ ...current, formDataRows: current.formDataRows.filter((item) => item.id !== row.id) }))}>Remove</button>
                           </div>
                         ))}
-                        <Button type='button' variant='outline' className='border-white/15 bg-white/5 text-white' onClick={() => setDraft((current) => ({ ...current, formDataRows: [...current.formDataRows, createIdRow()] }))}>
+                        <Button type='button' variant='outline' className='border-border bg-background/40 text-text' onClick={() => setDraft((current) => ({ ...current, formDataRows: [...current.formDataRows, createIdRow()] }))}>
                           <Plus className='mr-2 h-4 w-4' />
                           Add row
                         </Button>
@@ -2933,13 +3032,13 @@ export const ApiExecutionPage: React.FC = () => {
                         {draft.urlEncodedRows.map((row) => (
                           <div key={row.id} className='grid gap-2 md:grid-cols-[72px_1fr_1fr_1fr_auto]'>
                             <input type='checkbox' checked={row.enabled} onChange={(e) => setDraft((current) => ({ ...current, urlEncodedRows: current.urlEncodedRows.map((item) => item.id === row.id ? { ...item, enabled: e.target.checked } : item) }))} className='h-4 w-4 rounded border-white/20 accent-cyan-400' />
-                            <input value={row.key} onChange={(e) => setDraft((current) => ({ ...current, urlEncodedRows: current.urlEncodedRows.map((item) => item.id === row.id ? { ...item, key: e.target.value } : item) }))} className='h-10 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none' placeholder='Key' />
-                            <input value={row.value} onChange={(e) => setDraft((current) => ({ ...current, urlEncodedRows: current.urlEncodedRows.map((item) => item.id === row.id ? { ...item, value: e.target.value } : item) }))} className='h-10 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none' placeholder='Value' />
-                            <input value={row.description} onChange={(e) => setDraft((current) => ({ ...current, urlEncodedRows: current.urlEncodedRows.map((item) => item.id === row.id ? { ...item, description: e.target.value } : item) }))} className='h-10 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none' placeholder='Description' />
-                            <button type='button' className='rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-slate-200' onClick={() => setDraft((current) => ({ ...current, urlEncodedRows: current.urlEncodedRows.filter((item) => item.id !== row.id) }))}>Remove</button>
+                            <input value={row.key} onChange={(e) => setDraft((current) => ({ ...current, urlEncodedRows: current.urlEncodedRows.map((item) => item.id === row.id ? { ...item, key: e.target.value } : item) }))} className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Key' />
+                            <input value={row.value} onChange={(e) => setDraft((current) => ({ ...current, urlEncodedRows: current.urlEncodedRows.map((item) => item.id === row.id ? { ...item, value: e.target.value } : item) }))} className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Value' />
+                            <input value={row.description} onChange={(e) => setDraft((current) => ({ ...current, urlEncodedRows: current.urlEncodedRows.map((item) => item.id === row.id ? { ...item, description: e.target.value } : item) }))} className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Description' />
+                            <button type='button' className='rounded-xl border border-border bg-background/40 px-3 text-sm text-text' onClick={() => setDraft((current) => ({ ...current, urlEncodedRows: current.urlEncodedRows.filter((item) => item.id !== row.id) }))}>Remove</button>
                           </div>
                         ))}
-                        <Button type='button' variant='outline' className='border-white/15 bg-white/5 text-white' onClick={() => setDraft((current) => ({ ...current, urlEncodedRows: [...current.urlEncodedRows, createIdRow()] }))}>
+                        <Button type='button' variant='outline' className='border-border bg-background/40 text-text' onClick={() => setDraft((current) => ({ ...current, urlEncodedRows: [...current.urlEncodedRows, createIdRow()] }))}>
                           <Plus className='mr-2 h-4 w-4' />
                           Add row
                         </Button>
@@ -2947,71 +3046,71 @@ export const ApiExecutionPage: React.FC = () => {
                     )}
                     {draft.bodyMode === 'binary' && (
                       <div className='space-y-3'>
-                        <input ref={binaryFileInputRef} type='file' className='block w-full rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-slate-200 file:mr-4 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white' onChange={(event) => setDraft((current) => ({ ...current, binaryFile: event.target.files?.[0] ?? null }))} />
-                        <div className='rounded-2xl border border-dashed border-white/10 bg-white/5 p-4 text-sm text-slate-400'>
+                        <input ref={binaryFileInputRef} type='file' className='block w-full rounded-2xl border border-border bg-background/80 px-3 py-2 text-sm text-text file:mr-4 file:rounded-lg file:border-0 file:bg-background/60 file:px-3 file:py-2 file:text-sm file:font-medium file:text-text' onChange={(event) => setDraft((current) => ({ ...current, binaryFile: event.target.files?.[0] ?? null }))} />
+                        <div className='rounded-2xl border border-dashed border-border bg-background/40 p-4 text-sm text-text-secondary'>
                           {draft.binaryFile ? `Selected file: ${draft.binaryFile.name}` : 'Choose a file to upload as the request body.'}
                         </div>
                       </div>
                     )}
                     {draft.bodyMode === 'graphql' && (
                       <div className='space-y-3'>
-                        <textarea value={draft.graphqlQuery} onChange={(e) => setDraft((current) => ({ ...current, graphqlQuery: e.target.value }))} rows={8} className='w-full rounded-2xl border border-white/10 bg-slate-950/60 p-3 font-mono text-sm text-white outline-none' placeholder='query Example { __typename }' />
-                        <textarea value={draft.graphqlVariables} onChange={(e) => setDraft((current) => ({ ...current, graphqlVariables: e.target.value }))} rows={8} className='w-full rounded-2xl border border-white/10 bg-slate-950/60 p-3 font-mono text-sm text-white outline-none' placeholder='{"id":123}' />
+                        <textarea value={draft.graphqlQuery} onChange={(e) => setDraft((current) => ({ ...current, graphqlQuery: e.target.value }))} rows={8} className='w-full rounded-2xl border border-border bg-background/80 p-3 font-mono text-sm text-text outline-none' placeholder='query Example { __typename }' />
+                        <textarea value={draft.graphqlVariables} onChange={(e) => setDraft((current) => ({ ...current, graphqlVariables: e.target.value }))} rows={8} className='w-full rounded-2xl border border-border bg-background/80 p-3 font-mono text-sm text-text outline-none' placeholder='{"id":123}' />
                       </div>
                     )}
                   </section>
                 )}
 
                 {requestTab === 'scripts' && (
-                  <section className='space-y-4 rounded-2xl border border-white/10 bg-slate-950/40 p-3'>
+                  <section className='space-y-4 rounded-2xl border border-border bg-surface p-3'>
                     <label className='block'>
-                      <span className='mb-1.5 block text-sm font-medium text-white'>Pre-request script</span>
-                      <textarea value={draft.preRequestScript} onChange={(e) => setDraft((current) => ({ ...current, preRequestScript: e.target.value }))} rows={10} className='w-full rounded-2xl border border-white/10 bg-slate-950/60 p-3 font-mono text-sm text-white outline-none' placeholder='helpers.setHeader("X-Test", "1")' />
+                      <span className='mb-1.5 block text-sm font-medium text-text'>Pre-request script</span>
+                      <textarea value={draft.preRequestScript} onChange={(e) => setDraft((current) => ({ ...current, preRequestScript: e.target.value }))} rows={10} className='w-full rounded-2xl border border-border bg-background/80 p-3 font-mono text-sm text-text outline-none' placeholder='helpers.setHeader("X-Test", "1")' />
                     </label>
-                    <div className='rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-slate-300'>
-                      <div className='mb-2 font-medium text-white'>Script output</div>
+                    <div className='rounded-2xl border border-border bg-background/40 p-3 text-sm text-text-secondary'>
+                      <div className='mb-2 font-medium text-text'>Script output</div>
                       {lastScriptOutput.length > 0 ? lastScriptOutput.map((line, index) => <div key={index}>{line}</div>) : <p>No output yet.</p>}
                     </div>
                   </section>
                 )}
 
                 {requestTab === 'tests' && (
-                  <section className='space-y-4 rounded-2xl border border-white/10 bg-slate-950/40 p-3'>
+                  <section className='space-y-4 rounded-2xl border border-border bg-surface p-3'>
                     <label className='block'>
-                      <span className='mb-1.5 block text-sm font-medium text-white'>Tests</span>
-                      <textarea value={draft.testScript} onChange={(e) => setDraft((current) => ({ ...current, testScript: e.target.value }))} rows={10} className='w-full rounded-2xl border border-white/10 bg-slate-950/60 p-3 font-mono text-sm text-white outline-none' placeholder='test("status is 200", () => assert(response.status === 200, "status is 200"))' />
+                      <span className='mb-1.5 block text-sm font-medium text-text'>Tests</span>
+                      <textarea value={draft.testScript} onChange={(e) => setDraft((current) => ({ ...current, testScript: e.target.value }))} rows={10} className='w-full rounded-2xl border border-border bg-background/80 p-3 font-mono text-sm text-text outline-none' placeholder='test("status is 200", () => assert(response.status === 200, "status is 200"))' />
                     </label>
                     <div className='space-y-2'>
                       {response.tests.length > 0 ? response.tests.map((test, index) => (
-                        <div key={index} className={`rounded-xl border px-3 py-2 text-sm ${test.passed ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-100' : 'border-rose-400/20 bg-rose-400/10 text-rose-100'}`}>
+                        <div key={index} className={`rounded-xl border px-3 py-2 text-sm ${test.passed ? 'border-emerald-400/20 bg-success/10 text-success' : 'border-error/20 bg-error/10 text-error'}`}>
                           {test.name} · {test.message || (test.passed ? 'Passed' : 'Failed')}
                         </div>
-                      )) : <p className='text-sm text-slate-400'>Run the request to see test results here.</p>}
+                      )) : <p className='text-sm text-text-secondary'>Run the request to see test results here.</p>}
                     </div>
                   </section>
                 )}
 
                 {requestTab === 'settings' && (
-                  <section className='space-y-4 rounded-2xl border border-white/10 bg-slate-950/40 p-3'>
+                  <section className='space-y-4 rounded-2xl border border-border bg-surface p-3'>
                     <div className='rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-3'>
                       <div className='mb-1 flex items-center justify-between gap-3'>
                         <div>
-                          <div className='text-sm font-medium text-white'>Runtime test data</div>
-                          <p className='mt-1 text-xs text-slate-400'>Generate fresh values for this endpoint on every request.</p>
+                          <div className='text-sm font-medium text-text'>Runtime test data</div>
+                          <p className='mt-1 text-xs text-text-secondary'>Generate fresh values for this endpoint on every request.</p>
                         </div>
-                        <Badge variant='outline' className='border-cyan-400/30 bg-cyan-400/10 text-cyan-100'>Per endpoint</Badge>
+                        <Badge variant='outline' className='border-cyan-400/30 bg-cyan-400/10 text-primary'>Per endpoint</Badge>
                       </div>
                       {runtimeMappings.length > 0 ? (
                         <div className='mt-3 space-y-2'>
                           {runtimeMappings.map((mapping) => (
                             <div key={mapping.field} className='grid gap-2 md:grid-cols-[1fr_180px_1fr]'>
-                              <div className='flex items-center rounded-xl border border-white/10 bg-slate-950/50 px-3 text-sm text-white'>
+                              <div className='flex items-center rounded-xl border border-border bg-surface px-3 text-sm text-text'>
                                 {mapping.field}
                               </div>
                               <select
                                 value={mapping.strategy}
                                 onChange={(event) => updateRuntimeMapping(mapping.field, { strategy: event.target.value as RuntimeDataStrategy })}
-                                className='h-10 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm text-white outline-none'
+                                className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none'
                               >
                                 {runtimeStrategyOptions(mapping.field, draft).map((option) => (
                                   <option key={option.value} value={option.value}>{option.label}</option>
@@ -3022,7 +3121,7 @@ export const ApiExecutionPage: React.FC = () => {
                                   <select
                                     value={mapping.datasetId || ''}
                                     onChange={(event) => updateRuntimeMapping(mapping.field, { datasetId: event.target.value })}
-                                    className='h-10 min-w-0 rounded-xl border border-white/10 bg-slate-950/70 px-2 text-xs text-white outline-none'
+                                    className='h-10 min-w-0 rounded-xl border border-border bg-background/80 px-2 text-xs text-text outline-none'
                                   >
                                     <option value=''>Choose dataset</option>
                                     {testDataDatasets.map((dataset) => <option key={dataset.id} value={dataset.id}>{dataset.name}</option>)}
@@ -3031,7 +3130,7 @@ export const ApiExecutionPage: React.FC = () => {
                                     value={mapping.column || ''}
                                     onChange={(event) => updateRuntimeMapping(mapping.field, { column: event.target.value })}
                                     placeholder='Column, e.g. email'
-                                    className='h-10 min-w-0 rounded-xl border border-white/10 bg-slate-950/70 px-2 text-xs text-white outline-none placeholder:text-slate-500'
+                                    className='h-10 min-w-0 rounded-xl border border-border bg-background/80 px-2 text-xs text-text outline-none placeholder:text-text-secondary'
                                   />
                                 </div>
                               ) : (mapping.strategy === 'environment' || mapping.strategy === 'response') ? (
@@ -3039,10 +3138,10 @@ export const ApiExecutionPage: React.FC = () => {
                                   value={mapping.source || ''}
                                   onChange={(event) => updateRuntimeMapping(mapping.field, { source: event.target.value })}
                                   placeholder={mapping.strategy === 'response' ? 'Response field, e.g. id' : 'Environment key'}
-                                  className='h-10 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm text-white outline-none placeholder:text-slate-500'
+                                  className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none placeholder:text-text-secondary'
                                 />
                               ) : (
-                                <div className='flex items-center px-2 text-xs text-slate-400'>
+                                <div className='flex items-center px-2 text-xs text-text-secondary'>
                                   {mapping.strategy === 'none' ? 'Keeps the configured value' : 'Created at send time'}
                                 </div>
                               )}
@@ -3050,9 +3149,9 @@ export const ApiExecutionPage: React.FC = () => {
                           ))}
                         </div>
                       ) : (
-                        <p className='mt-3 rounded-xl border border-dashed border-white/10 p-3 text-sm text-slate-400'>No dynamic fields detected in this request. Add a field such as `email` or `username` to configure runtime data.</p>
+                        <p className='mt-3 rounded-xl border border-dashed border-border p-3 text-sm text-text-secondary'>No dynamic fields detected in this request. Add a field such as `email` or `username` to configure runtime data.</p>
                       )}
-                      <p className='mt-3 text-xs text-slate-500'>Generated values are injected only for execution. Successful response mappings are stored in the active environment for later requests.</p>
+                      <p className='mt-3 text-xs text-text-secondary'>Generated values are injected only for execution. Successful response mappings are stored in the active environment for later requests.</p>
                     </div>
                   </section>
                 )}
@@ -3060,22 +3159,22 @@ export const ApiExecutionPage: React.FC = () => {
             </Card>
 
             <div className='space-y-4'>
-              <Card ref={responsePanelRef} className='border-white/10 bg-white/5 text-white shadow-2xl backdrop-blur-xl'>
+              <Card ref={responsePanelRef} className='border-border bg-background/40 text-text shadow-2xl backdrop-blur-xl'>
                 <CardHeader className='pb-3'>
                   <div className='flex items-center justify-between gap-3'>
                     <div>
-                      <CardTitle className='text-base text-white'>Response</CardTitle>
+                      <CardTitle className='text-base text-text'>Response</CardTitle>
                     </div>
                     <div className='flex items-center gap-2'>
                       {RESPONSE_TABS.map((tab) => (
-                        <button key={tab.value} type='button' onClick={() => setResponseTab(tab.value)} className={`rounded-xl px-3 py-2 text-xs transition-colors ${responseTab === tab.value ? 'bg-cyan-400/15 text-cyan-100' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
+                        <button key={tab.value} type='button' onClick={() => setResponseTab(tab.value)} className={`rounded-xl px-3 py-2 text-xs transition-colors ${responseTab === tab.value ? 'bg-primary/15 text-primary' : 'text-text-secondary hover:bg-background/40 hover:text-text'}`}>
                           {tab.label}
                         </button>
                       ))}
-                      <Button type='button' variant='outline' size='sm' className='border-white/15 bg-white/5 text-white' onClick={() => void copyResponse()} disabled={!response.body} title='Copy response'>
+                      <Button type='button' variant='outline' size='sm' className='border-border bg-background/40 text-text' onClick={() => void copyResponse()} disabled={!response.body} title='Copy response'>
                         <Copy className='h-4 w-4' />
                       </Button>
-                      <Button type='button' variant='outline' size='sm' className='border-red-400/30 bg-red-400/10 text-red-100 hover:bg-red-400/20' onClick={clearCurrentResponse} disabled={!response.body} title='Clear response'>
+                      <Button type='button' variant='outline' size='sm' className='border-error/30 bg-error/10 text-error hover:bg-error/20 disabled:border-border disabled:bg-background/40 disabled:text-text-secondary disabled:opacity-100' onClick={clearCurrentResponse} disabled={!response.body} title='Clear response'>
                         <Trash2 className='h-4 w-4' />
                       </Button>
                     </div>
@@ -3089,107 +3188,107 @@ export const ApiExecutionPage: React.FC = () => {
                           <Badge variant={response.status && response.status < 400 ? 'success' : response.status ? 'destructive' : 'outline'} className='px-3 py-1'>
                             {response.status ? `${response.status} ${response.statusText}` : 'No response yet'}
                           </Badge>
-                          <Badge variant='outline' className='border-white/10 bg-white/5 text-slate-100'>{response.durationMs ?? 0} ms</Badge>
-                          <Badge variant='outline' className='border-white/10 bg-white/5 text-slate-100'>{response.sizeBytes !== null ? toReadableSize(response.sizeBytes) : '0 B'}</Badge>
+                          <Badge variant='outline' className='border-border bg-background/40 text-text'>{response.durationMs ?? 0} ms</Badge>
+                          <Badge variant='outline' className='border-border bg-background/40 text-text'>{response.sizeBytes !== null ? toReadableSize(response.sizeBytes) : '0 B'}</Badge>
                         </div>
                         <div className='flex items-center gap-2'>
                           {RESPONSE_VIEW_MODES.map((mode) => (
-                            <button key={mode.value} type='button' onClick={() => setResponseBodyView(mode.value)} className={`rounded-xl px-3 py-2 text-xs transition-colors ${responseBodyView === mode.value ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
+                            <button key={mode.value} type='button' onClick={() => setResponseBodyView(mode.value)} className={`rounded-xl px-3 py-2 text-xs transition-colors ${responseBodyView === mode.value ? 'bg-background/60 text-text' : 'text-text-secondary hover:bg-background/40 hover:text-text'}`}>
                               {mode.label}
                             </button>
                           ))}
                         </div>
                       </div>
-                      <div className='rounded-2xl border border-white/10 bg-slate-950/50 p-3'>
+                      <div className='rounded-2xl border border-border bg-surface p-3'>
                         {responseBodyView === 'preview' ? (
                           <JsonViewer data={response.isJson ? parseJsonSafely(response.body) ?? response.body : response.body} className='border-0 bg-transparent' />
                         ) : responseBodyDisplay ? (
-                          <pre className='max-h-[420px] overflow-auto whitespace-pre-wrap rounded-xl bg-black/20 p-3 text-xs text-slate-100'>
+                          <pre className='max-h-[420px] overflow-auto whitespace-pre-wrap rounded-xl border border-border/60 bg-background/70 p-3 text-xs text-text'>
                             {responseBodyView === 'pretty' && response.isJson ? response.body : responseBodyDisplay}
                           </pre>
                         ) : (
-                          <div className='rounded-xl border border-dashed border-white/10 bg-white/5 p-4 text-sm text-slate-400'>Send a request to see the response here.</div>
+                          <div className='rounded-xl border border-dashed border-border bg-background/40 p-4 text-sm text-text-secondary'>Send a request to see the response here.</div>
                         )}
                       </div>
                     </>
                   )}
 
                   {responseTab === 'headers' && (
-                    <div className='rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-sm text-slate-200'>
+                    <div className='rounded-2xl border border-border bg-surface p-3 text-sm text-text'>
                       {response.headers.length > 0 ? response.headers.map(([name, value]) => (
-                        <div key={`${name}:${value}`} className='break-words border-b border-white/5 py-1 last:border-0'><span className='font-medium text-white'>{name}</span>: {value}</div>
-                      )) : <p className='text-slate-400'>No response headers available yet.</p>}
+                        <div key={`${name}:${value}`} className='break-words border-b border-border/40 py-1 last:border-0'><span className='font-medium text-text'>{name}</span>: {value}</div>
+                      )) : <p className='text-text-secondary'>No response headers available yet.</p>}
                     </div>
                   )}
 
                   {responseTab === 'cookies' && (
                     <div className='space-y-2'>
                       {response.cookies.length > 0 ? response.cookies.map((cookie, index) => (
-                        <div key={index} className='rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-xs text-slate-200'>{cookie}</div>
-                      )) : <div className='rounded-2xl border border-dashed border-white/10 bg-white/5 p-4 text-sm text-slate-400'>No cookies detected in the current response.</div>}
+                        <div key={index} className='rounded-2xl border border-border bg-surface p-3 text-xs text-text'>{cookie}</div>
+                      )) : <div className='rounded-2xl border border-dashed border-border bg-background/40 p-4 text-sm text-text-secondary'>No cookies detected in the current response.</div>}
                     </div>
                   )}
 
                   {responseTab === 'timeline' && (
                     <div className='grid gap-3 md:grid-cols-2'>
-                      <div className='rounded-2xl border border-white/10 bg-slate-950/50 p-3'>
-                        <div className='text-xs uppercase tracking-[0.2em] text-slate-400'>Request</div>
-                        <div className='mt-2 text-sm text-white'>{response.requestMethod || draft.method}</div>
-                        <div className='mt-1 break-all text-xs text-slate-300'>{response.requestUrl || draft.url}</div>
+                      <div className='rounded-2xl border border-border bg-surface p-3'>
+                        <div className='text-xs uppercase tracking-[0.2em] text-text-secondary'>Request</div>
+                        <div className='mt-2 text-sm text-text'>{response.requestMethod || draft.method}</div>
+                        <div className='mt-1 break-all text-xs text-text-secondary'>{response.requestUrl || draft.url}</div>
                       </div>
-                      <div className='rounded-2xl border border-white/10 bg-slate-950/50 p-3'>
-                        <div className='text-xs uppercase tracking-[0.2em] text-slate-400'>Timing</div>
-                        <div className='mt-2 text-sm text-white'>{response.durationMs ?? 0} ms</div>
-                        <div className='mt-1 text-xs text-slate-300'>{response.startedAt ? new Date(response.startedAt).toLocaleString() : 'Not sent yet'}</div>
+                      <div className='rounded-2xl border border-border bg-surface p-3'>
+                        <div className='text-xs uppercase tracking-[0.2em] text-text-secondary'>Timing</div>
+                        <div className='mt-2 text-sm text-text'>{response.durationMs ?? 0} ms</div>
+                        <div className='mt-1 text-xs text-text-secondary'>{response.startedAt ? new Date(response.startedAt).toLocaleString() : 'Not sent yet'}</div>
                       </div>
                     </div>
                   )}
                 </CardContent>
               </Card>
 
-              {false && <Card className='border-white/10 bg-white/5 text-white shadow-2xl backdrop-blur-xl'>
+              {false && <Card className='border-border bg-background/40 text-text shadow-2xl backdrop-blur-xl'>
                 <CardHeader className='pb-3'>
-                  <CardTitle className='text-base text-white'>Quick Action</CardTitle>
-                  <CardDescription className='text-slate-300'>Everything here is actionable and stateful.</CardDescription>
+                  <CardTitle className='text-base text-text'>Quick Action</CardTitle>
+                  <CardDescription className='text-text-secondary'>Everything here is actionable and stateful.</CardDescription>
                 </CardHeader>
-                <CardContent className='space-y-3 text-sm text-slate-300'>
-                  <button type='button' className='flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-left transition-colors hover:bg-white/10' onClick={saveCurrentRequest}>
+                <CardContent className='space-y-3 text-sm text-text-secondary'>
+                  <button type='button' className='flex w-full items-center justify-between rounded-2xl border border-border bg-background/40 px-3 py-3 text-left transition-colors hover:bg-background/60' onClick={saveCurrentRequest}>
                     <div>
-                      <div className='font-medium text-white'>Save current request</div>
-                      <div className='text-xs text-slate-400'>Create or update a saved request.</div>
+                      <div className='font-medium text-text'>Save current request</div>
+                      <div className='text-xs text-text-secondary'>Create or update a saved request.</div>
                     </div>
-                    <ArrowRight className='h-4 w-4 text-slate-400' />
+                    <ArrowRight className='h-4 w-4 text-text-secondary' />
                   </button>
-                  <button type='button' className='flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-left transition-colors hover:bg-white/10' onClick={createNewRequest}>
+                  <button type='button' className='flex w-full items-center justify-between rounded-2xl border border-border bg-background/40 px-3 py-3 text-left transition-colors hover:bg-background/60' onClick={createNewRequest}>
                     <div>
-                      <div className='font-medium text-white'>Create manual request</div>
-                      <div className='text-xs text-slate-400'>Start a new editable request.</div>
+                      <div className='font-medium text-text'>Create manual request</div>
+                      <div className='text-xs text-text-secondary'>Start a new editable request.</div>
                     </div>
-                    <Plus className='h-4 w-4 text-slate-400' />
+                    <Plus className='h-4 w-4 text-text-secondary' />
                   </button>
-                  <button type='button' className='flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-left transition-colors hover:bg-white/10' onClick={() => fileInputRef.current?.click()}>
+                  <button type='button' className='flex w-full items-center justify-between rounded-2xl border border-border bg-background/40 px-3 py-3 text-left transition-colors hover:bg-background/60' onClick={() => fileInputRef.current?.click()}>
                     <div>
-                      <div className='font-medium text-white'>Import API definition</div>
-                      <div className='text-xs text-slate-400'>OpenAPI, Swagger, Postman, Environment.</div>
+                      <div className='font-medium text-text'>Import API definition</div>
+                      <div className='text-xs text-text-secondary'>OpenAPI, Swagger, Postman, Environment.</div>
                     </div>
-                    <UploadCloud className='h-4 w-4 text-slate-400' />
+                    <UploadCloud className='h-4 w-4 text-text-secondary' />
                   </button>
-                  <div className='rounded-2xl border border-white/10 bg-slate-950/50 p-3'>
-                    <div className='text-xs uppercase tracking-[0.2em] text-slate-400'>Current request</div>
-                    <div className='mt-2 text-sm font-medium text-white'>{currentRequestInfo[1]}</div>
-                    <div className='mt-1 text-xs text-slate-300'>{currentRequestInfo[0]}</div>
-                    <div className='mt-1 break-all text-[11px] text-slate-400'>{currentRequestInfo[2]}</div>
+                  <div className='rounded-2xl border border-border bg-surface p-3'>
+                    <div className='text-xs uppercase tracking-[0.2em] text-text-secondary'>Current request</div>
+                    <div className='mt-2 text-sm font-medium text-text'>{currentRequestInfo[1]}</div>
+                    <div className='mt-1 text-xs text-text-secondary'>{currentRequestInfo[0]}</div>
+                    <div className='mt-1 break-all text-[11px] text-text-secondary'>{currentRequestInfo[2]}</div>
                   </div>
                 </CardContent>
               </Card>}
             </div>
 
-            <Card className='border-white/10 bg-white/5 text-white shadow-2xl backdrop-blur-xl'>
+            <Card className='border-border bg-background/40 text-text shadow-2xl backdrop-blur-xl'>
               <CardHeader className='pb-3'>
                 <div className='flex flex-wrap items-center justify-between gap-3'>
                   <div>
-                    <CardTitle className='text-base text-white'>Context & Utilities</CardTitle>
-                    <CardDescription className='text-slate-300'>Quick access to related request assets.</CardDescription>
+                    <CardTitle className='text-base text-text'>Context & Utilities</CardTitle>
+                    <CardDescription className='text-text-secondary'>Quick access to related request assets.</CardDescription>
                   </div>
                   <div className='flex flex-wrap gap-2'>
                     {BOTTOM_TABS.map((tab) => {
@@ -3200,7 +3299,7 @@ export const ApiExecutionPage: React.FC = () => {
                           key={tab.value}
                           type='button'
                           onClick={() => setBottomTab(tab.value)}
-                          className={`rounded-xl px-3 py-2 text-xs transition-colors ${active ? 'bg-cyan-400/15 text-cyan-100' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}
+                          className={`rounded-xl px-3 py-2 text-xs transition-colors ${active ? 'bg-primary/15 text-primary' : 'text-text-secondary hover:bg-background/40 hover:text-text'}`}
                         >
                           <Icon className='mr-2 inline h-3.5 w-3.5' />
                           {tab.label}
@@ -3213,21 +3312,21 @@ export const ApiExecutionPage: React.FC = () => {
               <CardContent>
                 {bottomTab === 'related' && (
                   <div className='grid gap-4 lg:grid-cols-3'>
-                    <div className='rounded-2xl border border-white/10 bg-slate-950/50 p-3'>
-                      <div className='text-sm font-medium text-white'>Selected endpoint</div>
-                      <div className='mt-1 text-xs text-slate-300'>{selectedApiEndpoint?.name || draft.name}</div>
-                      <div className='mt-2 text-xs text-slate-400'>{selectedCollectionMeta?.name || 'Manual request'}</div>
+                    <div className='rounded-2xl border border-border bg-surface p-3'>
+                      <div className='text-sm font-medium text-text'>Selected endpoint</div>
+                      <div className='mt-1 text-xs text-text-secondary'>{selectedApiEndpoint?.name || draft.name}</div>
+                      <div className='mt-2 text-xs text-text-secondary'>{selectedCollectionMeta?.name || 'Manual request'}</div>
                     </div>
-                    <div className='rounded-2xl border border-white/10 bg-slate-950/50 p-3'>
-                      <div className='text-sm font-medium text-white'>Environment</div>
-                      <div className='mt-1 text-xs text-slate-300'>{activeEnvironment?.name || 'None selected'}</div>
-                      <div className='mt-2 text-xs text-slate-400'>{activeEnvironment ? `${Object.keys(activeEnvironment.variables).length} variables` : 'Import an environment file to enable variable resolution.'}</div>
+                    <div className='rounded-2xl border border-border bg-surface p-3'>
+                      <div className='text-sm font-medium text-text'>Environment</div>
+                      <div className='mt-1 text-xs text-text-secondary'>{activeEnvironment?.name || 'None selected'}</div>
+                      <div className='mt-2 text-xs text-text-secondary'>{activeEnvironment ? `${Object.keys(activeEnvironment.variables).length} variables` : 'Import an environment file to enable variable resolution.'}</div>
                     </div>
-                    <div className='rounded-2xl border border-white/10 bg-slate-950/50 p-3'>
-                      <div className='text-sm font-medium text-white'>Utility actions</div>
+                    <div className='rounded-2xl border border-border bg-surface p-3'>
+                      <div className='text-sm font-medium text-text'>Utility actions</div>
                       <div className='mt-2 flex flex-wrap gap-2'>
-                        <Button type='button' variant='outline' className='border-white/15 bg-white/5 text-white' size='sm' onClick={clearImports}><RotateCcw className='mr-2 h-4 w-4' />Clear imports</Button>
-                        <Button type='button' variant='outline' className='border-white/15 bg-white/5 text-white' size='sm' onClick={saveCurrentRequest}><Save className='mr-2 h-4 w-4' />Save</Button>
+                        <Button type='button' variant='outline' className='border-border bg-background/40 text-text' size='sm' onClick={clearImports}><RotateCcw className='mr-2 h-4 w-4' />Clear imports</Button>
+                        <Button type='button' variant='outline' className='border-border bg-background/40 text-text' size='sm' onClick={saveCurrentRequest}><Save className='mr-2 h-4 w-4' />Save</Button>
                       </div>
                     </div>
                   </div>
@@ -3235,48 +3334,48 @@ export const ApiExecutionPage: React.FC = () => {
 
                 {bottomTab === 'tests' && (
                   <div className='grid gap-4 lg:grid-cols-2'>
-                    <div className='rounded-2xl border border-white/10 bg-slate-950/50 p-3'>
-                      <div className='text-sm font-medium text-white'>Last test results</div>
+                    <div className='rounded-2xl border border-border bg-surface p-3'>
+                      <div className='text-sm font-medium text-text'>Last test results</div>
                       <div className='mt-3 space-y-2'>
                         {response.tests.length > 0 ? response.tests.map((test, index) => (
-                          <div key={index} className={`rounded-xl border px-3 py-2 text-sm ${test.passed ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-100' : 'border-rose-400/20 bg-rose-400/10 text-rose-100'}`}>
+                          <div key={index} className={`rounded-xl border px-3 py-2 text-sm ${test.passed ? 'border-emerald-400/20 bg-success/10 text-success' : 'border-error/20 bg-error/10 text-error'}`}>
                             {test.name} · {test.message || (test.passed ? 'Passed' : 'Failed')}
                           </div>
-                        )) : <p className='text-sm text-slate-400'>No tests run yet.</p>}
+                        )) : <p className='text-sm text-text-secondary'>No tests run yet.</p>}
                       </div>
                     </div>
-                    <div className='rounded-2xl border border-white/10 bg-slate-950/50 p-3'>
-                      <div className='text-sm font-medium text-white'>Test script</div>
-                      <pre className='mt-3 max-h-64 overflow-auto rounded-xl bg-black/20 p-3 text-xs text-slate-100 whitespace-pre-wrap'>{draft.testScript || 'Add a test script in the Tests tab to validate responses.'}</pre>
+                    <div className='rounded-2xl border border-border bg-surface p-3'>
+                      <div className='text-sm font-medium text-text'>Test script</div>
+                      <pre className='mt-3 max-h-64 overflow-auto rounded-xl border border-border/60 bg-background/70 p-3 text-xs text-text whitespace-pre-wrap'>{draft.testScript || 'Add a test script in the Tests tab to validate responses.'}</pre>
                     </div>
                   </div>
                 )}
 
                 {bottomTab === 'environments' && (
                   <div className='grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]'>
-                    <div className='rounded-2xl border border-white/10 bg-slate-950/50 p-3'>
-                      <div className='text-sm font-medium text-white'>Select environment</div>
+                    <div className='rounded-2xl border border-border bg-surface p-3'>
+                      <div className='text-sm font-medium text-text'>Select environment</div>
                       <div className='mt-3 space-y-2'>
                         {environments.length > 0 ? environments.map((env) => (
                           <button
                             key={env.id}
                             type='button'
                             onClick={() => setActiveEnvironmentId(env.id)}
-                            className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition-colors ${activeEnvironmentId === env.id ? 'bg-violet-400/15 text-violet-100' : 'hover:bg-white/5 text-slate-200'}`}
+                            className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition-colors ${activeEnvironmentId === env.id ? 'bg-primary/15 text-primary' : 'hover:bg-background/40 text-text'}`}
                           >
                             <span className='truncate'>{env.name}</span>
-                            <Badge variant='outline' className='border-white/10 bg-white/5 text-slate-100'>{Object.keys(env.variables).length}</Badge>
+                            <Badge variant='outline' className='border-border bg-background/40 text-text'>{Object.keys(env.variables).length}</Badge>
                           </button>
-                        )) : <p className='text-sm text-slate-400'>Import env files to see them here.</p>}
+                        )) : <p className='text-sm text-text-secondary'>Import env files to see them here.</p>}
                       </div>
                     </div>
-                    <div className='rounded-2xl border border-white/10 bg-slate-950/50 p-3'>
-                      <div className='text-sm font-medium text-white'>Variables</div>
+                    <div className='rounded-2xl border border-border bg-surface p-3'>
+                      <div className='text-sm font-medium text-text'>Variables</div>
                       <div className='mt-3'>
                         {activeEnvironment ? (
                           <JsonViewer data={activeEnvironment.variables} className='border-0 bg-transparent' />
                         ) : (
-                          <p className='text-sm text-slate-400'>No active environment selected.</p>
+                          <p className='text-sm text-text-secondary'>No active environment selected.</p>
                         )}
                       </div>
                     </div>
@@ -3285,20 +3384,20 @@ export const ApiExecutionPage: React.FC = () => {
 
                 {bottomTab === 'mock' && (
                   <div className='grid gap-4 lg:grid-cols-2'>
-                    <div className='rounded-2xl border border-white/10 bg-slate-950/50 p-3'>
-                      <div className='text-sm font-medium text-white'>Mock servers</div>
-                      <div className='mt-3 space-y-2 text-sm text-slate-300'>
+                    <div className='rounded-2xl border border-border bg-surface p-3'>
+                      <div className='text-sm font-medium text-text'>Mock servers</div>
+                      <div className='mt-3 space-y-2 text-sm text-text-secondary'>
                         {apiCollections.length > 0 ? apiCollections.slice(0, 5).map((collection) => (
-                          <div key={collection.id} className='rounded-xl border border-white/10 bg-white/5 p-3'>
-                            <div className='font-medium text-white'>{collection.name}</div>
-                            <div className='mt-1 text-xs text-slate-400'>{collection.endpoints.length} endpoints</div>
+                          <div key={collection.id} className='rounded-xl border border-border bg-background/40 p-3'>
+                            <div className='font-medium text-text'>{collection.name}</div>
+                            <div className='mt-1 text-xs text-text-secondary'>{collection.endpoints.length} endpoints</div>
                           </div>
                         )) : <p>No imported API definitions yet.</p>}
                       </div>
                     </div>
-                    <div className='rounded-2xl border border-white/10 bg-slate-950/50 p-3'>
-                      <div className='text-sm font-medium text-white'>OpenAPI / Postman source</div>
-                      <pre className='mt-3 max-h-64 overflow-auto rounded-xl bg-black/20 p-3 text-xs text-slate-100 whitespace-pre-wrap'>
+                    <div className='rounded-2xl border border-border bg-surface p-3'>
+                      <div className='text-sm font-medium text-text'>OpenAPI / Postman source</div>
+                      <pre className='mt-3 max-h-64 overflow-auto rounded-xl border border-border/60 bg-background/70 p-3 text-xs text-text whitespace-pre-wrap'>
                         {selectedApiEndpoint ? stringifyJson(selectedApiEndpoint.raw) : 'Select an imported API endpoint to inspect its raw source.'}
                       </pre>
                     </div>
@@ -3307,24 +3406,24 @@ export const ApiExecutionPage: React.FC = () => {
 
                 {bottomTab === 'documentation' && (
                   <div className='grid gap-4 lg:grid-cols-2'>
-                    <div className='rounded-2xl border border-white/10 bg-slate-950/50 p-3'>
-                      <div className='text-sm font-medium text-white'>Imported documents</div>
+                    <div className='rounded-2xl border border-border bg-surface p-3'>
+                      <div className='text-sm font-medium text-text'>Imported documents</div>
                       <div className='mt-3 space-y-2'>
                         {importedArtifacts.map((artifact) => (
-                          <div key={artifact.id} className='rounded-xl border border-white/10 bg-white/5 p-3'>
+                          <div key={artifact.id} className='rounded-xl border border-border bg-background/40 p-3'>
                             <div className='flex items-center gap-2'>
-                              <Badge variant='outline' className='border-white/10 bg-white/5 text-slate-100'>{artifact.kind.toUpperCase()}</Badge>
-                              <div className='font-medium text-white'>{artifact.name}</div>
+                              <Badge variant='outline' className='border-border bg-background/40 text-text'>{artifact.kind.toUpperCase()}</Badge>
+                              <div className='font-medium text-text'>{artifact.name}</div>
                             </div>
-                            <div className='mt-1 text-xs text-slate-400'>{artifact.summary}</div>
+                            <div className='mt-1 text-xs text-text-secondary'>{artifact.summary}</div>
                           </div>
                         ))}
                       </div>
                     </div>
-                    <div className='rounded-2xl border border-white/10 bg-slate-950/50 p-3'>
-                      <div className='text-sm font-medium text-white'>Reference viewer</div>
+                    <div className='rounded-2xl border border-border bg-surface p-3'>
+                      <div className='text-sm font-medium text-text'>Reference viewer</div>
                       <div className='mt-3'>
-                        {selectedApiEndpoint?.raw ? <JsonViewer data={selectedApiEndpoint.raw} className='border-0 bg-transparent' /> : <p className='text-sm text-slate-400'>Select an endpoint to inspect its documentation metadata.</p>}
+                        {selectedApiEndpoint?.raw ? <JsonViewer data={selectedApiEndpoint.raw} className='border-0 bg-transparent' /> : <p className='text-sm text-text-secondary'>Select an endpoint to inspect its documentation metadata.</p>}
                       </div>
                     </div>
                   </div>
@@ -3332,26 +3431,26 @@ export const ApiExecutionPage: React.FC = () => {
 
                 {bottomTab === 'activity' && (
                   <div className='grid gap-4 lg:grid-cols-2'>
-                    <div className='rounded-2xl border border-white/10 bg-slate-950/50 p-3'>
-                      <div className='text-sm font-medium text-white'>Recent activity</div>
+                    <div className='rounded-2xl border border-border bg-surface p-3'>
+                      <div className='text-sm font-medium text-text'>Recent activity</div>
                       <div className='mt-3 space-y-2'>
                         {history.length > 0 ? history.map((item) => (
                           <button key={item.id} type='button' onClick={() => {
                             setActiveRequestLog(`Reopened ${item.requestName}`);
                             setDraft((current) => ({ ...current, name: item.requestName, method: item.method, url: item.url }));
-                          }} className='flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left transition-colors hover:bg-white/10'>
+                          }} className='flex w-full items-center justify-between rounded-xl border border-border bg-background/40 px-3 py-2 text-left transition-colors hover:bg-background/60'>
                             <div>
-                              <div className='font-medium text-white'>{item.requestName}</div>
-                              <div className='text-xs text-slate-400'>{item.method} · {item.status ?? 'n/a'}</div>
+                              <div className='font-medium text-text'>{item.requestName}</div>
+                              <div className='text-xs text-text-secondary'>{item.method} · {item.status ?? 'n/a'}</div>
                             </div>
-                            <Clock3 className='h-4 w-4 text-slate-400' />
+                            <Clock3 className='h-4 w-4 text-text-secondary' />
                           </button>
-                        )) : <p className='text-sm text-slate-400'>No activity yet.</p>}
+                        )) : <p className='text-sm text-text-secondary'>No activity yet.</p>}
                       </div>
                     </div>
-                    <div className='rounded-2xl border border-white/10 bg-slate-950/50 p-3'>
-                      <div className='text-sm font-medium text-white'>Current status</div>
-                      <div className='mt-3 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-slate-300'>{activeRequestLog}</div>
+                    <div className='rounded-2xl border border-border bg-surface p-3'>
+                      <div className='text-sm font-medium text-text'>Current status</div>
+                      <div className='mt-3 rounded-xl border border-border bg-background/40 p-3 text-sm text-text-secondary'>{activeRequestLog}</div>
                     </div>
                   </div>
                 )}
@@ -3361,45 +3460,45 @@ export const ApiExecutionPage: React.FC = () => {
         </div>
       </div>
       {environmentManagerOpen && (
-        <div className='fixed inset-0 z-50 flex justify-end bg-slate-950/60 backdrop-blur-sm' role='dialog' aria-modal='true' aria-label='Manage environments'>
-          <div className='flex h-full w-full max-w-2xl flex-col border-l border-white/10 bg-slate-900 p-5 text-white shadow-2xl'>
+        <div className='fixed inset-0 z-50 flex justify-end bg-background/80 backdrop-blur-sm' role='dialog' aria-modal='true' aria-label='Manage environments'>
+          <div className='flex h-full w-full max-w-2xl flex-col border-l border-border bg-surface p-5 text-text shadow-2xl'>
             <div className='flex items-start justify-between gap-4'>
               <div>
                 <h2 className='text-lg font-semibold'>Manage environments</h2>
-                <p className='mt-1 text-sm text-slate-400'>Create, import, edit, activate, or delete environments without leaving the API workspace.</p>
+                <p className='mt-1 text-sm text-text-secondary'>Create, import, edit, activate, or delete environments without leaving the API workspace.</p>
               </div>
-              <button type='button' className='rounded-lg p-2 text-slate-400 hover:bg-white/10 hover:text-white' onClick={() => setEnvironmentManagerOpen(false)} aria-label='Close environment manager'>
+              <button type='button' className='rounded-lg p-2 text-text-secondary hover:bg-background/60 hover:text-text' onClick={() => setEnvironmentManagerOpen(false)} aria-label='Close environment manager'>
                 <X className='h-5 w-5' />
               </button>
             </div>
             <div className='mt-5 flex flex-wrap gap-2'>
-              <input value={environmentSearch} onChange={(event) => setEnvironmentSearch(event.target.value)} className='h-10 min-w-[220px] flex-1 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none' placeholder='Search environments' />
-              <Button type='button' variant='outline' className='border-white/15 bg-white/5 text-white' onClick={() => { setEnvironmentEditorTarget(undefined); setEnvironmentEditorOpen(true); }}>
+              <input value={environmentSearch} onChange={(event) => setEnvironmentSearch(event.target.value)} className='h-10 min-w-[220px] flex-1 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Search environments' />
+              <Button type='button' variant='outline' className='border-border bg-background/40 text-text' onClick={() => { setEnvironmentEditorTarget(undefined); setEnvironmentEditorOpen(true); }}>
                 <Plus className='mr-2 h-4 w-4' /> New
               </Button>
-              <Button type='button' variant='outline' className='border-white/15 bg-white/5 text-white' onClick={() => setEnvironmentImportOpen(true)}>
+              <Button type='button' variant='outline' className='border-border bg-background/40 text-text' onClick={() => setEnvironmentImportOpen(true)}>
                 <UploadCloud className='mr-2 h-4 w-4' /> Import
               </Button>
             </div>
             <div className='mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1'>
               {managedEnvironmentList.length > 0 ? managedEnvironmentList.map((environment) => (
-                <div key={environment.id} className={`rounded-2xl border p-4 ${activeEnvironmentId === environment.id ? 'border-violet-400/50 bg-violet-400/10' : 'border-white/10 bg-white/5'}`}>
+                <div key={environment.id} className={`rounded-2xl border p-4 ${activeEnvironmentId === environment.id ? 'border-violet-400/50 bg-violet-400/10' : 'border-border bg-background/40'}`}>
                   <div className='flex items-start justify-between gap-3'>
                     <button type='button' className='min-w-0 flex-1 text-left' onClick={() => setActiveEnvironmentId(environment.id)}>
                       <div className='flex items-center gap-2'>
                         <span className='truncate font-medium'>{environment.name}</span>
-                        {activeEnvironmentId === environment.id && <Badge variant='outline' className='border-emerald-400/30 bg-emerald-400/10 text-emerald-200'>Active</Badge>}
+                        {activeEnvironmentId === environment.id && <Badge variant='outline' className='border-success/30 bg-success/10 text-success'>Active</Badge>}
                       </div>
-                      <p className='mt-1 truncate text-xs text-slate-400'>{environment.baseUrl || 'No base URL set'}</p>
-                      <p className='mt-2 text-xs text-slate-500'>{Object.keys(environment.variables || {}).length} variables</p>
+                      <p className='mt-1 truncate text-xs text-text-secondary'>{environment.baseUrl || 'No base URL set'}</p>
+                      <p className='mt-2 text-xs text-text-secondary'>{Object.keys(environment.variables || {}).length} variables</p>
                     </button>
                     <div className='flex shrink-0 gap-2'>
-                      <Button type='button' variant='outline' size='sm' className='border-white/15 bg-white/5 text-white' onClick={() => { setEnvironmentEditorTarget(environment); setEnvironmentEditorOpen(true); }}>Edit</Button>
-                      <Button type='button' variant='outline' size='sm' className='border-red-400/30 bg-red-400/10 text-red-100' onClick={() => void deleteManagedEnvironment(environment)} disabled={environmentActionBusy}><Trash2 className='h-4 w-4' /></Button>
+                      <Button type='button' variant='outline' size='sm' className='border-border bg-background/40 text-text' onClick={() => { setEnvironmentEditorTarget(environment); setEnvironmentEditorOpen(true); }}>Edit</Button>
+                      <Button type='button' variant='outline' size='sm' className='border-error/30 bg-error/10 text-error' onClick={() => void deleteManagedEnvironment(environment)} disabled={environmentActionBusy}><Trash2 className='h-4 w-4' /></Button>
                     </div>
                   </div>
                 </div>
-              )) : <div className='rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm text-slate-400'>No managed environments found.</div>}
+              )) : <div className='rounded-2xl border border-dashed border-border p-8 text-center text-sm text-text-secondary'>No managed environments found.</div>}
             </div>
           </div>
         </div>

@@ -54,16 +54,16 @@ export function VersionHistoryPage() {
 
   const getEntityTypeColor = (entityType: EntityType) => {
     const colors: Record<EntityType, string> = {
-      Requirement: 'bg-blue-100 text-blue-800',
-      Knowledge: 'bg-green-100 text-green-800',
-      Dataset: 'bg-purple-100 text-purple-800',
-      Assertion: 'bg-yellow-100 text-yellow-800',
-      TestSuite: 'bg-red-100 text-red-800',
-      ExecutionProfile: 'bg-indigo-100 text-indigo-800',
-      ExecutionPlan: 'bg-pink-100 text-pink-800',
-      Report: 'bg-gray-100 text-gray-800',
+      Requirement: 'bg-primary/15 text-primary',
+      Knowledge: 'bg-success/15 text-success',
+      Dataset: 'bg-primary/15 text-primary',
+      Assertion: 'bg-warning/15 text-warning',
+      TestSuite: 'bg-error/15 text-error',
+      ExecutionProfile: 'bg-primary/15 text-primary',
+      ExecutionPlan: 'bg-primary/15 text-primary',
+      Report: 'bg-background text-text-secondary',
     };
-    return colors[entityType] || 'bg-gray-100 text-gray-800';
+    return colors[entityType] || 'bg-background text-text-secondary';
   };
 
   if (loading) return <PageLoading title="Loading versions..." />;
@@ -79,7 +79,7 @@ export function VersionHistoryPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl p-6">
+    <div className="w-full max-w-none p-6">
       {projectId && (
         <WorkflowOptionalBanner
           description="Restore or compare historical snapshots of entities. Use when you need to roll back a change."
@@ -92,21 +92,21 @@ export function VersionHistoryPage() {
       >
         <button
           onClick={() => setCompareMode(!compareMode)}
-          className="px-4 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600 text-sm"
+          className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 text-sm"
         >
           {compareMode ? 'Exit compare mode' : 'Compare versions'}
         </button>
       </AdminPageIntro>
 
       {/* Filters */}
-      <div className="bg-white shadow rounded-lg p-4 mb-6">
+      <div className="bg-surface border border-border shadow rounded-lg p-4 mb-6">
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">Entity Type</label>
             <select
               value={selectedEntityType}
               onChange={(e) => setSelectedEntityType(e.target.value as EntityType | '')}
-              className="w-full px-3 py-2 border rounded"
+              className="w-full px-3 py-2 border border-border bg-background text-text rounded"
             >
               <option value="">All Types</option>
               <option value="Requirement">Requirement</option>
@@ -126,7 +126,7 @@ export function VersionHistoryPage() {
               value={selectedEntityId}
               onChange={(e) => setSelectedEntityId(e.target.value)}
               placeholder="Filter by entity ID"
-              className="w-full px-3 py-2 border rounded"
+              className="w-full px-3 py-2 border border-border bg-background text-text rounded"
             />
           </div>
         </div>
@@ -134,7 +134,7 @@ export function VersionHistoryPage() {
 
       {/* Compare Mode */}
       {compareMode && (
-        <div className="bg-white shadow rounded-lg p-4 mb-6">
+        <div className="bg-surface border border-border shadow rounded-lg p-4 mb-6">
           <h3 className="text-lg font-semibold mb-3">Compare Versions</h3>
           <div className="flex items-end gap-4">
             <div className="flex-1">
@@ -142,7 +142,7 @@ export function VersionHistoryPage() {
               <select
                 value={version1}
                 onChange={(e) => setVersion1(e.target.value)}
-                className="w-full px-3 py-2 border rounded"
+                className="w-full px-3 py-2 border border-border bg-background text-text rounded"
               >
                 <option value="">Select version</option>
                 {filteredVersions.map(v => (
@@ -157,7 +157,7 @@ export function VersionHistoryPage() {
               <select
                 value={version2}
                 onChange={(e) => setVersion2(e.target.value)}
-                className="w-full px-3 py-2 border rounded"
+                className="w-full px-3 py-2 border border-border bg-background text-text rounded"
               >
                 <option value="">Select version</option>
                 {filteredVersions.map(v => (
@@ -170,7 +170,7 @@ export function VersionHistoryPage() {
             <button
               onClick={handleCompare}
               disabled={comparing}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400"
+              className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 disabled:bg-background disabled:text-text-secondary"
             >
               {comparing ? 'Comparing...' : 'Compare'}
             </button>
@@ -178,25 +178,25 @@ export function VersionHistoryPage() {
 
           {/* Comparison Results */}
           {comparison && (
-            <div className="mt-4 p-4 bg-gray-50 rounded">
+            <div className="mt-4 rounded border border-border bg-background p-4">
               <h4 className="font-semibold mb-3">Differences Found: {comparison.differences.length}</h4>
               {comparison.differences.length === 0 ? (
-                <p className="text-gray-600">No differences found between these versions.</p>
+                <p className="text-text-secondary">No differences found between these versions.</p>
               ) : (
                 <div className="space-y-2">
                   {comparison.differences.map((diff, idx) => (
-                    <div key={idx} className="border rounded p-3 bg-white">
+                    <div key={idx} className="border border-border rounded p-3 bg-surface">
                       <div className="font-medium text-sm mb-2">{diff.field}</div>
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
-                          <div className="text-red-600 font-medium mb-1">Old Value:</div>
-                          <pre className="bg-red-50 p-2 rounded text-xs overflow-auto max-h-32">
+                          <div className="text-error font-medium mb-1">Old Value:</div>
+                          <pre className="bg-error/10 border border-error/20 p-2 rounded text-xs overflow-auto max-h-32">
                             {JSON.stringify(diff.oldValue, null, 2)}
                           </pre>
                         </div>
                         <div>
-                          <div className="text-green-600 font-medium mb-1">New Value:</div>
-                          <pre className="bg-green-50 p-2 rounded text-xs overflow-auto max-h-32">
+                          <div className="text-success font-medium mb-1">New Value:</div>
+                          <pre className="bg-success/10 border border-success/20 p-2 rounded text-xs overflow-auto max-h-32">
                             {JSON.stringify(diff.newValue, null, 2)}
                           </pre>
                         </div>
@@ -211,7 +211,7 @@ export function VersionHistoryPage() {
       )}
 
       {/* Versions Timeline */}
-      <div className="bg-white shadow rounded-lg overflow-hidden">
+      <div className="bg-surface border border-border shadow rounded-lg overflow-hidden">
         <div className="px-6 py-4 border-b">
           <h2 className="text-lg font-semibold">Version Timeline</h2>
         </div>
@@ -228,7 +228,7 @@ export function VersionHistoryPage() {
               .map((version) => (
                 <div
                   key={version.id}
-                  className="p-6 hover:bg-gray-50 transition-colors"
+                  className="p-6 hover:bg-background transition-colors"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -237,16 +237,16 @@ export function VersionHistoryPage() {
                         <span className={`px-2 py-1 text-xs font-medium rounded ${getEntityTypeColor(version.entityType)}`}>
                           {version.entityType}
                         </span>
-                        <span className="text-sm text-gray-600">
+                        <span className="text-sm text-text-secondary">
                           ID: {version.entityId.slice(0, 8)}...
                         </span>
                       </div>
                       
                       {version.changeSummary && (
-                        <p className="text-sm text-gray-700 mb-2">{version.changeSummary}</p>
+                        <p className="text-sm text-text-secondary mb-2">{version.changeSummary}</p>
                       )}
                       
-                      <div className="flex items-center gap-4 text-sm text-gray-500">
+                      <div className="flex items-center gap-4 text-sm text-text-secondary">
                         <span>By: {version.createdBy}</span>
                         <span>•</span>
                         <span>{formatDate(version.createdAt)}</span>
@@ -254,10 +254,10 @@ export function VersionHistoryPage() {
 
                       {/* Snapshot Preview */}
                       <details className="mt-3">
-                        <summary className="text-sm text-blue-600 cursor-pointer hover:text-blue-800">
+                        <summary className="text-sm text-primary cursor-pointer hover:text-primary">
                           View Snapshot
                         </summary>
-                        <pre className="mt-2 bg-gray-50 p-3 rounded text-xs overflow-auto max-h-64">
+                        <pre className="mt-2 bg-background p-3 rounded text-xs overflow-auto max-h-64">
                           {JSON.stringify(version.snapshot, null, 2)}
                         </pre>
                       </details>
@@ -266,13 +266,13 @@ export function VersionHistoryPage() {
                     <div className="flex gap-2 ml-4">
                       <button
                         onClick={() => setSelectedVersion(version)}
-                        className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                        className="px-3 py-1 text-sm bg-primary/15 text-primary rounded hover:bg-primary/25"
                       >
                         View
                       </button>
                       <button
                         onClick={() => handleRestore(version.id)}
-                        className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200"
+                        className="px-3 py-1 text-sm bg-success/15 text-success rounded hover:bg-success/25"
                       >
                         Restore
                       </button>

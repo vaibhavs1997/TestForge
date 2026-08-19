@@ -5,6 +5,7 @@
 import type { AIProviderAdapter, AIProviderType } from '../../domain/ai-provider';
 import {
   OpenAIAdapter,
+  GroqAdapter,
   ClaudeAdapter,
   GeminiAdapter,
   OllamaAdapter,
@@ -52,6 +53,7 @@ export class AIProviderRegistry {
   /** Register all built-in provider adapters. */
   private registerBuiltInAdapters(): void {
     this.register(new OpenAIAdapter());
+    this.register(new GroqAdapter());
     this.register(new ClaudeAdapter());
     this.register(new GeminiAdapter());
     this.register(new OllamaAdapter());

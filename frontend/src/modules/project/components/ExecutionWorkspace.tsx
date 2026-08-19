@@ -1,20 +1,54 @@
 import React from 'react';
 import { Routes, Route, NavLink, useLocation, useParams } from 'react-router-dom';
+import { CalendarClock, ListChecks, Play, Settings } from 'lucide-react';
 import { ExecutionPage } from '../../execution/pages/ExecutionPage';
 import { ExecutionProfilePage } from '../../execution/pages/ExecutionProfilePage';
 import { SuitePage } from '../../suite/pages/SuitePage';
 import { SchedulerPage } from '../../scheduler/pages/SchedulerPage';
 import { projectModulePath, projectModuleRootPath } from '../../../routes/paths';
+import { ErrorAlert } from '../../../components/shared/ErrorAlert';
+
+interface ExecutionRenderBoundaryState {
+  error: Error | null;
+}
+
+class ExecutionRenderBoundary extends React.Component<React.PropsWithChildren, ExecutionRenderBoundaryState> {
+  state: ExecutionRenderBoundaryState = { error: null };
+
+  static getDerivedStateFromError(error: Error): ExecutionRenderBoundaryState {
+    return { error };
+  }
+
+  handleRetry = () => {
+    this.setState({ error: null });
+  };
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className='mx-auto max-w-3xl p-6'>
+          <ErrorAlert
+            title='Execution workspace could not be displayed'
+            message={this.state.error.message || 'An unexpected rendering error occurred.'}
+            onRetry={this.handleRetry}
+          />
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 interface ExecutionWorkspaceProps {
   projectId: string;
 }
 
 const SUB_NAV_ITEMS = [
-  { key: '', label: 'Runs', path: '' },
-  { key: 'suites', label: 'Suites', path: '/suites' },
-  { key: 'profiles', label: 'Profiles', path: '/profiles' },
-  { key: 'scheduler', label: 'Schedule', path: '/scheduler' },
+  { key: '', label: 'Runs', path: '', icon: Play },
+  { key: 'suites', label: 'Suites', path: '/suites', icon: ListChecks },
+  { key: 'profiles', label: 'Profiles', path: '/profiles', icon: Settings },
+  { key: 'scheduler', label: 'Schedule', path: '/scheduler', icon: CalendarClock },
 ];
 
 export const ExecutionWorkspace: React.FC<ExecutionWorkspaceProps> = ({ projectId }) => {
@@ -27,30 +61,45 @@ export const ExecutionWorkspace: React.FC<ExecutionWorkspaceProps> = ({ projectI
   const activeSub = subPath === '' || subPath === '/' ? '' : subPath;
 
   return (
-    <div className='flex h-full flex-col'>
-      <div className='flex items-center gap-1 border-b border-border bg-surface px-6 py-2'>
-        {SUB_NAV_ITEMS.map((item) => {
-          const fullPath = projectModulePath(activeProjectId, 'execution', item.path);
-          const isActive = activeSub === item.path;
-          return (
-            <NavLink
-              key={item.key}
-              to={fullPath}
-              className={() =>
-                `rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-primary text-white'
-                    : 'text-text-secondary hover:bg-surface hover:text-text'
-                }`
-              }
-            >
-              {item.label}
-            </NavLink>
-          );
-        })}
-      </div>
-      <div className='flex-1 overflow-y-auto'>
-        <Routes>
+    <div className='flex h-full min-h-0 flex-col gap-4 p-4 lg:flex-row lg:p-6'>
+      <aside className='flex w-full shrink-0 flex-col rounded-2xl border border-border bg-surface p-4 lg:h-full lg:w-64'>
+        <div className='border-b border-border px-2 pb-4'>
+          <div className='flex items-center gap-2 text-lg font-semibold text-text'>
+            <Play className='h-5 w-5 text-primary' />
+            Execution Explorer
+          </div>
+          <p className='mt-1 px-7 text-xs text-text-secondary'>Run and manage project execution.</p>
+        </div>
+        <nav className='mt-3 space-y-1' aria-label='Execution sections'>
+          {SUB_NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const fullPath = projectModulePath(activeProjectId, 'execution', item.path);
+            const isActive = activeSub === item.path;
+            return (
+              <NavLink
+                key={item.key}
+                to={fullPath}
+                className={() =>
+                  `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-primary text-white'
+                      : 'text-text-secondary hover:bg-background hover:text-text'
+                  }`
+                }
+              >
+                <Icon className='h-4 w-4' />
+                {item.label}
+              </NavLink>
+            );
+          })}
+        </nav>
+        <p className='mt-auto border-t border-border px-2 pt-4 text-xs text-text-secondary'>
+          Select a section to manage execution.
+        </p>
+      </aside>
+      <div className='min-w-0 flex-1 overflow-y-auto'>
+        <ExecutionRenderBoundary>
+          <Routes>
           {/* Execute - main execution page (also contains validation history in details) */}
           <Route path='/' element={<ExecutionPage />} />
           {/* Validation History - reuse execution page (history is shown in the runs list + details) */}
@@ -63,7 +112,8 @@ export const ExecutionWorkspace: React.FC<ExecutionWorkspaceProps> = ({ projectI
           <Route path='scheduler' element={<SchedulerPage />} />
           {/* Default to execute */}
           <Route path='*' element={<ExecutionPage />} />
-        </Routes>
+          </Routes>
+        </ExecutionRenderBoundary>
       </div>
     </div>
   );

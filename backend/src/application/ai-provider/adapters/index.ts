@@ -2,6 +2,7 @@
 export { BaseAIProviderAdapter } from './BaseAIProviderAdapter';
 export {
   OpenAIAdapter,
+  GroqAdapter,
   ClaudeAdapter,
   GeminiAdapter,
   AzureOpenAIAdapter,

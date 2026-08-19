@@ -35,7 +35,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
   const content = (
     <span
       className={cn(
-        'inline-flex items-center justify-center rounded-xl bg-white px-2.5 py-1.5 shadow-sm ring-1 ring-black/[0.06] dark:ring-white/10',
+        'inline-flex items-center justify-center rounded-xl bg-surface px-2.5 py-1.5 shadow-sm ring-1 ring-white/10 dark:ring-white/10',
         variant === 'landing' && 'shadow-md ring-white/20',
         className,
       )}

@@ -23,7 +23,6 @@ import { RequirementCaptureCard } from '../components/RequirementCaptureCard';
 import { GeneratedTestCasesPanel } from '../components/GeneratedTestCasesPanel';
 import { TestCasesListBlock } from '../components/TestCasesListBlock';
 import { JiraImportDialog } from '../components/JiraImportDialog';
-import { RequirementsMoreMenu } from '../components/RequirementsMoreMenu';
 import type { RequirementFormData } from '../types';
 import { useProjectApiOperations } from '../../api/hooks/useProjectApiOperations';
 import { resolveOperationLabel } from '../utils/operationDisplay';
@@ -35,7 +34,9 @@ import {
   writeSuitePanelVisible,
 } from '../utils/activeRequirementSession';
 
-export interface RequirementsPageProps {}
+export interface RequirementsPageProps {
+  section?: 'requirements' | 'approved' | 'archived';
+}
 
 const getStatusBadgeVariant = (status: string) => {
   switch (status) {
@@ -53,9 +54,9 @@ const getStatusBadgeVariant = (status: string) => {
 };
 
 const getSourceBadgeVariant = (source: string) => {
-  return source === 'ProjectAnalysis'
-    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
-    : 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300';
+  if (source === 'ProjectAnalysis') return 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300';
+  if (source === 'Jira') return 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-300';
+  return 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300';
 };
 
 const getConfidenceColor = (confidence: number) => {
@@ -128,7 +129,7 @@ const STRATEGY_CATEGORIES: StrategyCategorySection['category'][] = [
   'Localization',
 ];
 
-export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
+export const RequirementsPage: React.FC<RequirementsPageProps> = ({ section = 'requirements' }) => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const projectId = routeProjectId || '1';
   const navigate = useNavigate();
@@ -172,6 +173,8 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
   const [toastOpen, setToastOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error'>('success');
+  const [requirementSearch, setRequirementSearch] = useState('');
+  const [requirementSourceFilter, setRequirementSourceFilter] = useState<'all' | Requirement['source']>('all');
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteAllPendingOpen, setDeleteAllPendingOpen] = useState(false);
   const [isDeletingAllPending, setIsDeletingAllPending] = useState(false);
@@ -363,7 +366,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
 
   const artifacts = useRequirementArtifacts(projectId, artifactsRequirementId);
 
-  const { operations: projectOperations } = useProjectApiOperations(projectId);
+  const { operations: projectOperations, isLoading: projectOperationsLoading } = useProjectApiOperations(projectId);
 
   const mappingContextQuery = useQuery({
     queryKey: queryKeys.requirementMappingContext(projectId, artifactsRequirementId || ''),
@@ -444,7 +447,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
     }
   };
 
-  const runGenerateTestCasesForRequirement = async (requirement: Requirement) => {
+  const runGenerateTestCasesForRequirement = async (requirement: Requirement): Promise<boolean> => {
     setIsGeneratingTestCases(true);
     const aiProvider =
       aiProviders.find((p) => p.isDefault && p.enabled) ?? aiProviders.find((p) => p.enabled);
@@ -471,10 +474,12 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
           : `Generated ${result.designs.length} test case${result.designs.length === 1 ? '' : 's'} (built-in).${warn}`,
       );
       setToastType('success');
+      return true;
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || 'Failed to generate test cases';
       setToastMessage(msg);
       setToastType('error');
+      return false;
     } finally {
       setIsGeneratingTestCases(false);
       setToastOpen(true);
@@ -500,7 +505,12 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
       }
       selectActiveRequirement(created, { showPanel: true });
       setCaptureFormKey((k) => k + 1);
-      await runGenerateTestCasesForRequirement(created);
+      const generated = await runGenerateTestCasesForRequirement(created);
+      if (!generated) {
+        // Do not leave a failed, hidden Draft blocking the next attempt.
+        await removeAsync(created.id);
+        selectActiveRequirement(undefined, { showPanel: false });
+      }
     } catch (err: any) {
       setToastMessage(err?.response?.data?.message || err?.message || 'Failed to generate test cases');
       setToastType('error');
@@ -1091,6 +1101,27 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
   };
 
   const pendingReview = [...suggested].sort((a, b) => b.updatedAt - a.updatedAt);
+  const normalizedRequirementSearch = requirementSearch.trim().toLowerCase();
+  const matchesRequirementFilter = (requirement: Requirement) => {
+    if (requirementSourceFilter !== 'all' && requirement.source !== requirementSourceFilter) return false;
+    if (!normalizedRequirementSearch) return true;
+    return [
+      requirement.title,
+      requirement.description,
+      requirement.jiraIssueKey ?? '',
+      ...requirement.acceptanceCriteria.map((criterion) => criterion.text),
+    ].join(' ').toLowerCase().includes(normalizedRequirementSearch);
+  };
+  const visiblePendingReview = pendingReview.filter(matchesRequirementFilter);
+  const visibleApproved = approved.filter(matchesRequirementFilter);
+  const visibleArchived = archived.filter(matchesRequirementFilter);
+  const workflowStep = panelRequirement?.approvalStatus === 'Approved'
+    ? 4
+    : showSuiteInPanel && panelDesigns.length > 0
+      ? 3
+      : requirements.length > 0
+        ? 2
+        : 1;
 
   const handleDeleteAllPending = async () => {
     if (pendingReview.length === 0) return;
@@ -1142,12 +1173,12 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
     return (
     <Card key={requirement.id} className='mb-3'>
       <CardContent className='p-4'>
-        <div className='flex items-start justify-between'>
+        <div className='flex flex-wrap items-start justify-between gap-3'>
           <div className='flex-1'>
             <div className='flex items-center gap-2 mb-2'>
               <h4 className='text-sm font-semibold text-text'>{requirement.title}</h4>
               <Badge className={getSourceBadgeVariant(requirement.source)} variant='outline'>
-                {requirement.source === 'ProjectAnalysis' ? 'From Analysis' : 'Manual'}
+                {requirement.source === 'ProjectAnalysis' ? 'From Analysis' : requirement.source === 'Jira' ? 'Jira' : 'Manual'}
               </Badge>
               <Badge className={getStatusBadgeVariant(requirement.approvalStatus)} variant='outline'>
                 {requirement.approvalStatus}
@@ -1158,6 +1189,8 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
             </div>
             <div className='flex items-center gap-3 text-xs text-text-secondary flex-wrap'>
               <span>Category: {requirement.category}</span>
+              {requirement.jiraIssueKey ? <span>Issue: {requirement.jiraIssueKey}</span> : null}
+              <span>{requirement.acceptanceCriteria.length} criteria</span>
               <span className='inline-flex items-center gap-1'>
                 {suiteConfidence.label}:{' '}
                 <span className={getConfidenceColor(suiteConfidence.percent ?? 0)}>
@@ -1485,38 +1518,50 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
 
   return (
     <div className='mx-auto max-w-7xl px-6 py-8'>
-      {/* Page Header */}
-      <div className='mb-6 flex flex-wrap items-center justify-between gap-3'>
-        <div>
-          <h1 className='text-2xl font-bold text-text'>Requirements</h1>
-          <p className='mt-1 text-sm text-text-secondary'>
-            Paste acceptance criteria, generate API test cases, curate what to run, then execute from the Execution workspace.
-          </p>
-        </div>
-        <RequirementsMoreMenu
-          onReanalyze={handleRunAnalysis}
-          isAnalyzing={isAnalyzing}
-          showGenerateFromAnalysis={analysisCards.length > 0}
-          onGenerateFromAnalysis={
-            analysisCards.length > 0 ? () => void handleGenerateFromAnalysis(analysisCards[0].id) : undefined
-          }
-          isGeneratingFromAnalysis={isGenerating}
-          onGenerateWithAI={openAIGenerate}
-          onImportJson={() => importRequirementsInputRef.current?.click()}
-        />
-        <input
-          ref={importRequirementsInputRef}
-          type='file'
-          accept='.json,application/json'
-          className='hidden'
-          onChange={(e) => void handleImportRequirementsFile(e.target.files?.[0] ?? null)}
-        />
+      {section === 'requirements' && (
+        <>
+      <div className='mb-6 grid gap-2 rounded-2xl border border-border bg-surface p-3 sm:grid-cols-4' aria-label='Requirements workflow'>
+        {[
+          { number: 1, label: 'Add requirement' },
+          { number: 2, label: 'Review criteria' },
+          { number: 3, label: 'Generate cases' },
+          { number: 4, label: 'Approve suite' },
+        ].map((step) => (
+          <div key={step.number} className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm ${workflowStep === step.number ? 'bg-primary/10 text-primary' : workflowStep > step.number ? 'text-success' : 'text-text-secondary'}`}>
+            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${workflowStep >= step.number ? 'bg-primary/10' : 'border border-border'}`}>
+              {workflowStep > step.number ? <CheckCircle2 className='h-4 w-4' aria-hidden /> : step.number}
+            </span>
+            <span className='font-medium'>{step.label}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className='mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
+        {[
+          { label: 'Requirements', value: requirements.length, detail: 'All captured items' },
+          { label: 'Pending review', value: pendingReview.length, detail: 'Suites awaiting approval' },
+          { label: 'Approved', value: approved.length, detail: 'Ready for execution' },
+          { label: 'From Jira', value: requirements.filter((req) => req.source === 'Jira').length, detail: jiraConfigured ? 'Jira connected' : 'Jira not configured' },
+        ].map((metric) => (
+          <Card key={metric.label} className='border-border'>
+            <CardContent className='p-4'>
+              <p className='text-xs font-medium uppercase tracking-[0.12em] text-text-secondary'>{metric.label}</p>
+              <div className='mt-2 flex items-end justify-between gap-2'>
+                <span className='text-2xl font-semibold text-text'>{metric.value}</span>
+                <span className='text-right text-xs text-text-secondary'>{metric.detail}</span>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       <RequirementCaptureCard
         key={captureFormKey}
         onGenerateTestCases={handleCaptureFromCriteria}
         onImportFromJira={() => setJiraImportOpen(true)}
+        jiraConfigured={jiraConfigured}
+        apiOperationsCount={projectOperations.length}
+        apiOperationsLoading={projectOperationsLoading}
         isSubmitting={isCreating || isGeneratingTestCases}
         generateBlocked={captureBlockedByDraft}
         generateBlockedMessage={
@@ -1539,8 +1584,32 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
         isSubmitting={jiraImporting || isGeneratingTestCases}
         jiraConfigured={jiraConfigured}
       />
+        </>
+      )}
 
-      <div ref={suitePanelRef}>
+      <div className='mb-6 flex flex-col gap-3 rounded-2xl border border-border bg-surface p-3 sm:flex-row sm:items-center'>
+        <input
+          type='search'
+          value={requirementSearch}
+          onChange={(event) => setRequirementSearch(event.target.value)}
+          placeholder='Search requirements, Jira keys, or acceptance criteria'
+          aria-label='Search requirements'
+          className='h-10 min-w-0 flex-1 rounded-lg border border-border bg-background px-3 text-sm text-text outline-none focus:border-primary'
+        />
+        <select
+          value={requirementSourceFilter}
+          onChange={(event) => setRequirementSourceFilter(event.target.value as typeof requirementSourceFilter)}
+          aria-label='Filter requirements by source'
+          className='h-10 rounded-lg border border-border bg-background px-3 text-sm text-text outline-none focus:border-primary'
+        >
+          <option value='all'>All sources</option>
+          <option value='Jira'>Jira</option>
+          <option value='Manual'>Manual</option>
+          <option value='ProjectAnalysis'>Project analysis</option>
+        </select>
+      </div>
+
+      {section === 'requirements' && <div ref={suitePanelRef}>
         <GeneratedTestCasesPanel
           requirement={panelRequirement}
           designs={panelDesigns}
@@ -1564,9 +1633,9 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
           mappingBannerMessage={mappingContextQuery.data?.message}
           mappingLowConfidence={mappingContextQuery.data?.lowConfidence}
         />
-      </div>
+      </div>}
 
-      {pendingReview.length > 0 && (
+      {section === 'requirements' && pendingReview.length > 0 && (
         <div className='mb-8'>
           <div className='mb-4 flex flex-wrap items-center justify-between gap-2'>
             <div className='flex items-center gap-2'>
@@ -1589,39 +1658,37 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = () => {
           <p className='mb-3 text-sm text-text-secondary'>
             Suites appear here after you choose Add to pending review on a generated suite. Use the eye icon on a card to show or hide test cases inside that card.
           </p>
-          {pendingReview.map((req) => renderRequirementCard(req))}
+          {visiblePendingReview.length > 0 ? visiblePendingReview.map((req) => renderRequirementCard(req)) : (
+            <Card className='p-6 text-center'><p className='text-sm text-text-secondary'>No pending requirements match your filters.</p></Card>
+          )}
         </div>
       )}
 
-      <div className='mb-8'>
-        <div className='mb-4 flex items-center gap-2'>
-          <h2 className='text-lg font-semibold text-text'>Approved</h2>
-          <Badge variant='secondary'>{approved.length}</Badge>
-        </div>
+      {section === 'approved' && <div className='mb-8'>
         {approved.length === 0 ? (
           <Card className='p-6 text-center'>
             <p className='text-sm text-text-secondary'>
               No approved suites yet. Generate test cases, select which to keep, then click Approve test suite.
             </p>
           </Card>
+        ) : visibleApproved.length === 0 ? (
+          <Card className='p-6 text-center'><p className='text-sm text-text-secondary'>No approved requirements match your filters.</p></Card>
         ) : (
-          approved.map((req) => renderRequirementCard(req))
+          visibleApproved.map((req) => renderRequirementCard(req))
         )}
-      </div>
+      </div>}
 
-      <div className='mb-8'>
-        <div className='mb-4 flex items-center gap-2'>
-          <h2 className='text-lg font-semibold text-text'>Archived</h2>
-          <Badge variant='secondary'>{archived.length}</Badge>
-        </div>
+      {section === 'archived' && <div className='mb-8'>
         {archived.length === 0 ? (
           <Card className='p-6 text-center'>
             <p className='text-sm text-text-secondary'>No archived requirements.</p>
           </Card>
+        ) : visibleArchived.length === 0 ? (
+          <Card className='p-6 text-center'><p className='text-sm text-text-secondary'>No archived requirements match your filters.</p></Card>
         ) : (
-          archived.map((req) => renderRequirementCard(req))
+          visibleArchived.map((req) => renderRequirementCard(req))
         )}
-      </div>
+      </div>}
 
       {/* Assertion Picker Modal */}
       {attachAssertionOpen && selectedDesignId && (

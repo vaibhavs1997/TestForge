@@ -8,12 +8,14 @@ import { asyncHandler } from '../middleware/AsyncHandler';
 const {
   orchestratePipeline,
   runAIPipeline,
+  pipelineRepository,
 } = container;
 
 // Initialize controller
 const pipelineController = new PipelineController(
   orchestratePipeline,
-  runAIPipeline
+  runAIPipeline,
+  pipelineRepository
 );
 
 const router = Router();

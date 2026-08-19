@@ -12,9 +12,10 @@ import type {
 } from '../types';
 import { queryKeys } from '../../../constants';
 
-const FALLBACK_TYPES: AIProviderType[] = ['OpenAI', 'Claude', 'Gemini', 'Ollama', 'Azure OpenAI', 'AWS Bedrock', 'Custom'];
+const FALLBACK_TYPES: AIProviderType[] = ['OpenAI', 'Groq', 'Claude', 'Gemini', 'Ollama', 'Azure OpenAI', 'AWS Bedrock', 'Custom'];
 const FALLBACK_ADAPTERS: AIProviderAdapterInfo[] = [
   { type: 'OpenAI', category: 'OpenAI' },
+  { type: 'Groq', category: 'Groq' },
   { type: 'Claude', category: 'Claude' },
   { type: 'Gemini', category: 'Gemini' },
   { type: 'Ollama', category: 'Ollama' },

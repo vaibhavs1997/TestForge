@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuditLogs } from '../hooks';
 import { auditService } from '../services';
-import type { AuditLog, AuditModule, AuditAction } from '../types';
+import type { AuditLog, AuditModule, AuditAction, AuditLogFilters } from '../types';
 import { useParams } from 'react-router-dom';
 import { AdminPageIntro } from '../../../components/shared/AdminPageIntro';
 import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
@@ -10,7 +10,8 @@ import { PageEmpty, PageError, PageLoading } from '../../../components/shared/Pa
 
 export function AuditLogPage() {
   const { projectId } = useParams<{ projectId: string }>();
-  const { data: logs = [], isLoading: loading, isError, error, refetch } = useAuditLogs(projectId || null);
+  const [appliedFilters, setAppliedFilters] = useState<AuditLogFilters>({});
+  const { data: logs = [], isLoading: loading, isError, error, refetch } = useAuditLogs(projectId || null, appliedFilters);
 
   const [filters, setFilters] = useState<{
     module: AuditModule | '';
@@ -35,17 +36,15 @@ export function AuditLogPage() {
   };
 
   const applyFilters = useCallback(() => {
-    const filterParams: any = {};
-    if (filters.module) filterParams.module = filters.module;
-    if (filters.action) filterParams.action = filters.action;
-    if (filters.entityType) filterParams.entityType = filters.entityType;
-    if (filters.entityId) filterParams.entityId = filters.entityId;
-    if (filters.startDate) filterParams.startDate = new Date(filters.startDate).getTime();
-    if (filters.endDate) filterParams.endDate = new Date(filters.endDate).getTime();
-    
-    // Refetch with filters
-    refetch();
-  }, [filters, refetch]);
+    setAppliedFilters({
+      ...(filters.module ? { module: filters.module } : {}),
+      ...(filters.action ? { action: filters.action } : {}),
+      ...(filters.entityType ? { entityType: filters.entityType } : {}),
+      ...(filters.entityId ? { entityId: filters.entityId } : {}),
+      ...(filters.startDate ? { startDate: new Date(filters.startDate).getTime() } : {}),
+      ...(filters.endDate ? { endDate: new Date(filters.endDate).getTime() } : {}),
+    });
+  }, [filters]);
 
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleString();
@@ -53,41 +52,41 @@ export function AuditLogPage() {
 
   const getActionColor = (action: AuditAction) => {
     const colors: Record<AuditAction, string> = {
-      'CREATE': 'bg-green-100 text-green-800',
-      'UPDATE': 'bg-blue-100 text-blue-800',
-      'DELETE': 'bg-red-100 text-red-800',
-      'EXECUTE': 'bg-purple-100 text-purple-800',
-      'GENERATE': 'bg-indigo-100 text-indigo-800',
-      'APPROVE': 'bg-green-100 text-green-800',
-      'REJECT': 'bg-red-100 text-red-800',
-      'RESTORE': 'bg-yellow-100 text-yellow-800',
-      'ENABLE': 'bg-green-100 text-green-800',
-      'DISABLE': 'bg-gray-100 text-gray-800',
+      'CREATE': 'bg-success/15 text-success',
+      'UPDATE': 'bg-primary/15 text-primary',
+      'DELETE': 'bg-error/15 text-error',
+      'EXECUTE': 'bg-primary/15 text-primary',
+      'GENERATE': 'bg-primary/15 text-primary',
+      'APPROVE': 'bg-success/15 text-success',
+      'REJECT': 'bg-error/15 text-error',
+      'RESTORE': 'bg-warning/15 text-warning',
+      'ENABLE': 'bg-success/15 text-success',
+      'DISABLE': 'bg-background text-text-secondary',
     };
-    return colors[action] || 'bg-gray-100 text-gray-800';
+    return colors[action] || 'bg-background text-text-secondary';
   };
 
   const getModuleColor = (module: AuditModule) => {
     const colors: Record<AuditModule, string> = {
-      'Project': 'bg-gray-100 text-gray-800',
-      'API': 'bg-blue-100 text-blue-800',
-      'Environment': 'bg-green-100 text-green-800',
-      'Dataset': 'bg-purple-100 text-purple-800',
-      'Knowledge': 'bg-yellow-100 text-yellow-800',
-      'Requirement': 'bg-red-100 text-red-800',
-      'Assertion': 'bg-pink-100 text-pink-800',
-      'ExecutionPlan': 'bg-indigo-100 text-indigo-800',
-      'ExecutionProfile': 'bg-orange-100 text-orange-800',
-      'TestSuite': 'bg-teal-100 text-teal-800',
-      'Scheduler': 'bg-cyan-100 text-cyan-800',
-      'Execution': 'bg-lime-100 text-lime-800',
-      'Report': 'bg-amber-100 text-amber-800',
-      'Notification': 'bg-rose-100 text-rose-800',
-      'Provider': 'bg-emerald-100 text-emerald-800',
-      'Version': 'bg-violet-100 text-violet-800',
-      'Analysis': 'bg-fuchsia-100 text-fuchsia-800',
+      'Project': 'bg-background text-text-secondary',
+      'API': 'bg-primary/15 text-primary',
+      'Environment': 'bg-success/15 text-success',
+      'Dataset': 'bg-primary/15 text-primary',
+      'Knowledge': 'bg-warning/15 text-warning',
+      'Requirement': 'bg-error/15 text-error',
+      'Assertion': 'bg-primary/15 text-primary',
+      'ExecutionPlan': 'bg-primary/15 text-primary',
+      'ExecutionProfile': 'bg-warning/15 text-warning',
+      'TestSuite': 'bg-success/15 text-success',
+      'Scheduler': 'bg-primary/15 text-primary',
+      'Execution': 'bg-success/15 text-success',
+      'Report': 'bg-warning/15 text-warning',
+      'Notification': 'bg-error/15 text-error',
+      'Provider': 'bg-success/15 text-success',
+      'Version': 'bg-primary/15 text-primary',
+      'Analysis': 'bg-primary/15 text-primary',
     };
-    return colors[module] || 'bg-gray-100 text-gray-800';
+    return colors[module] || 'bg-background text-text-secondary';
   };
 
   if (loading) return <PageLoading title="Loading audit logs..." />;
@@ -103,7 +102,7 @@ export function AuditLogPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl p-6">
+    <div className="w-full max-w-none p-6">
       {projectId && (
         <WorkflowOptionalBanner
           description="Compliance and troubleshooting trail. Not needed for the everyday import → test → report flow."
@@ -116,7 +115,7 @@ export function AuditLogPage() {
       />
 
       {/* Filters */}
-      <div className="bg-white shadow rounded-lg p-4 mb-6">
+      <div className="bg-surface border border-border shadow rounded-lg p-4 mb-6">
         <h3 className="text-lg font-semibold mb-3">Filters</h3>
         <div className="grid grid-cols-3 gap-4">
           <div>
@@ -124,7 +123,7 @@ export function AuditLogPage() {
             <select
               value={filters.module}
               onChange={(e) => handleFilterChange('module', e.target.value)}
-              className="w-full px-3 py-2 border rounded"
+              className="w-full px-3 py-2 border border-border bg-background text-text rounded"
             >
               <option value="">All Modules</option>
               <option value="Project">Project</option>
@@ -150,7 +149,7 @@ export function AuditLogPage() {
             <select
               value={filters.action}
               onChange={(e) => handleFilterChange('action', e.target.value)}
-              className="w-full px-3 py-2 border rounded"
+              className="w-full px-3 py-2 border border-border bg-background text-text rounded"
             >
               <option value="">All Actions</option>
               <option value="CREATE">CREATE</option>
@@ -172,7 +171,7 @@ export function AuditLogPage() {
               value={filters.entityType}
               onChange={(e) => handleFilterChange('entityType', e.target.value)}
               placeholder="Filter by entity type"
-              className="w-full px-3 py-2 border rounded"
+              className="w-full px-3 py-2 border border-border bg-background text-text rounded"
             />
           </div>
           <div>
@@ -182,7 +181,7 @@ export function AuditLogPage() {
               value={filters.entityId}
               onChange={(e) => handleFilterChange('entityId', e.target.value)}
               placeholder="Filter by entity ID"
-              className="w-full px-3 py-2 border rounded"
+              className="w-full px-3 py-2 border border-border bg-background text-text rounded"
             />
           </div>
           <div>
@@ -191,7 +190,7 @@ export function AuditLogPage() {
               type="date"
               value={filters.startDate}
               onChange={(e) => handleFilterChange('startDate', e.target.value)}
-              className="w-full px-3 py-2 border rounded"
+              className="w-full px-3 py-2 border border-border bg-background text-text rounded"
             />
           </div>
           <div>
@@ -200,14 +199,14 @@ export function AuditLogPage() {
               type="date"
               value={filters.endDate}
               onChange={(e) => handleFilterChange('endDate', e.target.value)}
-              className="w-full px-3 py-2 border rounded"
+              className="w-full px-3 py-2 border border-border bg-background text-text rounded"
             />
           </div>
         </div>
         <div className="mt-4">
           <button
             onClick={applyFilters}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90"
           >
             Apply Filters
           </button>
@@ -221,9 +220,9 @@ export function AuditLogPage() {
                 startDate: '',
                 endDate: '',
               });
-              refetch();
+              setAppliedFilters({});
             }}
-            className="ml-2 px-4 py-2 border rounded hover:bg-gray-50"
+            className="ml-2 px-4 py-2 border border-border rounded hover:bg-background"
           >
             Clear
           </button>
@@ -231,7 +230,7 @@ export function AuditLogPage() {
       </div>
 
       {/* Audit Logs Table */}
-      <div className="bg-white shadow rounded-lg overflow-hidden">
+      <div className="bg-surface border border-border shadow rounded-lg overflow-hidden">
         <div className="px-6 py-4 border-b">
           <h2 className="text-lg font-semibold">Audit Trail</h2>
         </div>
@@ -243,19 +242,19 @@ export function AuditLogPage() {
           />
         ) : (
           <table className="min-w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-background/60">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Timestamp</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Module</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Entity</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Performed By</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase">Timestamp</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase">Module</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase">Action</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase">Entity</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase">Performed By</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {logs.map((log) => (
-                <tr key={log.id} className="hover:bg-gray-50">
+                <tr key={log.id} className="hover:bg-background">
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     {formatDate(log.timestamp)}
                   </td>
@@ -272,7 +271,7 @@ export function AuditLogPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <div>
                       <div className="font-medium">{log.entityType}</div>
-                      <div className="text-xs text-gray-500">ID: {log.entityId.slice(0, 8)}...</div>
+                      <div className="text-xs text-text-secondary">ID: {log.entityId.slice(0, 8)}...</div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -281,7 +280,7 @@ export function AuditLogPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <button
                       onClick={() => setSelectedLog(log)}
-                      className="text-blue-600 hover:text-blue-800"
+                      className="text-primary hover:text-primary"
                     >
                       View Details
                     </button>
@@ -296,12 +295,12 @@ export function AuditLogPage() {
       {/* Log Detail Modal */}
       {selectedLog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-surface border border-border rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold">Audit Log Details</h2>
               <button
                 onClick={() => setSelectedLog(null)}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-text-secondary hover:text-text"
               >
                 ✕
               </button>
@@ -310,40 +309,40 @@ export function AuditLogPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Log ID</label>
-                  <div className="text-sm text-gray-900">{selectedLog.id}</div>
+                  <label className="block text-sm font-medium text-text-secondary">Log ID</label>
+                  <div className="text-sm text-text">{selectedLog.id}</div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Timestamp</label>
-                  <div className="text-sm text-gray-900">{formatDate(selectedLog.timestamp)}</div>
+                  <label className="block text-sm font-medium text-text-secondary">Timestamp</label>
+                  <div className="text-sm text-text">{formatDate(selectedLog.timestamp)}</div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Module</label>
-                  <div className="text-sm text-gray-900">{selectedLog.module}</div>
+                  <label className="block text-sm font-medium text-text-secondary">Module</label>
+                  <div className="text-sm text-text">{selectedLog.module}</div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Action</label>
-                  <div className="text-sm text-gray-900">{selectedLog.action}</div>
+                  <label className="block text-sm font-medium text-text-secondary">Action</label>
+                  <div className="text-sm text-text">{selectedLog.action}</div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Entity Type</label>
-                  <div className="text-sm text-gray-900">{selectedLog.entityType}</div>
+                  <label className="block text-sm font-medium text-text-secondary">Entity Type</label>
+                  <div className="text-sm text-text">{selectedLog.entityType}</div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Entity ID</label>
-                  <div className="text-sm text-gray-900">{selectedLog.entityId}</div>
+                  <label className="block text-sm font-medium text-text-secondary">Entity ID</label>
+                  <div className="text-sm text-text">{selectedLog.entityId}</div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Performed By</label>
-                  <div className="text-sm text-gray-900">{selectedLog.performedBy}</div>
+                  <label className="block text-sm font-medium text-text-secondary">Performed By</label>
+                  <div className="text-sm text-text">{selectedLog.performedBy}</div>
                 </div>
               </div>
 
               {/* Old Value */}
               {selectedLog.oldValue && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Old Value</label>
-                  <pre className="bg-red-50 p-4 rounded text-xs overflow-auto max-h-64 border border-red-200">
+                  <label className="block text-sm font-medium text-text-secondary mb-2">Old Value</label>
+                  <pre className="bg-error/10 p-4 rounded text-xs overflow-auto max-h-64 border border-error/30">
                     {JSON.stringify(selectedLog.oldValue, null, 2)}
                   </pre>
                 </div>
@@ -352,8 +351,8 @@ export function AuditLogPage() {
               {/* New Value */}
               {selectedLog.newValue && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">New Value</label>
-                  <pre className="bg-green-50 p-4 rounded text-xs overflow-auto max-h-64 border border-green-200">
+                  <label className="block text-sm font-medium text-text-secondary mb-2">New Value</label>
+                  <pre className="bg-success/10 p-4 rounded text-xs overflow-auto max-h-64 border border-success/30">
                     {JSON.stringify(selectedLog.newValue, null, 2)}
                   </pre>
                 </div>
@@ -362,8 +361,8 @@ export function AuditLogPage() {
               {/* Metadata */}
               {Object.keys(selectedLog.metadata).length > 0 && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Metadata</label>
-                  <pre className="bg-gray-50 p-4 rounded text-xs overflow-auto max-h-64 border border-gray-200">
+                  <label className="block text-sm font-medium text-text-secondary mb-2">Metadata</label>
+                  <pre className="bg-background p-4 rounded text-xs overflow-auto max-h-64 border border-border">
                     {JSON.stringify(selectedLog.metadata, null, 2)}
                   </pre>
                 </div>
@@ -373,7 +372,7 @@ export function AuditLogPage() {
             <div className="mt-6 flex justify-end">
               <button
                 onClick={() => setSelectedLog(null)}
-                className="px-4 py-2 border rounded hover:bg-gray-50"
+                className="px-4 py-2 border border-border rounded hover:bg-background"
               >
                 Close
               </button>

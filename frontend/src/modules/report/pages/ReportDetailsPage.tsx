@@ -145,7 +145,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
 
   if (isLoading) {
     return (
-      <div className='mx-auto max-w-7xl px-4 py-8'>
+      <div className='w-full max-w-none px-4 py-8'>
         <div className='p-8 text-center text-text-secondary'>Loading report...</div>
       </div>
     );
@@ -153,7 +153,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
 
   if (isError || !report) {
     return (
-      <div className='mx-auto max-w-7xl px-4 py-8'>
+      <div className='w-full max-w-none px-4 py-8'>
         <EmptyState
           icon={<FileText className='h-12 w-12' />}
           title='Report not found'
@@ -173,7 +173,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
   const runtimeVariables = sections.runtimeVariablesCaptured || {};
 
   return (
-    <div className='mx-auto max-w-7xl px-4 py-8'>
+    <div className='w-full max-w-none px-4 py-8'>
       {/* Page Header */}
       <div className='mb-6 flex items-center justify-between'>
         <div className='flex items-center gap-4'>

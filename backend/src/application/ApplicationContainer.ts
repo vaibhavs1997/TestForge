@@ -35,7 +35,7 @@ import ProviderRepository from '../infrastructure/providers/ProviderRepository';
 import VersionRepository from '../infrastructure/versioning/VersionRepository';
 import AuditLogRepository from '../infrastructure/audit/AuditLogRepository';
 import PluginRepository from '../infrastructure/plugin/PluginRepository';
-import { InMemoryAIProviderRepository } from '../infrastructure/ai-provider/AIProviderRepository';
+import { FileAIProviderRepository } from '../infrastructure/ai-provider/AIProviderRepository';
 import { InMemoryNotificationRepository } from '../infrastructure/notification/NotificationRepository';
 import { InMemoryVersionRepository } from '../infrastructure/versioning/VersionRepository';
 import { InMemoryAuditLogRepository } from '../infrastructure/audit/AuditLogRepository';
@@ -154,7 +154,7 @@ export class ApplicationContainer {
   readonly versionRepository = new VersionRepository();
   readonly auditLogRepository = createAuditLogRepository(this.persistenceDriver);
   readonly pluginRepository = new PluginRepository();
-  readonly aiProviderRepository = new InMemoryAIProviderRepository();
+  readonly aiProviderRepository = new FileAIProviderRepository();
   readonly notificationRepository = new InMemoryNotificationRepository();
   readonly inMemoryVersionRepository = new InMemoryVersionRepository();
   readonly inMemoryAuditLogRepository = new InMemoryAuditLogRepository();

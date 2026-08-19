@@ -12,7 +12,7 @@ export function usePipeline(projectId?: string) {
   const { data, isLoading: loading, isError, error } = useCRUD({
     queryKey,
     service: {
-      list: () => (projectId ? pipelineService.startPipeline(projectId).then(p => [p]) : Promise.resolve([])),
+      list: () => (projectId ? pipelineService.getProjectPipelines(projectId) : Promise.resolve([])),
       create: () => Promise.resolve({} as any),
       update: () => Promise.resolve({} as any),
       delete: () => Promise.resolve(),
@@ -36,6 +36,16 @@ export function usePipeline(projectId?: string) {
 
   const refreshPipelineMutation = useMutation({
     mutationFn: (pipelineId: string) => pipelineService.getPipelineStatus(pipelineId),
+    onSuccess: (pipelineData) => {
+      queryClient.setQueryData(queryKey, [pipelineData]);
+    },
+  });
+
+  const startPipelineMutation = useMutation({
+    mutationFn: () => {
+      if (!projectId) throw new Error('Missing projectId');
+      return pipelineService.startPipeline(projectId);
+    },
     onSuccess: (pipelineData) => {
       queryClient.setQueryData(queryKey, [pipelineData]);
     },
@@ -72,12 +82,13 @@ export function usePipeline(projectId?: string) {
     isLoading: loading,
     isError,
     error: error ? (error as Error).message : null,
-    startPipeline: () => queryClient.invalidateQueries({ queryKey }),
+    startPipeline: startPipelineMutation.mutateAsync,
     refreshPipeline: refreshPipelineMutation.mutate,
     restartStage: restartStageMutation.mutate,
     cancelPipeline: cancelPipelineMutation.mutate,
     runAIPipeline: runAIPipelineMutation.mutateAsync,
     isRefreshing: refreshPipelineMutation.isPending,
+    isStarting: startPipelineMutation.isPending,
     isRestarting: restartStageMutation.isPending,
     isCancelling: cancelPipelineMutation.isPending,
     isRunningAI: runAIPipelineMutation.isPending,

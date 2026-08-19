@@ -1,53 +1,85 @@
 // AIProviderRepository - Infrastructure implementation for AI Provider Framework
-// Uses in-memory storage. Can be swapped for DB implementation.
+// Uses the same locked JSON persistence pattern as the other project repositories.
 
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { AIProviderEntity } from '../../domain/ai-provider';
 import type { AIProviderType, AIProviderRepository } from '../../domain/ai-provider';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
 
-export class InMemoryAIProviderRepository implements AIProviderRepository {
-  private providers: Map<string, AIProviderEntity> = new Map();
+function getDataRoot(): string {
+  return path.join(process.cwd(), 'data', 'ai-providers');
+}
+
+export class FileAIProviderRepository implements AIProviderRepository {
+  private getProjectFilePath(projectId: string): string {
+    return path.join(getDataRoot(), projectId, 'providers.json');
+  }
+
+  private listProjectIds(): string[] {
+    if (!fs.existsSync(getDataRoot())) return [];
+    return fs.readdirSync(getDataRoot(), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+  }
+
+  private async readProject(projectId: string): Promise<AIProviderEntity[]> {
+    return readJsonArray<AIProviderEntity>(this.getProjectFilePath(projectId));
+  }
+
+  private async writeProject(projectId: string, providers: AIProviderEntity[]): Promise<void> {
+    await writeJsonArray(this.getProjectFilePath(projectId), providers);
+  }
 
   async create(provider: AIProviderEntity): Promise<AIProviderEntity> {
-    this.providers.set(provider.id, provider);
+    const providers = await this.readProject(provider.projectId);
+    providers.push(provider);
+    await this.writeProject(provider.projectId, providers);
     return provider;
   }
 
   async findById(id: string): Promise<AIProviderEntity | null> {
-    return this.providers.get(id) || null;
+    for (const projectId of this.listProjectIds()) {
+      const provider = (await this.readProject(projectId)).find((item) => item.id === id);
+      if (provider) return provider;
+    }
+    return null;
   }
 
   async findByProject(projectId: string): Promise<AIProviderEntity[]> {
-    return Array.from(this.providers.values()).filter(p => p.projectId === projectId);
+    return this.readProject(projectId);
   }
 
   async findByProjectAndType(projectId: string, type: AIProviderType): Promise<AIProviderEntity[]> {
-    return Array.from(this.providers.values()).filter(
+    return (await this.readProject(projectId)).filter(
       p => p.projectId === projectId && p.provider === type
     );
   }
 
   async findDefault(projectId: string): Promise<AIProviderEntity | null> {
-    return Array.from(this.providers.values()).find(
+    return (await this.readProject(projectId)).find(
       p => p.projectId === projectId && p.isDefault
     ) || null;
   }
 
   async findEnabled(projectId: string): Promise<AIProviderEntity[]> {
-    return Array.from(this.providers.values()).filter(
+    return (await this.readProject(projectId)).filter(
       p => p.projectId === projectId && p.enabled
     );
   }
 
   async findByType(type: AIProviderType): Promise<AIProviderEntity[]> {
-    return Array.from(this.providers.values()).filter(p => p.provider === type);
+    const providers = await Promise.all(this.listProjectIds().map((projectId) => this.readProject(projectId)));
+    return providers.flat().filter((provider) => provider.provider === type);
   }
 
   async list(): Promise<AIProviderEntity[]> {
-    return Array.from(this.providers.values());
+    const providers = await Promise.all(this.listProjectIds().map((projectId) => this.readProject(projectId)));
+    return providers.flat();
   }
 
   async update(id: string, updates: Partial<AIProviderEntity>): Promise<AIProviderEntity | null> {
-    const existing = this.providers.get(id);
+    const existing = await this.findById(id);
     if (!existing) return null;
 
     const updated = new AIProviderEntity(
@@ -69,13 +101,18 @@ export class InMemoryAIProviderRepository implements AIProviderRepository {
       Date.now()
     );
 
-    this.providers.set(id, updated);
+    const providers = await this.readProject(existing.projectId);
+    await this.writeProject(existing.projectId, providers.map((provider) => provider.id === id ? updated : provider));
     return updated;
   }
 
   async delete(id: string): Promise<void> {
-    this.providers.delete(id);
+    const existing = await this.findById(id);
+    if (!existing) return;
+    const providers = await this.readProject(existing.projectId);
+    await this.writeProject(existing.projectId, providers.filter((provider) => provider.id !== id));
   }
 }
 
-export default InMemoryAIProviderRepository;
+export { FileAIProviderRepository as InMemoryAIProviderRepository };
+export default FileAIProviderRepository;

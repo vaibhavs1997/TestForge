@@ -33,11 +33,11 @@ const STATUS_ICONS: Record<PipelineStatus, string> = {
 };
 
 const STATUS_COLORS: Record<PipelineStatus, string> = {
-  pending: 'text-gray-400',
-  running: 'text-blue-500',
-  completed: 'text-green-500',
-  failed: 'text-red-500',
-  cancelled: 'text-gray-500'
+  pending: 'text-text-secondary',
+  running: 'text-primary',
+  completed: 'text-success',
+  failed: 'text-error',
+  cancelled: 'text-text-secondary'
 };
 
 const AI_STATUS_ICONS: Record<string, string> = {
@@ -49,11 +49,11 @@ const AI_STATUS_ICONS: Record<string, string> = {
 };
 
 const AI_STATUS_COLORS: Record<string, string> = {
-  Pending: 'text-gray-400',
-  Running: 'text-blue-500',
-  Completed: 'text-green-500',
-  Failed: 'text-red-500',
-  Skipped: 'text-gray-500'
+  Pending: 'text-text-secondary',
+  Running: 'text-primary',
+  Completed: 'text-success',
+  Failed: 'text-error',
+  Skipped: 'text-text-secondary'
 };
 
 export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
@@ -115,7 +115,7 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
   };
 
   return (
-    <div className="pipeline-page p-6 max-w-5xl mx-auto">
+    <div className="pipeline-page w-full max-w-none p-6">
       <WorkflowOptionalBanner
         projectId={projectId}
         description="Automated multi-stage orchestration (analysis, strategy, design, plans). Most teams use Requirements → Generate test cases → Run instead."
@@ -141,11 +141,11 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
         </Button>
 
         {/* AI Pipeline Controls */}
-        <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded">
-          <h2 className="text-lg font-semibold text-purple-800 mb-3">AI Pipeline</h2>
+        <div className="mb-6 rounded-lg border border-primary/30 bg-primary/10 p-4">
+          <h2 className="text-lg font-semibold text-primary mb-3">AI Pipeline</h2>
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex-1 min-w-[200px]">
-              <label className="block text-sm font-medium text-purple-800 mb-1">AI Provider</label>
+              <label className="block text-sm font-medium text-primary mb-1">AI Provider</label>
               <select
                 value={aiProviderId}
                 onChange={(e) => setAiProviderId(e.target.value)}
@@ -159,7 +159,7 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
                 ))}
               </select>
             </div>
-            <label className="flex items-center gap-2 text-sm text-purple-800 pb-2">
+            <label className="flex items-center gap-2 text-sm text-primary pb-2">
               <input
                 type="checkbox"
                 checked={autoApprove}
@@ -171,7 +171,7 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
             <button
               onClick={handleRunAIPipeline}
               disabled={!aiProviderId || aiRunning || loading}
-              className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:bg-gray-400"
+              className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 disabled:bg-background disabled:text-text-secondary"
             >
               {aiRunning ? 'Running AI Pipeline...' : 'Run AI Pipeline'}
             </button>
@@ -182,7 +182,7 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
           <button
             onClick={handleRunEntirePipeline}
             disabled={loading}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400"
+            className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 disabled:bg-background disabled:text-text-secondary"
           >
             {loading ? 'Running...' : 'Run Entire Pipeline'}
           </button>
@@ -191,7 +191,7 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
         {pipeline && pipeline.status === 'running' && (
           <button
             onClick={handleCancelPipeline}
-            className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 ml-2"
+            className="px-4 py-2 bg-error text-white rounded hover:bg-error/90 ml-2"
           >
             Cancel Pipeline
           </button>
@@ -199,21 +199,21 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
       </div>
 
       {error && (
-        <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+        <div className="mb-4 rounded-lg border border-error/40 bg-error/15 p-4 text-error">
           {error}
         </div>
       )}
 
       {/* AI Pipeline Progress */}
       {aiResult && (
-        <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded">
+        <div className="mb-6 rounded-lg border border-primary/30 bg-primary/10 p-4">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-purple-800">AI Pipeline Result</h2>
+            <h2 className="text-lg font-semibold text-primary">AI Pipeline Result</h2>
             <div className="flex items-center gap-4 text-sm">
-              <span className="text-purple-800">
+              <span className="text-primary">
                 Status: <strong>{aiResult.status}</strong>
               </span>
-              <span className="text-purple-800">
+              <span className="text-primary">
                 Elapsed: <strong>{formatDuration(aiResult.totalDurationMs)}</strong>
               </span>
             </div>
@@ -225,22 +225,22 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
               const stageResult = aiResult.stages?.find((s: any) => s.stage === stage);
               const status = stageResult?.status || 'Pending';
               return (
-                <div key={stage} className="flex items-center gap-3 p-2 bg-white rounded border border-purple-100">
+                <div key={stage} className="flex items-center gap-3 rounded border border-border bg-surface p-2">
                   <span className={`text-xl ${AI_STATUS_COLORS[status]}`}>{AI_STATUS_ICONS[status]}</span>
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
-                      <span className="font-medium text-purple-900">{stage}</span>
+                      <span className="font-medium text-text">{stage}</span>
                       <span className={`text-sm ${AI_STATUS_COLORS[status]}`}>{status}</span>
                     </div>
-                    <div className="flex items-center gap-4 text-xs text-gray-600 mt-1">
+                    <div className="flex items-center gap-4 text-xs text-text-secondary mt-1">
                       <span>Duration: {formatDuration(stageResult?.durationMs)}</span>
                       <span>Generated: {stageResult?.generatedCount ?? 0}</span>
                       {stageResult?.error && (
-                        <span className="text-red-600">Error: {stageResult.error}</span>
+                        <span className="text-error">Error: {stageResult.error}</span>
                       )}
                     </div>
                     {stageResult?.warnings && stageResult.warnings.length > 0 && (
-                      <div className="mt-1 text-xs text-yellow-700">
+                        <div className="mt-1 text-xs text-warning">
                         {stageResult.warnings.map((w: string, i: number) => (
                           <div key={i}>• {w}</div>
                         ))}
@@ -254,34 +254,34 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
 
           {/* Generated artifact counts */}
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
-            <div className="p-2 bg-white rounded border border-purple-100">
-              <span className="text-gray-600">Requirements:</span>{' '}
-              <strong className="text-purple-800">{aiResult.requirementIds?.length || 0}</strong>
+            <div className="p-2 bg-surface rounded border border-border">
+              <span className="text-text-secondary">Requirements:</span>{' '}
+              <strong className="text-primary">{aiResult.requirementIds?.length || 0}</strong>
             </div>
-            <div className="p-2 bg-white rounded border border-purple-100">
-              <span className="text-gray-600">Strategies:</span>{' '}
-              <strong className="text-purple-800">{aiResult.strategyIds?.length || 0}</strong>
+            <div className="p-2 bg-surface rounded border border-border">
+              <span className="text-text-secondary">Strategies:</span>{' '}
+              <strong className="text-primary">{aiResult.strategyIds?.length || 0}</strong>
             </div>
-            <div className="p-2 bg-white rounded border border-purple-100">
-              <span className="text-gray-600">Designs:</span>{' '}
-              <strong className="text-purple-800">{aiResult.designIds?.length || 0}</strong>
+            <div className="p-2 bg-surface rounded border border-border">
+              <span className="text-text-secondary">Designs:</span>{' '}
+              <strong className="text-primary">{aiResult.designIds?.length || 0}</strong>
             </div>
-            <div className="p-2 bg-white rounded border border-purple-100">
-              <span className="text-gray-600">Assertions:</span>{' '}
-              <strong className="text-purple-800">{aiResult.assertionIds?.length || 0}</strong>
+            <div className="p-2 bg-surface rounded border border-border">
+              <span className="text-text-secondary">Assertions:</span>{' '}
+              <strong className="text-primary">{aiResult.assertionIds?.length || 0}</strong>
             </div>
-            <div className="p-2 bg-white rounded border border-purple-100">
-              <span className="text-gray-600">Execution Plans:</span>{' '}
-              <strong className="text-purple-800">{aiResult.executionPlanIds?.length || 0}</strong>
+            <div className="p-2 bg-surface rounded border border-border">
+              <span className="text-text-secondary">Execution Plans:</span>{' '}
+              <strong className="text-primary">{aiResult.executionPlanIds?.length || 0}</strong>
             </div>
-            <div className="p-2 bg-white rounded border border-purple-100">
-              <span className="text-gray-600">Suites:</span>{' '}
-              <strong className="text-purple-800">{aiResult.suiteIds?.length || 0}</strong>
+            <div className="p-2 bg-surface rounded border border-border">
+              <span className="text-text-secondary">Suites:</span>{' '}
+              <strong className="text-primary">{aiResult.suiteIds?.length || 0}</strong>
             </div>
           </div>
 
           {aiResult.warnings && aiResult.warnings.length > 0 && (
-            <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-700">
+            <div className="mt-3 rounded border border-warning/30 bg-warning/10 p-2 text-sm text-warning">
               {aiResult.warnings.map((w: string, i: number) => (
                 <div key={i}>• {w}</div>
               ))}
@@ -291,27 +291,27 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
       )}
 
       {pipeline && (
-        <div className="mb-4 p-4 bg-gray-100 rounded">
+        <div className="mb-4 rounded-lg border border-border bg-surface p-4">
           <div className="flex justify-between items-center">
             <div>
-              <p className="text-sm text-gray-600">Pipeline Status</p>
+              <p className="text-sm text-text-secondary">Pipeline Status</p>
               <p className={`text-lg font-semibold ${STATUS_COLORS[pipeline.status as PipelineStatus]}`}>
                 {pipeline.status.toUpperCase()}
               </p>
             </div>
             <div>
-              <p className="text-sm text-gray-600">Started</p>
+              <p className="text-sm text-text-secondary">Started</p>
               <p className="text-sm">{new Date(pipeline.startedAt).toLocaleTimeString()}</p>
             </div>
             {pipeline.completedAt && (
               <div>
-                <p className="text-sm text-gray-600">Completed</p>
+                <p className="text-sm text-text-secondary">Completed</p>
                 <p className="text-sm">{new Date(pipeline.completedAt).toLocaleTimeString()}</p>
               </div>
             )}
           </div>
           {pipeline.error && (
-            <div className="mt-2 p-2 bg-red-50 border border-red-200 text-red-700 rounded text-sm">
+            <div className="mt-2 rounded border border-error/30 bg-error/10 p-2 text-sm text-error">
               Error: {pipeline.error}
             </div>
           )}
@@ -329,10 +329,10 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
             <div
               key={stage}
               className={`border rounded-lg p-4 ${
-                status === 'completed' ? 'bg-green-50 border-green-200' :
-                status === 'failed' ? 'bg-red-50 border-red-200' :
-                status === 'running' ? 'bg-blue-50 border-blue-200' :
-                'bg-gray-50 border-gray-200'
+                status === 'completed' ? 'bg-success/10 border-success/30' :
+                status === 'failed' ? 'bg-error/10 border-error/30' :
+                status === 'running' ? 'bg-primary/10 border-primary/30' :
+                'bg-surface border-border'
               }`}
             >
               <div className="flex items-start justify-between">
@@ -350,22 +350,22 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
                   </div>
 
                   {duration && (
-                    <p className="text-sm text-gray-600 mt-2 ml-9">
+                    <p className="text-sm text-text-secondary mt-2 ml-9">
                       Duration: {duration}
                     </p>
                   )}
 
                   {stageResult?.artifacts && Object.keys(stageResult.artifacts).length > 0 && (
                     <div className="mt-2 ml-9">
-                      <p className="text-sm font-semibold text-gray-700">Artifacts:</p>
-                      <pre className="text-xs text-gray-600 mt-1 bg-white p-2 rounded">
+                      <p className="text-sm font-semibold text-text-secondary">Artifacts:</p>
+                      <pre className="text-xs text-text-secondary mt-1 bg-background p-2 rounded">
                         {JSON.stringify(stageResult.artifacts, null, 2)}
                       </pre>
                     </div>
                   )}
 
                   {stageResult?.error && (
-                    <div className="mt-2 ml-9 p-2 bg-red-100 border border-red-300 text-red-700 rounded text-sm">
+                    <div className="mt-2 ml-9 rounded border border-error/30 bg-error/10 p-2 text-sm text-error">
                       {stageResult.error}
                     </div>
                   )}
@@ -375,7 +375,7 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
                   {status === 'completed' && (
                     <button
                       onClick={() => {}}
-                      className="px-3 py-1 text-sm bg-gray-500 text-white rounded hover:bg-gray-600"
+                      className="px-3 py-1 text-sm bg-background text-text rounded hover:bg-surface"
                     >
                       View Result
                     </button>
@@ -385,7 +385,7 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
                     <button
                       onClick={() => handleRetryStage(stage)}
                       disabled={loading}
-                      className="px-3 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600 disabled:bg-gray-400"
+                      className="px-3 py-1 text-sm bg-warning text-white rounded hover:bg-warning/90 disabled:bg-background disabled:text-text-secondary"
                     >
                       Retry Stage
                     </button>
@@ -395,7 +395,7 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
                     <button
                       onClick={() => handleRetryStage(stage)}
                       disabled={loading}
-                      className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400"
+                      className="px-3 py-1 text-sm bg-primary text-white rounded hover:bg-primary/90 disabled:bg-background disabled:text-text-secondary"
                     >
                       Run Stage
                     </button>

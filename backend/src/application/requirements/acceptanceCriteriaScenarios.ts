@@ -260,13 +260,14 @@ export function planScenariosFromAcceptanceCriteria(
 
   const isAccountFlow = /(create|register|sign[\s-]?up|new account|account creation)/i.test(lowerNorm);
   const isAuthFlow = /(log[\s-]?in|sign[\s-]?in|authenticate)/i.test(lowerNorm);
-  const mentionsRegion = /\b(us|usa|dewalt|region|market|locale|country)\b/i.test(lowerNorm);
 
   const fields = inferFieldsFromAcceptanceCriteria(acText, {
     flowKind: isAccountFlow ? 'account' : isAuthFlow ? 'auth' : 'generic',
     apiRequiredBodyKeys: options.apiRequiredBodyKeys,
     apiBodyKeys: options.apiBodyKeys,
   });
+  const mentionsRegion = Boolean(fields.contextPhrase) ||
+    /\b(region|market|locale|country|site|store|portal|platform|application)\b/i.test(lowerNorm);
 
   if (isAccountFlow) {
     addAccountRegistrationScenarios(add, fields, mentionsRegion, lowerNorm);

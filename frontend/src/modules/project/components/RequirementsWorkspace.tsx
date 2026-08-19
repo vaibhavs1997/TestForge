@@ -68,7 +68,7 @@ export const RequirementsWorkspace: React.FC<RequirementsWorkspaceProps> = ({ pr
       </aside>
       <main className='min-w-0 flex-1 overflow-y-auto'>
       <div className='h-full min-w-0'>
-        <Routes>
+        <Routes key={location.pathname}>
           <Route path='/' element={<RequirementsPage section='requirements' />} />
           <Route path='approved' element={<RequirementsPage section='approved' />} />
           <Route path='archived' element={<RequirementsPage section='archived' />} />

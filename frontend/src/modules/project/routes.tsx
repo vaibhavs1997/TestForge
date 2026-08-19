@@ -1,6 +1,6 @@
 // External libraries
 import React, { Suspense, lazy } from 'react';
-import { Navigate, Route, Routes, useParams } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 
 // Project pages
 import { ProjectsHomePage } from './pages';
@@ -48,6 +48,7 @@ const PageLoader = () => (
  */
 const ProjectWorkspace: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
+  const location = useLocation();
   const setSelectedProjectId = projectStore((state) => state.setSelectedProjectId);
 
   React.useEffect(() => {
@@ -68,7 +69,7 @@ const ProjectWorkspace: React.FC = () => {
   const ProjectPluginManagementPage = () => <PluginManagementPage />;
 
   return (
-    <Routes>
+    <Routes key={location.pathname}>
       {/* Primary workflow */}
       <Route path={projectModules.overview} element={<PipelineDashboard projectId={projectId} />} />
       <Route path={projectModules.apis} element={<ApiExecutionPage />} />

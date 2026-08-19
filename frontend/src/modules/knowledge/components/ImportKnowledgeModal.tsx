@@ -86,7 +86,7 @@ export const ImportKnowledgeModal: React.FC<ImportKnowledgeModalProps> = ({
             </Button>
           </CardHeader>
           <CardContent className='space-y-4'>
-            <div
+            {files.length === 0 && <div
               className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors ${
                 dragOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary'
               }`}
@@ -104,14 +104,15 @@ export const ImportKnowledgeModal: React.FC<ImportKnowledgeModalProps> = ({
               <Upload className='mb-2 h-8 w-8 text-text-secondary' />
               <p className='text-sm font-medium text-text'>Drop files here or click to browse</p>
               <p className='mt-2 text-center text-xs text-text-secondary'>{SUPPORTED_HINT}</p>
-              <input
-                ref={fileInputRef}
-                type='file'
-                className='hidden'
-                multiple
-                onChange={(e) => addFiles(e.target.files)}
-              />
-            </div>
+            </div>}
+
+            <input
+              ref={fileInputRef}
+              type='file'
+              className='hidden'
+              multiple
+              onChange={(e) => addFiles(e.target.files)}
+            />
 
             <div className='flex items-center justify-between'>
               <p className='text-sm text-text-secondary'>

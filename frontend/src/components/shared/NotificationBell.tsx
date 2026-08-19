@@ -27,11 +27,16 @@ function formatTime(ts: number): string {
   return d.toLocaleDateString();
 }
 
+function notificationEventKey(item: NotificationInboxItem): string {
+  return [item.projectId, item.module, item.action, item.entityType, item.entityId, item.timestamp].join('|');
+}
+
 export const NotificationBell: React.FC = () => {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const knownIdsRef = useRef<Set<string> | null>(null);
+  const knownEventKeysRef = useRef<Set<string> | null>(null);
   const [liveToastOpen, setLiveToastOpen] = useState(false);
   const [liveToastMessage, setLiveToastMessage] = useState('');
 
@@ -41,19 +46,34 @@ export const NotificationBell: React.FC = () => {
   const { isRead, markRead, markAllRead } = useNotificationReadStore();
   const { projectId } = useParams<{ projectId?: string }>();
 
-  const unreadCount = items.filter((n) => !isRead(n.id)).length;
+  const uniqueItems = React.useMemo(() => {
+    const seen = new Set<string>();
+    return items.filter((item) => {
+      const key = notificationEventKey(item);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [items]);
+
+  const unreadCount = uniqueItems.filter((n) => !isRead(n.id)).length;
 
   useEffect(() => {
     if (isLoading) return;
-    const currentIds = new Set(items.map((i) => i.id));
+    const currentIds = new Set(uniqueItems.map((i) => i.id));
+    const currentEventKeys = new Set(uniqueItems.map(notificationEventKey));
     if (knownIdsRef.current === null) {
       knownIdsRef.current = currentIds;
+      knownEventKeysRef.current = currentEventKeys;
       return;
     }
-    const newUnread = items.filter(
-      (item) => !knownIdsRef.current!.has(item.id) && !isRead(item.id),
+    const newUnread = uniqueItems.filter(
+      (item) => !knownIdsRef.current!.has(item.id)
+        && !knownEventKeysRef.current?.has(notificationEventKey(item))
+        && !isRead(item.id),
     );
     knownIdsRef.current = currentIds;
+    knownEventKeysRef.current = currentEventKeys;
     if (newUnread.length > 0 && !open) {
       const latest = newUnread[0];
       setLiveToastMessage(
@@ -61,7 +81,7 @@ export const NotificationBell: React.FC = () => {
       );
       setLiveToastOpen(true);
     }
-  }, [items, isLoading, isRead, open]);
+  }, [uniqueItems, isLoading, isRead, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -103,12 +123,12 @@ export const NotificationBell: React.FC = () => {
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <h3 className="text-sm font-semibold text-text">Notifications</h3>
           <div className="flex items-center gap-1">
-            {items.length > 0 && (
+            {uniqueItems.length > 0 && (
               <button
                 type="button"
                 className="rounded-lg p-1.5 text-text-secondary hover:bg-background/40 hover:text-text"
                 title="Mark all as read"
-                onClick={() => markAllRead(items.map((i) => i.id))}
+                onClick={() => markAllRead(uniqueItems.map((i) => i.id))}
               >
                 <CheckCheck className="h-4 w-4" />
               </button>
@@ -134,12 +154,12 @@ export const NotificationBell: React.FC = () => {
           {isError && (
             <p className="px-4 py-8 text-center text-sm text-error">Could not load notifications.</p>
           )}
-          {!isLoading && !isError && items.length === 0 && (
+          {!isLoading && !isError && uniqueItems.length === 0 && (
             <p className="px-4 py-10 text-center text-sm text-text-secondary">
               No activity yet. Events from all projects will appear here.
             </p>
           )}
-          {items.map((item) => {
+          {uniqueItems.map((item) => {
             const read = isRead(item.id);
             const auditPath = projectModulePath(item.projectId, 'audit');
             return (

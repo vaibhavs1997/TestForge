@@ -104,7 +104,8 @@ export class BusinessRuleRepository {
   }
 
   private async readItems(filePath: string): Promise<BusinessRule[]> {
-    return readJsonArray(filePath);
+    const rules = await readJsonArray<BusinessRule>(filePath);
+    return rules.filter((rule) => rule && typeof rule.name === 'string' && rule.name.trim().length > 0);
   }
 }
 

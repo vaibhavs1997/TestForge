@@ -4,10 +4,13 @@ import type { StrategyCategory } from '../../domain/requirements/TestStrategyEnt
 import { getAcceptanceCriteriaFocusText } from './requirementAcceptanceFocus';
 import { expandRequirementWithSynonyms, expandOperationWithSynonyms, getSynonymReasoning } from './OperationMappingSynonyms';
 
-const CREATE_HINTS = ['create', 'register', 'signup', 'sign-up', 'account', 'user'];
+const CREATE_HINTS = ['create', 'register', 'signup', 'sign-up', 'registration', 'enroll', 'onboard'];
 const READ_HINTS = ['get', 'list', 'fetch', 'read'];
 const UPDATE_HINTS = ['update', 'patch', 'put', 'modify'];
 const DELETE_HINTS = ['delete', 'remove'];
+
+const RESET_TERMS = ['forgot password', 'reset password', 'password reset', 'forgotten password'];
+const REGISTRATION_TERMS = ['register', 'registration', 'signup', 'sign up', 'create account', 'new user', 'user creation'];
 
 function tokenize(text: string): string[] {
   return text
@@ -50,7 +53,22 @@ function scoreOperation(op: ApiOperationEntity, tokens: string[], corpus: string
   // Add synonym-based reasoning
   const synonymReasons = getSynonymReasoning(op as any, op);
   reasons.push(...synonymReasons);
-  if (CREATE_HINTS.some((h) => corpus.includes(h) && (hay.includes(h) || hay.includes('post')))) {
+  const requirementIsRegistration = REGISTRATION_TERMS.some((term) => corpus.includes(term));
+  const operationIsReset = RESET_TERMS.some((term) => hay.includes(term)) || /forgot|reset/.test(hay);
+  const operationIsRegistration = REGISTRATION_TERMS.some((term) => hay.includes(term));
+
+  if (requirementIsRegistration && operationIsReset && !RESET_TERMS.some((term) => corpus.includes(term))) {
+    score -= 8;
+    reasons.push('Rejected password-reset semantics for a registration requirement (-8)');
+  }
+  if (requirementIsRegistration && operationIsRegistration) {
+    score += 6;
+    reasons.push('Registration intent matches operation semantics (+6)');
+  }
+  // HTTP method alone is not enough to identify the business operation. A
+  // password-reset POST must not win for a registration requirement simply
+  // because both actions use POST.
+  if (CREATE_HINTS.some((h) => corpus.includes(h) && hay.includes(h))) {
     if (op.method === 'POST') {
       score += 5;
       reasons.push(`Requirement suggests "create" action and operation is POST (+5)`);
@@ -98,14 +116,7 @@ export function getOperationMatchDiagnostics(
   scored.sort((a, b) => b.score - a.score);
 
   const topScore = scored[0]?.score ?? 0;
-  let ranked = scored;
-    if (topScore === 0) {
-      const post = operations.find((o) => o.method === 'POST');
-      if (post) {
-        const rest = scored.filter((s) => s.operation.id !== post.id);
-        ranked = [{ operation: post, score: 0, reasons: ['No text match found; fallback to POST'] }, ...rest];
-      }
-    }
+  const ranked = scored;
 
   const secondScore = ranked[1]?.score ?? 0;
   const lowConfidence =
@@ -174,37 +185,29 @@ export function pickOperationForCategory(
     throw new Error(`No API operations available for requirement "${requirement.title}"`);
   }
 
-  let selected: ApiOperationEntity | undefined;
+  const diagnostics = getOperationMatchDiagnostics(requirement, operations);
+  const topMatch = diagnostics.ranked[0];
+  const secondMatch = diagnostics.ranked[1];
+  const scoreMargin = (topMatch?.score ?? 0) - (secondMatch?.score ?? 0);
+  if (diagnostics.lowConfidence && (!topMatch || topMatch.score < 4 || scoreMargin < 2)) {
+    throw new Error(
+      `No confident API mapping found for requirement "${requirement.title}". ` +
+      'Review the imported API operation names or choose the mapping manually before generating test cases.',
+    );
+  }
 
-  switch (category) {
-    case 'Negative':
-    case 'Validation':
-      selected = ranked.find((o) => o.method === 'POST' || o.method === 'PUT' || o.method === 'PATCH');
-      if (!selected) {
-        // Fallback: any non-GET method
-        selected = ranked.find((o) => o.method !== 'GET') ?? ranked[0];
-      }
-      break;
-    case 'Security':
-      selected = ranked.find((o) => o.authenticationType && o.authenticationType !== 'None');
-      if (!selected) {
-        throw new Error(
-          `No authenticated API operation found for Security test on requirement "${requirement.title}". ` +
-          `Expected an operation with authentication (Bearer, Basic, API Key, OAuth).`,
-        );
-      }
-      break;
-    case 'Positive':
-    case 'Boundary':
-    case 'Business Rules':
-      selected = ranked.find((o) => o.method === 'POST');
-      if (!selected) {
-        // For non-POST operations, warn but allow (e.g., GET for read-only positive tests)
-        selected = ranked.find((o) => o.method === 'GET') ?? ranked[0];
-      }
-      break;
-    default:
-      selected = ranked[0];
+  let selected: ApiOperationEntity | undefined = topMatch?.operation;
+
+  if (category === 'Security') {
+    const topIsAuthenticated = Boolean(
+      topMatch?.operation.authenticationType && topMatch.operation.authenticationType !== 'None',
+    );
+    if (!topIsAuthenticated) {
+      throw new Error(
+        `The best API match for Security test "${requirement.title}" is not authenticated. ` +
+        'Review the operation mapping instead of switching to an unrelated authenticated endpoint.',
+      );
+    }
   }
 
   if (!selected) {

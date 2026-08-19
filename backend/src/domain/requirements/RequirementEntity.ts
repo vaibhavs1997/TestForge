@@ -31,7 +31,9 @@ export class RequirementEntity {
     public relatedDatasets: string[],
     public acceptanceCriteria: AcceptanceCriterion[],
     public readonly createdAt: number,
-    public updatedAt: number
+    public updatedAt: number,
+    public generationPending = false,
+    public generationExpiresAt: number | null = null
   ) {}
 }
 

@@ -22,6 +22,8 @@ export class CreateRequirement {
     relatedDatasets?: string[];
     acceptanceCriteria?: AcceptanceCriterion[];
     jiraIssueKey?: string | null;
+    generationPending?: boolean;
+    generationExpiresAt?: number | null;
   }): Promise<RequirementEntity> {
     const title = ValidationHelpers.validateRequired(params.title, 'Requirement title');
 
@@ -42,7 +44,9 @@ export class CreateRequirement {
       ValidationHelpers.trimStringArray(params.relatedDatasets),
       params.acceptanceCriteria || [],
       now,
-      now
+      now,
+      Boolean(params.generationPending),
+      params.generationExpiresAt ?? null,
     );
 
     const jiraKey = ValidationHelpers.trimString(params.jiraIssueKey ?? '');

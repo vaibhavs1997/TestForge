@@ -134,18 +134,6 @@ export class GenerateTestDesigns {
     category: StrategyCategory,
     operations: Awaited<ReturnType<ApiOperationRepository['findByProject']>>,
   ): string {
-    if (item.relatedApis.length > 0) {
-      const candidate = item.relatedApis[0];
-      if (operations.some((o) => o.id === candidate)) {
-        return candidate;
-      }
-    }
-    if (requirement.relatedOperations.length > 0) {
-      const candidate = requirement.relatedOperations[0];
-      if (operations.some((o) => o.id === candidate)) {
-        return candidate;
-      }
-    }
     return pickOperationForCategory(requirement, operations, category);
   }
 

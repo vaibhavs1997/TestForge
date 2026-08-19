@@ -15,7 +15,7 @@ import { useAssertions } from '../../assertion/hooks/useAssertions';
 import { useAIProviders } from '../../ai-provider/hooks';
 import { requirementService } from '../services/requirementService';
 import { testDesignService } from '../services/testDesignService';
-import type { Requirement, ApprovalStatus, ValidationCategory, TestStrategy, StrategyCategorySection, StrategyItem, TestDesign, Assertion, RuntimeBinding, ExecutionPlan, CleanupStep, AssertionReference, RequirementMappingContext } from '../types';
+import type { Requirement, ApprovalStatus, ValidationCategory, TestStrategy, StrategyCategorySection, StrategyItem, TestDesign, Assertion, RuntimeBinding, ExecutionPlan, CleanupStep, RequirementMappingContext } from '../types';
 import type { Assertion as ReusableAssertion } from '../../assertion/types';
 import { useQueryClient, useQuery, useQueries } from '@tanstack/react-query';
 import { queryKeys } from '../../../constants';
@@ -68,6 +68,60 @@ const getConfidenceColor = (confidence: number) => {
 const suiteConfidenceLabel = (source: Requirement['source']) =>
   source === 'ProjectAnalysis' ? 'Analysis confidence' : 'API mapping';
 
+const RoundedSelect: React.FC<{
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onChange: (value: string) => void;
+  'aria-label': string;
+}> = ({ value, options, onChange, 'aria-label': ariaLabel }) => {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const selected = options.find((option) => option.value === value) ?? options[0];
+
+  useEffect(() => {
+    if (!open) return;
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className='relative w-full sm:w-44'>
+      <button
+        type='button'
+        aria-label={ariaLabel}
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className='flex h-10 w-full items-center justify-between rounded-xl border border-border bg-background px-3 text-left text-sm text-text outline-none transition-colors focus:border-primary'
+      >
+        <span className='truncate'>{selected?.label}</span>
+        <ChevronDown className={`ml-2 h-4 w-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className='absolute left-0 top-full z-30 mt-1 w-full overflow-hidden rounded-xl border border-border bg-surface p-1 shadow-xl' role='listbox' aria-label={ariaLabel}>
+          {options.map((option) => (
+            <button
+              key={option.value}
+              type='button'
+              role='option'
+              aria-selected={option.value === value}
+              onClick={() => {
+                onChange(option.value);
+                setOpen(false);
+              }}
+              className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${option.value === value ? 'bg-primary/15 text-primary' : 'text-text hover:bg-background/60'}`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const resolveSuiteConfidence = (
   requirement: Requirement,
   mapping?: RequirementMappingContext,
@@ -114,34 +168,13 @@ const getExecutionStatusBadgeVariant = (status: string) => {
   }
 };
 
-const STRATEGY_CATEGORIES: StrategyCategorySection['category'][] = [
-  'Positive',
-  'Negative',
-  'Boundary',
-  'Business Rules',
-  'Security',
-  'Validation',
-  'Error Handling',
-  'Integration',
-  'Regression',
-  'Performance',
-  'Accessibility',
-  'Localization',
-];
-
 export const RequirementsPage: React.FC<RequirementsPageProps> = ({ section = 'requirements' }) => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const projectId = routeProjectId || '1';
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const breadcrumbItems = [
-    { label: 'Projects', to: '/projects' },
-    { label: 'Project', to: `/projects/${projectId}/overview` },
-    { label: 'Requirements' },
-  ];
-
-  const { requirements, suggested, approved, archived, isLoading, isError, error, generateFromAnalysisAsync, isGenerating, updateAsync, removeAsync, validateReadinessAsync, isValidating, validationResult, planTestStrategyAsync, isPlanningStrategy, testStrategy, generateTestDesignsAsync, isGeneratingDesigns, planExecutionAsync, createAsync, isCreating } = useRequirements(projectId);
+  const { requirements, suggested, approved, archived, isLoading, isError, error, generateFromAnalysisAsync, updateAsync, removeAsync, planTestStrategyAsync, generateTestDesignsAsync, isGeneratingDesigns, planExecutionAsync, createAsync, isCreating } = useRequirements(projectId);
 
   const listedSuiteRequirements = useMemo(
     () => [...suggested, ...approved, ...archived],
@@ -338,19 +371,13 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = ({ section = 'r
   const [jiraImporting, setJiraImporting] = useState(false);
   const importRequirementsInputRef = React.useRef<HTMLInputElement>(null);
 
-  const activeRequirementId = activeRequirement?.id;
-
-  const showTopGeneratedPanel =
+  const topPanelRequirementId =
     suitePanelVisible &&
     Boolean(activeRequirement) &&
-    activeRequirement?.approvalStatus === 'Draft';
-
-  const draftPanelOpen =
-    Boolean(openDraftSuite) &&
-    showTopGeneratedPanel &&
-    activeRequirement?.id === openDraftSuite?.id;
-
-  const showCaptureDraftBanner = captureBlockedByDraft && !draftPanelOpen;
+    (activeRequirement?.approvalStatus === 'Draft' ||
+      (activeRequirement?.approvalStatus === 'Suggested' && expandedSuiteId !== activeRequirement.id))
+      ? activeRequirement?.id
+      : undefined;
 
   const scrollToDraftPanel = () => {
     if (!openDraftSuite) return;
@@ -360,11 +387,21 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = ({ section = 'r
     });
   };
 
-  const artifactsRequirementId = showTopGeneratedPanel
-    ? activeRequirementId
+  const artifactsRequirementId = topPanelRequirementId
+    ? topPanelRequirementId
     : expandedSuiteId ?? undefined;
 
   const artifacts = useRequirementArtifacts(projectId, artifactsRequirementId);
+
+  const showTopGeneratedPanel = Boolean(topPanelRequirementId) &&
+    (isGeneratingTestCases || artifacts.isLoadingDesigns || artifacts.designs.length > 0);
+
+  const draftPanelOpen =
+    Boolean(openDraftSuite) &&
+    showTopGeneratedPanel &&
+    activeRequirement?.id === openDraftSuite?.id;
+
+  const showCaptureDraftBanner = captureBlockedByDraft && !draftPanelOpen;
 
   const { operations: projectOperations, isLoading: projectOperationsLoading } = useProjectApiOperations(projectId);
 
@@ -401,6 +438,8 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = ({ section = 'r
     relatedFlows: partial.relatedFlows ?? [],
     relatedDatasets: partial.relatedDatasets ?? [],
     acceptanceCriteria: partial.acceptanceCriteria ?? [],
+    generationPending: partial.generationPending ?? false,
+    generationExpiresAt: partial.generationExpiresAt ?? null,
   });
 
   const handleImportRequirementsFile = async (file: File | null) => {
@@ -498,6 +537,8 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = ({ section = 'r
           title: payload.title,
           description: payload.description,
           acceptanceCriteria: payload.acceptanceCriteria,
+          generationPending: true,
+          generationExpiresAt: Date.now() + 30 * 60 * 1000,
         }),
       );
       if (!created?.id) {
@@ -508,7 +549,13 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = ({ section = 'r
       const generated = await runGenerateTestCasesForRequirement(created);
       if (!generated) {
         // Do not leave a failed, hidden Draft blocking the next attempt.
-        await removeAsync(created.id);
+        try {
+          await removeAsync(created.id);
+        } catch {
+          // Keep the original generation error visible; the next query refresh will
+          // still reflect the server state if cleanup was rejected.
+          await queryClient.invalidateQueries({ queryKey: queryKeys.requirements(projectId) });
+        }
         selectActiveRequirement(undefined, { showPanel: false });
       }
     } catch (err: any) {
@@ -521,8 +568,10 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = ({ section = 'r
   const handleImportFromJira = async (issueKey: string) => {
     if (!assertCanStartNewSuite()) return;
     setJiraImporting(true);
+    let createdRequirementId: string | undefined;
     try {
       const created = await requirementService.importFromJira(projectId, issueKey);
+      createdRequirementId = created?.id;
       await queryClient.invalidateQueries({ queryKey: queryKeys.requirements(projectId) });
       setJiraImportOpen(false);
       setToastMessage(`Imported ${issueKey} from Jira`);
@@ -530,9 +579,25 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = ({ section = 'r
       setToastOpen(true);
       if (created?.id) {
         selectActiveRequirement(created, { showPanel: true });
-        await runGenerateTestCasesForRequirement(created);
+        const generated = await runGenerateTestCasesForRequirement(created);
+        if (!generated) {
+          try {
+            await removeAsync(created.id);
+          } catch {
+            await queryClient.invalidateQueries({ queryKey: queryKeys.requirements(projectId) });
+          }
+          selectActiveRequirement(undefined, { showPanel: false });
+        }
       }
     } catch (err: any) {
+      if (createdRequirementId) {
+        try {
+          await removeAsync(createdRequirementId);
+        } catch {
+          await queryClient.invalidateQueries({ queryKey: queryKeys.requirements(projectId) });
+        }
+        selectActiveRequirement(undefined, { showPanel: false });
+      }
       setToastMessage(err?.response?.data?.message || err?.message || 'Jira import failed');
       setToastType('error');
       setToastOpen(true);
@@ -1596,17 +1661,17 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = ({ section = 'r
           aria-label='Search requirements'
           className='h-10 min-w-0 flex-1 rounded-lg border border-border bg-background px-3 text-sm text-text outline-none focus:border-primary'
         />
-        <select
+        <RoundedSelect
           value={requirementSourceFilter}
-          onChange={(event) => setRequirementSourceFilter(event.target.value as typeof requirementSourceFilter)}
+          onChange={(value) => setRequirementSourceFilter(value as typeof requirementSourceFilter)}
           aria-label='Filter requirements by source'
-          className='h-10 rounded-lg border border-border bg-background px-3 text-sm text-text outline-none focus:border-primary'
-        >
-          <option value='all'>All sources</option>
-          <option value='Jira'>Jira</option>
-          <option value='Manual'>Manual</option>
-          <option value='ProjectAnalysis'>Project analysis</option>
-        </select>
+          options={[
+            { value: 'all', label: 'All sources' },
+            { value: 'Jira', label: 'Jira' },
+            { value: 'Manual', label: 'Manual' },
+            { value: 'ProjectAnalysis', label: 'Project analysis' },
+          ]}
+        />
       </div>
 
       {section === 'requirements' && <div ref={suitePanelRef}>
@@ -1656,7 +1721,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = ({ section = 'r
             </Button>
           </div>
           <p className='mb-3 text-sm text-text-secondary'>
-            Suites appear here after you choose Add to pending review on a generated suite. Use the eye icon on a card to show or hide test cases inside that card.
+            Generated suites appear here for review. Approve them for execution or archive them when they are no longer needed. Use the eye icon on a card to show or hide test cases inside that card.
           </p>
           {visiblePendingReview.length > 0 ? visiblePendingReview.map((req) => renderRequirementCard(req)) : (
             <Card className='p-6 text-center'><p className='text-sm text-text-secondary'>No pending requirements match your filters.</p></Card>

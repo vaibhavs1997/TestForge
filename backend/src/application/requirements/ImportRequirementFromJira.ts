@@ -34,6 +34,8 @@ export class ImportRequirementFromJira {
           ? acceptanceCriteria
           : [{ id: randomUUID(), text: issue.summary }],
       jiraIssueKey: issueKey,
+      generationPending: true,
+      generationExpiresAt: Date.now() + 30 * 60 * 1000,
     });
   }
 }

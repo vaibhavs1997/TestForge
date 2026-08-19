@@ -157,7 +157,7 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
   const progressPercent = Math.round((completedCount / steps.length) * 100);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
+    <div className="w-full px-4 py-8 lg:px-8">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-text">{projectName || 'Project'}</h1>
         <p className="mt-1 text-sm text-text-secondary">

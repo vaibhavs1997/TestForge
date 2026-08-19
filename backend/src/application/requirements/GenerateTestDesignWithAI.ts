@@ -24,6 +24,7 @@ import {
   getAcceptanceCriteriaFocusText,
   toRequirementPromptPayload,
 } from './requirementAcceptanceFocus';
+import { pickOperationForCategory } from './RequirementOperationMatcher';
 
 export interface GenerateTestDesignWithAIRequest {
   projectId: string;
@@ -347,7 +348,9 @@ export class GenerateTestDesignWithAI {
         inputs.push({
           strategyItemId: `cat-${category.toLowerCase()}`,
           title: this.categoryTitle(requirement.title, category),
-          operationId: requirement?.relatedOperations?.[0] || apiOperations[0]?.id || '',
+          operationId: apiOperations.length > 0
+            ? pickOperationForCategory(requirement, apiOperations, category as any)
+            : '',
           environmentId: environment?.id || '',
           datasetId: dataset?.id || '',
           datasetRowReference: dataset ? `row-${Date.now()}` : '',
@@ -366,7 +369,9 @@ export class GenerateTestDesignWithAI {
           inputs.push({
             strategyItemId: item.id,
             title: item.title,
-            operationId: item.relatedApis?.[0] || requirement?.relatedOperations?.[0] || apiOperations[0]?.id || '',
+            operationId: apiOperations.length > 0
+              ? pickOperationForCategory(requirement, apiOperations, category as any)
+              : '',
             environmentId: environment?.id || '',
             datasetId: dataset?.id || '',
             datasetRowReference: dataset ? `row-${Date.now()}` : '',

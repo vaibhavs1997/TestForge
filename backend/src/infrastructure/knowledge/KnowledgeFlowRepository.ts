@@ -103,7 +103,8 @@ export class KnowledgeFlowRepository {
 
   private async readFlows(projectId: string): Promise<KnowledgeFlowEntity[]> {
     const filePath = this.getFlowsFilePath(projectId);
-    return readJsonArray(filePath);
+    const flows = await readJsonArray<KnowledgeFlowEntity>(filePath);
+    return flows.filter((flow) => flow && typeof flow.name === 'string' && flow.name.trim().length > 0);
   }
 }
 

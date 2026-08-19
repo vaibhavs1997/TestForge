@@ -11,9 +11,9 @@ TestForge/
 |-- frontend/         # React + TypeScript + Vite + Tailwind CSS
 |   `-- src/
 |       |-- modules/              # Feature modules
-|       |   |-- api/              # API services, endpoints, import/sync
-|       |   |-- environment/      # Environment configurations
-|       |   |-- knowledge/        # Knowledge base articles
+|       |   |-- api-execution/    # Standalone API explorer and request runner
+|       |   |-- knowledge/        # Documentation and project context
+|       |   |-- test-data/        # Datasets, mappings, and runtime test data
 |       |   |-- project/          # Project management
 |       |   |-- requirements/     # Acceptance criteria and AI test generation
 |       |   |-- settings/         # Application settings
@@ -30,11 +30,17 @@ TestForge/
 ## Key Features
 
 - Project management for testing workspaces
-- API service CRUD with import from OpenAPI, Swagger, Postman, and GraphQL
-- Environment management with variables and secrets
+- Standalone API workspace for importing, editing, and executing requests
+- OpenAPI, Swagger, Postman, environment, and GraphQL import workflows
+- Environment selection with variable substitution and base-URL resolution
+- OAuth/Bearer token reuse across authenticated API requests
+- Persistent request configuration, endpoint responses, headers, cookies, and history
+- Postman-style API explorer with expandable folders and endpoint names
+- Test Data synchronization with API payload fields, mappings, reservations, and runtime generators
+- Knowledge documentation import with tagging and API/Test Data project summaries
 - Requirements import from Jira/files with AI test generation
 - Test suites for positive, negative, boundary, security, and performance coverage
-- Knowledge base articles with categories and tags
+- Knowledge documents with categories, tags, and replace/remove workflows
 - Dark and light theme support
 
 ## Tech Stack
@@ -128,7 +134,25 @@ npm run build
 
 - Local state with React hooks
 - Server state with TanStack Query
-- Persistence with `localStorage` where useful
+- Project selection with Zustand
+- Request, environment, runtime token, and response persistence with `localStorage` where useful
+- Backend persistence for datasets, rows, mappings, reservations, and knowledge documents
+
+## Primary Workflows
+
+### API Workspace
+
+The API workspace is the primary surface for API work. Users can import an API contract and environment files, browse endpoints by their original folder structure, edit request details, select an environment, configure authorization and body formats, execute requests, and inspect response bodies, headers, cookies, and timing information.
+
+### Test Data
+
+Test Data identifies fields used by imported API endpoints and supports reusable datasets, field mappings, runtime value generation, row reservation, and consumption. This allows values such as unique emails or existing login credentials to be supplied without manually editing every request.
+
+### Knowledge
+
+Knowledge is a documentation workspace independent from API contract parsing. Users can import documentation files, organize them with tags, replace or remove documents, and view project-level relationships with imported APIs and Test Data.
+
+The Environment navigation entry now redirects to the API workspace, where environment import and management are available alongside request execution.
 
 ## Scripts
 
@@ -140,6 +164,22 @@ npm run build
 npm test
 npm run lint
 ```
+
+Frontend checks can also be run directly from the frontend workspace:
+
+```bash
+cd frontend
+npm run lint
+npm run typecheck
+```
+
+## Maintenance Notes
+
+- API execution, Test Data, and Knowledge are the active project workspaces.
+- The legacy standalone environment page now redirects to the API workspace.
+- Legacy unused route wrappers, barrels, and dataset hooks have been removed.
+- The Test Data row editor implementation is retained for the dataset data-editing workflow.
+- Keep API, Test Data, and Knowledge changes project-scoped so imported contracts, datasets, and documents remain synchronized within the selected project.
 
 ## Backend Architecture
 

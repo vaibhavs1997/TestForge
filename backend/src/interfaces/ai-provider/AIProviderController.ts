@@ -4,15 +4,21 @@ import { ManageAIProviders } from '../../application/ai-provider/ManageAIProvide
 import { createSuccessResponse } from "../../shared/ApiResponse";
 export class AIProviderController {
     constructor(private readonly manageAIProviders: ManageAIProviders) { }
+    private toPublicProvider(provider: any): any {
+        return {
+            ...provider,
+            apiKey: provider.apiKey ? '********' : null,
+        };
+    }
     async listProviders(req: Request, res: Response): Promise<void> {
         const { projectId } = req.params;
         const providers = await this.manageAIProviders.listByProject(projectId);
-        res.status(200).json(createSuccessResponse(providers));
+        res.status(200).json(createSuccessResponse(providers.map((provider) => this.toPublicProvider(provider))));
     }
     async getProvider(req: Request, res: Response): Promise<void> {
         const { providerId } = req.params;
         const provider = await this.manageAIProviders.getProvider(providerId);
-        res.status(200).json(createSuccessResponse(provider));
+        res.status(200).json(createSuccessResponse(this.toPublicProvider(provider)));
     }
     async createProvider(req: Request, res: Response): Promise<void> {
         const { projectId } = req.params;
@@ -32,7 +38,7 @@ export class AIProviderController {
             enabled,
             default: isDefault,
         });
-        res.status(201).json(createSuccessResponse(created));
+        res.status(201).json(createSuccessResponse(this.toPublicProvider(created)));
     }
     async updateProvider(req: Request, res: Response): Promise<void> {
         const { providerId } = req.params;
@@ -42,7 +48,7 @@ export class AIProviderController {
             provider,
             model,
             endpoint,
-            apiKey,
+            apiKey: apiKey && apiKey !== '********' ? apiKey : undefined,
             organization,
             temperature,
             topP,
@@ -51,7 +57,7 @@ export class AIProviderController {
             enabled,
             default: isDefault,
         });
-        res.status(200).json(createSuccessResponse(updated));
+        res.status(200).json(createSuccessResponse(this.toPublicProvider(updated)));
     }
     async deleteProvider(req: Request, res: Response): Promise<void> {
         const { providerId } = req.params;
@@ -66,17 +72,17 @@ export class AIProviderController {
     async enableProvider(req: Request, res: Response): Promise<void> {
         const { providerId } = req.params;
         const provider = await this.manageAIProviders.enable(providerId);
-        res.status(200).json(createSuccessResponse(provider));
+        res.status(200).json(createSuccessResponse(this.toPublicProvider(provider)));
     }
     async disableProvider(req: Request, res: Response): Promise<void> {
         const { providerId } = req.params;
         const provider = await this.manageAIProviders.disable(providerId);
-        res.status(200).json(createSuccessResponse(provider));
+        res.status(200).json(createSuccessResponse(this.toPublicProvider(provider)));
     }
     async setDefaultProvider(req: Request, res: Response): Promise<void> {
         const { providerId } = req.params;
         const provider = await this.manageAIProviders.setDefault(providerId);
-        res.status(200).json(createSuccessResponse(provider));
+        res.status(200).json(createSuccessResponse(this.toPublicProvider(provider)));
     }
     async listSupportedTypes(req: Request, res: Response): Promise<void> {
         const types = this.manageAIProviders.listSupportedTypes();

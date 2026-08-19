@@ -81,17 +81,17 @@ const ProjectWorkspace: React.FC = () => {
       <Route path={`${projectModules.reports}/*`} element={<ProjectReportPage />} />
 
       {/* Administration */}
-      <Route path={projectModules.recommendations} element={<ProjectRecommendationsPage />} />
-      <Route path={projectModules.pipeline} element={<PipelinePage projectId={projectId} />} />
-      <Route path={projectModules.notifications} element={<ProjectNotificationPage />} />
-      <Route path={projectModules.versions} element={<ProjectVersionHistoryPage />} />
-      <Route path={projectModules.audit} element={<ProjectAuditLogPage />} />
-      <Route path={projectModules.plugins} element={<ProjectPluginManagementPage />} />
-      <Route path={projectModules.aiProviders} element={<AIProviderManagementPage projectId={projectId} />} />
+      <Route path={projectModules.recommendations} element={<Suspense fallback={<PageLoader />}><ProjectRecommendationsPage /></Suspense>} />
+      <Route path={projectModules.pipeline} element={<Suspense fallback={<PageLoader />}><PipelinePage projectId={projectId} /></Suspense>} />
+      <Route path={projectModules.notifications} element={<Suspense fallback={<PageLoader />}><ProjectNotificationPage /></Suspense>} />
+      <Route path={projectModules.versions} element={<Suspense fallback={<PageLoader />}><ProjectVersionHistoryPage /></Suspense>} />
+      <Route path={projectModules.audit} element={<Suspense fallback={<PageLoader />}><ProjectAuditLogPage /></Suspense>} />
+      <Route path={projectModules.plugins} element={<Suspense fallback={<PageLoader />}><ProjectPluginManagementPage /></Suspense>} />
+      <Route path={projectModules.aiProviders} element={<Suspense fallback={<PageLoader />}><AIProviderManagementPage projectId={projectId} /></Suspense>} />
 
       {/* Developer Tools */}
-      <Route path={projectModules.context} element={<ProjectContextPage projectId={projectId} />} />
-      <Route path={projectModules.prompts} element={<PromptBuilderPage projectId={projectId} />} />
+      <Route path={projectModules.context} element={<Suspense fallback={<PageLoader />}><ProjectContextPage projectId={projectId} /></Suspense>} />
+      <Route path={projectModules.prompts} element={<Suspense fallback={<PageLoader />}><PromptBuilderPage projectId={projectId} /></Suspense>} />
 
       {/* Default to overview */}
       <Route index element={<PipelineDashboard projectId={projectId} />} />

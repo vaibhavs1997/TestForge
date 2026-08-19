@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Sparkles, CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
 import { EmptyState } from '../../../components/ui/EmptyState';
@@ -55,20 +55,28 @@ export const GeneratedTestCasesPanel: React.FC<GeneratedTestCasesPanelProps> = (
   mappingBannerMessage,
   mappingLowConfidence,
 }) => {
-  const title = requirement?.title;
+  const title = '';
   const includedCount = designs.filter((d) => d.status !== 'Disabled').length;
 
   return (
-    <div className='mb-8'>
+    <div className='mb-8' aria-busy={isGenerating}>
       <div className='mb-4 flex flex-wrap items-center justify-between gap-2'>
         <div>
-          <h2 className='text-lg font-semibold text-text'>Generated test cases</h2>
+          <div className='flex items-center gap-2'>
+            <h2 className='text-lg font-semibold text-text'>Generated test cases</h2>
+            {isGenerating && (
+              <Badge variant='secondary' className='inline-flex items-center gap-1.5'>
+                <Loader2 className='h-3.5 w-3.5 animate-spin' aria-hidden />
+                Generating...
+              </Badge>
+            )}
+          </div>
           {title ? (
-            <p className='mt-1 text-sm text-text-secondary'>
+            <p className='hidden'>
               For <span className='font-medium text-text'>{title}</span> — uncheck cases you do not want in the suite.
             </p>
           ) : (
-            <p className='mt-1 text-sm text-text-secondary'>
+            <p className='hidden'>
               Enter acceptance criteria above and click Generate Test Cases.
             </p>
           )}
@@ -123,7 +131,9 @@ export const GeneratedTestCasesPanel: React.FC<GeneratedTestCasesPanelProps> = (
       </div>
 
       {isGenerating ? (
-        <div className='rounded-lg border border-dashed border-border py-12 text-center text-sm text-text-secondary'>
+        <div className='rounded-lg border border-primary/40 bg-primary/5 py-12 text-center text-sm text-text-secondary' role='status' aria-live='polite'>
+          <Loader2 className='mx-auto mb-3 h-8 w-8 animate-spin text-primary' aria-hidden />
+          <p className='font-medium text-text'>Generating test cases...</p>
           <p>Creating test cases from your acceptance criteria…</p>
           <p className='mt-2 text-xs'>This can take up to a minute when AI mapping is enabled. Mapped APIs and payloads will appear below.</p>
         </div>

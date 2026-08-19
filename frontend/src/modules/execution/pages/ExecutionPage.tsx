@@ -1,9 +1,9 @@
 // External libraries
 import React from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { PageHeader } from '../../../components/layout/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
+import { SelectField } from '../../../components/ui/SelectField';
 import { Badge } from '../../../components/ui/Badge';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
@@ -284,20 +284,8 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
   const totalRunning = runs.filter(e => e.status === 'Running').length;
   const totalPending = runs.filter(e => e.status === 'Pending').length;
 
-  const breadcrumbItems = [
-    { label: 'Projects', to: '/projects' },
-    { label: 'Project', to: `/projects/${projectId}/overview` },
-    { label: 'Execution' },
-  ];
-
   return (
-    <div className='mx-auto max-w-7xl px-4 py-8'>
-      <PageHeader
-        title='Test runs'
-        description='Run API tests from your requirements and review results.'
-        breadcrumb={breadcrumbItems}
-      />
-
+    <div className='w-full max-w-none px-0 py-0'>
       <ExecutionRunHero
         projectId={projectId}
         requirements={requirements}
@@ -342,25 +330,25 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
       <div className='mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
         <div className='flex items-center gap-2'>
           <SearchBar value={search} onChange={setSearch} placeholder='Search executions...' className='sm:w-80' />
-          <select 
-            className='rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text'
+          <SelectField
             value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          >
-            <option value='all'>All Status</option>
-            <option value='Completed'>Completed</option>
-            <option value='Failed'>Failed</option>
-            <option value='Running'>Running</option>
-            <option value='Pending'>Pending</option>
-            <option value='Cancelled'>Cancelled</option>
-          </select>
+            onChange={setFilter}
+            options={[
+              { value: 'all', label: 'All Status' },
+              { value: 'Completed', label: 'Completed' },
+              { value: 'Failed', label: 'Failed' },
+              { value: 'Running', label: 'Running' },
+              { value: 'Pending', label: 'Pending' },
+              { value: 'Cancelled', label: 'Cancelled' },
+            ]}
+          />
         </div>
       </div>
 
       {/* Main Content - Two Column Layout */}
       <div className='grid grid-cols-1 gap-6 lg:grid-cols-3'>
         {/* Left Panel - Executions Table */}
-        <Card className='lg:col-span-2'>
+        <Card className={selectedRun ? 'lg:col-span-2' : 'lg:col-span-3'}>
           <CardContent className='p-0'>
             {isLoading ? (
               <div className='flex items-center justify-center py-8'>

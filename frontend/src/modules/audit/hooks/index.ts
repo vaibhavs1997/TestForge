@@ -6,7 +6,7 @@ import { queryKeys } from '../../../constants';
 
 export function useAuditLogs(projectId: string | null, filters?: AuditLogFilters) {
   return useQuery({
-    queryKey: queryKeys.auditLogs(projectId || ''),
+    queryKey: [...queryKeys.auditLogs(projectId || ''), filters || {}],
     queryFn: () => auditService.getAuditLogs(projectId || '', filters),
     enabled: !!projectId,
   });

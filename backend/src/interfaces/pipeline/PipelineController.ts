@@ -4,8 +4,9 @@ import { OrchestratePipeline } from '../../application/pipeline/OrchestratePipel
 import { RunAIPipeline } from '../../application/pipeline/RunAIPipeline';
 import { PipelineEntity, PipelineStage } from '../../domain/pipeline/PipelineEntity';
 import { createSuccessResponse } from "../../shared/ApiResponse";
+import { PipelineRepository } from '../../domain/pipeline/PipelineRepository';
 export class PipelineController {
-    constructor(private readonly orchestratePipeline: OrchestratePipeline, private readonly runAIPipeline: RunAIPipeline) { }
+    constructor(private readonly orchestratePipeline: OrchestratePipeline, private readonly runAIPipeline: RunAIPipeline, private readonly pipelineRepository: PipelineRepository) { }
     async startPipeline(req: Request, res: Response): Promise<void> {
         const projectId = req.params.projectId;
         if (!projectId) {
@@ -21,7 +22,11 @@ export class PipelineController {
             res.status(400).json({ error: 'Pipeline ID is required' });
             return;
         }
-        const pipeline = await this.orchestratePipeline.execute(req.params.projectId);
+        const pipeline = await this.pipelineRepository.findById(pipelineId);
+        if (!pipeline) {
+            res.status(404).json({ error: 'Pipeline not found' });
+            return;
+        }
         res.json(pipeline);
     }
     async getProjectPipelines(req: Request, res: Response): Promise<void> {
@@ -30,7 +35,8 @@ export class PipelineController {
             res.status(400).json({ error: 'Project ID is required' });
             return;
         }
-        res.json([]);
+        const pipelines = await this.pipelineRepository.findByProject(projectId);
+        res.json(pipelines);
     }
     async restartFailedStage(req: Request, res: Response): Promise<void> {
         const pipelineId = req.params.pipelineId;

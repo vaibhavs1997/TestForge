@@ -27,6 +27,9 @@ export interface RequirementCaptureCardProps {
   }) => Promise<void>;
 
   onImportFromJira: () => void;
+  jiraConfigured?: boolean;
+  apiOperationsCount?: number;
+  apiOperationsLoading?: boolean;
 
   isSubmitting?: boolean;
   generateBlocked?: boolean;
@@ -43,6 +46,9 @@ export const RequirementCaptureCard: React.FC<RequirementCaptureCardProps> = ({
   onGenerateTestCases,
 
   onImportFromJira,
+  jiraConfigured = false,
+  apiOperationsCount = 0,
+  apiOperationsLoading = false,
 
   isSubmitting,
   generateBlocked,
@@ -55,6 +61,7 @@ export const RequirementCaptureCard: React.FC<RequirementCaptureCardProps> = ({
   const [title, setTitle] = React.useState('');
 
   const [criteriaText, setCriteriaText] = React.useState('');
+  const [sourceMode, setSourceMode] = React.useState<'manual' | 'jira'>('manual');
 
 
 
@@ -112,6 +119,35 @@ export const RequirementCaptureCard: React.FC<RequirementCaptureCardProps> = ({
 
         </div>
 
+        <div className='mb-5 grid gap-3 md:grid-cols-2' aria-label='Requirement source'>
+          <button
+            type='button'
+            onClick={() => setSourceMode('jira')}
+            className={`rounded-xl border p-4 text-left transition-colors ${sourceMode === 'jira' ? 'border-primary bg-primary/10' : 'border-border bg-background hover:bg-surface'}`}
+            aria-pressed={sourceMode === 'jira'}
+          >
+            <div className='flex items-center justify-between gap-2'>
+              <span className='font-medium text-text'>Import from Jira</span>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${jiraConfigured ? 'bg-success/10 text-success' : 'bg-background text-text-secondary'}`}>
+                {jiraConfigured ? 'Connected' : 'Not configured'}
+              </span>
+            </div>
+            <p className='mt-1 text-xs text-text-secondary'>Fetch a ticket description and acceptance criteria.</p>
+          </button>
+          <button
+            type='button'
+            onClick={() => setSourceMode('manual')}
+            className={`rounded-xl border p-4 text-left transition-colors ${sourceMode === 'manual' ? 'border-primary bg-primary/10' : 'border-border bg-background hover:bg-surface'}`}
+            aria-pressed={sourceMode === 'manual'}
+          >
+            <div className='flex items-center justify-between gap-2'>
+              <span className='font-medium text-text'>Paste acceptance criteria</span>
+              {sourceMode === 'manual' && <span className='rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary'>Selected</span>}
+            </div>
+            <p className='mt-1 text-xs text-text-secondary'>Add plain text from a specification or ticket.</p>
+          </button>
+        </div>
+
         {generateBlocked && generateBlockedMessage ? (
           <div
             className='mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100'
@@ -141,7 +177,13 @@ export const RequirementCaptureCard: React.FC<RequirementCaptureCardProps> = ({
           </div>
         ) : null}
 
-        <form onSubmit={(e) => void handleSubmit(e)} className='space-y-4' aria-label='Generate test cases from acceptance criteria'>
+        {!apiOperationsLoading && apiOperationsCount === 0 ? (
+          <div className='mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100' role='status'>
+            Import an OpenAPI or Postman collection from the APIs page before generating test cases. Generated cases are mapped to imported API operations before they are displayed.
+          </div>
+        ) : null}
+
+        {sourceMode === 'manual' ? <form onSubmit={(e) => void handleSubmit(e)} className='space-y-4' aria-label='Generate test cases from acceptance criteria'>
 
           <TextInput
 
@@ -185,7 +227,7 @@ export const RequirementCaptureCard: React.FC<RequirementCaptureCardProps> = ({
 
           <div className='flex flex-wrap gap-2'>
 
-            <Button type='submit' disabled={isSubmitting || generateBlocked || !title.trim() || !criteriaText.trim()}>
+            <Button type='submit' disabled={isSubmitting || generateBlocked || apiOperationsLoading || apiOperationsCount === 0 || !title.trim() || !criteriaText.trim()}>
 
               <Sparkles className='mr-2 h-4 w-4' aria-hidden />
 
@@ -211,7 +253,16 @@ export const RequirementCaptureCard: React.FC<RequirementCaptureCardProps> = ({
 
           </div>
 
-        </form>
+        </form> : (
+          <div className='rounded-xl border border-dashed border-border bg-background/60 p-5'>
+            <p className='text-sm font-medium text-text'>Fetch a Jira ticket to begin</p>
+            <p className='mt-1 max-w-2xl text-sm text-text-secondary'>Enter an issue key, review the imported requirement, and then generate API test cases from its acceptance criteria.</p>
+            <Button type='button' className='mt-4' onClick={onImportFromJira} disabled={isSubmitting}>
+              <Link2 className='mr-2 h-4 w-4' aria-hidden />
+              {jiraConfigured ? 'Fetch from Jira' : 'Open Jira import'}
+            </Button>
+          </div>
+        )}
 
       </CardContent>
 

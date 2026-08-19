@@ -106,7 +106,7 @@ export const NotificationBell: React.FC = () => {
             {items.length > 0 && (
               <button
                 type="button"
-                className="rounded-lg p-1.5 text-text-secondary hover:bg-surface-elevated hover:text-text"
+                className="rounded-lg p-1.5 text-text-secondary hover:bg-background/40 hover:text-text"
                 title="Mark all as read"
                 onClick={() => markAllRead(items.map((i) => i.id))}
               >
@@ -115,7 +115,7 @@ export const NotificationBell: React.FC = () => {
             )}
             <Link
               to={alertRulesPath}
-              className="rounded-lg p-1.5 text-text-secondary hover:bg-surface-elevated hover:text-text"
+              className="rounded-lg p-1.5 text-text-secondary hover:bg-background/40 hover:text-text"
               title="Alert rules"
               onClick={() => setOpen(false)}
             >
@@ -146,7 +146,7 @@ export const NotificationBell: React.FC = () => {
               <Link
                 key={item.id}
                 to={auditPath}
-                className={`flex w-full gap-3 border-b border-border px-4 py-3 text-left transition-colors hover:bg-surface-elevated/50 ${
+                className={`flex w-full gap-3 border-b border-border px-4 py-3 text-left transition-colors hover:bg-background/30 ${
                   read ? 'opacity-70' : 'bg-primary/5'
                 }`}
                 onClick={() => {
@@ -183,8 +183,8 @@ export const NotificationBell: React.FC = () => {
           type="button"
           ref={buttonRef}
           onClick={() => setOpen((v) => !v)}
-          className={`relative rounded-lg p-2 text-text-secondary transition-colors hover:bg-surface-elevated hover:text-text ${
-            open ? 'bg-surface-elevated text-text' : ''
+          className={`relative rounded-lg p-2 text-text-secondary transition-colors hover:bg-background/40 hover:text-text ${
+            open ? 'bg-background/40 text-text' : ''
           }`}
           aria-label="Notifications"
           aria-expanded={open}

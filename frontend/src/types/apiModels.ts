@@ -99,6 +99,7 @@ export interface ApiOperationView {
   sampleRequestBody?: Record<string, unknown> | null;
   requiredRequestBodyFields?: string[] | null;
   sourceOperation?: ApiOperationDto['sourceOperation'];
+  contractRefreshRequired?: boolean;
   derived?: ApiOperationDto['derived'];
   createdAt?: number;
   updatedAt?: number;

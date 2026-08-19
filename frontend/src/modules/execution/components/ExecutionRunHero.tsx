@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
+import { SelectField } from '../../../components/ui/SelectField';
 import { Play, Settings, ChevronDown, ChevronUp, ListChecks } from 'lucide-react';
 import type { ExecutionPlan } from '../../requirements/types';
 import type { ExecutionProfile } from '../types/profile';
@@ -77,19 +78,14 @@ export const ExecutionRunHero: React.FC<ExecutionRunHeroProps> = ({
             <label className="mb-1 block text-xs font-medium text-text-secondary" htmlFor="exec-req">
               Requirement
             </label>
-            <select
-              id="exec-req"
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text"
+            <SelectField
               value={selectedRequirementId}
-              onChange={(e) => onRequirementChange(e.target.value)}
-            >
-              <option value="">All requirements</option>
-              {requirements.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.title.length > 60 ? `${r.title.slice(0, 57)}…` : r.title}
-                </option>
-              ))}
-            </select>
+              onChange={onRequirementChange}
+              options={[{ value: '', label: 'All requirements' }, ...requirements.map((r) => {
+                const title = typeof r.title === 'string' && r.title.trim() ? r.title.trim() : 'Untitled requirement';
+                return { value: r.id, label: title.length > 60 ? `${title.slice(0, 57)}…` : title };
+              })]}
+            />
             {selectedReq?.jiraIssueKey && (
               <p className="mt-1 text-xs text-text-secondary">Jira: {selectedReq.jiraIssueKey}</p>
             )}
@@ -98,26 +94,18 @@ export const ExecutionRunHero: React.FC<ExecutionRunHeroProps> = ({
             <label className="mb-1 block text-xs font-medium text-text-secondary" htmlFor="exec-plan">
               Execution step
             </label>
-            <select
-              id="exec-plan"
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text"
+            <SelectField
               value={selectedExecutionPlanId}
-              onChange={(e) => onPlanChange(e.target.value)}
+              onChange={onPlanChange}
               disabled={readyCount === 0}
-            >
-              {readyCount === 0 ? (
-                <option value="">No ready steps — generate from Requirements</option>
-              ) : (
-                plansForRequirement
-                  .sort((a, b) => a.executionOrder - b.executionOrder)
-                  .map((plan) => (
-                    <option key={plan.id} value={plan.id}>
-                      Step {plan.executionOrder}: {plan.requestTemplate?.method}{' '}
-                      {plan.requestTemplate?.path || ''}
-                    </option>
-                  ))
-              )}
-            </select>
+              placeholder='No ready steps — generate from Requirements'
+              options={plansForRequirement
+                .sort((a, b) => a.executionOrder - b.executionOrder)
+                .map((plan) => ({
+                  value: plan.id,
+                  label: `Step ${plan.executionOrder}: ${plan.requestTemplate?.method || ''} ${plan.requestTemplate?.path || ''}`,
+                }))}
+            />
             <p className="mt-1 text-xs text-text-secondary">
               {readyCount} ready step{readyCount === 1 ? '' : 's'}
               {selectedRequirementId ? ' for this requirement' : ''}
@@ -166,19 +154,15 @@ export const ExecutionRunHero: React.FC<ExecutionRunHeroProps> = ({
             <label className="mb-1 block text-xs font-medium text-text-secondary" htmlFor="exec-profile">
               Execution profile
             </label>
-            <select
-              id="exec-profile"
-              className="max-w-md rounded-lg border border-border bg-background px-3 py-2 text-sm text-text"
+            <SelectField
               value={selectedProfileId}
-              onChange={(e) => onProfileChange(e.target.value)}
-            >
-              {profiles.filter((p) => p.enabled).map((profile) => (
-                <option key={profile.id} value={profile.id}>
-                  {profile.name}
-                  {profile.isDefault ? ' (Default)' : ''}
-                </option>
-              ))}
-            </select>
+              onChange={onProfileChange}
+              className='max-w-md'
+              options={profiles.filter((p) => p.enabled).map((profile) => ({
+                value: profile.id,
+                label: `${profile.name}${profile.isDefault ? ' (Default)' : ''}`,
+              }))}
+            />
             <Button
               variant="ghost"
               size="sm"

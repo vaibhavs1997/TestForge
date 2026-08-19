@@ -14,6 +14,7 @@ interface AIProviderManagementPageProps {
 
 const PROVIDER_COLORS: Record<AIProviderType, string> = {
   'OpenAI': 'bg-emerald-100 text-emerald-800',
+  'Groq': 'bg-orange-100 text-orange-800',
   'Claude': 'bg-orange-100 text-orange-800',
   'Gemini': 'bg-blue-100 text-blue-800',
   'Ollama': 'bg-purple-100 text-purple-800',
@@ -24,12 +25,17 @@ const PROVIDER_COLORS: Record<AIProviderType, string> = {
 
 const DEFAULT_MODELS: Record<AIProviderType, string> = {
   'OpenAI': 'gpt-4o',
+  'Groq': 'llama-3.3-70b-versatile',
   'Claude': 'claude-3-5-sonnet-20241022',
   'Gemini': 'gemini-1.5-pro',
   'Ollama': 'llama3.2',
   'Azure OpenAI': 'gpt-4o',
   'AWS Bedrock': 'anthropic.claude-3-5-sonnet-20241022-v2:0',
   'Custom': 'custom-model',
+};
+
+const DEFAULT_ENDPOINTS: Partial<Record<AIProviderType, string>> = {
+  Groq: 'https://api.groq.com/openai/v1',
 };
 
 const EMPTY_FORM: AIProviderFormData = {
@@ -201,7 +207,7 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
       provider: provider.provider,
       model: provider.model,
       endpoint: provider.endpoint || '',
-      apiKey: provider.apiKey || '',
+      apiKey: '',
       organization: provider.organization || '',
       temperature: provider.temperature,
       topP: provider.topP,
@@ -225,7 +231,7 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
   if (error) return <div className="p-4 text-red-500">Error: {String(error)}</div>;
 
   return (
-    <div className="mx-auto max-w-7xl p-6">
+    <div className="w-full max-w-none p-6">
       <WorkflowOptionalBanner
         description="Configure models used for test design and assertions. The default project provider is used when you generate from Requirements."
         projectId={projectId}
@@ -445,11 +451,12 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
                     value={formData.provider}
                     onChange={(e) => {
                       const provider = e.target.value as AIProviderType;
-                      setFormData({
-                        ...formData,
-                        provider,
-                        model: DEFAULT_MODELS[provider] || formData.model,
-                      });
+                    setFormData({
+                      ...formData,
+                      provider,
+                      model: DEFAULT_MODELS[provider] || formData.model,
+                      endpoint: formData.endpoint || DEFAULT_ENDPOINTS[provider] || '',
+                    });
                     }}
                     className="mt-1 w-full px-3 py-2 border rounded"
                   >
@@ -489,7 +496,7 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
                     value={formData.apiKey}
                     onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
                     className="mt-1 w-full px-3 py-2 border rounded"
-                    placeholder="sk-..."
+                    placeholder={isEditing ? 'Leave blank to keep the existing key' : 'sk-...'}
                   />
                 </div>
               </div>

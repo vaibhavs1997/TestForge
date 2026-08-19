@@ -76,6 +76,13 @@ export class GenerateRequirementTestCases {
         });
         warnings.push(...(aiResult.warnings ?? []));
         usedAi = true;
+        // A provider can return valid text that does not contain the expected
+        // design JSON. Keep the workflow useful instead of showing an empty
+        // test-case panel after a seemingly successful generation.
+        if (!aiResult.designs || aiResult.designs.length === 0) {
+          warnings.push('AI returned no usable test cases. Using the built-in generator.');
+          await this.generateTestDesigns.execute(request.requirementId);
+        }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         warnings.push(`AI generation failed (${msg}). Using built-in generator.`);

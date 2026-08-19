@@ -4,6 +4,7 @@
 
 export type AIProviderType =
   | 'OpenAI'
+  | 'Groq'
   | 'Claude'
   | 'Gemini'
   | 'Ollama'

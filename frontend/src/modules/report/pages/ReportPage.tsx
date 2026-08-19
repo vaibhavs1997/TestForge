@@ -3,6 +3,7 @@ import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Card, CardContent } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
+import { SelectField } from '../../../components/ui/SelectField';
 import { Badge } from '../../../components/ui/Badge';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
@@ -162,7 +163,7 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
   };
 
   return (
-    <div className='mx-auto max-w-7xl px-4 py-8'>
+    <div className='w-full max-w-none px-4 py-8'>
       {/* Page Header */}
       <div className='mb-6 flex items-center justify-between'>
         <div>
@@ -247,27 +248,24 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
       <div className='mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
         <div className='flex items-center gap-2 flex-wrap'>
           <SearchBar value={search} onChange={setSearch} placeholder='Search by requirement or environment...' className='sm:w-80' />
-          <select
-            className='rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text'
+          <SelectField
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value='all'>All Status</option>
-            <option value='Passed'>Passed</option>
-            <option value='Failed'>Failed</option>
-            <option value='Partial'>Partial</option>
-            <option value='Completed'>Completed</option>
-          </select>
-          <select
-            className='rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text'
+            onChange={setStatusFilter}
+            hideSelectedOption
+            options={[
+              { value: 'all', label: 'All Status' },
+              { value: 'Passed', label: 'Passed' },
+              { value: 'Failed', label: 'Failed' },
+              { value: 'Partial', label: 'Partial' },
+              { value: 'Completed', label: 'Completed' },
+            ]}
+          />
+          <SelectField
             value={suiteFilter}
-            onChange={(e) => setSuiteFilter(e.target.value)}
-          >
-            <option value='all'>All Suites</option>
-            {uniqueSuites.map((suite) => (
-              <option key={suite.id} value={suite.id}>{suite.name}</option>
-            ))}
-          </select>
+            onChange={setSuiteFilter}
+            hideSelectedOption
+            options={[{ value: 'all', label: 'All Suites' }, ...uniqueSuites.map((suite) => ({ value: suite.id, label: suite.name }))]}
+          />
           <input
             type='text'
             placeholder='Date filter'
@@ -371,18 +369,16 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
               <div>
                 <label className='text-sm font-medium text-text'>Execution run *</label>
                 {completedRuns.length > 0 ? (
-                  <select
+                  <SelectField
                     value={executionRunId}
-                    onChange={(e) => setExecutionRunId(e.target.value)}
-                    className='mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text'
-                  >
-                    <option value=''>Select a completed run…</option>
-                    {completedRuns.map((run) => (
-                      <option key={run.id} value={run.id}>
-                        {run.id.slice(0, 8)} — {run.status} — {new Date(run.createdAt).toLocaleString()}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setExecutionRunId}
+                    className='mt-1 w-full'
+                    placeholder='Select a completed run…'
+                    options={completedRuns.map((run) => ({
+                      value: run.id,
+                      label: `${run.id.slice(0, 8)} — ${run.status} — ${new Date(run.createdAt).toLocaleString()}`,
+                    }))}
+                  />
                 ) : (
                   <>
                     <input

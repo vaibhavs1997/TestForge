@@ -1,5 +1,5 @@
 # Build stage
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 # Native module build dependencies
 RUN apk add --no-cache python3 make g++
@@ -13,7 +13,7 @@ COPY . .
 RUN npm run build
 
 # Runtime stage
-FROM node:20-alpine AS runtime
+FROM node:22-alpine AS runtime
 
 RUN addgroup -g 1001 -S nodejs && \
     adduser -u 1001 -S -s /bin/sh -G nodejs app

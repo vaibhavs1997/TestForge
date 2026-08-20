@@ -16,7 +16,8 @@ function streamUrl(): string {
 
 /**
  * Subscribes to backend SSE and invalidates the notification inbox when events arrive.
- * Falls back silently if the stream is unavailable (polling still runs).
+ * Falls back silently if the stream is unavailable; the inbox remains stable until
+ * the next explicit load or event-driven refresh.
  */
 export function useActivityStream(enabled = true): void {
   const queryClient = useQueryClient();

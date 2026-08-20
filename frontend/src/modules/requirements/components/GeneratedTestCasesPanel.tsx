@@ -30,6 +30,7 @@ export interface GeneratedTestCasesPanelProps {
   isUpdatingMapping?: boolean;
   mappingBannerMessage?: string;
   mappingLowConfidence?: boolean;
+  onCancelGeneration?: () => void;
 }
 
 export const GeneratedTestCasesPanel: React.FC<GeneratedTestCasesPanelProps> = ({
@@ -54,6 +55,7 @@ export const GeneratedTestCasesPanel: React.FC<GeneratedTestCasesPanelProps> = (
   isUpdatingMapping,
   mappingBannerMessage,
   mappingLowConfidence,
+  onCancelGeneration,
 }) => {
   const includedCount = designs.filter((d) => d.status !== 'Disabled').length;
 
@@ -126,6 +128,11 @@ export const GeneratedTestCasesPanel: React.FC<GeneratedTestCasesPanelProps> = (
           <p className='font-medium text-text'>Generating test cases...</p>
           <p>Creating test cases from your acceptance criteria…</p>
           <p className='mt-2 text-xs'>This can take up to a minute when AI mapping is enabled. Mapped APIs and payloads will appear below.</p>
+          {onCancelGeneration ? (
+            <Button type='button' variant='outline' size='sm' className='mt-4' onClick={onCancelGeneration}>
+              Cancel generation
+            </Button>
+          ) : null}
         </div>
       ) : isLoadingDesigns && designs.length === 0 ? (
         <div className='rounded-lg border border-dashed border-border py-12 text-center text-sm text-text-secondary'>

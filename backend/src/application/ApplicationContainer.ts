@@ -367,7 +367,7 @@ export class ApplicationContainer {
   readonly cacheInvalidationService = new CacheInvalidationService(this.eventBus);
   readonly versionEventListener = new VersionEventListener(this.eventBus, this.versionService);
   readonly recommendationRefreshSubscriber = new RecommendationRefreshSubscriber(this.eventBus, this.recommendationEngine);
-  readonly pipelineRefreshSubscriber = new PipelineRefreshSubscriber(this.eventBus, this.orchestratePipeline);
+  readonly pipelineRefreshSubscriber = new PipelineRefreshSubscriber(this.eventBus);
 
   // ─── HTTP modules (Phase 4 composition) ─────────────────
   readonly apiModule = new ApiModule({
@@ -375,7 +375,7 @@ export class ApplicationContainer {
     apiOperationRepository: this.apiOperationRepository,
     eventPublisher: this.eventPublisher,
   });
-  readonly projectModule = new ProjectModule(this.projectRepository);
+  readonly projectModule = new ProjectModule(this.projectRepository, this.auditLogService);
   readonly environmentModule = new EnvironmentModule({
     environmentRepository: this.environmentRepository,
     eventPublisher: this.eventPublisher,

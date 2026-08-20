@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom';
 import { projectStore } from '../../../store/projectStore';
 import { useEnvironments } from '../../environment/hooks/useEnvironments';
 import { useServices } from '../../api/hooks';
+import { useApiOperations } from '../../api/hooks';
 import { environmentService } from '../../environment/services/environmentService';
 import { EnvironmentDialog, type EnvironmentDialogData } from '../../environment/components/EnvironmentDialog';
 import { ImportEnvironmentModal, type ImportEnvironmentModalData } from '../../environment/components/ImportEnvironmentModal';
@@ -1395,6 +1396,7 @@ export const ApiExecutionPage: React.FC = () => {
   const projectId = routeProjectId ?? selectedProjectId ?? '1';
   const queryClient = useQueryClient();
   const { services: sharedApiServices = [] } = useServices(projectId);
+  const { operations: sharedApiOperations = [] } = useApiOperations(projectId, sharedApiServices.map((service) => service.id));
   const {
     environments: managedEnvironments = [],
     updateAsync: updateManagedEnvironment,
@@ -1456,6 +1458,8 @@ export const ApiExecutionPage: React.FC = () => {
   const [environmentEditorTarget, setEnvironmentEditorTarget] = React.useState<EnvironmentDto | undefined>();
   const [environmentDeleteTarget, setEnvironmentDeleteTarget] = React.useState<EnvironmentDto | null>(null);
   const [apiDeleteConfirmOpen, setApiDeleteConfirmOpen] = React.useState(false);
+  const [endpointDeleteTarget, setEndpointDeleteTarget] = React.useState<{ collection: ImportedApiCollection; endpoint: ImportedApiEndpoint } | null>(null);
+  const [endpointDeleteBusy, setEndpointDeleteBusy] = React.useState(false);
   const [apiImportFiles, setApiImportFiles] = React.useState<File[]>([]);
   const [apiImportBusy, setApiImportBusy] = React.useState(false);
   const [environmentSearch, setEnvironmentSearch] = React.useState('');
@@ -1880,6 +1884,48 @@ export const ApiExecutionPage: React.FC = () => {
     setActiveEnvironmentId('');
     setActiveRequestLog('Cleared imports');
     setResponse(emptyResponseState());
+  };
+
+  const deleteImportedEndpoint = async () => {
+    if (!endpointDeleteTarget) return;
+    const { collection, endpoint } = endpointDeleteTarget;
+    setEndpointDeleteBusy(true);
+    const matchingOperation = sharedApiOperations.find((operation) =>
+      operation.serviceName?.toLowerCase() === collection.name.toLowerCase()
+      && operation.method.toUpperCase() === endpoint.method.toUpperCase()
+      && operation.path === endpoint.path,
+    );
+
+    setImportedArtifacts((current) => current
+      .map((artifact) => artifact.id !== collection.id || artifact.kind !== 'api'
+        ? artifact
+        : { ...artifact, endpoints: artifact.endpoints.filter((item) => item.id !== endpoint.id) })
+      .filter((artifact) => artifact.kind !== 'api' || artifact.endpoints.length > 0));
+    const remainingImports = importedArtifacts
+      .map((artifact) => artifact.id !== collection.id || artifact.kind !== 'api'
+        ? artifact
+        : { ...artifact, endpoints: artifact.endpoints.filter((item) => item.id !== endpoint.id) })
+      .filter((artifact) => artifact.kind !== 'api' || artifact.endpoints.length > 0);
+    localStorage.setItem(importedKey, JSON.stringify(remainingImports.map(persistedImportedArtifact)));
+
+    if (selection?.kind === 'api-endpoint' && selection.endpointId === endpoint.id) {
+      setSelection(null);
+      setDraft(createDraft());
+      setResponse(emptyResponseState());
+    }
+    if (matchingOperation?.id && matchingOperation.serviceId) {
+      try {
+        await apiService.deleteOperation(projectId, matchingOperation.serviceId, matchingOperation.id);
+        await queryClient.invalidateQueries({ queryKey: queryKeys.operations(projectId) });
+        setActiveRequestLog(`Deleted endpoint ${endpoint.name}`);
+      } catch {
+        setActiveRequestLog(`Removed local endpoint ${endpoint.name}; shared API deletion failed`);
+      }
+    } else {
+      setActiveRequestLog(`Deleted endpoint ${endpoint.name}`);
+    }
+    setEndpointDeleteBusy(false);
+    setEndpointDeleteTarget(null);
   };
 
   const copyResponse = async () => {
@@ -2512,7 +2558,7 @@ export const ApiExecutionPage: React.FC = () => {
   ];
 
   return (
-    <div className='relative min-h-full bg-background text-sm text-text'>
+    <div className='api-execution relative min-h-full bg-background text-sm text-text'>
       <div className='pointer-events-none absolute inset-0 opacity-60'>
         <div className='absolute -left-24 top-24 h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl' />
         <div className='absolute right-0 top-0 h-80 w-80 rounded-full bg-blue-500/10 blur-3xl' />
@@ -2659,19 +2705,34 @@ export const ApiExecutionPage: React.FC = () => {
                                 {expandedFolders[`${collection.id}:${folder}`] !== false && endpoints.map((endpoint) => {
                                   const active = selection?.kind === 'api-endpoint' && selection.endpointId === endpoint.id;
                                   return (
-                                    <button
+                                    <div
                                       key={endpoint.id}
-                                      type='button'
-                                      onClick={() => selectApiEndpoint(collection, endpoint)}
-                                      className={`mb-1 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left transition-colors last:mb-0 ${
+                                      className={`mb-1 flex w-full items-center rounded-xl transition-colors last:mb-0 ${
                                         active ? 'bg-primary/15 text-primary' : 'hover:bg-background/40 text-text'
                                       }`}
                                     >
-                                      <Badge variant='outline' className={`border-border bg-background/40 text-[10px] ${httpMethodTextClass(endpoint.method)}`}>{endpoint.method}</Badge>
-                                      <div className='min-w-0'>
-                                        <div className='truncate text-xs font-medium'>{endpoint.name}</div>
-                                      </div>
-                                    </button>
+                                      <button
+                                        type='button'
+                                        onClick={() => selectApiEndpoint(collection, endpoint)}
+                                        className='flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left'
+                                      >
+                                        <Badge variant='outline' className={`border-border bg-background/40 text-[10px] ${httpMethodTextClass(endpoint.method)}`}>{endpoint.method}</Badge>
+                                        <div className='min-w-0'>
+                                          <div className='truncate text-xs font-medium'>{endpoint.name}</div>
+                                        </div>
+                                      </button>
+                                      <button
+                                        type='button'
+                                        className='mr-2 rounded-lg p-1.5 text-text-secondary hover:bg-error/10 hover:text-error'
+                                        aria-label={`Delete ${endpoint.name}`}
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          setEndpointDeleteTarget({ collection, endpoint });
+                                        }}
+                                      >
+                                        <Trash2 className='h-3.5 w-3.5' />
+                                      </button>
+                                    </div>
                                   );
                                 })}
                               </div>
@@ -3615,6 +3676,19 @@ export const ApiExecutionPage: React.FC = () => {
         variant='destructive'
         onConfirm={deleteImportedApis}
         onCancel={() => setApiDeleteConfirmOpen(false)}
+      />
+      <ConfirmDialog
+        open={Boolean(endpointDeleteTarget)}
+        title='Delete endpoint?'
+        message={endpointDeleteTarget ? `Delete "${endpointDeleteTarget.endpoint.name}" from ${endpointDeleteTarget.collection.name}? This removes the endpoint from the imported API.` : ''}
+        confirmLabel='Delete endpoint'
+        cancelLabel='Keep endpoint'
+        variant='destructive'
+        isLoading={endpointDeleteBusy}
+        onConfirm={() => void deleteImportedEndpoint()}
+        onCancel={() => {
+          if (!endpointDeleteBusy) setEndpointDeleteTarget(null);
+        }}
       />
       <EntityDialog
         open={apiImportFiles.length > 0}

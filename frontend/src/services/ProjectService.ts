@@ -20,6 +20,15 @@ export interface DashboardData {
   }[];
 }
 
+export interface ProjectActivityDto {
+  id: string;
+  projectId: string;
+  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'RESTORE' | 'OPEN';
+  performedBy: string;
+  timestamp: number;
+  newValue: { name?: string } | null;
+}
+
 // Services
 
 export class ProjectService {
@@ -45,6 +54,14 @@ export class ProjectService {
 
   async getDashboardData(projectId: string): Promise<DashboardData> {
     return httpClient.get<DashboardData>(`/projects/${projectId}/dashboard`);
+  }
+
+  async recordProjectOpen(projectId: string): Promise<ProjectDto> {
+    return httpClient.post<ProjectDto>(`/projects/${projectId}/open`, {});
+  }
+
+  async getRecentActivity(): Promise<ProjectActivityDto[]> {
+    return httpClient.get<ProjectActivityDto[]>('/projects-activity');
   }
 }
 

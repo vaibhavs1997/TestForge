@@ -62,6 +62,8 @@ export function AuditLogPage() {
       'RESTORE': 'bg-warning/15 text-warning',
       'ENABLE': 'bg-success/15 text-success',
       'DISABLE': 'bg-background text-text-secondary',
+      'ARCHIVE': 'bg-warning/15 text-warning',
+      'OPEN': 'bg-primary/15 text-primary',
     };
     return colors[action] || 'bg-background text-text-secondary';
   };

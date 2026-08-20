@@ -1,4 +1,5 @@
 // Requirement service for Requirement Workspace
+import type { AxiosRequestConfig } from 'axios';
 import { ApiClient } from '../../../services/ApiClient';
 import type { Requirement, RequirementFormData, ValidationReport, TestStrategy, TestDesign, ExecutionPlan, RequirementMappingContext } from '../types';
 
@@ -102,6 +103,7 @@ class RequirementService extends ApiClient<Requirement> {
       buildRunPlan?: boolean;
       replaceExisting?: boolean;
     },
+    config?: AxiosRequestConfig,
   ): Promise<{
     designs: TestDesign[];
     executionPlanIds: string[];
@@ -109,7 +111,7 @@ class RequirementService extends ApiClient<Requirement> {
     warnings: string[];
   }> {
     const path = `/projects/${projectId}/requirements/${requirementId}/generate-test-cases`;
-    return this.post(path, body ?? {});
+    return this.post(path, body ?? {}, config);
   }
 }
 

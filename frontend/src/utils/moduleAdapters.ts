@@ -90,6 +90,7 @@ export function normalizeDocumentation(raw: DocumentationDto): DocumentationDto 
 export function normalizeDataset(raw: DatasetDto): DatasetDto {
   return {
     ...raw,
+    name: typeof raw?.name === 'string' && raw.name.trim() ? raw.name : 'Untitled dataset',
     description: raw.description ?? '',
     category: raw.category ?? 'General',
     rowCount: typeof raw.rowCount === 'number' ? raw.rowCount : 0,
@@ -189,6 +190,12 @@ export function normalizeExecutionRunStepResult(raw: ExecutionRunStepResultDto):
 export function normalizeExecutionRun(raw: ExecutionRunDto): ExecutionRunDto {
   return {
     ...raw,
+    // Older or partially persisted execution records may omit identifiers.
+    // Keep them renderable so one malformed run cannot blank the workspace.
+    id: typeof raw?.id === 'string' ? raw.id : String(raw?.id ?? ''),
+    projectId: typeof raw?.projectId === 'string' ? raw.projectId : String(raw?.projectId ?? ''),
+    requirementId: typeof raw?.requirementId === 'string' ? raw.requirementId : String(raw?.requirementId ?? ''),
+    executionPlanId: typeof raw?.executionPlanId === 'string' ? raw.executionPlanId : String(raw?.executionPlanId ?? ''),
     context: normalizeObject(raw.context, defaultExecutionContext),
     stepResults: Array.isArray(raw.stepResults) ? raw.stepResults.map(normalizeExecutionRunStepResult) : [],
     summary: normalizeObject(raw.summary, defaultExecutionSummary),

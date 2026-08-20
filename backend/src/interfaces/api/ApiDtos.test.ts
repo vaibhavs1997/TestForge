@@ -86,6 +86,23 @@ describe('Api DTO serialization', () => {
 });
 
 describe('ApiController DTO responses', () => {
+  it('does not expose a service through another project URL', async () => {
+    const getService = vi.fn();
+    const controller = new ApiController(
+      {} as any, {} as any, {} as any, { execute: getService } as any, {} as any,
+      {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
+      {} as any, {} as any,
+      { findById: vi.fn().mockResolvedValue({ id: 'svc-b', projectId: 'project-b' }) } as any,
+      {} as any,
+    );
+
+    await expect(controller.getService(
+      { params: { projectId: 'project-a', serviceId: 'svc-b' } } as any,
+      createResponseMock(),
+    )).rejects.toThrow('not found in this project');
+    expect(getService).not.toHaveBeenCalled();
+  });
+
   it('returns typed service DTOs with source and derived separation', async () => {
     const controller = new ApiController(
       {} as any,

@@ -8,8 +8,6 @@ import type { NotificationInboxItem } from '../../modules/notification/types/inb
 import { Toast } from './Toast';
 import { appPaths, projectModulePath } from '../../routes/paths';
 
-const INBOX_FAST_POLL_MS = 2000;
-
 const severityDot: Record<NotificationInboxItem['severity'], string> = {
   info: 'bg-primary',
   success: 'bg-success',
@@ -40,9 +38,7 @@ export const NotificationBell: React.FC = () => {
   const [liveToastOpen, setLiveToastOpen] = useState(false);
   const [liveToastMessage, setLiveToastMessage] = useState('');
 
-  const { data: items = [], isLoading, isError } = useNotificationInbox({
-    pollIntervalMs: open ? INBOX_FAST_POLL_MS : false,
-  });
+  const { data: items = [], isLoading, isError } = useNotificationInbox();
   const { isRead, markRead, markAllRead } = useNotificationReadStore();
   const { projectId } = useParams<{ projectId?: string }>();
 
@@ -189,7 +185,7 @@ export const NotificationBell: React.FC = () => {
         </div>
 
         <div className="border-t border-border px-4 py-2 text-center">
-          <span className="text-[10px] text-text-secondary">Live - refreshes every few seconds</span>
+          <span className="text-[10px] text-text-secondary">Live updates when new activity arrives</span>
         </div>
       </div>,
       document.body,

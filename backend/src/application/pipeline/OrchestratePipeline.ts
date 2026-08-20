@@ -218,12 +218,21 @@ export class OrchestratePipeline {
         case 'Requirement Generation': {
           const analysis = await this.getLatestAnalysis(projectId);
           if (analysis) {
-            const generateFromAnalysis = new GenerateFromAnalysis(
-              this.requirementRepository,
-              this.analysisRepository
+            const existingRequirements = await this.requirementRepository.findByProject(projectId);
+            const alreadyGenerated = existingRequirements.some(
+              (requirement) => requirement.projectAnalysisId === analysis.id,
             );
-            const requirements = await generateFromAnalysis.execute(projectId, analysis.id);
-            artifacts = { count: requirements.length };
+
+            if (alreadyGenerated) {
+              artifacts = { count: 0, skipped: true, reason: 'Requirement already generated for analysis' };
+            } else {
+              const generateFromAnalysis = new GenerateFromAnalysis(
+                this.requirementRepository,
+                this.analysisRepository
+              );
+              const requirements = await generateFromAnalysis.execute(projectId, analysis.id);
+              artifacts = { count: requirements.length };
+            }
           }
           break;
         }

@@ -92,6 +92,13 @@
   .dark {
     color-scheme: dark;
   }
+
+  /* Keep API workspace fields on the same themed surface as the surrounding UI. */
+  .api-execution input:not([type='checkbox']),
+  .api-execution select,
+  .api-execution textarea {
+    background-color: var(--color-background);
+  }
 }
 
 /* Landing page animations */

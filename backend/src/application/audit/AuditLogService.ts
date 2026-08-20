@@ -108,6 +108,7 @@ export class AuditLogService {
     oldValue?: Record<string, any> | null;
     newValue?: Record<string, any> | null;
     metadata?: Record<string, any>;
+    performedBy?: string;
   }): Promise<AuditLogEntity> {
     const log = new AuditLogEntity(
       randomUUID(),
@@ -116,7 +117,7 @@ export class AuditLogService {
       params.entityType,
       params.entityId,
       params.action,
-      'System',
+      params.performedBy || 'System',
       Date.now(),
       params.oldValue || null,
       params.newValue || null,
@@ -135,6 +136,10 @@ export class AuditLogService {
     endDate?: number;
   }): Promise<AuditLogEntity[]> {
     return this.auditLogRepository.findByProjectAndFilters(projectId, filters);
+  }
+
+  async getRecentLogs(limit = 5): Promise<AuditLogEntity[]> {
+    return (await this.auditLogRepository.list()).slice(0, limit);
   }
 
   async getLogById(id: string): Promise<AuditLogEntity> {

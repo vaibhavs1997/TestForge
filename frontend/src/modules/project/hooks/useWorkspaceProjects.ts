@@ -39,8 +39,20 @@ export function useWorkspaceProjects() {
     onSuccess: invalidate,
   });
 
+  const activityQuery = useQuery({
+    queryKey: [...queryKey, 'activity'],
+    queryFn: () => projectService.getRecentActivity(),
+    staleTime: 30_000,
+  });
+
+  const recordOpenMutation = useMutation({
+    mutationFn: (id: string) => projectService.recordProjectOpen(id),
+    onSuccess: invalidate,
+  });
+
   return {
     projects: query.data ?? [],
+    recentActivity: activityQuery.data ?? [],
     isLoading: query.isLoading,
     isError: query.isError,
     error: query.error,
@@ -48,9 +60,11 @@ export function useWorkspaceProjects() {
     createProjectAsync: createMutation.mutateAsync,
     updateProjectAsync: updateMutation.mutateAsync,
     deleteProjectAsync: deleteMutation.mutateAsync,
+    recordProjectOpenAsync: recordOpenMutation.mutateAsync,
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
+    isRecordingOpen: recordOpenMutation.isPending,
   };
 }
 

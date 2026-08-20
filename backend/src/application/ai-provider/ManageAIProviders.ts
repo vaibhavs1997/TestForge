@@ -62,6 +62,15 @@ export class ManageAIProviders {
       throw new Error(`Unsupported AI provider type: ${input.provider}`);
     }
 
+    const configurationErrors = this.registry.resolve(input.provider).validateConfiguration({
+      ...input,
+      enabled: input.enabled ?? true,
+      default: input.default ?? false,
+    });
+    if (configurationErrors.length > 0) {
+      throw new Error(configurationErrors.join('; '));
+    }
+
     const now = Date.now();
     const provider = new AIProviderEntity(
       randomUUID(),
@@ -126,7 +135,10 @@ export class ManageAIProviders {
       await this.clearDefault(existing.projectId);
     }
 
-    const updated = await this.providerRepository.update(id, updates);
+    const updated = await this.providerRepository.update(id, {
+      ...updates,
+      isDefault: updates.default,
+    });
     if (!updated) {
       throw new Error(`AI provider with id ${id} not found`);
     }

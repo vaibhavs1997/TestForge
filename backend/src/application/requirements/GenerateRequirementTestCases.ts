@@ -111,7 +111,9 @@ export class GenerateRequirementTestCases {
     const projectOperations = await this.apiOperationRepository.findByProject(requirement.projectId);
     const ranked = rankOperationsForRequirement(requirement, projectOperations);
     const diagnostics = getOperationMatchDiagnostics(requirement, projectOperations);
-    if (diagnostics.lowConfidence && projectOperations.length > 0) {
+    if (projectOperations.length === 0) {
+      warnings.push('No API operations are imported for this project. Test cases were generated without API mappings.');
+    } else if (diagnostics.lowConfidence) {
       warnings.push(
         'API mapping confidence is low for this requirement. Review each test case’s mapped operation before approving.',
       );

@@ -39,6 +39,12 @@ export const ProjectCardMenu = ({ onRename, onToggleArchive, onDelete, isArchive
           e.stopPropagation();
           setOpen((prev) => !prev);
         }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            setOpen(false);
+          }
+        }}
         className='flex h-8 w-8 items-center justify-center rounded-md text-text-secondary hover:bg-surface hover:text-text'
         aria-label='More options'
         aria-haspopup='menu'
@@ -54,6 +60,13 @@ export const ProjectCardMenu = ({ onRename, onToggleArchive, onDelete, isArchive
           role='menu'
           className='absolute right-0 top-full z-20 mt-1 w-36 rounded-lg border border-border bg-background py-1 shadow-lg'
           onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              setOpen(false);
+              menuRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
+            }
+          }}
         >
           <button
             type='button'

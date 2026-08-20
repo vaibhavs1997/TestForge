@@ -8,8 +8,10 @@ const CREATE_HINTS = ['create', 'register', 'signup', 'sign-up', 'registration',
 const READ_HINTS = ['get', 'list', 'fetch', 'read'];
 const UPDATE_HINTS = ['update', 'patch', 'put', 'modify'];
 const DELETE_HINTS = ['delete', 'remove'];
+const AUTH_HINTS = ['login', 'log in', 'sign in', 'signin', 'authenticate', 'auth'];
 
 const RESET_TERMS = ['forgot password', 'reset password', 'password reset', 'forgotten password'];
+const RECOVERY_TERMS = ['reset', 'recover', 'recovery', 'forgot', 'forgotten', 'unlock'];
 const REGISTRATION_TERMS = ['register', 'registration', 'signup', 'sign up', 'create account', 'new user', 'user creation'];
 
 function tokenize(text: string): string[] {
@@ -36,7 +38,15 @@ function requirementCorpus(requirement: RequirementEntity): string {
   // Expand with synonyms to bridge terminology gaps
   const expandedBase = expandRequirementWithSynonyms(requirement);
   const knowledgeContext = knowledgeParts.length > 0 ? ` ${knowledgeParts.join(' ')}` : '';
-  return `${expandedBase}${knowledgeContext}`;
+  // Synonym expansion currently uses title/description. Keep the normalized
+  // acceptance-criteria focus in the corpus so the actual requested behavior
+  // can drive mapping when the title is generic or Jira-derived.
+  return `${expandedBase} ${base}${knowledgeContext}`;
+}
+
+function containsTerm(text: string, term: string): boolean {
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`\\b${escaped}\\b`, 'i').test(text);
 }
 
 function scoreOperation(op: ApiOperationEntity, tokens: string[], corpus: string): { score: number; reasons: string[] } {
@@ -53,11 +63,14 @@ function scoreOperation(op: ApiOperationEntity, tokens: string[], corpus: string
   // Add synonym-based reasoning
   const synonymReasons = getSynonymReasoning(op as any, op);
   reasons.push(...synonymReasons);
-  const requirementIsRegistration = REGISTRATION_TERMS.some((term) => corpus.includes(term));
-  const operationIsReset = RESET_TERMS.some((term) => hay.includes(term)) || /forgot|reset/.test(hay);
-  const operationIsRegistration = REGISTRATION_TERMS.some((term) => hay.includes(term));
+  const requirementIsRegistration = REGISTRATION_TERMS.some((term) => containsTerm(corpus, term));
+  const requirementIsRecovery = RECOVERY_TERMS.some((term) => containsTerm(corpus, term));
+  const operationIsReset = RESET_TERMS.some((term) => containsTerm(hay, term)) || /forgot|reset/.test(hay);
+  const operationIsRecovery = RECOVERY_TERMS.some((term) => containsTerm(hay, term));
+  const operationIsAuthentication = AUTH_HINTS.some((term) => containsTerm(hay, term));
+  const operationIsRegistration = REGISTRATION_TERMS.some((term) => containsTerm(hay, term));
 
-  if (requirementIsRegistration && operationIsReset && !RESET_TERMS.some((term) => corpus.includes(term))) {
+  if (requirementIsRegistration && operationIsReset && !RESET_TERMS.some((term) => containsTerm(corpus, term))) {
     score -= 8;
     reasons.push('Rejected password-reset semantics for a registration requirement (-8)');
   }
@@ -65,24 +78,32 @@ function scoreOperation(op: ApiOperationEntity, tokens: string[], corpus: string
     score += 6;
     reasons.push('Registration intent matches operation semantics (+6)');
   }
+  if (requirementIsRecovery && operationIsRecovery) {
+    score += 6;
+    reasons.push('Recovery intent matches operation semantics (+6)');
+  }
+  if (requirementIsRecovery && operationIsAuthentication && !operationIsRecovery) {
+    score -= 16;
+    reasons.push('Rejected authentication semantics for a recovery requirement (-16)');
+  }
   // HTTP method alone is not enough to identify the business operation. A
   // password-reset POST must not win for a registration requirement simply
   // because both actions use POST.
-  if (CREATE_HINTS.some((h) => corpus.includes(h) && hay.includes(h))) {
+  if (CREATE_HINTS.some((h) => containsTerm(corpus, h) && containsTerm(hay, h))) {
     if (op.method === 'POST') {
       score += 5;
       reasons.push(`Requirement suggests "create" action and operation is POST (+5)`);
     }
   }
-  if (READ_HINTS.some((h) => corpus.includes(h)) && op.method === 'GET') {
+  if (READ_HINTS.some((h) => containsTerm(corpus, h)) && op.method === 'GET') {
     score += 3;
     reasons.push(`Requirement suggests "read" action and operation is GET (+3)`);
   }
-  if (UPDATE_HINTS.some((h) => corpus.includes(h)) && (op.method === 'PUT' || op.method === 'PATCH')) {
+  if (UPDATE_HINTS.some((h) => containsTerm(corpus, h)) && (op.method === 'PUT' || op.method === 'PATCH')) {
     score += 3;
     reasons.push(`Requirement suggests "update" action and operation is ${op.method} (+3)`);
   }
-  if (DELETE_HINTS.some((h) => corpus.includes(h)) && op.method === 'DELETE') {
+  if (DELETE_HINTS.some((h) => containsTerm(corpus, h)) && op.method === 'DELETE') {
     score += 3;
     reasons.push(`Requirement suggests "delete" action and operation is DELETE (+3)`);
   }
@@ -119,8 +140,11 @@ export function getOperationMatchDiagnostics(
   const ranked = scored;
 
   const secondScore = ranked[1]?.score ?? 0;
-  const lowConfidence =
-    topScore === 0 || (topScore > 0 && topScore < 4) || (topScore > 0 && topScore - secondScore < 2);
+  const strongIntentMatch = Boolean(
+    scored[0]?.reasons.some((reason) => reason.includes('intent matches operation semantics')) && topScore >= 8,
+  );
+  const lowConfidence = !strongIntentMatch &&
+    (topScore === 0 || (topScore > 0 && topScore < 4) || (topScore > 0 && topScore - secondScore < 2));
 
   return { ranked, lowConfidence };
 }
@@ -138,6 +162,11 @@ export function mappingConfidencePercent(
   const secondScore = diagnostics.ranked[1]?.score ?? 0;
   const margin = topScore - secondScore;
   const reasonCount = top.reasons.length;
+  const strongIntentMatch = top.reasons.some((reason) => reason.includes('intent matches operation semantics')) && topScore >= 8;
+
+  if (strongIntentMatch) {
+    return Math.round(Math.min(95, 78 + Math.max(0, margin) * 3));
+  }
 
   // Base score from match quality
   let percent = 0;
@@ -172,8 +201,11 @@ export function rankOperationsForRequirement(
 }
 
 /**
- * Pick the best operation for a test category with validation.
- * Throws if no suitable operation exists for the category.
+ * Pick the best available operation for a test category.
+ *
+ * Mapping confidence is advisory: generation must remain usable so reviewers
+ * can inspect and correct the suggested operation in the UI. An empty string
+ * is returned when a project has no imported operations yet.
  */
 export function pickOperationForCategory(
   requirement: RequirementEntity,
@@ -181,40 +213,20 @@ export function pickOperationForCategory(
   category: StrategyCategory,
 ): string {
   const ranked = rankOperationsForRequirement(requirement, operations);
-  if (ranked.length === 0) {
-    throw new Error(`No API operations available for requirement "${requirement.title}"`);
-  }
+  if (ranked.length === 0) return '';
 
   const diagnostics = getOperationMatchDiagnostics(requirement, operations);
   const topMatch = diagnostics.ranked[0];
-  const secondMatch = diagnostics.ranked[1];
-  const scoreMargin = (topMatch?.score ?? 0) - (secondMatch?.score ?? 0);
-  if (diagnostics.lowConfidence && (!topMatch || topMatch.score < 4 || scoreMargin < 2)) {
-    throw new Error(
-      `No confident API mapping found for requirement "${requirement.title}". ` +
-      'Review the imported API operation names or choose the mapping manually before generating test cases.',
-    );
-  }
-
   let selected: ApiOperationEntity | undefined = topMatch?.operation;
 
   if (category === 'Security') {
     const topIsAuthenticated = Boolean(
       topMatch?.operation.authenticationType && topMatch.operation.authenticationType !== 'None',
     );
-    if (!topIsAuthenticated) {
-      throw new Error(
-        `The best API match for Security test "${requirement.title}" is not authenticated. ` +
-        'Review the operation mapping instead of switching to an unrelated authenticated endpoint.',
-      );
-    }
+    if (!topIsAuthenticated && selected) selected = topMatch.operation;
   }
 
-  if (!selected) {
-    throw new Error(`Could not select an API operation for category "${category}" on requirement "${requirement.title}"`);
-  }
-
-  return selected.id;
+  return selected?.id ?? '';
 }
 
 export function buildPayloadForScenario(

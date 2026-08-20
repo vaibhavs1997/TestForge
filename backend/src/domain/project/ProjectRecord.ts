@@ -8,6 +8,8 @@ export interface ProjectRecord {
   ownerId?: string;
   /** Organization / tenant — projects are isolated per tenant. */
   tenantId?: string;
+  /** Last time a user opened the workspace. Kept server-side for shared recency. */
+  lastOpenedAt?: number;
   createdAt: number;
   updatedAt: number;
 }

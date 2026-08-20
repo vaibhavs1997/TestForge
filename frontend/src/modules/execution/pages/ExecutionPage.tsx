@@ -8,7 +8,7 @@ import { Badge } from '../../../components/ui/Badge';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { ErrorAlert } from '../../../components/shared/ErrorAlert';
-import { Play, Clock, CheckCircle, XCircle, AlertCircle, Copy, Download, RefreshCw, Eye, MoreVertical, ChevronDown, Shield, Database, Settings, ListChecks } from 'lucide-react';
+import { Play, Clock, CheckCircle, XCircle, AlertCircle, Copy, Download, RefreshCw, Eye, ChevronDown, Shield, Database, Settings, ListChecks, Trash2 } from 'lucide-react';
 import { profileService } from '../services/profileService';
 import { executionService } from '../services';
 import type { ExecutionProfile } from '../types/profile';
@@ -23,6 +23,9 @@ import { useExecution } from '../hooks';
 import { ExecutionRunHero } from '../components/ExecutionRunHero';
 import { requirementService } from '../../requirements/services/requirementService';
 import { useRequirements } from '../../requirements/hooks';
+import { useProjectApiOperations } from '../../api/hooks/useProjectApiOperations';
+import { resolveOperationLabel } from '../../requirements/utils/operationDisplay';
+import { resolveExecutionPlanOperationLabel, explainBlockedPrerequisites } from '../utils/dependencyDisplay';
 
 // Types
 import type { ExecutionRun, StepStatus } from '../types';
@@ -51,6 +54,8 @@ const getStepStatusIcon = (status: StepStatus) => {
       return <XCircle className='h-4 w-4 text-red-600' />;
     case 'Skipped':
       return <AlertCircle className='h-4 w-4 text-gray-600' />;
+    case 'Blocked':
+      return <AlertCircle className='h-4 w-4 text-orange-600' />;
     default:
       return <Clock className='h-4 w-4 text-gray-400' />;
   }
@@ -62,9 +67,21 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
   const [searchParams] = useSearchParams();
   const requirementIdFromUrl = searchParams.get('requirementId') ?? '';
 
-  const { runs, isLoading, isError, error, startExecutionAsync, isStarting, refetch } = useExecution(projectId);
+  const {
+    runs,
+    isLoading,
+    isError,
+    error,
+    startExecutionAsync,
+    isStarting,
+    refetch,
+    deleteExecutionAsync,
+    deleteAllExecutionsAsync,
+    isDeleting,
+  } = useExecution(projectId);
   const { generateReportAsync } = useReports(projectId);
   const { requirements } = useRequirements(projectId);
+  const { operations: projectOperations } = useProjectApiOperations(projectId);
 
   const [search, setSearch] = React.useState('');
   const [filter, setFilter] = React.useState<string>('all');
@@ -144,6 +161,7 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
     }
     return map;
   }, [requirements]);
+  const failedPlanIds = React.useMemo(() => new Set((selectedRun?.stepResults ?? []).filter((step) => step.status === 'Failed' || step.status === 'Blocked').map((step) => step.stepId)), [selectedRun]);
 
   const filteredRuns = React.useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -169,12 +187,10 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
       return;
     }
     try {
-      await startExecutionAsync({
-        projectId,
-        executionPlanId: selectedExecutionPlanId,
-        executionProfileId: selectedProfileId || undefined,
-      });
-      setToastMessage('Execution started');
+      // The Run tests action is an individual-plan execution. Suite execution
+      // uses SuitePage → /suites/:suiteId/execute and creates one combined run.
+      await startExecutionAsync({ projectId, executionPlanId: selectedExecutionPlanId, executionProfileId: selectedProfileId || undefined });
+      setToastMessage('Started 1 test case');
       setToastType('success');
       setToastOpen(true);
       void refetch();
@@ -256,6 +272,39 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
       void refetch();
     } catch (err) {
       setToastMessage(err instanceof Error ? err.message : 'Failed to re-run execution');
+      setToastType('error');
+      setToastOpen(true);
+    }
+  };
+
+  const handleDeleteRun = async (run: ExecutionRun) => {
+    if (!window.confirm(`Delete execution ${run.id.slice(0, 8)}? This cannot be undone.`)) return;
+    try {
+      await deleteExecutionAsync({ projectId, runId: run.id });
+      if (selectedRun?.id === run.id) setSelectedRun(null);
+      setToastMessage('Execution deleted');
+      setToastType('success');
+      setToastOpen(true);
+    } catch (err) {
+      logger.error('Failed to delete execution', err);
+      setToastMessage(err instanceof Error ? err.message : 'Failed to delete execution');
+      setToastType('error');
+      setToastOpen(true);
+    }
+  };
+
+  const handleDeleteAllRuns = async () => {
+    if (runs.length === 0) return;
+    if (!window.confirm(`Delete all ${runs.length} execution runs for this project? This cannot be undone.`)) return;
+    try {
+      const result = await deleteAllExecutionsAsync(projectId);
+      setSelectedRun(null);
+      setToastMessage(`Deleted ${result?.deleted ?? runs.length} execution runs`);
+      setToastType('success');
+      setToastOpen(true);
+    } catch (err) {
+      logger.error('Failed to delete executions', err);
+      setToastMessage(err instanceof Error ? err.message : 'Failed to delete executions');
       setToastType('error');
       setToastOpen(true);
     }
@@ -343,6 +392,16 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
             ]}
           />
         </div>
+        <Button
+          variant='outline'
+          size='sm'
+          onClick={() => void handleDeleteAllRuns()}
+          disabled={runs.length === 0 || isDeleting}
+          title='Delete all execution runs for this project'
+        >
+          <Trash2 className='mr-2 h-4 w-4' aria-hidden />
+          Delete all runs
+        </Button>
       </div>
 
       {/* Main Content - Two Column Layout */}
@@ -408,8 +467,19 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
                           {new Date(run.createdAt).toLocaleString()}
                         </td>
                         <td className='px-4 py-3'>
-                          <Button variant='ghost' size='sm' className='h-8 w-8 p-0' title='Run actions' aria-label='Run actions'>
-                            <MoreVertical className='h-4 w-4' aria-hidden />
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            className='h-8 w-8 p-0 text-red-500 hover:text-red-600'
+                            title='Delete run'
+                            aria-label={`Delete run ${run.id.slice(0, 8)}`}
+                            disabled={isDeleting}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void handleDeleteRun(run);
+                            }}
+                          >
+                            <Trash2 className='h-4 w-4' aria-hidden />
                           </Button>
                         </td>
                       </tr>
@@ -497,6 +567,12 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
                       <span className='text-text-secondary'>Execution Plan</span>
                       <span className='font-medium text-text'>{selectedRun.executionPlanId.slice(0, 8)}</span>
                     </div>
+                    {selectedRun.suiteId ? (
+                      <div className='flex items-center justify-between text-sm'>
+                        <span className='text-text-secondary'>Run type</span>
+                        <Badge variant='outline'>Combined suite run</Badge>
+                      </div>
+                    ) : null}
                     <div className='flex items-center justify-between text-sm'>
                       <span className='text-text-secondary'>Requirement</span>
                       <span className='font-medium text-text text-right max-w-[60%] truncate'>
@@ -530,6 +606,10 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
                     <div className='flex items-center justify-between text-sm'>
                       <span className='text-text-secondary'>Skipped</span>
                       <span className='font-medium text-text'>{selectedRun.summary.skipped}</span>
+                    </div>
+                    <div className='flex items-center justify-between text-sm'>
+                      <span className='text-text-secondary'>Blocked</span>
+                      <span className='font-medium text-orange-600'>{selectedRun.summary.blocked ?? 0}</span>
                     </div>
                     <div className='flex items-center justify-between text-sm'>
                       <span className='text-text-secondary'>Duration</span>
@@ -764,7 +844,9 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
                           <div className='flex-1 min-w-0'>
                             <div className='flex items-center gap-2'>
                               <span className='text-xs font-medium text-text'>Step {step.executionOrder}</span>
-                              <span className='text-xs text-text-secondary'>{step.request.method} {step.request.url}</span>
+                              <span className='text-xs text-text-secondary'>
+                                {resolveOperationLabel(projectOperations, executionPlans.find((plan) => plan.id === step.stepId)?.operationId)}
+                              </span>
                             </div>
                             {step.error && (
                               <p className='text-xs text-red-600 mt-1'>{step.error}</p>
@@ -780,6 +862,24 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
                   </div>
                 </div>
               )}
+
+              {activeTab === 'details' && selectedRun.dependencyGraph && selectedRun.dependencyGraph.length > 0 ? (
+                <div>
+                  <h4 className='mb-3 text-sm font-semibold text-text'>Dependency relationships</h4>
+                  <div className='space-y-2'>
+                    {selectedRun.dependencyGraph.map((edge) => (
+                      <div key={edge.executionPlanId} className='rounded border border-border bg-surface/40 p-2 text-xs'>
+                        <div className='font-medium text-text'>{resolveExecutionPlanOperationLabel(edge.executionPlanId, executionPlans, projectOperations)}</div>
+                        <div className='font-mono text-[10px] text-text-secondary'>{edge.executionPlanId}</div>
+                        <div className='mt-1 text-text-secondary'>
+                          {edge.prerequisitePlanIds.length > 0 ? `Prerequisites: ${edge.prerequisitePlanIds.map((id) => resolveExecutionPlanOperationLabel(id, executionPlans, projectOperations)).join(', ')}` : 'No prerequisites'}
+                        </div>
+                        {failedPlanIds.has(edge.executionPlanId) && edge.prerequisitePlanIds.length > 0 ? <div className='mt-1 text-orange-600'>{explainBlockedPrerequisites(edge.prerequisitePlanIds, failedPlanIds, executionPlans, projectOperations)}</div> : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
 
               {/* Execution Summary */}
               <div>

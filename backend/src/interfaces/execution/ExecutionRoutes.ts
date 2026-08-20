@@ -25,7 +25,9 @@ const router = Router();
 router.get('/projects/:projectId/execution-plans', asyncHandler((req, res) => executionController.listExecutionPlans(req, res)));
 router.post('/projects/:projectId/executions/:executionPlanId/start', asyncHandler((req, res) => executionController.startExecution(req, res)));
 router.get('/projects/:projectId/executions', asyncHandler((req, res) => executionController.listExecutions(req, res)));
+router.delete('/projects/:projectId/executions', asyncHandler((req, res) => executionController.deleteProjectExecutions(req, res)));
 router.get('/projects/:projectId/executions/:runId', asyncHandler((req, res) => executionController.getExecution(req, res)));
+router.delete('/projects/:projectId/executions/:runId', asyncHandler((req, res) => executionController.deleteExecution(req, res)));
 router.post('/projects/:projectId/executions/:runId/cancel', asyncHandler((req, res) => executionController.cancelExecution(req, res)));
 
 export { router as executionRoutes };

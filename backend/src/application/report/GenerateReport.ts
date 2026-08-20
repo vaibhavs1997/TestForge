@@ -106,11 +106,13 @@ export class GenerateReport {
         passedSteps: run.summary.passed,
         failedSteps: run.summary.failed,
         skippedSteps: run.summary.skipped,
+        blockedSteps: run.summary.blocked,
         duration: run.summary.duration,
         status: run.status,
       },
       requirementsCovered: [run.requirementId],
-      executionPlansExecuted: [run.executionPlanId],
+      executionPlansExecuted: run.executionPlanIds?.length ? run.executionPlanIds : [run.executionPlanId],
+      dependencyGraph: run.dependencyGraph || [],
       stepResults,
       validationResults,
       recommendations,
@@ -126,7 +128,7 @@ export class GenerateReport {
       randomUUID(),
       run.projectId,
       run.id,
-      suiteId || null,
+      run.suiteId || suiteId || null,
       [run.requirementId],
       now,
       'System',
@@ -140,7 +142,8 @@ export class GenerateReport {
       recommendationSummary,
       reportEnvironment,
       REPORT_VERSION,
-      sections
+      sections,
+      run.summary.blocked
     );
 
     // 11. Persist report

@@ -8,6 +8,7 @@ import type {
 } from '../../domain/requirements/TestDesignEntity';
 import type { StrategyCategory, TestStrategyEntity } from '../../domain/requirements/TestStrategyEntity';
 import { buildPayloadForScenario } from './RequirementOperationMatcher';
+import { requirementEndpointMappingService } from './RequirementEndpointMappingService';
 
 export interface UpdateTestDesignRequest {
   testDesignId: string;
@@ -47,6 +48,9 @@ export class UpdateTestDesign {
       status?: DesignStatus;
       operationId?: string;
       requestOverrides?: RequestOverride;
+      mappingProvenance?: 'ai' | 'matcher' | 'user';
+      mappingState?: 'confirmed' | 'review' | 'unmapped';
+      mappingConfidence?: number;
     } = {};
     if (hasStatus) {
       patch.status = request.status;
@@ -56,7 +60,14 @@ export class UpdateTestDesign {
     const operationChanged = hasOperation && request.operationId !== existing.operationId;
 
     if (operationChanged && request.operationId) {
+      const operations = await this.apiOperationRepository.findByProject(existing.projectId);
+      if (!requirementEndpointMappingService.validateOperation(request.operationId, operations, operations)) {
+        throw new Error(`API operation ${request.operationId} not found in this project`);
+      }
       patch.operationId = request.operationId;
+      patch.mappingProvenance = 'user';
+      patch.mappingState = 'confirmed';
+      patch.mappingConfidence = 100;
     }
 
     let requestOverrides: RequestOverride = {

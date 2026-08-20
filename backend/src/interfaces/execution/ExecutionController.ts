@@ -34,6 +34,17 @@ export class ExecutionController {
             res.status(200).json(createSuccessResponse([]));
         }
     }
+    async deleteExecution(req: Request, res: Response): Promise<void> {
+        const { projectId, runId } = req.params;
+        const run = await this.executionRunRepository.findById(runId);
+        if (!run || run.projectId !== projectId) throw new Error('Execution run not found');
+        await this.executionRunRepository.delete(runId);
+        res.status(200).json(createSuccessResponse({ deleted: 1, runId }));
+    }
+    async deleteProjectExecutions(req: Request, res: Response): Promise<void> {
+        const deleted = await this.executionRunRepository.deleteByProject(req.params.projectId);
+        res.status(200).json(createSuccessResponse({ deleted }));
+    }
     async listExecutionPlans(req: Request, res: Response): Promise<void> {
         const projectId = req.params.projectId;
         const plans = await this.executionPlanRepository.findByProject(projectId);

@@ -3,8 +3,15 @@ import { Request, Response } from 'express';
 import { ManageTestSuites } from '../../application/suite/ManageTestSuites';
 import { GenerateTestSuiteWithAI } from '../../application/suite/GenerateTestSuiteWithAI';
 import { createSuccessResponse } from "../../shared/ApiResponse";
+import { ExecuteSuite } from '../../application/suite/ExecuteSuite';
 export class TestSuiteController {
-    constructor(private readonly manageTestSuites: ManageTestSuites, private readonly generateTestSuiteWithAI: GenerateTestSuiteWithAI) { }
+    constructor(private readonly manageTestSuites: ManageTestSuites, private readonly generateTestSuiteWithAI: GenerateTestSuiteWithAI, private readonly executeSuite: ExecuteSuite) { }
+    async execute(req: Request, res: Response): Promise<void> {
+        const { suiteId } = req.params;
+        const { failureMode, executionProfileId } = req.body || {};
+        const runs = await this.executeSuite.execute(suiteId, failureMode, executionProfileId);
+        res.status(201).json(createSuccessResponse(runs));
+    }
     async listSuites(req: Request, res: Response): Promise<void> {
         const projectId = req.params.projectId;
         const items = await this.manageTestSuites.list(projectId);

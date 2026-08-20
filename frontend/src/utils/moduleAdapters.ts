@@ -152,6 +152,7 @@ const defaultExecutionSummary = {
   passed: 0,
   failed: 0,
   skipped: 0,
+  blocked: 0,
   duration: 0,
   validationPassed: 0,
   validationFailed: 0,
@@ -198,7 +199,23 @@ export function normalizeExecutionRun(raw: ExecutionRunDto): ExecutionRunDto {
     executionPlanId: typeof raw?.executionPlanId === 'string' ? raw.executionPlanId : String(raw?.executionPlanId ?? ''),
     context: normalizeObject(raw.context, defaultExecutionContext),
     stepResults: Array.isArray(raw.stepResults) ? raw.stepResults.map(normalizeExecutionRunStepResult) : [],
-    summary: normalizeObject(raw.summary, defaultExecutionSummary),
+    summary: {
+      ...defaultExecutionSummary,
+      ...normalizeObject(raw.summary, {} as any),
+      blocked: Number((raw.summary as any)?.blocked ?? 0),
+    },
+    suiteId: raw.suiteId ?? null,
+    executionPlanIds: Array.isArray(raw.executionPlanIds) ? raw.executionPlanIds.filter((id): id is string => typeof id === 'string') : [],
+    dependencyGraph: Array.isArray(raw.dependencyGraph)
+      ? raw.dependencyGraph
+          .filter((edge) => edge && typeof edge.executionPlanId === 'string')
+          .map((edge) => ({
+            executionPlanId: edge.executionPlanId,
+            prerequisitePlanIds: Array.isArray(edge.prerequisitePlanIds)
+              ? edge.prerequisitePlanIds.filter((id): id is string => typeof id === 'string')
+              : [],
+          }))
+      : [],
     completedAt: raw.completedAt ?? null,
     executionProfile: raw.executionProfile
       ? {

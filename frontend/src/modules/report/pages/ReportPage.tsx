@@ -49,9 +49,12 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
   const navigate = useNavigate();
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const projectId = routeProjectId || '1';
-  const { reports, isLoading, isError, error, generateReportAsync, deleteReport, isGenerating, isDeleting } = useReports(projectId);
-  const { runs } = useExecution(projectId);
-  const { requirements } = useRequirements(projectId);
+  const { reports: queriedReports, isLoading, isError, error, generateReportAsync, deleteReport, isGenerating, isDeleting } = useReports(projectId);
+  const { runs: queriedRuns } = useExecution(projectId);
+  const { requirements: queriedRequirements } = useRequirements(projectId);
+  const reports = Array.isArray(queriedReports) ? queriedReports : [];
+  const runs = Array.isArray(queriedRuns) ? queriedRuns : [];
+  const requirements = Array.isArray(queriedRequirements) ? queriedRequirements : [];
 
   const requirementTitleById = React.useMemo(() => {
     const m = new Map<string, string>();
@@ -78,11 +81,12 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
         ? (requirementTitleById.get(report.requirementIds[0])?.toLowerCase() ?? '')
         : '';
       const overviewTitle = report.sections?.overview?.title?.toLowerCase() ?? '';
+      const environmentName = report.environment?.name?.toLowerCase() ?? '';
       const matchesSearch =
         !term ||
         report.id.toLowerCase().includes(term) ||
-        report.executionRunId.toLowerCase().includes(term) ||
-        report.environment.name.toLowerCase().includes(term) ||
+        (report.executionRunId?.toLowerCase() ?? '').includes(term) ||
+        environmentName.includes(term) ||
         reqTitle.includes(term) ||
         overviewTitle.includes(term);
       const matchesStatus = statusFilter === 'all' || report.overallStatus === statusFilter;
@@ -325,7 +329,7 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
                         <span className='text-xs text-text-secondary font-mono'>{report.id.slice(0, 8)}</span>
                       </td>
                       <td className='px-4 py-3'>
-                        <Badge variant='outline' className='text-xs'>{report.environment.name}</Badge>
+                        <Badge variant='outline' className='text-xs'>{report.environment?.name ?? 'Unknown'}</Badge>
                       </td>
                       <td className='px-4 py-3'>{getStatusBadge(report.overallStatus)}</td>
                       <td className='px-4 py-3 text-sm text-text'>{report.totalSteps}</td>

@@ -33,11 +33,13 @@ export interface ReportSection {
     passedSteps: number;
     failedSteps: number;
     skippedSteps: number;
+    blockedSteps?: number;
     duration: number;
     status: string;
   };
   requirementsCovered: string[];
-  executionPlansExecuted: string[];
+    executionPlansExecuted: string[];
+    dependencyGraph?: Array<{ executionPlanId: string; prerequisitePlanIds: string[] }>;
   stepResults: any[];
   validationResults: any[];
   recommendations: any[];
@@ -61,6 +63,7 @@ export interface Report {
   passedSteps: number;
   failedSteps: number;
   skippedSteps: number;
+  blockedSteps?: number;
   validationSummary: ReportValidationSummary;
   recommendationSummary: ReportRecommendationSummary;
   environment: ReportEnvironment;

@@ -16,6 +16,10 @@ import { ReportExportMenu } from '../../../components/shared/ReportExportMenu';
 
 // Types
 import type { ReportStatus } from '../types';
+import { executionService } from '../../execution/services';
+import { useProjectApiOperations } from '../../api/hooks/useProjectApiOperations';
+import { resolveExecutionPlanOperationLabel, explainBlockedPrerequisites } from '../../execution/utils/dependencyDisplay';
+import type { ExecutionPlan } from '../../requirements/types';
 
 export interface ReportDetailsPageProps {}
 
@@ -80,6 +84,8 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
   const [linkedRequirementTitle, setLinkedRequirementTitle] = React.useState<string | null>(null);
   const [publishingJira, setPublishingJira] = React.useState(false);
   const [jiraPublishMessage, setJiraPublishMessage] = React.useState<string | null>(null);
+  const [executionPlans, setExecutionPlans] = React.useState<ExecutionPlan[]>([]);
+  const { operations: projectOperations } = useProjectApiOperations(projectId);
 
   const secondaryTabs = ['recommendations', 'timeline', 'assertions'] as const;
   const isSecondaryTab = (secondaryTabs as readonly string[]).includes(activeTab);
@@ -119,6 +125,10 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
         setLinkedRequirementTitle(null);
       });
   }, [projectId, report?.requirementIds]);
+
+  React.useEffect(() => {
+    executionService.listExecutionPlans(projectId).then(setExecutionPlans).catch(() => setExecutionPlans([]));
+  }, [projectId]);
 
   const handlePublishToJira = async () => {
     if (!reportId) return;
@@ -171,6 +181,9 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
   const failures = sections.failures || [];
   const executionTimeline = sections.executionTimeline || [];
   const runtimeVariables = sections.runtimeVariablesCaptured || {};
+  const dependencyGraph = sections.dependencyGraph || [];
+  const blockedSteps = report.blockedSteps ?? sections.executionSummary.blockedSteps ?? stepResults.filter((step: any) => step.status === 'Blocked').length;
+  const failedPlanIds = new Set(stepResults.filter((step: any) => step.status === 'Failed' || step.status === 'Blocked').map((step: any) => step.stepId));
 
   return (
     <div className='w-full max-w-none px-4 py-8'>
@@ -514,6 +527,10 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
                   <span className='font-medium text-text'>{report.skippedSteps}</span>
                 </div>
                 <div className='flex items-center justify-between text-sm'>
+                  <span className='text-text-secondary'>Blocked</span>
+                  <span className='font-medium text-orange-600'>{blockedSteps}</span>
+                </div>
+                <div className='flex items-center justify-between text-sm'>
                   <span className='text-text-secondary'>Duration</span>
                   <span className='font-medium text-text'>{formatDuration(report.executionDuration)}</span>
                 </div>
@@ -556,6 +573,33 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
               )}
             </CardContent>
           </Card>
+
+          {dependencyGraph.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className='text-base'>Dependency execution chain</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className='space-y-2'>
+                  {dependencyGraph.map((edge) => (
+                    <div key={edge.executionPlanId} className='rounded border border-border p-3 text-xs'>
+                      <div className='font-medium text-text'>{resolveExecutionPlanOperationLabel(edge.executionPlanId, executionPlans, projectOperations)}</div>
+                      <div className='font-mono text-[10px] text-text-secondary'>{edge.executionPlanId}</div>
+                      <div className='mt-1 text-text-secondary'>
+                        {edge.prerequisitePlanIds.length > 0 ? `Prerequisite → dependent: ${edge.prerequisitePlanIds.map((id) => resolveExecutionPlanOperationLabel(id, executionPlans, projectOperations)).join(', ')} → ${resolveExecutionPlanOperationLabel(edge.executionPlanId, executionPlans, projectOperations)}` : 'No prerequisites'}
+                      </div>
+                      {failedPlanIds.has(edge.executionPlanId) && edge.prerequisitePlanIds.length > 0 ? <div className='mt-1 text-orange-600'>{explainBlockedPrerequisites(edge.prerequisitePlanIds, failedPlanIds, executionPlans, projectOperations)}</div> : null}
+                      {stepResults.find((step: any) => step.stepId === edge.executionPlanId && step.status === 'Blocked')?.error ? (
+                        <div className='mt-1 text-orange-600'>
+                          {stepResults.find((step: any) => step.stepId === edge.executionPlanId && step.status === 'Blocked')?.error}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Failures */}
           {failures.length > 0 && (

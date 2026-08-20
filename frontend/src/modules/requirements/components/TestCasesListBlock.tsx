@@ -20,7 +20,9 @@ import {
 
 import type { ApiOperationOption } from '../utils/operationDisplay';
 
-import { formatOperationLabel, resolveOperationLabel } from '../utils/operationDisplay';
+import { formatOperationLabel, resolveOperationLabel, findOperation } from '../utils/operationDisplay';
+import { buildDependencyChain, formatDependencyEdge } from '../utils/dependencyDisplay';
+import { getMappingDisplay } from '../utils/mappingDisplay';
 
 
 
@@ -93,6 +95,7 @@ export const TestCasesListBlock: React.FC<TestCasesListBlockProps> = ({
 }) => {
 
   const [expandedPayloadIds, setExpandedPayloadIds] = useState<Set<string>>(new Set());
+  const [expandedDependencyIds, setExpandedDependencyIds] = useState<Set<string>>(new Set());
 
   const showApiColumn = operations.length > 0 || designs.some((d) => d.operationId);
 
@@ -112,6 +115,15 @@ export const TestCasesListBlock: React.FC<TestCasesListBlockProps> = ({
 
     });
 
+  };
+
+  const toggleDependencies = (designId: string) => {
+    setExpandedDependencyIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(designId)) next.delete(designId);
+      else next.add(designId);
+      return next;
+    });
   };
 
 
@@ -195,8 +207,12 @@ export const TestCasesListBlock: React.FC<TestCasesListBlockProps> = ({
             const included = design.status !== 'Disabled';
 
             const payloadExpanded = expandedPayloadIds.has(design.id);
-
+            const dependenciesExpanded = expandedDependencyIds.has(design.id);
             const body = design.requestOverrides?.body;
+            const primaryOperation = findOperation(operations, design.operationId);
+            const dependencyChain = buildDependencyChain(designs, design);
+            const dependencyCount = dependencyChain.length;
+            const mappingDisplay = getMappingDisplay(design);
 
             const canEditApi =
 
@@ -245,6 +261,7 @@ export const TestCasesListBlock: React.FC<TestCasesListBlockProps> = ({
                     <td className='px-3 py-2 align-top'>
 
                       {canEditApi ? (
+                        <>
 
                         <select
 
@@ -273,14 +290,26 @@ export const TestCasesListBlock: React.FC<TestCasesListBlockProps> = ({
                           ))}
 
                         </select>
-
+                        <div className='mt-1 flex flex-wrap items-center gap-1'>
+                          <Badge variant='outline' className='text-[10px]'>{mappingDisplay.stateLabel}</Badge>
+                          {mappingDisplay.provenance ? <Badge variant='secondary' className='text-[10px]'>{mappingDisplay.provenance}</Badge> : null}
+                          {typeof design.mappingConfidence === 'number' ? <span className='text-[10px] text-text-secondary'>{Math.round(design.mappingConfidence)}%</span> : null}
+                        </div>
+                        </>
                       ) : (
 
-                        <span className='font-mono text-xs text-text'>
+                        <div>
+                        <div className='font-mono text-xs text-text'>
 
-                          {resolveOperationLabel(operations, design.operationId)}
+                          {resolveOperationLabel(operations, design.operationId)}{primaryOperation?.name ? ` — ${primaryOperation.name}` : ''}
 
-                        </span>
+                        </div>
+                        <div className='mt-1 flex flex-wrap items-center gap-1'>
+                          <Badge variant='outline' className='text-[10px]'>{mappingDisplay.stateLabel}</Badge>
+                          {mappingDisplay.provenance ? <Badge variant='secondary' className='text-[10px]'>{mappingDisplay.provenance}</Badge> : null}
+                          {typeof design.mappingConfidence === 'number' ? <span className='text-[10px] text-text-secondary'>{Math.round(design.mappingConfidence)}%</span> : null}
+                        </div>
+                        </div>
 
                       )}
 
@@ -345,6 +374,12 @@ export const TestCasesListBlock: React.FC<TestCasesListBlockProps> = ({
                         Body
 
                       </button>
+                      {dependencyCount > 0 ? (
+                        <button type='button' className='ml-3 inline-flex items-center gap-1 text-xs text-primary hover:underline' onClick={() => toggleDependencies(design.id)} aria-expanded={dependenciesExpanded}>
+                          {dependenciesExpanded ? <ChevronDown className='h-3 w-3' aria-hidden /> : <ChevronRight className='h-3 w-3' aria-hidden />}
+                          Dependencies: {dependencyCount}
+                        </button>
+                      ) : null}
 
                     </td>
 
@@ -363,6 +398,16 @@ export const TestCasesListBlock: React.FC<TestCasesListBlockProps> = ({
                         {formatJsonPreview(body)}
 
                       </pre>
+                      {dependenciesExpanded && dependencyCount > 0 ? (
+                        <div className='mt-2 rounded border border-border bg-background p-2 text-xs'>
+                          <div className='mb-1 font-medium text-text'>Prerequisite chain</div>
+                          {dependencyChain.map((dependency) => (
+                            <div key={`${dependency.sourceOperationId}-${dependency.targetOperationId}`} className='flex flex-wrap items-center gap-1 text-text-secondary'>
+                              <span className='font-mono'>{formatDependencyEdge(dependency, operations)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
 
                     </td>
 

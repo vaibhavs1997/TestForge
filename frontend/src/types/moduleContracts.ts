@@ -182,6 +182,7 @@ export interface ExecutionRunSummaryDto {
   passed: number;
   failed: number;
   skipped: number;
+  blocked?: number;
   duration: number;
   validationPassed: number;
   validationFailed: number;
@@ -279,6 +280,9 @@ export interface ExecutionRunDto extends TimestampedDto {
   summary: ExecutionRunSummaryDto;
   completedAt: number | null;
   executionProfile?: ExecutionProfileMetadataDto;
+  suiteId?: string | null;
+  executionPlanIds?: string[];
+  dependencyGraph?: Array<{ executionPlanId: string; prerequisitePlanIds: string[] }>;
 }
 
 export interface ExecutionPlanDto extends TimestampedDto {

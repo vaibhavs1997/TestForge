@@ -53,6 +53,16 @@ export const ExecutionRunHero: React.FC<ExecutionRunHeroProps> = ({
 
   const readyCount = plansForRequirement.length;
   const selectedReq = requirements.find((r) => r.id === selectedRequirementId);
+  const endpointGroups = React.useMemo(() => {
+    const groups = new Map<string, { first: ExecutionPlan; count: number }>();
+    for (const plan of [...plansForRequirement].sort((a, b) => a.executionOrder - b.executionOrder)) {
+      const key = `${plan.requestTemplate?.method || ''} ${plan.requestTemplate?.path || ''}`;
+      const existing = groups.get(key);
+      if (existing) existing.count += 1;
+      else groups.set(key, { first: plan, count: 1 });
+    }
+    return [...groups.values()];
+  }, [plansForRequirement]);
 
   React.useEffect(() => {
     if (plansForRequirement.length === 0) return;
@@ -99,12 +109,10 @@ export const ExecutionRunHero: React.FC<ExecutionRunHeroProps> = ({
               onChange={onPlanChange}
               disabled={readyCount === 0}
               placeholder='No ready steps — generate from Requirements'
-              options={plansForRequirement
-                .sort((a, b) => a.executionOrder - b.executionOrder)
-                .map((plan) => ({
-                  value: plan.id,
-                  label: `Step ${plan.executionOrder}: ${plan.requestTemplate?.method || ''} ${plan.requestTemplate?.path || ''}`,
-                }))}
+              options={endpointGroups.map(({ first, count }) => ({
+                value: first.id,
+                label: `${first.requestTemplate?.method || ''} ${first.requestTemplate?.path || ''}${count > 1 ? ` — ${count} test cases` : ''}`,
+              }))}
             />
             <p className="mt-1 text-xs text-text-secondary">
               {readyCount} ready step{readyCount === 1 ? '' : 's'}

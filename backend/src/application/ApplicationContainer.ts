@@ -299,7 +299,8 @@ export class ApplicationContainer {
     this.testDesignRepository,
     this.assertionRepository,
     this.executionProfileRepository,
-    this.eventPublisher
+    this.eventPublisher,
+    this.apiServiceRepository
   );
 
   // ─── Plugin framework ──────────────────────────────────

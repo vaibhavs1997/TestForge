@@ -16,6 +16,8 @@ const {
   testStrategyRepository,
   testDesignRepository,
   executionPlanRepository,
+  runtimeVariableRepository,
+  dependencyRepository,
   generateRequirementsWithAI,
   generateTestStrategyWithAI,
   generateTestDesignWithAI,
@@ -94,6 +96,9 @@ const generateRequirementTestCases = new GenerateRequirementTestCases(
   generateTestDesigns,
   generateTestDesignWithAI,
   planExecution,
+  knowledgeFlowRepository,
+  runtimeVariableRepository,
+  dependencyRepository,
 );
 
 const updateTestDesign = new UpdateTestDesign(

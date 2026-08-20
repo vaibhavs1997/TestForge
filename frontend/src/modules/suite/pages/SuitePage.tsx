@@ -12,7 +12,7 @@ import { useSuites } from '../hooks';
 import { projectStore } from '../../../store/projectStore';
 import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
 import type { TestSuite, TestSuiteFormData, SuiteExecutionPolicy, SuiteStatus } from '../types';
-import { FlaskConical, Plus, Copy, Archive, Trash2, GripVertical, ChevronUp, ChevronDown, Clock, Layers } from 'lucide-react';
+import { FlaskConical, Plus, Copy, Archive, Trash2, GripVertical, ChevronUp, ChevronDown, Clock, Layers, Play } from 'lucide-react';
 
 // Styles
 
@@ -23,7 +23,7 @@ export const SuitePage: React.FC<SuitePageProps> = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const selectedProjectId = projectStore((state) => state.selectedProjectId);
   const projectId = routeProjectId ?? selectedProjectId ?? '1';
-  const { suites, isLoading, create, update, remove, addExecutionPlan, removeExecutionPlan, reorderExecutionPlans } = useSuites(projectId);
+  const { suites, isLoading, create, update, remove, addExecutionPlan, removeExecutionPlan, reorderExecutionPlans, executeAsync, isExecuting } = useSuites(projectId);
 
   const [search, setSearch] = React.useState('');
   const [selectedSuite, setSelectedSuite] = React.useState<TestSuite | null>(null);
@@ -143,6 +143,16 @@ export const SuitePage: React.FC<SuitePageProps> = () => {
     plans.splice(targetIndex, 0, moved);
     const orderedPlanIds = plans.map(p => p.executionPlanId);
     reorderExecutionPlans({ projectId, suiteId: suite.id, orderedPlanIds });
+  };
+
+  const handleExecuteSuite = async () => {
+    if (!selectedSuite || selectedSuite.status !== 'Active' || selectedSuite.executionPlans.length === 0) return;
+    try {
+      await executeAsync({ suiteId: selectedSuite.id });
+      navigate(`/projects/${projectId}/execution`);
+    } catch {
+      // The execution page displays the server error state; keep the suite editor mounted.
+    }
   };
 
   const formatDuration = (seconds: number) => {
@@ -284,6 +294,10 @@ export const SuitePage: React.FC<SuitePageProps> = () => {
               <div>
                 <h3 className='text-lg font-semibold text-text'>{selectedSuite.name}</h3>
                 <p className='text-sm text-text-secondary mt-1'>{selectedSuite.description || 'No description'}</p>
+                <Button className='mt-3' size='sm' onClick={() => void handleExecuteSuite()} disabled={isExecuting || selectedSuite.status !== 'Active' || selectedSuite.executionPlans.length === 0}>
+                  <Play className='mr-2 h-4 w-4' />
+                  {isExecuting ? 'Running suite...' : 'Run entire suite'}
+                </Button>
               </div>
 
               {/* Key Information */}

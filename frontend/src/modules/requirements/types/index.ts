@@ -178,6 +178,19 @@ export interface TestDesign {
   assertionIds: AssertionReference[];
   testCaseType?: TestCaseType;
   expectedHttpStatus?: number;
+  mappingProvenance?: 'ai' | 'matcher' | 'user';
+  mappingState?: 'confirmed' | 'review' | 'unmapped';
+  mappingConfidence?: number;
+  acceptanceCriterionId?: string;
+  scenarioId?: string;
+  dependencies?: Array<{
+    sourceOperationId: string;
+    sourceResponsePath?: string;
+    targetOperationId: string;
+    targetRequestPath?: string;
+    transform?: string;
+    evidence: string[];
+  }>;
 }
 
 export type ExecutionPlanStatus = 'Pending' | 'Ready' | 'Disabled';

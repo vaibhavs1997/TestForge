@@ -29,10 +29,12 @@ export interface EnterpriseAuthConfig {
 }
 
 export function getAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfig {
+  const authEnabledOverride = env.TESTFORGE_AUTH_ENABLED?.trim().toLowerCase();
+  const authEnabled = authEnabledOverride === 'false' ? false : authEnabledOverride === 'true' ? true : undefined;
   const apiKey = env.TESTFORGE_API_KEY?.trim() || undefined;
   const mongoUri = env.MONGODB_URI?.trim() || undefined;
   const jwtSecret = env.TESTFORGE_JWT_SECRET?.trim() || undefined;
-  const enterpriseLogin = Boolean(mongoUri);
+  const enterpriseLogin = authEnabled === false ? false : Boolean(mongoUri);
 
   if (enterpriseLogin && !jwtSecret) {
     throw new Error(
@@ -41,7 +43,7 @@ export function getAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfig 
   }
 
   return {
-    enabled: Boolean(apiKey || jwtSecret || enterpriseLogin),
+    enabled: authEnabled ?? Boolean(apiKey || jwtSecret || enterpriseLogin),
     apiKey,
     jwtSecret: jwtSecret,
     enterpriseLogin,

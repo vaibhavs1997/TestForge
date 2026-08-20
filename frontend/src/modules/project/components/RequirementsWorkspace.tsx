@@ -4,7 +4,7 @@ import { Archive, BarChart3, CheckCircle2, ClipboardList, ShieldCheck } from 'lu
 import { RequirementsPage } from '../../requirements/pages/RequirementsPage';
 import { AnalysisPage } from '../../analysis/pages/AnalysisPage';
 import { AssertionLibraryPage } from '../../assertion/pages/AssertionLibraryPage';
-import { projectModulePath, projectModuleRootPath } from '../../../routes/paths';
+import { projectModulePath } from '../../../routes/paths';
 
 interface RequirementsWorkspaceProps {
   projectId: string;
@@ -24,7 +24,7 @@ export const RequirementsWorkspace: React.FC<RequirementsWorkspaceProps> = ({ pr
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const activeProjectId = projectId || routeProjectId || '1';
 
-  const subPath = location.pathname.replace(projectModuleRootPath(activeProjectId, 'requirements'), '');
+  const subPath = location.pathname.replace(projectModulePath(activeProjectId, 'requirements'), '');
   const activeSub = subPath === '' || subPath === '/' ? '' : subPath;
 
   return (

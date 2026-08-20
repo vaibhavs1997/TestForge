@@ -37,11 +37,13 @@ export interface ReportSection {
     passedSteps: number;
     failedSteps: number;
     skippedSteps: number;
+    blockedSteps?: number;
     duration: number;
     status: string;
   };
   requirementsCovered: string[];
   executionPlansExecuted: string[];
+  dependencyGraph?: Array<{ executionPlanId: string; prerequisitePlanIds: string[] }>;
   stepResults: any[];
   validationResults: any[];
   recommendations: any[];
@@ -70,7 +72,8 @@ export class ReportEntity {
     public recommendationSummary: ReportRecommendationSummary,
     public readonly environment: ReportEnvironment,
     public readonly reportVersion: string,
-    public readonly sections: ReportSection
+    public readonly sections: ReportSection,
+    public readonly blockedSteps: number = 0
   ) {}
 }
 

@@ -5,7 +5,7 @@ import { ExecutionPage } from '../../execution/pages/ExecutionPage';
 import { ExecutionProfilePage } from '../../execution/pages/ExecutionProfilePage';
 import { SuitePage } from '../../suite/pages/SuitePage';
 import { SchedulerPage } from '../../scheduler/pages/SchedulerPage';
-import { projectModulePath, projectModuleRootPath } from '../../../routes/paths';
+import { projectModulePath } from '../../../routes/paths';
 import { ErrorAlert } from '../../../components/shared/ErrorAlert';
 
 interface ExecutionRenderBoundaryState {
@@ -57,7 +57,7 @@ export const ExecutionWorkspace: React.FC<ExecutionWorkspaceProps> = ({ projectI
   const activeProjectId = projectId || routeProjectId || '1';
 
   // Determine active sub-tab from URL
-  const subPath = location.pathname.replace(projectModuleRootPath(activeProjectId, 'execution'), '');
+  const subPath = location.pathname.replace(projectModulePath(activeProjectId, 'execution'), '');
   const activeSub = subPath === '' || subPath === '/' ? '' : subPath;
 
   return (

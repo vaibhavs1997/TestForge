@@ -43,6 +43,11 @@ export const suiteService = {
     return data.data;
   },
 
+  executeSuite: async (projectId: string, suiteId: string, failureMode?: string, executionProfileId?: string): Promise<any> => {
+    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/suites/${suiteId}/execute`, { failureMode, executionProfileId });
+    return data?.data;
+  },
+
   generateSuiteWithAI: async (projectId: string, body: { providerId: string; previewOnly?: boolean }): Promise<any> => {
     const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/suites/generate-ai`, body);
     return data;

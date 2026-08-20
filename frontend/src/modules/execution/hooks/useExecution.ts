@@ -35,8 +35,20 @@ export const useExecution = (projectId?: string) => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: ({ projectId, runId }: { projectId: string; runId: string }) => executionService.deleteExecution(projectId, runId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+  });
+
+  const deleteAllMutation = useMutation({
+    mutationFn: (projectId: string) => executionService.deleteAllExecutions(projectId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+  });
+
   return {
-    runs: data,
+    // Keep consumers render-safe while the query is loading or unauthorized.
+    // ReportPage derives filters from runs and must not crash on undefined data.
+    runs: data ?? [],
     isLoading,
     isError,
     error,
@@ -44,6 +56,9 @@ export const useExecution = (projectId?: string) => {
     startExecution: startMutation.mutate,
     startExecutionAsync: startMutation.mutateAsync,
     isStarting: startMutation.isPending,
+    deleteExecutionAsync: deleteMutation.mutateAsync,
+    deleteAllExecutionsAsync: deleteAllMutation.mutateAsync,
+    isDeleting: deleteMutation.isPending || deleteAllMutation.isPending,
   };
 };
 

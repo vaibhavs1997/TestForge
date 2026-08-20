@@ -15,9 +15,9 @@ import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRep
 import { TestDesignEntity, DesignPriority, DesignStatus, RequestOverride, RuntimeBinding, Assertion, CleanupStep } from '../../domain/requirements/TestDesignEntity';
 import { TestStrategyEntity, StrategyItem, StrategyCategory } from '../../domain/requirements/TestStrategyEntity';
 import {
-  pickOperationForCategory,
   buildPayloadForScenario,
 } from './RequirementOperationMatcher';
+import { requirementEndpointMappingService } from './RequirementEndpointMappingService';
 
 export class GenerateTestDesigns {
   constructor(
@@ -111,7 +111,12 @@ export class GenerateTestDesigns {
                   Date.now(),
                   [],
                   item.testCaseType,
-                  item.expectedHttpStatus
+                  item.expectedHttpStatus,
+                  'matcher',
+                  requirementEndpointMappingService.resolveFallback(requirement, operations, section.category, item.acceptanceCriterionId, `${item.title} ${item.reason}`).state,
+                  requirementEndpointMappingService.resolveFallback(requirement, operations, section.category, item.acceptanceCriterionId, `${item.title} ${item.reason}`).confidence,
+                  item.acceptanceCriterionId,
+                  item.scenarioId || item.id
                 );
 
         designs.push(design);
@@ -134,8 +139,9 @@ export class GenerateTestDesigns {
     category: StrategyCategory,
     operations: Awaited<ReturnType<ApiOperationRepository['findByProject']>>,
   ): string {
-    return pickOperationForCategory(requirement, operations, category);
+    return requirementEndpointMappingService.resolveFallback(requirement, operations, category, item.acceptanceCriterionId, `${item.title} ${item.reason}`).operationId;
   }
+
 
   private generateRuntimeBindings(category: string): RuntimeBinding[] {
     const bindings: RuntimeBinding[] = [];

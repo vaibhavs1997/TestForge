@@ -33,6 +33,8 @@ export interface StrategyItem {
   testCaseType?: 'Positive' | 'Negative' | 'Security';
   focusFieldId?: string;
   scenarioKind?: 'missing_field' | 'invalid_field' | 'duplicate' | 'default';
+  acceptanceCriterionId?: string;
+  scenarioId?: string;
 }
 
 export interface StrategyCategorySection {

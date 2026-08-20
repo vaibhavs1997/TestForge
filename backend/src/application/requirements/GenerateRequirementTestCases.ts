@@ -7,7 +7,6 @@ import type { ApiOperationRepository } from '../../domain/api/ApiOperationReposi
 import type { RequirementRepository } from '../../domain/requirements/RequirementRepository';
 import type { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository';
 import {
-  pickOperationForCategory,
   rankOperationsForRequirement,
   buildPayloadForScenario,
   getOperationMatchDiagnostics,
@@ -16,6 +15,11 @@ import {
 import type { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
 import type { TestDesignEntity } from '../../domain/requirements/TestDesignEntity';
 import type { TestStrategyEntity, StrategyCategory } from '../../domain/requirements/TestStrategyEntity';
+import { requirementEndpointMappingService } from './RequirementEndpointMappingService';
+import type { KnowledgeFlowRepository } from '../../domain/knowledge/KnowledgeFlowRepository';
+import type { RuntimeVariableRepository } from '../../domain/knowledge/RuntimeVariableRepository';
+import type { DependencyRepository } from '../../domain/knowledge/DependencyRepository';
+import { operationDependencyResolver } from './OperationDependencyResolver';
 
 export interface GenerateRequirementTestCasesRequest {
   projectId: string;
@@ -33,6 +37,24 @@ export interface GenerateRequirementTestCasesResult {
   warnings: string[];
 }
 
+export interface PreservedScenarioMapping {
+  title: string;
+  operationId: string;
+  acceptanceCriterionId?: string;
+  scenarioId?: string;
+  strategyItemId?: string;
+}
+
+export function matchesGeneratedScenario(previous: PreservedScenarioMapping, current: Pick<TestDesignEntity, 'title' | 'acceptanceCriterionId' | 'scenarioId' | 'strategyItemId'>): boolean {
+  if (previous.scenarioId && current.scenarioId && previous.scenarioId === current.scenarioId) return true;
+  if (previous.acceptanceCriterionId && current.acceptanceCriterionId && previous.strategyItemId && current.strategyItemId) {
+    return previous.acceptanceCriterionId === current.acceptanceCriterionId && previous.strategyItemId === current.strategyItemId;
+  }
+  if (previous.strategyItemId && current.strategyItemId && previous.strategyItemId === current.strategyItemId) return true;
+  if (previous.scenarioId || current.scenarioId || previous.acceptanceCriterionId || current.acceptanceCriterionId) return false;
+  return previous.title.trim().toLowerCase() === (current.title || '').trim().toLowerCase();
+}
+
 export class GenerateRequirementTestCases {
   constructor(
     private readonly requirementRepository: RequirementRepository,
@@ -43,6 +65,9 @@ export class GenerateRequirementTestCases {
     private readonly generateTestDesigns: GenerateTestDesigns,
     private readonly generateTestDesignWithAI: GenerateTestDesignWithAI,
     private readonly planExecution: PlanExecution,
+    private readonly knowledgeFlowRepository?: KnowledgeFlowRepository,
+    private readonly runtimeVariableRepository?: RuntimeVariableRepository,
+    private readonly dependencyRepository?: DependencyRepository,
   ) {}
 
   async execute(request: GenerateRequirementTestCasesRequest): Promise<GenerateRequirementTestCasesResult> {
@@ -52,6 +77,17 @@ export class GenerateRequirementTestCases {
       throw new Error(`Requirement with id ${request.requirementId} not found`);
     }
 
+    const preservedUserMappings = request.replaceExisting !== false
+      ? (await this.testDesignRepository.findByRequirement(request.requirementId))
+          .filter((design) => design.mappingProvenance === 'user' && design.operationId)
+          .map((design) => ({
+            title: design.title,
+            operationId: design.operationId,
+            acceptanceCriterionId: design.acceptanceCriterionId,
+            scenarioId: design.scenarioId,
+            strategyItemId: design.strategyItemId,
+          }))
+      : [];
     if (request.replaceExisting !== false) {
       const existing = await this.testDesignRepository.findByRequirement(request.requirementId);
       for (const design of existing) {
@@ -92,7 +128,10 @@ export class GenerateRequirementTestCases {
       await this.generateTestDesigns.execute(request.requirementId);
     }
 
-    const designs = await this.enrichDesignMappings(request.requirementId, requirement.projectId);
+    let designs = await this.enrichDesignMappings(request.requirementId, requirement.projectId, preservedUserMappings);
+    const dependencyWarnings = await this.resolveDesignDependencies(requirement.projectId, designs, requirement.relatedFlows || []);
+    warnings.push(...dependencyWarnings);
+    designs = await this.testDesignRepository.findByRequirement(request.requirementId);
     if (requirement.generationPending && designs.length === 0) {
       await this.requirementRepository.delete(requirement.id);
       throw new Error('No test cases could be generated for this requirement.');
@@ -143,6 +182,7 @@ export class GenerateRequirementTestCases {
   private async enrichDesignMappings(
     requirementId: string,
     projectId: string,
+    preservedUserMappings: PreservedScenarioMapping[] = [],
   ): Promise<TestDesignEntity[]> {
     const requirement = await this.requirementRepository.findById(requirementId);
     if (!requirement) return [];
@@ -150,6 +190,7 @@ export class GenerateRequirementTestCases {
     const operations: ApiOperationEntity[] = await this.apiOperationRepository.findByProject(projectId);
     const strategy = (await this.testStrategyRepository.findByRequirement(requirementId)) as TestStrategyEntity | null;
     const designs = await this.testDesignRepository.findByRequirement(requirementId);
+    const remainingPreserved = [...preservedUserMappings];
 
     for (const design of designs) {
       let operationId = design.operationId;
@@ -164,10 +205,19 @@ export class GenerateRequirementTestCases {
         }
       }
 
-      // Validate every AI or strategy-provided operation against the guarded
-      // matcher. A valid ID can still be semantically unrelated to the case.
-      const mappedOperationId = pickOperationForCategory(requirement, operations, category);
-      operationId = mappedOperationId;
+      const preservedIndex = remainingPreserved.findIndex((mapping) => matchesGeneratedScenario(mapping, design));
+      const preserved = preservedIndex >= 0 ? remainingPreserved.splice(preservedIndex, 1)[0] : undefined;
+      const mapping = preserved
+        ? { operationId: preserved.operationId, provenance: 'user' as const, state: 'confirmed' as const, confidence: 100 }
+        : requirementEndpointMappingService.preserveExisting(
+          design,
+          requirement,
+          operations,
+          category,
+          design.acceptanceCriterionId,
+          `${design.title} ${this.resolveStrategyContext(design, strategy).reason || ''}`,
+        );
+      operationId = mapping.operationId;
 
       const operation = operations.find((o) => o.id === operationId);
       const { category: scenarioCategory, focusFieldId, scenarioKind } = this.resolveStrategyContext(design, strategy);
@@ -181,6 +231,15 @@ export class GenerateRequirementTestCases {
         await this.testDesignRepository.update(design.id, {
           operationId: operationId || design.operationId,
           requestOverrides,
+          mappingProvenance: mapping.provenance,
+          mappingState: mapping.state,
+          mappingConfidence: mapping.confidence,
+        } as Partial<TestDesignEntity>);
+      } else if (design.mappingProvenance !== mapping.provenance || design.mappingState !== mapping.state || design.mappingConfidence !== mapping.confidence) {
+        await this.testDesignRepository.update(design.id, {
+          mappingProvenance: mapping.provenance,
+          mappingState: mapping.state,
+          mappingConfidence: mapping.confidence,
         } as Partial<TestDesignEntity>);
       }
     }
@@ -188,11 +247,31 @@ export class GenerateRequirementTestCases {
     return this.testDesignRepository.findByRequirement(requirementId);
   }
 
+  private async resolveDesignDependencies(projectId: string, designs: TestDesignEntity[], relatedFlowIds: string[]): Promise<string[]> {
+    if (!this.knowledgeFlowRepository || !this.runtimeVariableRepository || !this.dependencyRepository) return [];
+    const [flows, runtimeVariables, projectDependencies, operations] = await Promise.all([
+      this.knowledgeFlowRepository.findByProject(projectId),
+      this.runtimeVariableRepository.findByProject(projectId),
+      this.dependencyRepository.findByProject(projectId),
+      this.apiOperationRepository.findByProject(projectId),
+    ]);
+    const warnings: string[] = [];
+    for (const design of designs) {
+      const relatedFlows = flows.filter((flow) => relatedFlowIds.includes(flow.id));
+      const result = operationDependencyResolver.resolveForDesign(design, designs, relatedFlows, runtimeVariables, projectDependencies, operations);
+      warnings.push(...result.warnings);
+      await this.testDesignRepository.update(design.id, { dependencies: result.dependencies } as Partial<TestDesignEntity>);
+    }
+    return warnings;
+  }
+
+
   private resolveStrategyContext(
     design: TestDesignEntity,
     strategy: TestStrategyEntity | null,
   ): {
     category: StrategyCategory;
+    reason?: string;
     focusFieldId?: string;
     scenarioKind?: 'missing_field' | 'invalid_field' | 'duplicate' | 'default';
   } {
@@ -202,6 +281,7 @@ export class GenerateRequirementTestCases {
       if (item) {
         return {
           category: section.category,
+          reason: item.reason,
           focusFieldId: item.focusFieldId,
           scenarioKind: item.scenarioKind,
         };

@@ -2,7 +2,7 @@
 // Executes an existing Execution Plan. Does NOT generate plans or reports.
 
 export type RunStatus = 'Pending' | 'Running' | 'Completed' | 'Failed' | 'Cancelled';
-export type StepStatus = 'Pending' | 'Running' | 'Passed' | 'Failed' | 'Skipped';
+export type StepStatus = 'Pending' | 'Running' | 'Passed' | 'Failed' | 'Skipped' | 'Blocked';
 export type FailureMode = 'ContinueOnFailure' | 'StopOnFailure';
 
 export interface ExecutionContext {
@@ -13,6 +13,11 @@ export interface ExecutionContext {
   runtimeVariables: Record<string, any>;
   responses: Record<string, any>;
   headers: Record<string, string>;
+}
+
+export interface ExecutionDependencyRecord {
+  executionPlanId: string;
+  prerequisitePlanIds: string[];
 }
 
 export interface ExecutionStepResult {
@@ -75,6 +80,7 @@ export interface ExecutionSummary {
   passed: number;
   failed: number;
   skipped: number;
+  blocked: number;
   duration: number;
   validationPassed: number;
   validationFailed: number;
@@ -112,7 +118,10 @@ export class ExecutionRunEntity {
     public updatedAt: number,
     public completedAt: number | null,
     public readonly executionProfileId: string | null = null,
-    public readonly executionProfile: ExecutionProfileMetadata | null = null
+    public readonly executionProfile: ExecutionProfileMetadata | null = null,
+    public readonly suiteId: string | null = null,
+    public readonly executionPlanIds: string[] = [],
+    public readonly dependencyGraph: ExecutionDependencyRecord[] = []
   ) {}
 }
 

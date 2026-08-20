@@ -79,7 +79,12 @@ export class PlanTestStrategy {
 
     const sectionMap = new Map<string, StrategyCategorySection>();
 
+    const scenarioOrdinals = new Map<string, number>();
     for (const scenario of planned) {
+      const acceptanceCriterionId = this.resolveAcceptanceCriterionId(requirement, scenario.title, scenario.reason);
+      const identityBase = acceptanceCriterionId || 'legacy';
+      const ordinal = scenarioOrdinals.get(identityBase) || 0;
+      scenarioOrdinals.set(identityBase, ordinal + 1);
       const item: StrategyItem = {
         id: randomUUID(),
         title: scenario.title,
@@ -92,6 +97,8 @@ export class PlanTestStrategy {
         testCaseType: scenario.testCaseType,
         focusFieldId: scenario.focusFieldId,
         scenarioKind: scenario.scenarioKind,
+        acceptanceCriterionId,
+        scenarioId: `${identityBase}:scenario:${ordinal}`,
       };
 
       const existingSection = sectionMap.get(scenario.category);
@@ -118,6 +125,21 @@ export class PlanTestStrategy {
     );
 
     return this.testStrategyRepository.create(strategy);
+  }
+
+  private resolveAcceptanceCriterionId(requirement: any, title: string, reason: string): string | undefined {
+    const criteria = requirement.acceptanceCriteria || [];
+    if (criteria.length === 0) return undefined;
+    const text = `${title} ${reason}`.toLowerCase();
+    const tokens = text.split(/[^a-z0-9]+/).filter((token: string) => token.length > 2);
+    let best = criteria[0];
+    let bestScore = -1;
+    for (const criterion of criteria) {
+      const criterionTokens = new Set(String(criterion.text || '').toLowerCase().split(/[^a-z0-9]+/).filter((token: string) => token.length > 2));
+      const score = tokens.reduce((sum: number, token: string) => sum + (criterionTokens.has(token) ? 1 : 0), 0);
+      if (score > bestScore) { best = criterion; bestScore = score; }
+    }
+    return best?.id;
   }
 }
 

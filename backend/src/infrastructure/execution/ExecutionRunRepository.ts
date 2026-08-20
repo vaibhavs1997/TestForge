@@ -62,6 +62,26 @@ export class ExecutionRunRepository {
     throw new Error(`Execution Run with id ${id} not found`);
   }
 
+  async delete(id: string): Promise<void> {
+    const projectIds = this.listProjectIds();
+    for (const projectId of projectIds) {
+      const items = await this.readRuns(projectId);
+      const next = items.filter((run) => run.id !== id);
+      if (next.length !== items.length) {
+        await updateJsonArray<ExecutionRunEntity>(this.getRunsFilePath(projectId), [], () => next);
+        return;
+      }
+    }
+    throw new Error(`Execution Run with id ${id} not found`);
+  }
+
+  async deleteByProject(projectId: string): Promise<number> {
+    const items = await this.readRuns(projectId);
+    if (items.length === 0) return 0;
+    await updateJsonArray<ExecutionRunEntity>(this.getRunsFilePath(projectId), [], () => []);
+    return items.length;
+  }
+
   async findById(id: string): Promise<ExecutionRunEntity | null> {
     const projectIds = this.listProjectIds();
     for (const projectId of projectIds) {

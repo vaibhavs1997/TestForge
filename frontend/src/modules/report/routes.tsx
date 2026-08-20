@@ -9,8 +9,9 @@ import { ReportDetailsPage } from './pages/ReportDetailsPage';
 export const ReportRoutes: React.FC = () => {
   return (
     <Routes>
-      <Route path='/' element={<ReportPage />} />
-      <Route path='/:reportId' element={<ReportDetailsPage />} />
+      <Route index element={<ReportPage />} />
+      <Route path=':reportId' element={<ReportDetailsPage />} />
+      <Route path='*' element={<ReportPage />} />
     </Routes>
   );
 };

@@ -43,7 +43,20 @@ export const executionService = {
 
   listExecutionPlans: async (projectId: string): Promise<ExecutionPlan[]> => {
     const { data } = await apiAxios.get(`${API_BASE_URL}/projects/${projectId}/execution-plans`);
-    return Array.isArray(data.data) ? (data.data as ExecutionPlanDto[]).map(normalizeExecutionPlan) : [];
+    return Array.isArray(data.data)
+      ? (data.data as ExecutionPlanDto[])
+          .filter((plan) => plan && typeof plan.testDesignId === 'string' && typeof plan.operationId === 'string' && plan.requestTemplate && typeof plan.requestTemplate === 'object')
+          .map(normalizeExecutionPlan)
+      : [];
+  },
+
+  deleteExecution: async (projectId: string, runId: string): Promise<void> => {
+    await apiAxios.delete(`${API_BASE_URL}/projects/${projectId}/executions/${runId}`);
+  },
+
+  deleteAllExecutions: async (projectId: string): Promise<{ deleted: number }> => {
+    const { data } = await apiAxios.delete(`${API_BASE_URL}/projects/${projectId}/executions`);
+    return data?.data ?? { deleted: 0 };
   },
 };
 

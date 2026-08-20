@@ -16,8 +16,7 @@ export function notificationInboxQueryKey() {
   return INBOX_QUERY_KEY;
 }
 
-export function useNotificationInbox(options?: { pollIntervalMs?: number | false; enabled?: boolean }) {
-  const pollIntervalMs = options?.pollIntervalMs ?? false;
+export function useNotificationInbox(options?: { enabled?: boolean }) {
   const enabled = options?.enabled !== false;
   useActivityStream(enabled);
 
@@ -36,10 +35,14 @@ export function useNotificationInbox(options?: { pollIntervalMs?: number | false
         .slice(0, INBOX_LIMIT);
     },
     enabled,
-    staleTime: 0,
-    refetchInterval: pollIntervalMs,
+    // Notifications are refreshed by the activity SSE event, not a timer.
+    // Keeping the query fresh prevents focus/reconnect events from causing
+    // another request when no new notification was announced.
+    staleTime: Infinity,
+    refetchInterval: false,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 }
 

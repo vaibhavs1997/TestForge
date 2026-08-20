@@ -19,8 +19,23 @@ import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository'
 import { createSuccessResponse } from "../../shared/ApiResponse";
 import { fetchContractFromUrl } from '../../infrastructure/http/fetchContractFromUrl';
 import { serializeApiOperation, serializeApiService } from './ApiDtos';
+import { NotFoundError } from '../../shared/errors';
 export class ApiController {
     constructor(private readonly createApiService: CreateApiService, private readonly updateApiService: UpdateApiService, private readonly deleteApiService: DeleteApiService, private readonly getApiService: GetApiService, private readonly listApiServices: ListApiServices, private readonly createApiOperation: CreateApiOperation, private readonly updateApiOperation: UpdateApiOperation, private readonly deleteApiOperation: DeleteApiOperation, private readonly getApiOperation: GetApiOperation, private readonly listApiOperations: ListApiOperations, private readonly importApiContract: ImportApiContract, private readonly refreshApiContract: RefreshApiContract, private readonly deleteApiContract: DeleteApiContract, private readonly executeApiRequest: ExecuteApiRequest, private readonly apiServiceRepository: ApiServiceRepository, private readonly apiOperationRepository: ApiOperationRepository) { }
+    private async requireServiceInProject(projectId: string, serviceId: string) {
+        const service = await this.apiServiceRepository.findById(serviceId);
+        if (!service || service.projectId !== projectId) {
+            throw new NotFoundError(`Service with id ${serviceId} not found in this project`);
+        }
+        return service;
+    }
+    private async requireOperationInProject(projectId: string, serviceId: string, apiId: string) {
+        const operation = await this.apiOperationRepository.findById(apiId);
+        if (!operation || operation.projectId !== projectId || operation.serviceId !== serviceId) {
+            throw new NotFoundError(`API with id ${apiId} not found in this project`);
+        }
+        return operation;
+    }
     async listServices(req: Request, res: Response): Promise<void> {
         const projectId = req.params.projectId;
         const services = await this.listApiServices.execute(projectId);
@@ -40,12 +55,14 @@ export class ApiController {
         res.status(201).json(createSuccessResponse(service));
     }
     async getService(req: Request, res: Response): Promise<void> {
-        const { serviceId } = req.params;
+        const { projectId, serviceId } = req.params;
+        await this.requireServiceInProject(projectId, serviceId);
         const service = await this.getApiService.execute(serviceId);
         res.status(200).json(createSuccessResponse(serializeApiService(service)));
     }
     async updateService(req: Request, res: Response): Promise<void> {
-        const { serviceId } = req.params;
+        const { projectId, serviceId } = req.params;
+        await this.requireServiceInProject(projectId, serviceId);
         const { name, description, version, tags, baseUrl } = req.body;
         const service = await this.updateApiService.execute({
             id: serviceId,
@@ -69,6 +86,7 @@ export class ApiController {
     }
     async createOperation(req: Request, res: Response): Promise<void> {
         const { projectId, serviceId } = req.params;
+        await this.requireServiceInProject(projectId, serviceId);
         const { name, method, path, description, authenticationType, status } = req.body;
         const operation = await this.createApiOperation.execute({
             projectId,
@@ -83,12 +101,14 @@ export class ApiController {
         res.status(201).json(createSuccessResponse(serializeApiOperation(operation)));
     }
     async getOperation(req: Request, res: Response): Promise<void> {
-        const { apiId } = req.params;
+        const { projectId, serviceId, apiId } = req.params;
+        await this.requireOperationInProject(projectId, serviceId, apiId);
         const operation = await this.getApiOperation.execute(apiId);
         res.status(200).json(createSuccessResponse(serializeApiOperation(operation)));
     }
     async updateOperation(req: Request, res: Response): Promise<void> {
-        const { apiId } = req.params;
+        const { projectId, serviceId, apiId } = req.params;
+        await this.requireOperationInProject(projectId, serviceId, apiId);
         const { name, method, path, description, authenticationType, status } = req.body;
         const operation = await this.updateApiOperation.execute({
             id: apiId,
@@ -102,7 +122,8 @@ export class ApiController {
         res.status(200).json(createSuccessResponse(serializeApiOperation(operation)));
     }
     async deleteOperation(req: Request, res: Response): Promise<void> {
-        const { apiId } = req.params;
+        const { projectId, serviceId, apiId } = req.params;
+        await this.requireOperationInProject(projectId, serviceId, apiId);
         await this.deleteApiOperation.execute(apiId);
         res.status(204).send();
     }

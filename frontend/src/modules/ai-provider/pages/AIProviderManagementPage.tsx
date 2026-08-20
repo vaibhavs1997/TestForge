@@ -7,6 +7,7 @@ import { aiProviderService } from '../services';
 import type { AIProvider, AIProviderType, AIProviderFormData } from '../types';
 import { AdminPageIntro } from '../../../components/shared/AdminPageIntro';
 import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
+import { getApiErrorMessage } from '../../../services/apiHelpers';
 
 interface AIProviderManagementPageProps {
   projectId: string;
@@ -128,6 +129,35 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
   const [showTestModal, setShowTestModal] = useState(false);
   const [testResult, setTestResult] = useState<{ healthy: boolean; message: string } | null>(null);
   const [testLoading, setTestLoading] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [formSaving, setFormSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<AIProvider | null>(null);
+  const [deleteError, setDeleteError] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const validateForm = (allowBlankApiKey = false): string | null => {
+    if (!formData.name.trim()) return 'Provider name is required.';
+    if (!formData.model.trim()) return 'Model is required.';
+
+    if (formData.endpoint.trim()) {
+      try {
+        const endpoint = new URL(formData.endpoint.trim());
+        if (!['http:', 'https:'].includes(endpoint.protocol)) {
+          return 'Endpoint must be an HTTP(S) URL, for example https://api.groq.com/openai/v1.';
+        }
+      } catch {
+        return 'Endpoint must be an HTTP(S) URL, for example https://api.groq.com/openai/v1.';
+      }
+    }
+
+    if (!allowBlankApiKey && ['OpenAI', 'Groq'].includes(formData.provider) && !formData.apiKey.trim()) {
+      return `API key is required for ${formData.provider}.`;
+    }
+
+    if (formData.maxTokens <= 0) return 'Max tokens must be greater than zero.';
+    if (formData.timeout <= 0) return 'Timeout must be greater than zero.';
+    return null;
+  };
 
   const filteredProviders = useMemo(() => {
     return providers.filter(p => {
@@ -147,6 +177,14 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
   }, [providers, searchQuery, filterProvider, filterStatus]);
 
   const handleCreate = async () => {
+    const validationError = validateForm();
+    if (validationError) {
+      setFormError(validationError);
+      return;
+    }
+
+    setFormError('');
+    setFormSaving(true);
     try {
       await aiProviderService.createProvider(projectId, {
         name: formData.name,
@@ -166,12 +204,22 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
       setFormData(EMPTY_FORM);
       refetch();
     } catch (err: any) {
-      alert(`Failed to create provider: ${err.message}`);
+      setFormError(getApiErrorMessage(err, 'Failed to create provider.'));
+    } finally {
+      setFormSaving(false);
     }
   };
 
   const handleUpdate = async () => {
     if (!selectedProvider) return;
+    const validationError = validateForm(true);
+    if (validationError) {
+      setFormError(validationError);
+      return;
+    }
+
+    setFormError('');
+    setFormSaving(true);
     try {
       await aiProviderService.updateProvider(projectId, selectedProvider.id, {
         name: formData.name,
@@ -191,7 +239,9 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
       setSelectedProvider(null);
       refetch();
     } catch (err: any) {
-      alert(`Failed to update provider: ${err.message}`);
+      setFormError(getApiErrorMessage(err, 'Failed to update provider.'));
+    } finally {
+      setFormSaving(false);
     }
   };
 
@@ -222,13 +272,23 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
     }
   };
 
-  const handleDelete = async (providerId: string) => {
-    if (!confirm('Are you sure you want to delete this AI provider?')) return;
+  const handleDelete = (provider: AIProvider) => {
+    setDeleteError('');
+    setDeleteTarget(provider);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    setDeleteError('');
     try {
-      await aiProviderService.deleteProvider(projectId, providerId);
-      refetch();
+      await aiProviderService.deleteProvider(projectId, deleteTarget.id);
+      setDeleteTarget(null);
+      await refetch();
     } catch (err: any) {
-      alert(`Failed to delete provider: ${err.message}`);
+      setDeleteError(getApiErrorMessage(err, 'Failed to delete provider.'));
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -304,6 +364,7 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
         <button
           onClick={() => {
             setFormData(EMPTY_FORM);
+            setFormError('');
             setShowCreateModal(true);
           }}
           className="rounded bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
@@ -458,7 +519,7 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
                   </button>
                 )}
                 <button
-                  onClick={() => handleDelete(provider.id)}
+                  onClick={() => handleDelete(provider)}
                   className="px-3 py-1 text-xs border rounded text-red-600 hover:bg-background"
                 >
                   Delete
@@ -475,10 +536,10 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
 
       {/* Create/Edit Modal */}
       {(showCreateModal || isEditing) && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border bg-surface p-6 text-text shadow-2xl">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">
+              <h2 className="text-xl font-bold text-text">
                 {isEditing ? 'Edit AI Provider' : 'Add AI Provider'}
               </h2>
               <button
@@ -486,8 +547,9 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
                   setShowCreateModal(false);
                   setIsEditing(false);
                   setSelectedProvider(null);
+                  setFormError('');
                 }}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-text-secondary hover:text-text"
               >
                 ✕
               </button>
@@ -496,17 +558,17 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Name *</label>
+                  <label className="block text-sm font-medium text-text">Name *</label>
                   <input
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="mt-1 w-full px-3 py-2 border rounded"
+                    className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-text placeholder:text-text-secondary focus:border-primary focus:outline-none"
                     placeholder="My OpenAI Provider"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Provider Type *</label>
+                  <label className="block text-sm font-medium text-text">Provider Type *</label>
                   <select
                     value={formData.provider}
                     onChange={(e) => {
@@ -518,7 +580,7 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
                       endpoint: formData.endpoint || DEFAULT_ENDPOINTS[provider] || '',
                     });
                     }}
-                    className="mt-1 w-full px-3 py-2 border rounded"
+                    className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-text focus:border-primary focus:outline-none"
                   >
                     {types.map(type => (
                       <option key={type} value={type}>{type}</option>
@@ -528,53 +590,58 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Model *</label>
+                <label className="block text-sm font-medium text-text">Model *</label>
                 <input
                   type="text"
                   value={formData.model}
                   onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                  className="mt-1 w-full px-3 py-2 border rounded"
+                  className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-text placeholder:text-text-secondary focus:border-primary focus:outline-none"
                   placeholder="gpt-4o"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Endpoint</label>
+                  <label className="block text-sm font-medium text-text">Endpoint</label>
                   <input
                     type="text"
                     value={formData.endpoint}
                     onChange={(e) => setFormData({ ...formData, endpoint: e.target.value })}
-                    className="mt-1 w-full px-3 py-2 border rounded"
+                    className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-text placeholder:text-text-secondary focus:border-primary focus:outline-none"
                     placeholder="https://api.openai.com/v1"
                   />
+                  <p className="mt-1 text-xs text-text-secondary">
+                    Optional for OpenAI and Groq. Leave blank to use the provider default.
+                  </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">API Key</label>
+                  <label className="block text-sm font-medium text-text">
+                    API Key{['OpenAI', 'Groq'].includes(formData.provider) ? ' *' : ''}
+                  </label>
                   <input
                     type="password"
                     value={formData.apiKey}
                     onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
-                    className="mt-1 w-full px-3 py-2 border rounded"
+                    className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-text placeholder:text-text-secondary focus:border-primary focus:outline-none"
                     placeholder={isEditing ? 'Leave blank to keep the existing key' : 'sk-...'}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Organization</label>
+                <label className="block text-sm font-medium text-text">Organization</label>
                 <input
                   type="text"
                   value={formData.organization}
                   onChange={(e) => setFormData({ ...formData, organization: e.target.value })}
-                  className="mt-1 w-full px-3 py-2 border rounded"
+                  className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-text placeholder:text-text-secondary focus:border-primary focus:outline-none"
                   placeholder="org-..."
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-text">
                     Temperature ({formData.temperature})
                   </label>
                   <input
@@ -584,11 +651,11 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
                     step="0.1"
                     value={formData.temperature}
                     onChange={(e) => setFormData({ ...formData, temperature: parseFloat(e.target.value) })}
-                    className="mt-2 w-full"
+                    className="mt-2 w-full accent-primary"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-text">
                     Top P ({formData.topP})
                   </label>
                   <input
@@ -598,28 +665,28 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
                     step="0.05"
                     value={formData.topP}
                     onChange={(e) => setFormData({ ...formData, topP: parseFloat(e.target.value) })}
-                    className="mt-2 w-full"
+                    className="mt-2 w-full accent-primary"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Max Tokens</label>
+                  <label className="block text-sm font-medium text-text">Max Tokens</label>
                   <input
                     type="number"
                     value={formData.maxTokens}
                     onChange={(e) => setFormData({ ...formData, maxTokens: parseInt(e.target.value) || 0 })}
-                    className="mt-1 w-full px-3 py-2 border rounded"
+                    className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-text focus:border-primary focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Timeout (ms)</label>
+                  <label className="block text-sm font-medium text-text">Timeout (ms)</label>
                   <input
                     type="number"
                     value={formData.timeout}
                     onChange={(e) => setFormData({ ...formData, timeout: parseInt(e.target.value) || 0 })}
-                    className="mt-1 w-full px-3 py-2 border rounded"
+                    className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-text focus:border-primary focus:outline-none"
                   />
                 </div>
               </div>
@@ -630,21 +697,27 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
                     type="checkbox"
                     checked={formData.enabled}
                     onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
-                    className="h-4 w-4"
+                    className="h-4 w-4 accent-primary"
                   />
-                  <span className="text-sm">Enabled</span>
+                  <span className="text-sm text-text">Enabled</span>
                 </label>
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
                     checked={formData.default}
                     onChange={(e) => setFormData({ ...formData, default: e.target.checked })}
-                    className="h-4 w-4"
+                    className="h-4 w-4 accent-primary"
                   />
-                  <span className="text-sm">Set as Default</span>
+                  <span className="text-sm text-text">Set as Default</span>
                 </label>
               </div>
             </div>
+
+            {formError && (
+              <div className="mt-4 rounded-lg border border-error/40 bg-error/10 px-3 py-2 text-sm text-error" role="alert">
+                {formError}
+              </div>
+            )}
 
             <div className="mt-6 flex justify-end gap-2">
               <button
@@ -652,16 +725,62 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
                   setShowCreateModal(false);
                   setIsEditing(false);
                   setSelectedProvider(null);
+                  setFormError('');
                 }}
-                className="px-4 py-2 border rounded hover:bg-gray-50"
+                disabled={formSaving}
+                className="rounded-lg border border-border px-4 py-2 text-text hover:bg-background"
               >
                 Cancel
               </button>
               <button
                 onClick={isEditing ? handleUpdate : handleCreate}
-                className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90"
+                disabled={formSaving}
+                className="rounded-lg bg-primary px-4 py-2 text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isEditing ? 'Save Changes' : 'Create Provider'}
+                {formSaving ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Provider'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-provider-title"
+            className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 text-text shadow-2xl"
+          >
+            <h2 id="delete-provider-title" className="text-lg font-semibold text-text">
+              Delete AI provider?
+            </h2>
+            <p className="mt-2 text-sm text-text-secondary">
+              This will permanently remove <span className="font-medium text-text">{deleteTarget.name}</span> from this project.
+            </p>
+
+            {deleteError && (
+              <div className="mt-4 rounded-lg border border-error/40 bg-error/10 px-3 py-2 text-sm text-error" role="alert">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={deleteLoading}
+                onClick={() => setDeleteTarget(null)}
+                className="rounded-lg border border-border px-4 py-2 text-sm text-text hover:bg-background disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleteLoading}
+                onClick={handleDeleteConfirm}
+                className="rounded-lg bg-error px-4 py-2 text-sm font-medium text-white hover:bg-error/90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deleteLoading ? 'Deleting...' : 'Delete provider'}
               </button>
             </div>
           </div>
@@ -670,13 +789,13 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
 
       {/* Test Connection Modal */}
       {showTestModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 text-text shadow-2xl">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">Test Connection</h2>
+              <h2 className="text-xl font-bold text-text">Test Connection</h2>
               <button
                 onClick={() => setShowTestModal(false)}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-text-secondary hover:text-text"
               >
                 ✕
               </button>
@@ -686,21 +805,21 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
               <div className="py-8 text-center text-text-secondary">Testing connection...</div>
             ) : testResult ? (
               <div className={`rounded p-4 ${
-                testResult.healthy ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+                testResult.healthy ? 'bg-success/10 border border-success/30' : 'bg-error/10 border border-error/30'
               }`}>
                 <div className={`font-medium ${
-                  testResult.healthy ? 'text-green-700' : 'text-red-700'
+                  testResult.healthy ? 'text-success' : 'text-error'
                 }`}>
                   {testResult.healthy ? '✓ Connection Successful' : '✗ Connection Failed'}
                 </div>
-                <div className="mt-2 text-sm text-gray-600">{testResult.message}</div>
+                <div className="mt-2 text-sm text-text-secondary">{testResult.message}</div>
               </div>
             ) : null}
 
             <div className="mt-6 flex justify-end">
               <button
                 onClick={() => setShowTestModal(false)}
-                className="px-4 py-2 border rounded hover:bg-gray-50"
+                className="rounded-lg border border-border px-4 py-2 text-text hover:bg-background"
               >
                 Close
               </button>

@@ -78,6 +78,7 @@ export class JsonProjectRepository implements ProjectRepository {
     description?: string;
     id?: string;
     status?: ProjectRecord['status'];
+    lastOpenedAt?: number;
     ownerId?: string;
     tenantId?: string;
   }): Promise<ProjectRecord> {
@@ -107,6 +108,7 @@ export class JsonProjectRepository implements ProjectRepository {
       projectKey,
       description: input.description?.trim(),
       status: input.status ?? 'active',
+      lastOpenedAt: input.lastOpenedAt,
       ownerId: input.ownerId?.trim() || undefined,
       tenantId: input.tenantId?.trim() || undefined,
       createdAt: now,
@@ -124,6 +126,7 @@ export class JsonProjectRepository implements ProjectRepository {
       projectKey?: string;
       description?: string;
       status?: ProjectRecord['status'];
+      lastOpenedAt?: number;
     },
   ): Promise<ProjectRecord> {
     const projects = await this.readRegistry();
@@ -143,6 +146,7 @@ export class JsonProjectRepository implements ProjectRepository {
       projectKey: patch.projectKey?.trim().toLowerCase() ?? current.projectKey,
       description: patch.description !== undefined ? patch.description.trim() : current.description,
       status: patch.status ?? current.status ?? 'active',
+      lastOpenedAt: patch.lastOpenedAt ?? current.lastOpenedAt,
       updatedAt: Date.now(),
     };
     projects[index] = updated;

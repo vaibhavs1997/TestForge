@@ -21,7 +21,7 @@ const operation = (id: string, name: string, path: string, method = 'POST') =>
     Date.now(),
   );
 
-const requirement = (title: string) =>
+const requirement = (title: string, criteria = title) =>
   new RequirementEntity(
     'requirement-1',
     'project-1',
@@ -36,7 +36,7 @@ const requirement = (title: string) =>
     [],
     [],
     [],
-    [{ id: 'criterion-1', text: title }],
+    [{ id: 'criterion-1', text: criteria }],
     Date.now(),
     Date.now(),
   );
@@ -51,11 +51,22 @@ describe('RequirementOperationMatcher', () => {
     expect(pickOperationForCategory(requirement('User should be able to create an account'), [reset, registration], 'Positive')).toBe('register');
   });
 
-  it('does not select an unrelated endpoint when no confident match exists', () => {
+  it('reports strong explicit registration intent as confident', () => {
+    const registration = operation('register', 'Registration', '/auth/signup');
+    const diagnostics = getOperationMatchDiagnostics(requirement('User can create an account'), [registration]);
+
+    expect(diagnostics.lowConfidence).toBe(false);
+  });
+
+  it('keeps the best available endpoint when confidence is low', () => {
     const reset = operation('reset', 'Forgot password', '/password/reset');
 
-    expect(() => pickOperationForCategory(requirement('User should be able to create an account'), [reset], 'Positive'))
-      .toThrow(/No confident API mapping/);
+    expect(pickOperationForCategory(requirement('User should be able to create an account'), [reset], 'Positive'))
+      .toBe('reset');
+  });
+
+  it('allows generation to continue when no operations are imported', () => {
+    expect(pickOperationForCategory(requirement('A customer can create an order'), [], 'Positive')).toBe('');
   });
 
   it('maps a generic resource action without account-specific rules', () => {
@@ -69,5 +80,17 @@ describe('RequirementOperationMatcher', () => {
         'Positive',
       ),
     ).toBe('create-order');
+  });
+
+  it('maps a password recovery requirement to the recovery operation', () => {
+    const reset = operation('reset', 'Reset password', '/password/reset');
+    const login = operation('login', 'Authenticate user', '/auth/login', 'POST');
+    expect(
+      pickOperationForCategory(
+        requirement('Account access support', 'Given a registered user\nWhen they request a reset link'),
+        [login, reset],
+        'Positive',
+      ),
+    ).toBe('reset');
   });
 });

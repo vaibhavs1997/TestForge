@@ -37,6 +37,7 @@ export interface RequirementCaptureCardProps {
   onViewOpenDraft?: () => void;
   onDiscardOpenDraft?: () => void;
   isDiscardingDraft?: boolean;
+  onCancelGeneration?: () => void;
 }
 
 
@@ -56,6 +57,7 @@ export const RequirementCaptureCard: React.FC<RequirementCaptureCardProps> = ({
   onViewOpenDraft,
   onDiscardOpenDraft,
   isDiscardingDraft,
+  onCancelGeneration,
 }) => {
 
   const [title, setTitle] = React.useState('');
@@ -179,7 +181,7 @@ export const RequirementCaptureCard: React.FC<RequirementCaptureCardProps> = ({
 
         {!apiOperationsLoading && apiOperationsCount === 0 ? (
           <div className='mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100' role='status'>
-            Import an OpenAPI or Postman collection from the APIs page before generating test cases. Generated cases are mapped to imported API operations before they are displayed.
+            No API operations are imported yet. Test cases can still be generated and will be displayed for review; you can map them after importing APIs.
           </div>
         ) : null}
 
@@ -227,7 +229,13 @@ export const RequirementCaptureCard: React.FC<RequirementCaptureCardProps> = ({
 
           <div className='flex flex-wrap gap-2'>
 
-            <Button type='submit' disabled={isSubmitting || generateBlocked || apiOperationsLoading || apiOperationsCount === 0 || !title.trim() || !criteriaText.trim()}>
+            {isSubmitting && onCancelGeneration ? (
+              <Button type='button' variant='outline' onClick={onCancelGeneration}>
+                Cancel generation
+              </Button>
+            ) : null}
+
+            <Button type='submit' disabled={isSubmitting || generateBlocked || apiOperationsLoading || !title.trim() || !criteriaText.trim()}>
 
               <Sparkles className='mr-2 h-4 w-4' aria-hidden />
 

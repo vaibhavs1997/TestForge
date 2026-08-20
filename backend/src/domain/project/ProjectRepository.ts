@@ -9,6 +9,7 @@ export interface ProjectRepository {
     description?: string;
     id?: string;
     status?: ProjectRecord['status'];
+    lastOpenedAt?: number;
     ownerId?: string;
     tenantId?: string;
   }): Promise<ProjectRecord>;
@@ -19,6 +20,7 @@ export interface ProjectRepository {
       projectKey?: string;
       description?: string;
       status?: ProjectRecord['status'];
+      lastOpenedAt?: number;
     },
   ): Promise<ProjectRecord>;
   delete(id: string): Promise<void>;

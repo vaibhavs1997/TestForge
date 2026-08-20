@@ -13,6 +13,7 @@ export interface RenameProjectModalProps {
   onClose: () => void;
   onSave: (newName: string) => void;
   existingNames?: string[];
+  isSaving?: boolean;
 }
 
 export const RenameProjectModal = ({
@@ -21,8 +22,10 @@ export const RenameProjectModal = ({
   onClose,
   onSave,
   existingNames = [],
+  isSaving = false,
 }: RenameProjectModalProps) => {
   const [name, setName] = React.useState(currentName);
+  const previousFocusRef = React.useRef<HTMLElement | null>(null);
 
   const validate = React.useCallback((): FormErrors => {
     const newErrors: FormErrors = {};
@@ -42,9 +45,18 @@ export const RenameProjectModal = ({
   // Sync the input with the current project name whenever the modal opens
   React.useEffect(() => {
     if (open) {
+      previousFocusRef.current = document.activeElement as HTMLElement;
       setName(currentName);
+      const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.key === 'Escape' && !isSaving) onClose();
+      };
+      document.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.removeEventListener('keydown', handleKeyDown);
+        previousFocusRef.current?.focus();
+      };
     }
-  }, [open, currentName]);
+  }, [open, currentName, onClose, isSaving]);
 
   if (!open) return null;
 
@@ -96,10 +108,10 @@ export const RenameProjectModal = ({
             />
           </CardContent>
           <CardFooter className='justify-end gap-2'>
-            <Button type='button' variant='outline' onClick={onClose}>
+            <Button type='button' variant='outline' onClick={onClose} disabled={isSaving}>
               Cancel
             </Button>
-            <Button type='submit'>Save</Button>
+            <Button type='submit' loading={isSaving}>Save</Button>
           </CardFooter>
         </form>
       </Card>

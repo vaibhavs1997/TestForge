@@ -1,6 +1,7 @@
 // Requirements page — capture acceptance criteria, generate test cases, curate inclusion
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { projectModulePath } from '../../../routes/paths';
 import { Plus, Eye, EyeOff, CheckCircle, XCircle, Archive, Sparkles, RefreshCw, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Edit2, Trash2, ToggleLeft, ToggleRight, Copy, FlaskConical, ArrowUp, ArrowDown, GitBranch, Clock, Upload } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../components/ui/Card';
@@ -215,6 +216,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = ({ section = 'r
   const [activeRequirement, setActiveRequirement] = useState<Requirement | undefined>(undefined);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [isGeneratingTestCases, setIsGeneratingTestCases] = useState(false);
+  const generationAbortControllerRef = useRef<AbortController | null>(null);
   const [isApprovingSuite, setIsApprovingSuite] = useState(false);
   const [isRejectingSuite, setIsRejectingSuite] = useState(false);
   const [isAddingToPending, setIsAddingToPending] = useState(false);
@@ -488,6 +490,8 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = ({ section = 'r
 
   const runGenerateTestCasesForRequirement = async (requirement: Requirement): Promise<boolean> => {
     setIsGeneratingTestCases(true);
+    const abortController = new AbortController();
+    generationAbortControllerRef.current = abortController;
     const aiProvider =
       aiProviders.find((p) => p.isDefault && p.enabled) ?? aiProviders.find((p) => p.enabled);
 
@@ -496,7 +500,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = ({ section = 'r
         providerId: aiProvider?.id,
         useAi: Boolean(aiProvider),
         replaceExisting: true,
-      });
+      }, { signal: abortController.signal });
       selectActiveRequirement(requirement, { showPanel: true });
       queryClient.setQueryData(queryKeys.testDesigns(projectId, requirement.id), result.designs);
       await queryClient.invalidateQueries({ queryKey: queryKeys.requirements(projectId) });
@@ -515,11 +519,19 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = ({ section = 'r
       setToastType('success');
       return true;
     } catch (err: any) {
+      if (abortController.signal.aborted) {
+        setToastMessage('Test case generation cancelled');
+        setToastType('success');
+        return false;
+      }
       const msg = err?.response?.data?.message || err?.message || 'Failed to generate test cases';
       setToastMessage(msg);
       setToastType('error');
       return false;
     } finally {
+      if (generationAbortControllerRef.current === abortController) {
+        generationAbortControllerRef.current = null;
+      }
       setIsGeneratingTestCases(false);
       setToastOpen(true);
     }
@@ -684,7 +696,18 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = ({ section = 'r
 
   const handleStatusChange = async (requirementId: string, status: ApprovalStatus) => {
     try {
-      await updateAsync(requirementId, { approvalStatus: status });
+      const updated = await updateAsync(requirementId, { approvalStatus: status });
+      if (updated) {
+        queryClient.setQueryData<Requirement[]>(queryKeys.requirements(projectId), (current) =>
+          (current ?? []).map((item) => item.id === requirementId ? { ...item, ...updated } : item),
+        );
+      }
+      // Ensure the section counters and Approved/Archived tabs immediately
+      // use the persisted server state after a status transition.
+      await queryClient.refetchQueries({
+        queryKey: queryKeys.requirements(projectId),
+        type: 'active',
+      });
       setToastMessage(`Requirement ${status.toLowerCase()} successfully`);
       setToastType('success');
     } catch (err: any) {
@@ -1099,14 +1122,27 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = ({ section = 'r
     setIsApprovingSuite(true);
     try {
       await planExecutionAsync({ projectId, requirementId: requirement.id });
-      await updateAsync(requirement.id, {
+      const updated = await updateAsync(requirement.id, {
         approvalStatus: 'Approved',
         reviewStatus: 'Reviewed',
       });
-      setExpandedSuiteId(null);
-      if (activeRequirement?.id === requirement.id) {
-        selectActiveRequirement(undefined, { showPanel: false });
+      if (updated) {
+        queryClient.setQueryData<Requirement[]>(queryKeys.requirements(projectId), (current) =>
+          (current ?? []).map((item) => item.id === requirement.id ? { ...item, ...updated } : item),
+        );
       }
+      // Close and clear the persisted review panel before the requirements
+      // query refreshes; otherwise its synchronization effect can reopen the
+      // suite using the old active-panel state.
+      setExpandedSuiteId(null);
+      selectActiveRequirement(undefined, { showPanel: false });
+      // The approval tab is backed by approvalStatus from the requirements
+      // list. Refetch after the mutation so it cannot render a stale snapshot.
+      await queryClient.refetchQueries({
+        queryKey: queryKeys.requirements(projectId),
+        type: 'active',
+      });
+      navigate(projectModulePath(projectId, 'requirements', 'approved'));
       setToastMessage(
         `Test suite approved with ${includedCount} case${includedCount === 1 ? '' : 's'}. Run it from Execution.`,
       );
@@ -1176,6 +1212,10 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = ({ section = 'r
       requirement.jiraIssueKey ?? '',
       ...requirement.acceptanceCriteria.map((criterion) => criterion.text),
     ].join(' ').toLowerCase().includes(normalizedRequirementSearch);
+  };
+
+  const cancelTestCaseGeneration = () => {
+    generationAbortControllerRef.current?.abort();
   };
   const visiblePendingReview = pendingReview.filter(matchesRequirementFilter);
   const visibleApproved = approved.filter(matchesRequirementFilter);
@@ -1641,6 +1681,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = ({ section = 'r
             : undefined
         }
         isDiscardingDraft={isRejectingSuite}
+        onCancelGeneration={cancelTestCaseGeneration}
       />
       <JiraImportDialog
         open={jiraImportOpen}
@@ -1697,6 +1738,7 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = ({ section = 'r
           isUpdatingMapping={artifacts.isUpdatingMapping}
           mappingBannerMessage={mappingContextQuery.data?.message}
           mappingLowConfidence={mappingContextQuery.data?.lowConfidence}
+          onCancelGeneration={cancelTestCaseGeneration}
         />
       </div>}
 

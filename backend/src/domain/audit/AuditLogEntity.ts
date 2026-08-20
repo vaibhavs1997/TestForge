@@ -11,7 +11,9 @@ export type AuditAction =
   | 'REJECT'
   | 'RESTORE'
   | 'ENABLE'
-  | 'DISABLE';
+  | 'DISABLE'
+  | 'ARCHIVE'
+  | 'OPEN';
 
 export type AuditModule = 
   | 'Project'

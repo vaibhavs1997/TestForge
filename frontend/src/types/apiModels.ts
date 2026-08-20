@@ -9,11 +9,12 @@ export interface ProjectDto extends TimestampedDto {
   projectKey: string;
   description?: string;
   status?: 'active' | 'archived';
+  lastOpenedAt?: number;
 }
 
 export interface ProjectWorkspaceModel extends ProjectDto {
   lastOpenedAt: number;
-  uiStatus: 'active' | 'paused';
+  uiStatus: 'active' | 'archived';
 }
 
 export interface ApiServiceDto extends TimestampedDto {
@@ -164,7 +165,7 @@ export function toProjectWorkspaceModel(project: ProjectDto, lastOpenedAt: numbe
   return {
     ...project,
     lastOpenedAt,
-    uiStatus: project.status === 'archived' ? 'paused' : 'active',
+    uiStatus: project.status === 'archived' ? 'archived' : 'active',
   };
 }
 

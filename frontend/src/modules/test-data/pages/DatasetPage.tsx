@@ -198,11 +198,15 @@ const SECTION_CHIPS: {
   { id: 'generators', label: 'Generators', icon: Zap, comingSoon: true },
 ];
 
-export const TestDataLibraryPage = () => {
-  const { projectId } = useParams<{ projectId: string }>();
+interface TestDataLibraryPageProps {
+  projectId?: string;
+}
+
+export const TestDataLibraryPage: React.FC<TestDataLibraryPageProps> = ({ projectId: propProjectId }) => {
+  const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const location = useLocation();
   const storeProjectId = projectStore((s) => s.selectedProjectId);
-  const resolvedProjectId = projectId ?? storeProjectId ?? '';
+  const resolvedProjectId = propProjectId ?? routeProjectId ?? storeProjectId ?? '';
   const [search, setSearch] = React.useState('');
   const [categoryFilter, setCategoryFilter] = React.useState<string>('All');
   const [viewMode, setViewMode] = React.useState<ViewMode>('card');
@@ -272,7 +276,7 @@ export const TestDataLibraryPage = () => {
   );
   React.useEffect(() => {
     const loadDatasets = async () => {
-      if (!projectId) {
+      if (!resolvedProjectId) {
         setDatasets([]);
         setIsLoadingDatasets(false);
         return;
@@ -280,12 +284,12 @@ export const TestDataLibraryPage = () => {
       try {
         setIsLoadingDatasets(true);
         setDatasetsError(null);
-        const data = await datasetService.listDatasets(projectId);
+        const data = await datasetService.listDatasets(resolvedProjectId);
         setDatasets(
           data.map((d) => ({
             id: d.id,
             projectId: d.projectId,
-            name: d.name,
+            name: typeof d.name === 'string' && d.name.trim() ? d.name : 'Untitled dataset',
             description: d.description || '',
             category: d.category || 'General',
             rows: d.rowCount ?? 0,
@@ -305,7 +309,7 @@ export const TestDataLibraryPage = () => {
     };
 
     void loadDatasets();
-  }, [projectId]);
+  }, [resolvedProjectId]);
 
   React.useEffect(() => {
     const afterTestData = location.pathname.split('/testdata')[1] ?? '';
@@ -547,14 +551,14 @@ export const TestDataLibraryPage = () => {
   };
 
   const reloadDatasets = React.useCallback(async () => {
-    if (!projectId) return;
+    if (!resolvedProjectId) return;
     try {
-      const data = await datasetService.listDatasets(projectId);
+      const data = await datasetService.listDatasets(resolvedProjectId);
       setDatasets(
         data.map((d) => ({
           id: d.id,
           projectId: d.projectId,
-          name: d.name,
+      name: typeof d.name === 'string' && d.name.trim() ? d.name : 'Untitled dataset',
           description: d.description || '',
           category: d.category || 'General',
           rows: d.rowCount ?? 0,
@@ -568,7 +572,7 @@ export const TestDataLibraryPage = () => {
     } catch (err) {
       logger.error('Failed to reload datasets', err);
     }
-  }, [projectId]);
+  }, [resolvedProjectId]);
 
   const handleNextStep = async () => {
     if (importStep < 5) {

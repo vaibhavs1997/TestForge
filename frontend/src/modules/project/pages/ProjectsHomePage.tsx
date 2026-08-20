@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { projectStore } from '../../../store/projectStore';
 import { useToast } from '../../../hooks/useToast';
 import { useWorkspaceProjects } from '../hooks/useWorkspaceProjects';
-import { appendProjectActivity, getLastOpenedAt, loadProjectActivity, touchProjectOpened } from '../utils/projectUiMeta';
 import type { ProjectDto, ProjectWorkspaceModel } from '../../../types/apiModels';
 import { toProjectWorkspaceModel } from '../../../types/apiModels';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/Card';
@@ -16,7 +15,7 @@ import { ErrorAlert } from '../../../components/shared/ErrorAlert';
 import { CreateProjectModal, type CreateProjectModalData } from '../components/CreateProjectModal';
 import { RenameProjectModal } from '../components/RenameProjectModal';
 import { ProjectCardMenu } from '../components/ProjectCardMenu';
-import { Plus, LayoutGrid, Clock, User, FolderPlus, ArrowRight, ListChecks } from 'lucide-react';
+import { Plus, LayoutGrid, Clock, FolderPlus, ArrowRight, ListChecks, ChevronDown } from 'lucide-react';
 import { consumeAuthFlash } from '../../../utils/authFlash';
 import { projectModulePath } from '../../../routes/paths';
 
@@ -28,9 +27,70 @@ type UiProject = ProjectWorkspaceModel & {
   icon: React.ReactNode;
 };
 
+interface ProjectFilterDropdownProps {
+  label: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onChange: (value: string) => void;
+}
+
+const ProjectFilterDropdown: React.FC<ProjectFilterDropdownProps> = ({ label, value, options, onChange }) => {
+  const [open, setOpen] = React.useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const selectedLabel = options.find((option) => option.value === value)?.label ?? label;
+
+  React.useEffect(() => {
+    if (!open) return;
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    return () => document.removeEventListener('mousedown', closeOnOutsideClick);
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        className="flex h-10 min-w-[142px] items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 text-sm text-text transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={label}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span>{selectedLabel}</span>
+        <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div
+          role="listbox"
+          aria-label={label}
+          className="absolute left-0 top-full z-30 mt-2 min-w-full overflow-hidden rounded-xl border border-border bg-background p-1 shadow-xl"
+        >
+          {options.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="option"
+              aria-selected={option.value === value}
+              className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-surface ${option.value === value ? 'bg-primary/15 text-primary' : 'text-text'}`}
+              onClick={() => {
+                onChange(option.value);
+                setOpen(false);
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 function toUiProject(p: ProjectDto): UiProject {
   return {
-    ...toProjectWorkspaceModel(p, getLastOpenedAt(p.id, p.updatedAt)),
+    ...toProjectWorkspaceModel(p, p.lastOpenedAt ?? p.updatedAt),
     icon: <FolderPlus className="h-8 w-8" />,
   };
 }
@@ -44,8 +104,9 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [archiveProject, setArchiveProject] = React.useState<UiProject | undefined>(undefined);
   const [archiveOpen, setArchiveOpen] = React.useState(false);
-  const [recentActivity, setRecentActivity] = React.useState(() => loadProjectActivity());
   const [showAllProjects, setShowAllProjects] = React.useState(false);
+  const [statusFilter, setStatusFilter] = React.useState<'all' | 'active' | 'archived'>('all');
+  const [sortBy, setSortBy] = React.useState<'opened' | 'updated' | 'name'>('opened');
 
   const {
     projects: apiProjects,
@@ -56,6 +117,11 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
     createProjectAsync,
     updateProjectAsync,
     deleteProjectAsync,
+    recordProjectOpenAsync,
+    isCreating,
+    isUpdating,
+    isDeleting,
+    recentActivity = [],
   } = useWorkspaceProjects();
 
   const projects = React.useMemo(() => apiProjects.map(toUiProject), [apiProjects]);
@@ -80,11 +146,6 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
     }
   }, [setSelectedProjectId]);
 
-  const logActivity = (action: string, projectName: string) => {
-    appendProjectActivity(action, projectName);
-    setRecentActivity(loadProjectActivity());
-  };
-
   const filteredProjects = React.useMemo(() => {
     const term = search.trim().toLowerCase();
     const filtered = term
@@ -94,8 +155,12 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
             (project.description ?? '').toLowerCase().includes(term),
         )
       : projects;
-    return [...filtered].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt);
-  }, [projects, search]);
+    const statusFiltered = statusFilter === 'all' ? filtered : filtered.filter((project) => project.status === statusFilter);
+    return [...statusFiltered].sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      return sortBy === 'updated' ? b.updatedAt - a.updatedAt : b.lastOpenedAt - a.lastOpenedAt;
+    });
+  }, [projects, search, sortBy, statusFilter]);
 
   const activeProjects = React.useMemo(
     () => filteredProjects.filter((project) => project.uiStatus === 'active'),
@@ -103,7 +168,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
   );
 
   const archivedProjects = React.useMemo(
-    () => filteredProjects.filter((project) => project.uiStatus === 'paused'),
+    () => filteredProjects.filter((project) => project.uiStatus === 'archived'),
     [filteredProjects],
   );
 
@@ -116,7 +181,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
   const showViewAllProjects = activeProjects.length > MAX_RECENT_PROJECTS;
 
   const getStatusBadge = (status: UiProject['uiStatus']) => (
-    <Badge variant={status === 'active' ? 'success' : 'secondary'}>{status === 'active' ? 'active' : 'paused'}</Badge>
+    <Badge variant={status === 'active' ? 'success' : 'secondary'}>{status}</Badge>
   );
 
   const formatRelativeTime = (timestamp: number): string => {
@@ -141,8 +206,6 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
         name: data.projectName,
         description: data.description || undefined,
       });
-      touchProjectOpened(created.id);
-      logActivity('Created project', data.projectName);
       setCreateModalOpen(false);
       showSuccess(`Project "${data.projectName}" created successfully`);
       setSelectedProjectId(created.id);
@@ -154,22 +217,21 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
   };
 
   const handleOpenProject = (project: UiProject) => {
-    touchProjectOpened(project.id);
     setSelectedProjectId(project.id);
+    void recordProjectOpenAsync(project.id).catch(() => undefined);
     navigate(projectModulePath(project.id, 'overview'));
   };
 
   const handleRenameProject = async (newName: string) => {
     if (!renameProject) return;
-    const oldName = renameProject.name;
     try {
       await updateProjectAsync({ id: renameProject.id, name: newName });
-      logActivity('Renamed project', `${oldName} → ${newName}`);
       setRenameOpen(false);
       setRenameProject(undefined);
       showSuccess(`Project renamed to "${newName}" successfully`);
     } catch (e) {
       console.error(e);
+      showError(e instanceof Error ? e.message : 'Failed to rename project');
     }
   };
 
@@ -178,7 +240,6 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
     const deletedName = deleteProject.name;
     try {
       await deleteProjectAsync(deleteProject.id);
-      logActivity('Deleted project', deletedName);
       setDeleteOpen(false);
       setDeleteProject(undefined);
       showSuccess(`Project "${deletedName}" deleted successfully`);
@@ -195,12 +256,12 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
     const successLabel = nextStatus === 'archived' ? 'archived successfully' : 'restored successfully';
     try {
       await updateProjectAsync({ id: archiveProject.id, status: nextStatus });
-      logActivity(actionLabel, archiveProject.name);
       setArchiveOpen(false);
       setArchiveProject(undefined);
       showSuccess(`Project "${archiveProject.name}" ${successLabel}`);
     } catch (e) {
       console.error(e);
+      showError(e instanceof Error ? e.message : `Failed to ${actionLabel.toLowerCase()} project`);
     }
   };
 
@@ -240,8 +301,28 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
         </Button>
       </div>
 
-      <div className="mb-6">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <SearchBar value={search} onChange={setSearch} placeholder="Search projects..." className="sm:w-96" />
+        <ProjectFilterDropdown
+          label="Project status"
+          value={statusFilter}
+          onChange={(value) => setStatusFilter(value as typeof statusFilter)}
+          options={[
+            { value: 'all', label: 'All statuses' },
+            { value: 'active', label: 'Active' },
+            { value: 'archived', label: 'Archived' },
+          ]}
+        />
+        <ProjectFilterDropdown
+          label="Sort projects"
+          value={sortBy}
+          onChange={(value) => setSortBy(value as typeof sortBy)}
+          options={[
+            { value: 'opened', label: 'Recently opened' },
+            { value: 'updated', label: 'Recently updated' },
+            { value: 'name', label: 'Name' },
+          ]}
+        />
       </div>
 
       <section className="mb-8 rounded-2xl border border-border bg-surface/40 p-6">
@@ -249,7 +330,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
           <h2 className="text-lg font-semibold text-text">Recent Projects</h2>
           {showViewAllProjects && !search.trim() && (
             <Button variant="ghost" size="sm" onClick={() => setShowAllProjects((v) => !v)}>
-              {showAllProjects ? 'Show fewer' : `View all ${projects.length} projects →`}
+              {showAllProjects ? 'Show fewer' : `View all ${activeProjects.length} active projects →`}
             </Button>
           )}
         </div>
@@ -272,8 +353,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
             {displayedProjects.map((project) => (
               <Card
                 key={project.id}
-                className="cursor-pointer transition-shadow hover:shadow-lg"
-                onClick={() => handleOpenProject(project)}
+                className="transition-shadow hover:shadow-lg"
               >
                 <CardContent className="pt-6">
                   <div className="mb-4 flex items-start justify-between">
@@ -311,10 +391,10 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
                       <span className="text-text-secondary">Status</span>
                       {getStatusBadge(project.uiStatus)}
                     </div>
-                    <p className="mt-3 flex items-center gap-1 text-xs font-medium text-primary">
-                      Continue
-                      <ArrowRight className="h-3 w-3" />
-                    </p>
+                    <Button className="mt-3 w-full" variant="outline" size="sm" onClick={() => handleOpenProject(project)}>
+                      Open project
+                      <ArrowRight className="ml-1 h-3 w-3" />
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -330,7 +410,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
           </CardHeader>
           <CardContent>
             {recentActivity.length === 0 ? (
-              <p className="text-sm text-text-secondary">Actions on this page will appear here.</p>
+              <p className="text-sm text-text-secondary">Project opens and lifecycle changes will appear here.</p>
             ) : (
               <div className="space-y-4">
                 {recentActivity.slice(0, 5).map((activity) => (
@@ -339,15 +419,13 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
                       <LayoutGrid className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-text">{activity.action}</p>
-                      <p className="mt-0.5 text-sm text-text-secondary">{activity.projectName}</p>
-                      <div className="mt-1 flex items-center gap-2 text-xs text-text-secondary">
-                        <User className="h-3 w-3" />
-                        <span>{activity.user}</span>
-                        <span>•</span>
-                        <Clock className="h-3 w-3" />
-                        <span>{formatRelativeTime(activity.timestamp)}</span>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-text">{activity.action.toLowerCase()}</p>
+                        <span className="text-xs text-text-secondary">·</span>
+                        <Clock className="h-3 w-3 text-text-secondary" />
+                        <span className="text-xs text-text-secondary">{formatRelativeTime(activity.timestamp)}</span>
                       </div>
+                      <p className="mt-0.5 text-sm text-text-secondary">{activity.newValue?.name ?? 'Project activity'}</p>
                     </div>
                   </div>
                 ))}
@@ -360,9 +438,6 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
           <CardHeader className="flex flex-row items-center justify-between gap-4">
             <div>
               <CardTitle>Archived Projects</CardTitle>
-              <CardDescription>
-                Archived projects move here automatically and return to Recent Projects when restored.
-              </CardDescription>
             </div>
             <Badge variant="secondary">{archivedProjects.length}</Badge>
           </CardHeader>
@@ -376,8 +451,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
                 {archivedProjects.map((project) => (
                   <Card
                     key={project.id}
-                    className="w-full cursor-pointer border-dashed transition-shadow hover:shadow-lg"
-                    onClick={() => handleOpenProject(project)}
+                    className="w-full border-dashed transition-shadow hover:shadow-lg"
                   >
                     <CardContent className="pt-6">
                       <div className="mb-4 flex items-start justify-between">
@@ -411,10 +485,10 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
                           <span className="text-text-secondary">Status</span>
                           <Badge variant="secondary">archived</Badge>
                         </div>
-                        <p className="mt-3 flex items-center gap-1 text-xs font-medium text-primary">
-                          Restore
-                          <ArrowRight className="h-3 w-3" />
-                        </p>
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <Button variant="outline" size="sm" onClick={() => handleOpenProject(project)}>Open project</Button>
+                          <Button size="sm" onClick={() => { setArchiveProject(project); setArchiveOpen(true); }}>Restore</Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -461,6 +535,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
         onClose={() => setCreateModalOpen(false)}
         onSave={(data) => void handleCreateProject(data)}
         existingProjects={projects.map((p) => ({ id: p.id, name: p.name }))}
+        isSaving={isCreating}
       />
 
       <RenameProjectModal
@@ -472,6 +547,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
         }}
         onSave={(name) => void handleRenameProject(name)}
         existingNames={projects.map((p) => p.name)}
+        isSaving={isUpdating}
       />
 
       <ConfirmDialog
@@ -481,6 +557,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
         confirmLabel="Delete"
         cancelLabel="Cancel"
         variant="destructive"
+        isLoading={isDeleting}
         onConfirm={() => void handleDeleteProject()}
         onCancel={() => {
           setDeleteOpen(false);
@@ -499,6 +576,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
         confirmLabel={archiveProject?.status === 'archived' ? 'Unarchive' : 'Archive'}
         cancelLabel="Cancel"
         variant="default"
+        isLoading={isUpdating}
         onConfirm={() => void handleToggleArchiveProject()}
         onCancel={() => {
           setArchiveOpen(false);

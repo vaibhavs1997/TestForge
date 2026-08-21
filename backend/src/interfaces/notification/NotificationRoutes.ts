@@ -1,14 +1,7 @@
 // NotificationRoutes - Express routes for Notification Module
 import { Router } from 'express';
 import { NotificationController } from './NotificationController';
-import { container } from '../../application/ApplicationContainer';
 import { asyncHandler } from '../middleware/AsyncHandler';
-
-// Reuse shared service from the ApplicationContainer
-const { notificationService } = container;
-
-// Initialize controller
-const notificationController = new NotificationController(notificationService);
 
 export function createNotificationRoutes(notificationController: NotificationController): Router {
   const router = Router();

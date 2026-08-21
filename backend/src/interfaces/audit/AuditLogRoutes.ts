@@ -1,16 +1,7 @@
 // AuditLogRoutes - Route definitions for Audit Log Framework
 import { Router } from 'express';
 import { AuditLogController } from './AuditLogController';
-import { container } from '../../application/ApplicationContainer';
 import { asyncHandler } from '../middleware/AsyncHandler';
-
-// Reuse shared service from the ApplicationContainer
-const { auditLogService } = container;
-
-// Initialize controller
-const auditLogController = new AuditLogController(auditLogService);
-
-const router = Router();
 
 export function createAuditLogRoutes(auditLogController: AuditLogController): Router {
   const router = Router();

@@ -11,10 +11,16 @@ describe('ExecuteSuite', () => {
         { executionPlanId: 'plan-a', order: 3 },
       ], executionPolicy: 'ContinueOnError' }) } as any,
       { execute: vi.fn(), executeCombined } as any,
-      { findById: vi.fn() } as any,
+      { findById: vi.fn(async (id: string) => ({ id, status: 'Ready', requestTemplate: { method: 'GET', path: '/' }, assertions: [] })) } as any,
     );
     const result = await service.execute('suite-1');
-    expect(executeCombined).toHaveBeenCalledWith(['plan-a', 'plan-b'], 'ContinueOnFailure', undefined, 'suite-1');
+    expect(executeCombined).toHaveBeenCalledWith(
+      ['plan-a', 'plan-b'],
+      'ContinueOnFailure',
+      undefined,
+      'suite-1',
+      expect.objectContaining({ suite: expect.objectContaining({ id: 'suite-1', version: 1 }) }),
+    );
     expect(result).toMatchObject({ id: 'run-1', suiteId: 'suite-1' });
   });
 

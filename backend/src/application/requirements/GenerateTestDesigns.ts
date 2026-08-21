@@ -49,9 +49,12 @@ export class GenerateTestDesigns {
       ? await this.analysisRepository.findById(requirement.projectAnalysisId)
       : null;
 
-    // Get environment (prefer QA, fallback to first available)
+    // Use the environment selected in the API workspace as the shared default.
+    // Keep QA/first as backwards-compatible fallbacks for older projects.
     const environments = await this.environmentRepository.findByProject(requirement.projectId);
-    const environment = environments.find(e => e.name.toLowerCase().includes('qa')) || environments[0];
+    const environment = environments.find(e => e.isDefault)
+      || environments.find(e => e.name.toLowerCase().includes('qa'))
+      || environments[0];
 
     // Get dataset (prefer test data, fallback to analysis datasets)
     const datasets = await this.datasetRepository.findByProject(requirement.projectId);
@@ -179,7 +182,7 @@ export class GenerateTestDesigns {
     }
 
     if (expectedStatus >= 400) {
-      assertions.push({ type: 'body', operator: 'exists', path: '$.error', expected: true });
+      assertions.push({ type: 'body', operator: 'exists', path: '$.message', expected: true });
     }
 
     return assertions;

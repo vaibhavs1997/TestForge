@@ -53,10 +53,6 @@ function extractBearerToken(req: Request): string | undefined {
   if (typeof apiKey === 'string' && apiKey.length > 0) {
     return apiKey;
   }
-  const queryToken = req.query?.token;
-  if (typeof queryToken === 'string' && queryToken.length > 0) {
-    return queryToken;
-  }
   return undefined;
 }
 
@@ -121,33 +117,34 @@ export function authenticate(req: Request, _res: Response, next: NextFunction): 
 
 /** Enforce project scope for routes under /api/projects/:projectId */
 export async function authorizeProject(req: Request, _res: Response, next: NextFunction): Promise<void> {
-  const authConfig = getAuthConfig();
-  if (!authConfig.enabled) {
-    return next();
-  }
-
   const projectId = req.params.projectId;
-  if (!projectId || !req.auth) {
+  if (!projectId) {
     return next();
   }
 
-  if (req.auth.projectIds === '*') {
+  try {
+    await assertProjectAccess(projectId, req.auth);
     return next();
+  } catch (error) {
+    return next(error);
   }
+}
 
-  if (isProjectIdInAuthScope(req.auth, projectId)) {
-    return next();
-  }
+/** Enforce access for resources whose route is not itself project-scoped. */
+export async function assertProjectAccess(projectId: string, auth: AuthContext | undefined): Promise<void> {
+  const authConfig = getAuthConfig();
+  if (!authConfig.enabled) return;
+  if (!auth) throw new UnauthorizedError('Authentication required');
+
+  if (auth.projectIds === '*') return;
+
+  if (isProjectIdInAuthScope(auth, projectId)) return;
 
   if (projectAccessLookup) {
     const record = await projectAccessLookup(projectId);
-    if (record?.ownerId && record.ownerId === req.auth.subject) {
-      return next();
-    }
-    if (req.auth.tenantId && record?.tenantId && record.tenantId === req.auth.tenantId) {
-      return next();
-    }
+    if (record?.ownerId && record.ownerId === auth.subject) return;
+    if (auth.tenantId && record?.tenantId && record.tenantId === auth.tenantId) return;
   }
 
-  return next(new ForbiddenError('Forbidden for this project'));
+  throw new ForbiddenError('Forbidden for this project');
 }

@@ -2,15 +2,12 @@ import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { API_BASE_URL } from '../constants/api';
 import { notificationInboxQueryKey } from '../modules/notification/hooks';
+import { getAuthAuthorizationHeader } from '../services/authSession';
 
 function streamUrl(): string {
   const base = API_BASE_URL.replace(/\/$/, '');
   const path = `${base}/events/stream`;
   const url = path.startsWith('http') ? new URL(path) : new URL(path, window.location.origin);
-  const apiKey = import.meta.env.VITE_API_KEY?.trim();
-  if (apiKey) {
-    url.searchParams.set('token', apiKey);
-  }
   return url.toString();
 }
 
@@ -23,29 +20,43 @@ export function useActivityStream(enabled = true): void {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!enabled || typeof window === 'undefined' || typeof EventSource === 'undefined') {
+    if (!enabled || typeof window === 'undefined' || typeof fetch === 'undefined') {
       return;
     }
 
-    let source: EventSource | null = null;
-    try {
-      source = new EventSource(streamUrl());
-    } catch {
-      return;
-    }
-
-    const onEvent = () => {
-      void queryClient.invalidateQueries({ queryKey: notificationInboxQueryKey() });
-    };
-
-    source.addEventListener('domain-event', onEvent);
-    source.onerror = () => {
-      source?.close();
-    };
+    const controller = new AbortController();
+    let cancelled = false;
+    void (async () => {
+      try {
+        const authorization = getAuthAuthorizationHeader();
+        const response = await fetch(streamUrl(), {
+          signal: controller.signal,
+          headers: authorization ? { Authorization: authorization } : undefined,
+        });
+        if (!response.ok || !response.body) return;
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (!cancelled) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const events = buffer.split('\n\n');
+          buffer = events.pop() || '';
+          for (const event of events) {
+            if (event.includes('event: domain-event') || event.includes('data:')) {
+              void queryClient.invalidateQueries({ queryKey: notificationInboxQueryKey() });
+            }
+          }
+        }
+      } catch {
+        // Stream is optional; the inbox remains available through normal queries.
+      }
+    })();
 
     return () => {
-      source?.removeEventListener('domain-event', onEvent);
-      source?.close();
+      cancelled = true;
+      controller.abort();
     };
   }, [enabled, queryClient]);
 }

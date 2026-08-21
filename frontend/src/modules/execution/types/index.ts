@@ -135,10 +135,28 @@ export interface ExecutionRun {
   suiteId?: string | null;
   executionPlanIds?: string[];
   dependencyGraph?: Array<{ executionPlanId: string; prerequisitePlanIds: string[] }>;
+  suiteSnapshot?: Record<string, unknown> | null;
 }
 
 export interface ExecutionRunCreatePayload {
   executionPlanId: string;
   failureMode?: FailureMode;
   executionProfileId?: string;
+}
+
+export interface RunnableSuite {
+  id: string;
+  suiteType: 'suite' | 'requirement';
+  requirementId?: string;
+  name: string;
+  description: string;
+  tags: Array<{ id: string; name: string }>;
+  testCount: number;
+  executionPolicy: 'Sequential' | 'FailFast' | 'ContinueOnError';
+  defaultEnvironmentId: string;
+  version: number;
+  approvedAt: number | null;
+  defaultProfileId: string | null;
+  isRunnable: boolean;
+  blocker: string | null;
 }

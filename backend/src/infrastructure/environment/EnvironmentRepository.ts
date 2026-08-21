@@ -89,6 +89,7 @@ export class EnvironmentRepository {
       timeout: typeof raw.timeout === 'number' ? raw.timeout : 30000,
       createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : Date.now(),
       updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : Date.now(),
+      isDefault: raw.isDefault === true,
     } as EnvironmentEntity;
   }
 
@@ -134,6 +135,7 @@ export class EnvironmentRepository {
             authentication: item.authentication ?? null,
             variables: item.variables ?? {},
             timeout: item.timeout ?? 30000,
+            isDefault: false,
             createdAt: now,
             updatedAt: now,
           });

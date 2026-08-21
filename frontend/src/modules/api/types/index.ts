@@ -113,6 +113,7 @@ export interface OperationFormData {
   description?: string;
   authenticationType?: string;
   status?: string;
+  sampleRequestBody?: Record<string, unknown> | null;
 }
 
 // ─── Import Contract ─────────────────────────────────────────

@@ -50,8 +50,8 @@ function addAccountRegistrationScenarios(
     expectedHttpStatus: 201,
   });
 
-  for (const label of fields.requiredFieldLabels) {
-    const idx = fields.requiredFieldLabels.indexOf(label);
+  for (let idx = 0; idx < fields.requiredFieldLabels.length; idx += 1) {
+    const label = fields.requiredFieldLabels[idx];
     const fieldId = fields.requiredFieldIds[idx];
     add({
       category: 'Validation',
@@ -146,9 +146,14 @@ function addAuthScenarios(add: (scenario: PlannedScenario) => void, fields: Acce
     expectedHttpStatus: 200,
   });
 
-  for (const label of fields.requiredFieldLabels.length > 0
+  const loginFieldIds = fields.requiredFieldIds.length > 0
+    ? fields.requiredFieldIds
+    : ['email', 'password'];
+  const loginFieldLabels = fields.requiredFieldLabels.length > 0
     ? fields.requiredFieldLabels
-    : ['email', 'password']) {
+    : ['email', 'password'];
+  for (let index = 0; index < loginFieldLabels.length; index += 1) {
+    const label = loginFieldLabels[index];
     add({
       category: 'Validation',
       testCaseType: 'Negative',
@@ -156,6 +161,8 @@ function addAuthScenarios(add: (scenario: PlannedScenario) => void, fields: Acce
       reason: `${label} is required for authentication.`,
       priority: 'High',
       expectedHttpStatus: 400,
+      focusFieldId: loginFieldIds[index],
+      scenarioKind: 'missing_field',
     });
   }
 
@@ -190,7 +197,8 @@ function addGenericScenarios(
   });
 
   if (fields.requiredFieldLabels.length > 0) {
-    for (const label of fields.requiredFieldLabels) {
+    for (let index = 0; index < fields.requiredFieldLabels.length; index += 1) {
+      const label = fields.requiredFieldLabels[index];
       add({
         category: 'Validation',
         testCaseType: 'Negative',
@@ -198,6 +206,8 @@ function addGenericScenarios(
         reason: `${label} is required per the acceptance criteria.`,
         priority: 'High',
         expectedHttpStatus: 400,
+        focusFieldId: fields.requiredFieldIds[index],
+        scenarioKind: 'missing_field',
       });
     }
     add({

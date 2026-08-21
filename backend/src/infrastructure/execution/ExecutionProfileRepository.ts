@@ -1,116 +1,90 @@
-// ExecutionProfileRepository - In-memory implementation of Execution Profile Repository
-
+// File-backed execution profile repository. Profiles must survive restarts so
+// an approved suite can reliably be run with its intended configuration.
+import * as fs from 'fs';
+import * as path from 'path';
 import { randomUUID } from 'node:crypto';
 import { IExecutionProfileRepository } from '../../domain/execution/ExecutionProfileRepository';
 import { ExecutionProfileEntity } from '../../domain/execution/ExecutionProfileEntity';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+
+const getDataRoot = () => path.join(process.cwd(), 'data', 'execution-profiles');
 
 export class ExecutionProfileRepository implements IExecutionProfileRepository {
-  private profiles: Map<string, ExecutionProfileEntity> = new Map();
-  private projectProfiles: Map<string, Set<string>> = new Map();
+  private getFilePath(projectId: string): string {
+    return path.join(getDataRoot(), projectId, 'profiles.json');
+  }
+
+  private ensureProjectDir(projectId: string): void {
+    const directory = path.dirname(this.getFilePath(projectId));
+    if (!fs.existsSync(directory)) fs.mkdirSync(directory, { recursive: true });
+  }
+
+  private async read(projectId: string): Promise<ExecutionProfileEntity[]> {
+    return readJsonArray<ExecutionProfileEntity>(this.getFilePath(projectId));
+  }
 
   async create(profile: Omit<ExecutionProfileEntity, 'id' | 'createdAt' | 'updatedAt'>): Promise<ExecutionProfileEntity> {
-    const id = randomUUID();
     const now = Date.now();
-
     const entity = new ExecutionProfileEntity(
-      id,
-      profile.projectId,
-      profile.name,
-      profile.description,
-      profile.defaultEnvironmentId,
-      profile.failureMode,
-      profile.retryPolicy,
-      profile.timeout,
-      profile.parallelism,
-      profile.assertionMode,
-      profile.runtimeVariableReset,
-      profile.datasetSelectionStrategy,
-      profile.tags,
-      profile.enabled,
-      profile.isDefault,
-      now,
-      now
+      randomUUID(), profile.projectId, profile.name, profile.description,
+      profile.defaultEnvironmentId, profile.failureMode, profile.retryPolicy,
+      profile.timeout, profile.parallelism, profile.assertionMode,
+      profile.runtimeVariableReset, profile.datasetSelectionStrategy, profile.tags,
+      profile.enabled, profile.isDefault, now, now,
     );
-
-    this.profiles.set(id, entity);
-
-    // Index by project
-    if (!this.projectProfiles.has(profile.projectId)) {
-      this.projectProfiles.set(profile.projectId, new Set());
-    }
-    this.projectProfiles.get(profile.projectId)!.add(id);
-
+    this.ensureProjectDir(profile.projectId);
+    const profiles = await this.read(profile.projectId);
+    await writeJsonArray(this.getFilePath(profile.projectId), [...profiles, entity]);
     return entity;
   }
 
   async update(id: string, data: Partial<Omit<ExecutionProfileEntity, 'id' | 'projectId' | 'createdAt'>>): Promise<ExecutionProfileEntity> {
-    const existing = this.profiles.get(id);
-    if (!existing) {
-      throw new Error('Execution profile not found');
+    for (const projectId of this.listProjectIds()) {
+      const profiles = await this.read(projectId);
+      const index = profiles.findIndex((profile) => profile.id === id);
+      if (index < 0) continue;
+      const updated = { ...profiles[index], ...data, updatedAt: Date.now() } as ExecutionProfileEntity;
+      const next = [...profiles];
+      next[index] = updated;
+      await writeJsonArray(this.getFilePath(projectId), next);
+      return updated;
     }
-
-    const updated = new ExecutionProfileEntity(
-      existing.id,
-      existing.projectId,
-      data.name ?? existing.name,
-      data.description ?? existing.description,
-      data.defaultEnvironmentId ?? existing.defaultEnvironmentId,
-      data.failureMode ?? existing.failureMode,
-      data.retryPolicy ?? existing.retryPolicy,
-      data.timeout ?? existing.timeout,
-      data.parallelism ?? existing.parallelism,
-      data.assertionMode ?? existing.assertionMode,
-      data.runtimeVariableReset ?? existing.runtimeVariableReset,
-      data.datasetSelectionStrategy ?? existing.datasetSelectionStrategy,
-      data.tags ?? existing.tags,
-      data.enabled ?? existing.enabled,
-      data.isDefault ?? existing.isDefault,
-      existing.createdAt,
-      Date.now()
-    );
-
-    this.profiles.set(id, updated);
-    return updated;
+    throw new Error('Execution profile not found');
   }
 
   async delete(id: string): Promise<void> {
-    const profile = this.profiles.get(id);
-    if (!profile) {
+    for (const projectId of this.listProjectIds()) {
+      const profiles = await this.read(projectId);
+      const next = profiles.filter((profile) => profile.id !== id);
+      if (next.length === profiles.length) continue;
+      await writeJsonArray(this.getFilePath(projectId), next);
       return;
-    }
-
-    this.profiles.delete(id);
-
-    // Remove from project index
-    const projectProfiles = this.projectProfiles.get(profile.projectId);
-    if (projectProfiles) {
-      projectProfiles.delete(id);
     }
   }
 
   async findById(id: string): Promise<ExecutionProfileEntity | null> {
-    return this.profiles.get(id) || null;
+    for (const projectId of this.listProjectIds()) {
+      const profile = (await this.read(projectId)).find((candidate) => candidate.id === id);
+      if (profile) return profile;
+    }
+    return null;
   }
 
   async listByProject(projectId: string): Promise<ExecutionProfileEntity[]> {
-    const profileIds = this.projectProfiles.get(projectId);
-    if (!profileIds) {
-      return [];
-    }
-
-    return Array.from(profileIds)
-      .map(id => this.profiles.get(id))
-      .filter((profile): profile is ExecutionProfileEntity => profile !== undefined);
+    return this.read(projectId);
   }
 
   async findDefault(projectId: string): Promise<ExecutionProfileEntity | null> {
-    const profiles = await this.listByProject(projectId);
-    return profiles.find(p => p.isDefault && p.enabled) || null;
+    return (await this.read(projectId)).find((profile) => profile.isDefault && profile.enabled) || null;
   }
 
   async existsByName(name: string, projectId: string): Promise<boolean> {
-    const profiles = await this.listByProject(projectId);
-    return profiles.some(p => p.name.toLowerCase() === name.toLowerCase());
+    return (await this.read(projectId)).some((profile) => profile.name.toLowerCase() === name.toLowerCase());
+  }
+
+  private listProjectIds(): string[] {
+    if (!fs.existsSync(getDataRoot())) return [];
+    return fs.readdirSync(getDataRoot()).filter((name) => fs.statSync(path.join(getDataRoot(), name)).isDirectory());
   }
 }
 

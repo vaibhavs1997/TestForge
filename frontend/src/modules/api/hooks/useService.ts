@@ -161,6 +161,7 @@ export const useApiOperations = (projectId?: string, serviceIds?: string[]) => {
         description: data.description,
         authenticationType: data.authenticationType,
         status: data.status,
+        sampleRequestBody: data.sampleRequestBody,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });

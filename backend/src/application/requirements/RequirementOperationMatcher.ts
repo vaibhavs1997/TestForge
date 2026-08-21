@@ -304,15 +304,28 @@ function bodyKeyForFieldId(fieldId: string): string {
   return map[fieldId] ?? fieldId;
 }
 
+function bodyFieldKind(key: string): 'email' | 'password' | null {
+  const normalized = key.replace(/[^a-z0-9]/gi, '').toLowerCase();
+  if (normalized.includes('password') || normalized === 'pass') return 'password';
+  if (normalized.includes('email') || normalized.includes('username')) return 'email';
+  return null;
+}
+
 function applyScenarioFocus(
   body: Record<string, unknown>,
   scenario?: { focusFieldId?: string; scenarioKind?: string },
 ): Record<string, unknown> {
   if (!scenario?.focusFieldId) return body;
-  const key = bodyKeyForFieldId(scenario.focusFieldId);
+  const genericKey = bodyKeyForFieldId(scenario.focusFieldId);
+  const key = Object.keys(body).find((candidate) =>
+    bodyFieldKind(candidate) === scenario.focusFieldId || candidate === genericKey,
+  ) || genericKey;
   const next = { ...body };
   if (scenario.scenarioKind === 'missing_field') {
-    delete next[key];
+    // Preserve the contract shape in the report while making the targeted
+    // value empty. The API can then apply its normal required-field
+    // validation and return the expected status for this scenario.
+    next[key] = '';
     return next;
   }
   if (scenario.scenarioKind === 'invalid_field') {
@@ -336,19 +349,14 @@ function mutateSampleForCategory(
         return applyScenarioFocus({ ...body }, scenario);
       }
       if (scenario?.scenarioKind === 'invalid_field' && scenario.focusFieldId) {
-        const base = { ...body };
-        if (scenario.focusFieldId === 'email' && 'email' in base) base.email = 'not-an-email';
-        else if (scenario.focusFieldId === 'password' && 'password' in base) base.password = 'x';
-        else return applyScenarioFocus(base, scenario);
-        return base;
+        return applyScenarioFocus({ ...body }, scenario);
       }
-      if ('email' in body) body.email = 'not-an-email';
-      if ('password' in body) body.password = 'x';
-      const stringKey = Object.keys(body).find(
-        (k) => typeof body[k] === 'string' && k !== 'email' && k !== 'password',
-      );
-      if (stringKey) body[stringKey] = '';
-      if (!('email' in body) && !('password' in body)) {
+      // For an unspecified negative scenario, mutate a credential field when
+      // one is present; otherwise use the first textual field generically.
+      const passwordKey = Object.keys(body).find((key) => bodyFieldKind(key) === 'password');
+      if (passwordKey) body[passwordKey] = 'WrongPassword123!';
+      const hasCredentialFields = Object.keys(body).some((key) => bodyFieldKind(key) !== null);
+      if (!hasCredentialFields) {
         const firstKey = Object.keys(body).find((k) => typeof body[k] === 'string');
         if (firstKey) body[firstKey] = '';
       }

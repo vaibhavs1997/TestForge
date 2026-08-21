@@ -2,10 +2,12 @@
 import { Request, Response } from 'express';
 import { AuditLogService } from '../../application/audit/AuditLogService';
 import { createSuccessResponse } from "../../shared/ApiResponse";
+import { assertProjectAccess } from '../middleware/auth';
 export class AuditLogController {
     constructor(private readonly auditLogService: AuditLogService) { }
     async getAuditLogs(req: Request, res: Response): Promise<void> {
         const { projectId } = req.params;
+        await assertProjectAccess(projectId, req.auth);
         const { module, entityType, entityId, action, startDate, endDate } = req.query;
         const logs = await this.auditLogService.getLogs(projectId, {
             module: module as string | undefined,
@@ -20,6 +22,7 @@ export class AuditLogController {
     async getAuditLog(req: Request, res: Response): Promise<void> {
         const { logId } = req.params;
         const log = await this.auditLogService.getLogById(logId);
+        await assertProjectAccess(log.projectId, req.auth);
         res.status(200).json(createSuccessResponse(log));
     }
 }

@@ -11,7 +11,8 @@ export class EnvironmentEntity {
     public variables: Record<string, string>,
     public timeout: number,
     public readonly createdAt: number,
-    public updatedAt: number
+    public updatedAt: number,
+    public isDefault?: boolean,
   ) {}
 }
 

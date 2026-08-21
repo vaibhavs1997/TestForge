@@ -107,7 +107,7 @@ export class ExecutePlan {
     };
   }
 
-  async executeCombined(planIds: string[], failureMode: FailureMode = 'StopOnFailure', executionProfileId?: string, suiteId?: string): Promise<ExecutionRunEntity> {
+  async executeCombined(planIds: string[], failureMode: FailureMode = 'StopOnFailure', executionProfileId?: string, suiteId?: string, suiteSnapshot?: Record<string, unknown>): Promise<ExecutionRunEntity> {
     if (planIds.length === 0) throw new Error('No execution plans supplied');
     const lockId = `suite:${suiteId || planIds.join(',')}`;
     if (this.inFlightPlanIds.has(lockId)) throw new Error('An execution is already in progress for this suite.');
@@ -126,14 +126,14 @@ export class ExecutePlan {
         if (!this.loadedProfile) throw new Error(`Execution Profile with id ${executionProfileId} not found`);
         failureMode = this.loadedProfile.failureMode as FailureMode;
       }
-      return await this.executePlan(firstPlan, failureMode, planIds, suiteId);
+      return await this.executePlan(firstPlan, failureMode, planIds, suiteId, suiteSnapshot);
     } finally {
       this.inFlightPlanIds.delete(lockId);
       this.loadedProfile = null;
     }
   }
 
-  private async executePlan(plan: any, failureMode: FailureMode, explicitPlanIds?: string[], suiteId?: string): Promise<ExecutionRunEntity> {
+  private async executePlan(plan: any, failureMode: FailureMode, explicitPlanIds?: string[], suiteId?: string, suiteSnapshot?: Record<string, unknown>): Promise<ExecutionRunEntity> {
     // Legacy execution plans may predate requirementId persistence. Recover it
     // from the referenced design so they remain executable without rewriting data.
     const referencedDesign = !plan.requirementId && plan.testDesignId
@@ -153,7 +153,10 @@ export class ExecutePlan {
     // Imported projects may have a service base URL but no explicit environment
     // record yet; use that generic service metadata as a non-persisted fallback.
     const environments = await this.environmentRepository.findByProject(plan.projectId);
-    let environmentId = plan.environmentId;
+    // The API workspace's current shared default is authoritative. This keeps
+    // execution aligned with the URL/environment the user just tested.
+    const sharedDefault = environments.find(e => e.isDefault);
+    let environmentId = sharedDefault?.id || plan.environmentId;
     if (!environmentId && this.loadedProfile) {
       environmentId = this.loadedProfile.defaultEnvironmentId;
     }
@@ -237,6 +240,22 @@ export class ExecutePlan {
       }
     }
 
+    // API workspace tokens are persisted as environment variables. Apply the
+    // active token automatically for operations that require bearer auth;
+    // request-level headers (including negative/security cases) still win
+    // later when the request template is merged.
+    const environmentToken = environment.variables?.accessToken
+      || environment.variables?.access_token
+      || environment.variables?.oauthToken
+      || environment.variables?.oauth_token;
+    // Some imported contracts incorrectly mark protected operations as
+    // `None`, even though the API workspace sends the environment bearer
+    // token. If a token is active, attach it by default; explicit request
+    // headers still override this for negative/authentication test cases.
+    if (!context.headers['Authorization'] && environmentToken) {
+      context.headers['Authorization'] = `Bearer ${String(environmentToken).replace(/^Bearer\s+/i, '')}`;
+    }
+
     const profileMetadata = this.loadedProfile ? this.buildProfileMetadata(this.loadedProfile) : null;
     const profileId = this.loadedProfile?.id || null;
 
@@ -258,7 +277,9 @@ export class ExecutePlan {
       profileId,
       profileMetadata,
       suiteId || null,
-      explicitPlanIds || [plan.id]
+      explicitPlanIds || [plan.id],
+      [],
+      suiteSnapshot || null
     );
 
     // Persist initial run
@@ -471,7 +492,8 @@ export class ExecutePlan {
       profileMetadata,
       suiteId || null,
       [...requiredPlanIds],
-      dependencyGraph
+      dependencyGraph,
+      suiteSnapshot || null
     );
 
     const result = await this.executionRunRepository.update(persistedRun.id, updatedRun);
@@ -773,6 +795,12 @@ export class ExecutePlan {
         let value = response.data;
         for (const part of parts) {
           value = value?.[part];
+        }
+        // Older plans asserted $.error, while this API returns structured
+        // failures as { message, errors }. Treat the response message as the
+        // equivalent error detail for backwards-compatible execution.
+        if ((value === undefined || value === null) && path === '$.error') {
+          value = response.data?.error ?? response.data?.message ?? response.data?.errors;
         }
         return value;
       }

@@ -23,7 +23,22 @@ export class ExecuteSuite {
     const mode = failureMode ?? (suite.executionPolicy === 'FailFast' ? 'StopOnFailure' : 'ContinueOnFailure');
     const selectedPlanIds = [...new Set([...suite.executionPlans].sort((a, b) => a.order - b.order).map((item) => item.executionPlanId))];
     if (this.executionPlanRepository) {
-      return this.executePlan.executeCombined(selectedPlanIds, mode, executionProfileId, suite.id);
+      const plans = await Promise.all(selectedPlanIds.map((id) => this.executionPlanRepository!.findById(id)));
+      if (plans.some((plan) => !plan || plan.status !== 'Ready')) {
+        throw new Error('All suite plans must be ready before the suite can be executed');
+      }
+      const snapshot = JSON.parse(JSON.stringify({
+        suite: {
+          id: suite.id,
+          name: suite.name,
+          version: suite.version || 1,
+          approvedAt: suite.approvedAt,
+          executionPolicy: suite.executionPolicy,
+          executionPlans: suite.executionPlans,
+        },
+        plans,
+      }));
+      return this.executePlan.executeCombined(selectedPlanIds, mode, executionProfileId, suite.id, snapshot);
     }
     // Compatibility fallback for callers that have not supplied the repository.
     return this.executePlan.execute(selectedPlanIds[0], mode, executionProfileId);

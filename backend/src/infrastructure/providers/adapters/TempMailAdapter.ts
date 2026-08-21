@@ -1,6 +1,6 @@
 // TempMailAdapter - Placeholder adapter for temporary email
 // Do NOT call external services yet. Architecture preparation only.
-import { ProviderAdapter, ProviderTestResult, ProviderOperationResult } from '../ProviderAdapter';
+import { ProviderAdapter, ProviderTestResult, ProviderOperationResult } from '../ProviderAdapter.js';
 
 export class TempMailAdapter implements ProviderAdapter {
   readonly type = 'TempMail';

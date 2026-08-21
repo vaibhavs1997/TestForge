@@ -1,8 +1,8 @@
 // VersionController - Controller for Versioning Module endpoints
 import { Request, Response } from 'express';
-import { VersionService } from '../../application/versioning/VersionService';
-import { createSuccessResponse } from "../../shared/ApiResponse";
-import { assertProjectAccess } from '../middleware/auth';
+import { VersionService } from '../../application/versioning/VersionService.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
+import { assertProjectAccess } from '../middleware/auth.js';
 export class VersionController {
     constructor(private readonly versionService: VersionService) { }
     async listVersions(req: Request, res: Response): Promise<void> {
@@ -27,6 +27,14 @@ export class VersionController {
         const version = await this.versionService.getVersion(versionId);
         await assertProjectAccess(version.projectId, req.auth);
         res.status(200).json(createSuccessResponse(version));
+    }
+    async findForAuthorization(versionId: string): Promise<{ projectId: string } | null> {
+        try {
+            const version = await this.versionService.getVersion(versionId);
+            return { projectId: version.projectId };
+        } catch {
+            return null;
+        }
     }
     async getEntityVersions(req: Request, res: Response): Promise<void> {
         const { projectId, entityType, entityId } = req.params;

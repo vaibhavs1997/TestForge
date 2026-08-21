@@ -1,8 +1,8 @@
 // ExecutionRunRepository - File-based repository implementation
 import * as fs from 'fs';
 import * as path from 'path';
-import { ExecutionRunEntity } from '../../domain/execution/ExecutionRunEntity';
-import { readJsonArray, updateJsonArray } from '../persistence/JsonFileStore';
+import { ExecutionRunEntity } from '../../domain/execution/ExecutionRunEntity.js';
+import { readJsonArray, updateJsonArray } from '../persistence/JsonFileStore.js';
 
 function cloneForStorage<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;

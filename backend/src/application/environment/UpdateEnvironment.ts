@@ -1,8 +1,8 @@
 // UpdateEnvironment - Application Use Case
-import { EnvironmentRepository } from '../../domain/environment/EnvironmentRepository';
-import { EnvironmentEntity } from '../../domain/environment/EnvironmentEntity';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
-import { EventPublisher } from '../EventPublisher';
+import { EnvironmentRepository } from '../../domain/environment/EnvironmentRepository.js';
+import { EnvironmentEntity, type EnvironmentExecutionPolicy, type EnvironmentTier, normalizeEnvironmentTier } from '../../domain/environment/EnvironmentEntity.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
+import { EventPublisher } from '../EventPublisher.js';
 
 export class UpdateEnvironment {
   constructor(
@@ -19,6 +19,8 @@ export class UpdateEnvironment {
     variables?: Record<string, string>;
     timeout?: number;
     isDefault?: boolean;
+    tier?: EnvironmentTier;
+    executionPolicy?: Partial<EnvironmentExecutionPolicy>;
   }): Promise<EnvironmentEntity> {
     const existing = await this.environmentRepository.findById(params.id);
     if (!existing) {
@@ -51,6 +53,8 @@ export class UpdateEnvironment {
     if (params.variables !== undefined) updateData.variables = params.variables;
     if (params.timeout !== undefined) updateData.timeout = params.timeout;
     if (params.isDefault !== undefined) updateData.isDefault = params.isDefault;
+    if (params.tier !== undefined) updateData.tier = normalizeEnvironmentTier(params.tier);
+    if (params.executionPolicy !== undefined) updateData.executionPolicy = params.executionPolicy;
 
     // Keep one project-wide default environment. The API workspace uses this
     // flag as the shared environment selection for requirements and execution.

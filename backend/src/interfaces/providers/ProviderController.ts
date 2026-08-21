@@ -1,8 +1,8 @@
 // ProviderController - Controller for Provider Framework endpoints
 import { Request, Response } from 'express';
-import { ManageProviders } from '../../application/providers/ManageProviders';
-import { ProviderAdapterRegistry } from '../../infrastructure/providers/adapters/ProviderAdapterRegistry';
-import { createSuccessResponse } from "../../shared/ApiResponse";
+import { ManageProviders } from '../../application/providers/ManageProviders.js';
+import { ProviderAdapterRegistry } from '../../infrastructure/providers/adapters/ProviderAdapterRegistry.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
 export class ProviderController {
     constructor(private readonly manageProviders: ManageProviders) { }
     async create(req: Request, res: Response): Promise<void> {

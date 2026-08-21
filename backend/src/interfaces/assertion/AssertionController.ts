@@ -1,7 +1,7 @@
 // AssertionController - Controller for Assertion Library endpoints
 import { Request, Response } from 'express';
-import { ManageAssertions } from '../../application/assertion/ManageAssertions';
-import { createSuccessResponse } from "../../shared/ApiResponse";
+import { ManageAssertions } from '../../application/assertion/ManageAssertions.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
 export class AssertionController {
     constructor(private readonly manageAssertions: ManageAssertions) { }
     async createAssertion(req: Request, res: Response): Promise<void> {

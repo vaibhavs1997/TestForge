@@ -2,8 +2,8 @@
 import { Router } from 'express';
 import multer from 'multer';
 import type { FileFilterCallback } from 'multer';
-import { ImportController } from './ImportController';
-import { container } from '../../application/ApplicationContainer';
+import { ImportController } from './ImportController.js';
+import { container } from '../../application/ApplicationContainer.js';
 
 // Reuse shared repositories from the ApplicationContainer
 const {
@@ -14,8 +14,8 @@ const {
 } = container;
 
 // Initialize use case
-import { ImportDatasetData } from '../../application/test-data/ImportDatasetData';
-import { asyncHandler } from '../middleware/AsyncHandler';
+import { ImportDatasetData } from '../../application/test-data/ImportDatasetData.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 const importDatasetData = new ImportDatasetData(
   datasetRepository,

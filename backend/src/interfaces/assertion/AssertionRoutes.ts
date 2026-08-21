@@ -1,15 +1,15 @@
 // AssertionRoutes - Route definitions for Assertion Library
 
 import { Router } from 'express';
-import { AssertionController } from './AssertionController';
-import { container } from '../../application/ApplicationContainer';
+import { AssertionController } from './AssertionController.js';
+import { container } from '../../application/ApplicationContainer.js';
 
 // Reuse shared repository from the ApplicationContainer
 const { assertionRepository } = container;
 
 // Initialize use case
-import { ManageAssertions } from '../../application/assertion/ManageAssertions';
-import { asyncHandler } from '../middleware/AsyncHandler';
+import { ManageAssertions } from '../../application/assertion/ManageAssertions.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 const manageAssertions = new ManageAssertions(assertionRepository);
 

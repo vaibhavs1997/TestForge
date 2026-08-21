@@ -1,9 +1,9 @@
 // ManageDocumentation - Application Use Case for Documentation in Knowledge Hub
 import { randomUUID } from 'node:crypto';
-import { deleteById, requireById } from '../shared/crudHelpers';
-import { Documentation } from '../../domain/knowledge/DocumentationEntity';
-import { DocumentationRepository } from '../../domain/knowledge/DocumentationRepository';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { deleteById, requireById } from '../shared/crudHelpers.js';
+import { Documentation } from '../../domain/knowledge/DocumentationEntity.js';
+import { DocumentationRepository } from '../../domain/knowledge/DocumentationRepository.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export class ManageDocumentation {
   constructor(private readonly documentationRepository: DocumentationRepository) {}

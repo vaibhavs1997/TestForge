@@ -2,9 +2,9 @@
 // A Test Suite is a reusable collection of Execution Plans.
 // It does NOT execute tests itself. It prepares reusable execution collections.
 import { randomUUID } from 'node:crypto';
-import { TestSuiteRepository } from '../../domain/suite/TestSuiteRepository';
-import { TestSuiteEntity, SuiteExecutionPolicy, SuiteStatus, SuiteTag, TestSuiteItem } from '../../domain/suite/TestSuiteEntity';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { TestSuiteRepository } from '../../domain/suite/TestSuiteRepository.js';
+import { TestSuiteEntity, SuiteExecutionPolicy, SuiteStatus, SuiteTag, TestSuiteItem } from '../../domain/suite/TestSuiteEntity.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export interface CreateSuiteInput {
   projectId: string;

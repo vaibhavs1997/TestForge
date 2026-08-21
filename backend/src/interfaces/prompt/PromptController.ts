@@ -1,7 +1,7 @@
 // PromptController - Controller for Prompt Builder endpoints
 import { Request, Response } from 'express';
-import { PromptBuilderService } from '../../application/prompt/PromptBuilderService';
-import { createSuccessResponse } from "../../shared/ApiResponse";
+import { PromptBuilderService } from '../../application/prompt/PromptBuilderService.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
 export class PromptController {
     constructor(private readonly promptBuilderService: PromptBuilderService) { }
     // GET /api/projects/:projectId/prompts

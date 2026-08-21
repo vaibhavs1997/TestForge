@@ -1,7 +1,7 @@
 // DeleteApiService - Application Use Case
-import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
-import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
-import { EventPublisher } from '../EventPublisher';
+import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository.js';
+import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository.js';
+import { EventPublisher } from '../EventPublisher.js';
 
 export class DeleteApiService {
   constructor(

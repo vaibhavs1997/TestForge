@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import axios from 'axios';
-import { OpenAIAdapter } from './ProviderAdapters';
-import type { AIProviderConfig } from '../../../domain/ai-provider';
+import { OpenAIAdapter } from './ProviderAdapters.js';
+import type { AIProviderConfig } from '../../../domain/ai-provider/index.js';
 
 vi.mock('axios', () => ({
   default: {

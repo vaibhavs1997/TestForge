@@ -3,21 +3,21 @@
 // Does NOT execute tests or generate reports.
 // Reuses Requirement, Strategy, API Contract, Datasets, Environment, and Knowledge.
 import { randomUUID } from 'node:crypto';
-import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
-import { RequirementEntity } from '../../domain/requirements/RequirementEntity';
-import { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository';
-import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository';
-import { AnalysisRepository } from '../../infrastructure/analysis/AnalysisRepository';
-import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository';
-import { DatasetRepository } from '../../infrastructure/test-data/DatasetRepository';
-import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository';
-import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
-import { TestDesignEntity, DesignPriority, DesignStatus, RequestOverride, RuntimeBinding, Assertion, CleanupStep } from '../../domain/requirements/TestDesignEntity';
-import { TestStrategyEntity, StrategyItem, StrategyCategory } from '../../domain/requirements/TestStrategyEntity';
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
+import { RequirementEntity } from '../../domain/requirements/RequirementEntity.js';
+import { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository.js';
+import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository.js';
+import { AnalysisRepository } from '../../infrastructure/analysis/AnalysisRepository.js';
+import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository.js';
+import { DatasetRepository } from '../../infrastructure/test-data/DatasetRepository.js';
+import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository.js';
+import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository.js';
+import { TestDesignEntity, DesignPriority, DesignStatus, RequestOverride, RuntimeBinding, Assertion, CleanupStep } from '../../domain/requirements/TestDesignEntity.js';
+import { TestStrategyEntity, StrategyItem, StrategyCategory } from '../../domain/requirements/TestStrategyEntity.js';
 import {
   buildPayloadForScenario,
-} from './RequirementOperationMatcher';
-import { requirementEndpointMappingService } from './RequirementEndpointMappingService';
+} from './RequirementOperationMatcher.js';
+import { requirementEndpointMappingService } from './RequirementEndpointMappingService.js';
 
 export class GenerateTestDesigns {
   constructor(

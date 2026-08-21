@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { RefreshApiContract } from './RefreshApiContract';
+import { RefreshApiContract } from './RefreshApiContract.js';
 
 describe('RefreshApiContract', () => {
   it('replays the stored original contract when sourceContract is available', async () => {

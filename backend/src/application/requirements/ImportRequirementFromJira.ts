@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { JiraClient } from '../../infrastructure/jira/JiraClient';
-import { CreateRequirement } from './CreateRequirement';
-import type { AcceptanceCriterion, RequirementEntity } from '../../domain/requirements/RequirementEntity';
-import { parseAcceptanceCriteriaFromText } from './jiraAcceptanceCriteria';
+import { JiraClient } from '../../infrastructure/jira/JiraClient.js';
+import { CreateRequirement } from './CreateRequirement.js';
+import type { AcceptanceCriterion, RequirementEntity } from '../../domain/requirements/RequirementEntity.js';
+import { parseAcceptanceCriteriaFromText } from './jiraAcceptanceCriteria.js';
 
 export class ImportRequirementFromJira {
   constructor(

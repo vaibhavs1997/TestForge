@@ -1,6 +1,6 @@
 // GetApiOperation - Application Use Case
-import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
-import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
+import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository.js';
+import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity.js';
 
 export class GetApiOperation {
   constructor(private readonly apiOperationRepository: ApiOperationRepository) {}

@@ -1,5 +1,5 @@
 // Custom error classes for type-safe error handling
-import { ERROR_CODES } from './ApiResponse';
+import { ERROR_CODES } from './ApiResponse.js';
 
 /**
  * AppError - Base custom error class for application errors

@@ -1,7 +1,7 @@
 import type { Express } from 'express';
-import { JsonWebhookRepository } from '../../infrastructure/webhook/JsonWebhookRepository';
-import { CreateWebhook, DeleteWebhook, GetWebhook, ListWebhooks, TriggerWebhooks, UpdateWebhook } from '../../application/webhook/WebhookUseCases';
-import { createWebhookRoutes } from './WebhookRoutes';
+import { JsonWebhookRepository } from '../../infrastructure/webhook/JsonWebhookRepository.js';
+import { CreateWebhook, DeleteWebhook, GetWebhook, ListWebhooks, TriggerWebhooks, UpdateWebhook } from '../../application/webhook/WebhookUseCases.js';
+import { createWebhookRoutes } from './WebhookRoutes.js';
 
 export function registerWebhookModule(app: Express): TriggerWebhooks {
   const webhookRepository = new JsonWebhookRepository();

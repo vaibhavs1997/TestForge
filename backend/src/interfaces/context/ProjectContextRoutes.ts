@@ -1,8 +1,8 @@
 // ProjectContextRoutes - Route definitions for Project Context Builder
 import { Router } from 'express';
-import { ProjectContextController } from './ProjectContextController';
-import { container } from '../../application/ApplicationContainer';
-import { asyncHandler } from '../middleware/AsyncHandler';
+import { ProjectContextController } from './ProjectContextController.js';
+import { container } from '../../application/ApplicationContainer.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 // Reuse shared service from the ApplicationContainer
 const { projectContextService } = container;

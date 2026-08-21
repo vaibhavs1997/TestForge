@@ -1,4 +1,4 @@
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export interface FindByIdRepository<T> {
   findById(id: string): Promise<T | null>;

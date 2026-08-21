@@ -1,15 +1,15 @@
 import { Router } from 'express';
-import { asyncHandler } from '../../interfaces/middleware/AsyncHandler';
-import { ProjectController } from '../../interfaces/project/ProjectController';
-import type { ProjectRepository } from '../../domain/project/ProjectRepository';
+import { asyncHandler } from '../../interfaces/middleware/AsyncHandler.js';
+import { ProjectController } from '../../interfaces/project/ProjectController.js';
+import type { ProjectRepository } from '../../domain/project/ProjectRepository.js';
 import {
   CreateProject,
   DeleteProject,
   GetProject,
   ListProjects,
   UpdateProject,
-} from './ProjectUseCases';
-import type { AuditLogService } from '../audit/AuditLogService';
+} from './ProjectUseCases.js';
+import type { AuditLogService } from '../audit/AuditLogService.js';
 
 export class ProjectModule {
   readonly repository: ProjectRepository;

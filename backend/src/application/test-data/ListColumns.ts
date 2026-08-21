@@ -1,5 +1,5 @@
 // ListColumns - Application Use Case
-import { ColumnRepository } from '../../domain/test-data/ColumnRepository';
+import { ColumnRepository } from '../../domain/test-data/ColumnRepository.js';
 
 export class ListColumns {
   constructor(private readonly columnRepository: ColumnRepository) {}

@@ -1,5 +1,5 @@
 // PipelineRepository - Domain Repository Interface
-import { PipelineEntity, PipelineStage, PipelineStatus, StageResult } from './PipelineEntity';
+import { PipelineEntity, PipelineStage, PipelineStatus, StageResult } from './PipelineEntity.js';
 
 export interface PipelineRepository {
   create(pipeline: PipelineEntity): Promise<PipelineEntity>;

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import { isJiraConfigured } from '../../config/jiraEnv';
-import { createSuccessResponse } from '../../shared/ApiResponse';
+import { isJiraConfigured } from '../../config/jiraEnv.js';
+import { createSuccessResponse } from '../../shared/ApiResponse.js';
 
 export class IntegrationsController {
   async getJiraStatus(_req: Request, res: Response): Promise<void> {

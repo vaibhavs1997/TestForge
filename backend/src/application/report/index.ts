@@ -1,3 +1,3 @@
 // Barrel export file for Report application module
-export * from './GenerateReport';
-export * from './ManageReports';
+export * from './GenerateReport.js';
+export * from './ManageReports.js';

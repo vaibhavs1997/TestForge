@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository';
+import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository.js';
 
 describe('EnvironmentRepository upsertManyByName', () => {
   let previousCwd: string;
@@ -39,5 +39,19 @@ describe('EnvironmentRepository upsertManyByName', () => {
     const staging = listed.find((e) => e.name === 'Staging');
     expect(staging?.baseUrl).toBe('https://b.example.com');
     expect(staging?.variables).toEqual({ k: '2' });
+  });
+
+  it('persists environment tier and execution policy during upsert', async () => {
+    const repo = new EnvironmentRepository();
+    await repo.upsertManyByName('proj-1', [{
+      name: 'Production',
+      baseUrl: 'https://prod.example.com',
+      tier: 'PRODUCTION',
+      executionPolicy: { mappingConfidenceThreshold: 95, allowGeneratedMutation: false },
+    }]);
+
+    const [stored] = await repo.findByProject('proj-1');
+    expect(stored.tier).toBe('PRODUCTION');
+    expect(stored.executionPolicy).toMatchObject({ mappingConfidenceThreshold: 95, allowGeneratedMutation: false });
   });
 });

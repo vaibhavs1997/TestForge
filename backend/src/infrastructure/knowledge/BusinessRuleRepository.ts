@@ -1,8 +1,8 @@
 // BusinessRuleRepository - File-based repository implementation for Business Rules
 import * as fs from 'fs';
 import * as path from 'path';
-import { BusinessRule } from '../../domain/knowledge/BusinessRuleEntity';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { BusinessRule } from '../../domain/knowledge/BusinessRuleEntity.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'knowledge');

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { RunAIPipeline } from './RunAIPipeline';
+import { RunAIPipeline } from './RunAIPipeline.js';
 
 describe('RunAIPipeline', () => {
   it('runs all stages with mocked AI use cases', async () => {

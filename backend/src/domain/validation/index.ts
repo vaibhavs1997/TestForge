@@ -4,4 +4,4 @@ export type {
   ValidationRule,
   ValidationResult,
   StepValidationResult,
-} from './ValidationRuleEntity';
+} from './ValidationRuleEntity.js';

@@ -1,9 +1,9 @@
 // ManageRuntimeVariables - Application Use Case for Runtime Variables in Knowledge Hub
 import { randomUUID } from 'node:crypto';
-import { deleteById, requireById, validateUniqueProjectName } from '../shared/crudHelpers';
-import { RuntimeVariable } from '../../domain/knowledge/RuntimeVariableEntity';
-import { RuntimeVariableRepository } from '../../domain/knowledge/RuntimeVariableRepository';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { deleteById, requireById, validateUniqueProjectName } from '../shared/crudHelpers.js';
+import { RuntimeVariable } from '../../domain/knowledge/RuntimeVariableEntity.js';
+import { RuntimeVariableRepository } from '../../domain/knowledge/RuntimeVariableRepository.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export class ManageRuntimeVariables {
   constructor(private readonly runtimeVariableRepository: RuntimeVariableRepository) {}

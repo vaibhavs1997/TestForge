@@ -1,6 +1,6 @@
 // DatasetRowRepository - Repository interface for Dataset Row
 
-import { DatasetRowEntity } from './DatasetRowEntity';
+import { DatasetRowEntity } from './DatasetRowEntity.js';
 
 export interface IDatasetRowRepository {
   create(row: Omit<DatasetRowEntity, 'id' | 'createdAt' | 'updatedAt'>): Promise<DatasetRowEntity>;

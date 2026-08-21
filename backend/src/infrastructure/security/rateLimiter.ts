@@ -16,26 +16,18 @@ const defaultConfig: RateLimitConfig = {
 };
 
 // In-memory store (use Redis for production multi-instance)
-const requestCounts = new Map<string, { count: number; resetTime: number }>();
+export interface RateLimitStore { increment(key: string, windowMs: number): Promise<{ count: number; resetTime: number }>; }
+export class LocalRateLimitStore implements RateLimitStore { private counts = new Map<string, { count: number; resetTime: number }>(); async increment(key:string,windowMs:number){const now=Date.now();const record=this.counts.get(key);if(!record||now>record.resetTime){const next={count:1,resetTime:now+windowMs};this.counts.set(key,next);return next;}record.count++;return record;} }
+const defaultStore = new LocalRateLimitStore();
 
-export function createRateLimiter(config: Partial<RateLimitConfig> = {}) {
+export function createRateLimiter(config: Partial<RateLimitConfig> = {}, store: RateLimitStore = defaultStore) {
   const mergedConfig = { ...defaultConfig, ...config };
 
-  return (req: Request, res: Response, next: NextFunction) => {
-    const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() || req.ip || req.connection.remoteAddress || 'unknown';
     const now = Date.now();
 
-    const record = requestCounts.get(clientIp);
-
-    if (!record || now > record.resetTime) {
-      requestCounts.set(clientIp, {
-        count: 1,
-        resetTime: now + mergedConfig.windowMs,
-      });
-      return next();
-    }
-
-    record.count++;
+    const record = await store.increment(clientIp, mergedConfig.windowMs);
 
     if (record.count > mergedConfig.max) {
       return res.status(429).json({
@@ -48,13 +40,3 @@ export function createRateLimiter(config: Partial<RateLimitConfig> = {}) {
     next();
   };
 }
-
-// Cleanup old entries periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, record] of requestCounts.entries()) {
-    if (now > record.resetTime) {
-      requestCounts.delete(key);
-    }
-  }
-}, 5 * 60 * 1000); // Every 5 minutes

@@ -1,5 +1,5 @@
-import type { ProjectRepository } from '../../domain/project/ProjectRepository';
-import type { ProjectRecord } from '../../domain/project/ProjectRecord';
+import type { ProjectRepository } from '../../domain/project/ProjectRepository.js';
+import type { ProjectRecord } from '../../domain/project/ProjectRecord.js';
 export class ListProjects {
   constructor(private readonly projectRepository: ProjectRepository) {}
 

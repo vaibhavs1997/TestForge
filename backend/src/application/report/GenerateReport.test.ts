@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { GenerateReport } from './GenerateReport';
+import { GenerateReport } from './GenerateReport.js';
 
 function makeRun(overrides: Record<string, unknown> = {}) {
   return {
@@ -37,5 +37,17 @@ describe('GenerateReport suite identity', () => {
     const report: any = await useCase.generate('run-1', null);
     expect(report.suiteId).toBeNull();
     expect(report.sections.executionPlansExecuted).toEqual(['plan-1']);
+  });
+
+  it('masks request evidence and runtime values in persisted reports', async () => {
+    const run = makeRun({
+      context: { environmentId: 'env-1', baseUrl: 'http://example.test', environmentVariables: {}, datasetValues: {}, runtimeVariables: { accessToken: 'secret' }, responses: {}, headers: {} },
+      stepResults: [{ status: 'Passed', request: { headers: { Authorization: 'Bearer secret' } }, response: { data: { password: 'p@ss' } }, startedAt: 1, completedAt: 2 }],
+    });
+    const { useCase } = createUseCase(run);
+    const report: any = await useCase.generate('run-1');
+    expect(report.sections.runtimeVariablesCaptured.accessToken).toBe('[REDACTED]');
+    expect(report.sections.stepResults[0].request.headers.Authorization).toBe('[REDACTED]');
+    expect(report.sections.stepResults[0].response.data.password).toBe('[REDACTED]');
   });
 });

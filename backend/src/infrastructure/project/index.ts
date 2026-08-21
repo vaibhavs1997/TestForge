@@ -1,2 +1,2 @@
-export * from './ProjectRepository';
-export * from './ProjectMapper';
+export * from './ProjectRepository.js';
+export * from './ProjectMapper.js';

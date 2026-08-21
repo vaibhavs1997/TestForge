@@ -1,2 +1,2 @@
-export * from './TestSuiteEntity';
-export * from './TestSuiteRepository';
+export * from './TestSuiteEntity.js';
+export * from './TestSuiteRepository.js';

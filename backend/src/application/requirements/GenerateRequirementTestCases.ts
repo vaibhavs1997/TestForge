@@ -1,25 +1,25 @@
-import type { PlanTestStrategy } from './PlanTestStrategy';
-import type { GenerateTestDesigns } from './GenerateTestDesigns';
-import type { GenerateTestDesignWithAI } from './GenerateTestDesignWithAI';
-import type { PlanExecution } from './PlanExecution';
-import type { TestDesignRepository } from '../../domain/requirements/TestDesignRepository';
-import type { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
-import type { RequirementRepository } from '../../domain/requirements/RequirementRepository';
-import type { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository';
+import type { PlanTestStrategy } from './PlanTestStrategy.js';
+import type { GenerateTestDesigns } from './GenerateTestDesigns.js';
+import type { GenerateTestDesignWithAI } from './GenerateTestDesignWithAI.js';
+import type { PlanExecution } from './PlanExecution.js';
+import type { TestDesignRepository } from '../../domain/requirements/TestDesignRepository.js';
+import type { ApiOperationRepository } from '../../domain/api/ApiOperationRepository.js';
+import type { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
+import type { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository.js';
 import {
   rankOperationsForRequirement,
   buildPayloadForScenario,
   getOperationMatchDiagnostics,
   mappingConfidencePercent,
-} from './RequirementOperationMatcher';
-import type { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
-import type { TestDesignEntity } from '../../domain/requirements/TestDesignEntity';
-import type { TestStrategyEntity, StrategyCategory } from '../../domain/requirements/TestStrategyEntity';
-import { requirementEndpointMappingService } from './RequirementEndpointMappingService';
-import type { KnowledgeFlowRepository } from '../../domain/knowledge/KnowledgeFlowRepository';
-import type { RuntimeVariableRepository } from '../../domain/knowledge/RuntimeVariableRepository';
-import type { DependencyRepository } from '../../domain/knowledge/DependencyRepository';
-import { operationDependencyResolver } from './OperationDependencyResolver';
+} from './RequirementOperationMatcher.js';
+import type { ApiOperationEntity } from '../../domain/api/ApiOperationEntity.js';
+import type { TestDesignEntity } from '../../domain/requirements/TestDesignEntity.js';
+import type { TestStrategyEntity, StrategyCategory } from '../../domain/requirements/TestStrategyEntity.js';
+import { requirementEndpointMappingService } from './RequirementEndpointMappingService.js';
+import type { KnowledgeFlowRepository } from '../../domain/knowledge/KnowledgeFlowRepository.js';
+import type { RuntimeVariableRepository } from '../../domain/knowledge/RuntimeVariableRepository.js';
+import type { DependencyRepository } from '../../domain/knowledge/DependencyRepository.js';
+import { operationDependencyResolver } from './OperationDependencyResolver.js';
 
 export interface GenerateRequirementTestCasesRequest {
   projectId: string;

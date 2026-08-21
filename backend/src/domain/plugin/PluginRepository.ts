@@ -1,7 +1,7 @@
 // PluginRepository - Domain Repository for Plugin Framework
 // Handles persistence operations for PluginEntity.
 
-import { PluginEntity } from './PluginEntity';
+import { PluginEntity } from './PluginEntity.js';
 
 export interface PluginRepository {
   create(plugin: PluginEntity): Promise<PluginEntity>;

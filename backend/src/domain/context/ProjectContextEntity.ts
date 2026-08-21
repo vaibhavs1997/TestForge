@@ -2,31 +2,31 @@
 // This is the single deterministic input for every future AI feature.
 // It does NOT implement LLM, prompt generation, or test generation.
 
-import type { ApiServiceEntity } from '../api/ApiServiceEntity';
-import type { ApiOperationEntity } from '../api/ApiOperationEntity';
-import type { EnvironmentEntity } from '../environment/EnvironmentEntity';
-import type { DatasetEntity } from '../test-data/DatasetEntity';
-import type { ColumnEntity } from '../test-data/ColumnEntity';
-import type { RelationshipEntity } from '../test-data/RelationshipEntity';
-import type { KnowledgeFlowEntity } from '../knowledge/KnowledgeFlowEntity';
-import type { BusinessRule } from '../knowledge/BusinessRuleEntity';
-import type { RuntimeVariable } from '../knowledge/RuntimeVariableEntity';
-import type { Dependency } from '../knowledge/DependencyEntity';
-import type { Documentation } from '../knowledge/DocumentationEntity';
-import type { AnalysisEntity } from '../analysis/AnalysisEntity';
-import type { RequirementEntity } from '../requirements/RequirementEntity';
-import type { ReportEntity } from '../report/ReportEntity';
-import type { TestStrategyEntity } from '../requirements/TestStrategyEntity';
-import type { TestDesignEntity } from '../requirements/TestDesignEntity';
-import type { ExecutionPlanEntity } from '../requirements/ExecutionPlanEntity';
-import type { AssertionEntity } from '../assertion/AssertionEntity';
-import type { TestSuiteEntity } from '../suite/TestSuiteEntity';
-import type { ExecutionProfileEntity } from '../execution/ExecutionProfileEntity';
-import type { ProviderEntity } from '../providers/ProviderEntity';
-import type { Recommendation } from '../recommendation/RecommendationEntity';
-import type { VersionEntity } from '../versioning/VersionEntity';
-import type { AuditLogEntity } from '../audit/AuditLogEntity';
-import type { PluginEntity } from '../plugin/PluginEntity';
+import type { ApiServiceEntity } from '../api/ApiServiceEntity.js';
+import type { ApiOperationEntity } from '../api/ApiOperationEntity.js';
+import type { EnvironmentEntity } from '../environment/EnvironmentEntity.js';
+import type { DatasetEntity } from '../test-data/DatasetEntity.js';
+import type { ColumnEntity } from '../test-data/ColumnEntity.js';
+import type { RelationshipEntity } from '../test-data/RelationshipEntity.js';
+import type { KnowledgeFlowEntity } from '../knowledge/KnowledgeFlowEntity.js';
+import type { BusinessRule } from '../knowledge/BusinessRuleEntity.js';
+import type { RuntimeVariable } from '../knowledge/RuntimeVariableEntity.js';
+import type { Dependency } from '../knowledge/DependencyEntity.js';
+import type { Documentation } from '../knowledge/DocumentationEntity.js';
+import type { AnalysisEntity } from '../analysis/AnalysisEntity.js';
+import type { RequirementEntity } from '../requirements/RequirementEntity.js';
+import type { ReportEntity } from '../report/ReportEntity.js';
+import type { TestStrategyEntity } from '../requirements/TestStrategyEntity.js';
+import type { TestDesignEntity } from '../requirements/TestDesignEntity.js';
+import type { ExecutionPlanEntity } from '../requirements/ExecutionPlanEntity.js';
+import type { AssertionEntity } from '../assertion/AssertionEntity.js';
+import type { TestSuiteEntity } from '../suite/TestSuiteEntity.js';
+import type { ExecutionProfileEntity } from '../execution/ExecutionProfileEntity.js';
+import type { ProviderEntity } from '../providers/ProviderEntity.js';
+import type { Recommendation } from '../recommendation/RecommendationEntity.js';
+import type { VersionEntity } from '../versioning/VersionEntity.js';
+import type { AuditLogEntity } from '../audit/AuditLogEntity.js';
+import type { PluginEntity } from '../plugin/PluginEntity.js';
 
 export interface ProjectSummary {
   id: string;

@@ -1,9 +1,10 @@
 // Webhook API routes
 import { Router, Request, Response } from 'express';
-import { ListWebhooks, GetWebhook, CreateWebhook, UpdateWebhook, DeleteWebhook } from '../../application/webhook/WebhookUseCases';
-import { assertProjectAccess } from '../middleware/auth';
-import { ForbiddenError } from '../../shared/errors';
-import { getAuthConfig } from '../../config';
+import { ListWebhooks, GetWebhook, CreateWebhook, UpdateWebhook, DeleteWebhook } from '../../application/webhook/WebhookUseCases.js';
+import { assertProjectAccess, authorizeResource } from '../middleware/auth.js';
+import { ForbiddenError } from '../../shared/errors.js';
+import { getAuthConfig } from '../../config.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 export function createWebhookRoutes(
   listWebhooks: ListWebhooks,
@@ -13,6 +14,10 @@ export function createWebhookRoutes(
   deleteWebhook: DeleteWebhook,
 ): Router {
   const router = Router();
+  const authorizeWebhook = authorizeResource('id', async (id) => {
+    const webhook = await getWebhook.execute(id);
+    return webhook ? { projectId: webhook.projectId } : null;
+  });
 
   // List webhooks (optionally filtered by project)
   router.get('/webhooks', async (req: Request, res: Response) => {
@@ -28,7 +33,7 @@ export function createWebhookRoutes(
   });
 
   // Get webhook by ID
-  router.get('/webhooks/:id', async (req: Request, res: Response) => {
+  router.get('/webhooks/:id', authorizeWebhook, async (req: Request, res: Response) => {
     try {
       const webhook = await getWebhook.execute(req.params.id);
       if (!webhook) {
@@ -37,9 +42,7 @@ export function createWebhookRoutes(
       }
       await assertProjectAccess(webhook.projectId, req.auth);
       res.json({ success: true, data: webhook });
-    } catch (err) {
-      res.status(500).json({ success: false, message: err instanceof Error ? err.message : 'Failed to get webhook' });
-    }
+    } catch (err) { throw err; }
   });
 
   // Create webhook
@@ -62,7 +65,7 @@ export function createWebhookRoutes(
   });
 
   // Update webhook
-  router.put('/webhooks/:id', async (req: Request, res: Response) => {
+  router.put('/webhooks/:id', authorizeWebhook, async (req: Request, res: Response) => {
     try {
       const { url, events, active, headers } = req.body;
       const existing = await getWebhook.execute(req.params.id);
@@ -73,13 +76,11 @@ export function createWebhookRoutes(
       await assertProjectAccess(existing.projectId, req.auth);
       const webhook = await updateWebhook.execute(req.params.id, { url, events, active, headers });
       res.json({ success: true, data: webhook });
-    } catch (err) {
-      res.status(500).json({ success: false, message: err instanceof Error ? err.message : 'Failed to update webhook' });
-    }
+    } catch (err) { throw err; }
   });
 
   // Delete webhook
-  router.delete('/webhooks/:id', async (req: Request, res: Response) => {
+  router.delete('/webhooks/:id', authorizeWebhook, async (req: Request, res: Response) => {
     try {
       const existing = await getWebhook.execute(req.params.id);
       if (!existing) {
@@ -89,9 +90,7 @@ export function createWebhookRoutes(
       await assertProjectAccess(existing.projectId, req.auth);
       await deleteWebhook.execute(req.params.id);
       res.json({ success: true, message: `Webhook ${req.params.id} deleted` });
-    } catch (err) {
-      res.status(500).json({ success: false, message: err instanceof Error ? err.message : 'Failed to delete webhook' });
-    }
+    } catch (err) { throw err; }
   });
 
   return router;

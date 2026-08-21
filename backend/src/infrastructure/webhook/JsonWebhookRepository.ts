@@ -1,8 +1,8 @@
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { WebhookEntity } from '../../domain/webhook/WebhookEntity';
-import type { WebhookRepository } from '../../domain/webhook/WebhookRepository';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import type { WebhookEntity } from '../../domain/webhook/WebhookEntity.js';
+import type { WebhookRepository } from '../../domain/webhook/WebhookRepository.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 type StoredWebhook = WebhookEntity;
 

@@ -47,6 +47,15 @@ export interface CleanupStep {
   target: string;
 }
 
+export interface MutationProvenance {
+  strategy: 'baseline-valid' | 'required-field' | 'boundary' | 'type-violation' | 'enum-violation' | 'format-violation' | 'array-boundary' | 'schema-composition';
+  location: 'body' | 'query' | 'path' | 'header' | 'cookie' | 'graphql-variable';
+  fieldPath: string;
+  schemaRule: string;
+  originalValue: unknown;
+  mutatedValue: unknown;
+}
+
 export class TestDesignEntity {
   constructor(
     public readonly id: string,
@@ -74,7 +83,8 @@ export class TestDesignEntity {
     public readonly mappingConfidence: number = 0,
     public readonly acceptanceCriterionId?: string,
     public readonly scenarioId?: string,
-    public readonly dependencies: OperationDependency[] = []
+    public readonly dependencies: OperationDependency[] = [],
+    public readonly mutationProvenance?: MutationProvenance
   ) {}
 }
 

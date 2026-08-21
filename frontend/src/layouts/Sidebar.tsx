@@ -40,6 +40,7 @@ const PRIMARY_NAV_ITEMS: NavItem[] = [
   { key: 'testdata', label: 'Test Data', icon: Database },
   { key: 'knowledge', label: 'Knowledge', icon: BookOpen },
   { key: 'requirements', label: 'Requirements', icon: ListChecks },
+  { key: 'review', label: 'Test Review', icon: Shield },
   { key: 'execution', label: 'Execution', icon: Play },
   { key: 'reports', label: 'Reports', icon: BarChart3 },
 ];

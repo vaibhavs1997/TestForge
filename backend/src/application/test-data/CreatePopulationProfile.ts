@@ -1,8 +1,8 @@
 // CreatePopulationProfile - Application Use Case
 import { randomUUID } from 'node:crypto';
-import { PopulationProfileRepository } from '../../domain/test-data/PopulationProfileRepository';
-import { PopulationProfileEntity } from '../../domain/test-data/PopulationProfileEntity';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { PopulationProfileRepository } from '../../domain/test-data/PopulationProfileRepository.js';
+import { PopulationProfileEntity } from '../../domain/test-data/PopulationProfileEntity.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export class CreatePopulationProfile {
   constructor(private readonly profileRepository: PopulationProfileRepository) {}

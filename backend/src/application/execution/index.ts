@@ -1,2 +1,2 @@
 // Barrel export file for execution application
-export { ExecutePlan } from './ExecutePlan';
+export { ExecutePlan } from './ExecutePlan.js';

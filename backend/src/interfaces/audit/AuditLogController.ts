@@ -1,8 +1,8 @@
 // AuditLogController - Controller for Audit Log Module endpoints
 import { Request, Response } from 'express';
-import { AuditLogService } from '../../application/audit/AuditLogService';
-import { createSuccessResponse } from "../../shared/ApiResponse";
-import { assertProjectAccess } from '../middleware/auth';
+import { AuditLogService } from '../../application/audit/AuditLogService.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
+import { assertProjectAccess } from '../middleware/auth.js';
 export class AuditLogController {
     constructor(private readonly auditLogService: AuditLogService) { }
     async getAuditLogs(req: Request, res: Response): Promise<void> {
@@ -24,6 +24,14 @@ export class AuditLogController {
         const log = await this.auditLogService.getLogById(logId);
         await assertProjectAccess(log.projectId, req.auth);
         res.status(200).json(createSuccessResponse(log));
+    }
+    async findForAuthorization(logId: string): Promise<{ projectId: string } | null> {
+        try {
+            const log = await this.auditLogService.getLogById(logId);
+            return { projectId: log.projectId };
+        } catch {
+            return null;
+        }
     }
 }
 export default AuditLogController;

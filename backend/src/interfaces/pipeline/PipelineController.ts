@@ -1,10 +1,10 @@
 // PipelineController - HTTP Controller for Pipeline operations
 import { Request, Response } from 'express';
-import { OrchestratePipeline } from '../../application/pipeline/OrchestratePipeline';
-import { RunAIPipeline } from '../../application/pipeline/RunAIPipeline';
-import { PipelineEntity, PipelineStage } from '../../domain/pipeline/PipelineEntity';
-import { createSuccessResponse } from "../../shared/ApiResponse";
-import { PipelineRepository } from '../../domain/pipeline/PipelineRepository';
+import { OrchestratePipeline } from '../../application/pipeline/OrchestratePipeline.js';
+import { RunAIPipeline } from '../../application/pipeline/RunAIPipeline.js';
+import { PipelineEntity, PipelineStage } from '../../domain/pipeline/PipelineEntity.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
+import { PipelineRepository } from '../../domain/pipeline/PipelineRepository.js';
 export class PipelineController {
     constructor(private readonly orchestratePipeline: OrchestratePipeline, private readonly runAIPipeline: RunAIPipeline, private readonly pipelineRepository: PipelineRepository) { }
     async startPipeline(req: Request, res: Response): Promise<void> {

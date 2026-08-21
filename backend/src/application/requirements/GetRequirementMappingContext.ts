@@ -1,6 +1,6 @@
-import type { RequirementRepository } from '../../domain/requirements/RequirementRepository';
-import type { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
-import { getOperationMatchDiagnostics, mappingConfidencePercent } from './RequirementOperationMatcher';
+import type { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
+import type { ApiOperationRepository } from '../../domain/api/ApiOperationRepository.js';
+import { getOperationMatchDiagnostics, mappingConfidencePercent } from './RequirementOperationMatcher.js';
 
 export interface OperationMatchDto {
   operationId: string;

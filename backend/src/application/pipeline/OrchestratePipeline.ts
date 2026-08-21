@@ -2,27 +2,27 @@
 // Coordinates the existing deterministic workflow by invoking existing modules in sequence.
 // Does NOT replace any existing implementation.
 import { randomUUID } from 'node:crypto';
-import { PipelineRepository } from '../../domain/pipeline/PipelineRepository';
-import { PipelineEntity, PipelineStage, PipelineStatus, StageResult } from '../../domain/pipeline/PipelineEntity';
-import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
-import { AnalysisRepository } from '../../infrastructure/analysis/AnalysisRepository';
-import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository';
-import { DatasetRepository } from '../../infrastructure/test-data/DatasetRepository';
-import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository';
-import { ApiServiceRepository } from '../../infrastructure/api/ApiServiceRepository';
-import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
-import { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository';
-import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository';
-import { ExecutionPlanRepository } from '../../domain/requirements/ExecutionPlanRepository';
-import { AnalysisEntity } from '../../domain/analysis/AnalysisEntity';
+import { PipelineRepository } from '../../domain/pipeline/PipelineRepository.js';
+import { PipelineEntity, PipelineStage, PipelineStatus, StageResult } from '../../domain/pipeline/PipelineEntity.js';
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
+import { AnalysisRepository } from '../../infrastructure/analysis/AnalysisRepository.js';
+import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository.js';
+import { DatasetRepository } from '../../infrastructure/test-data/DatasetRepository.js';
+import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository.js';
+import { ApiServiceRepository } from '../../infrastructure/api/ApiServiceRepository.js';
+import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository.js';
+import { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository.js';
+import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository.js';
+import { ExecutionPlanRepository } from '../../domain/requirements/ExecutionPlanRepository.js';
+import { AnalysisEntity } from '../../domain/analysis/AnalysisEntity.js';
 
 // Existing use cases - reusing, NOT duplicating
-import { CreateAnalysis } from '../analysis/CreateAnalysis';
-import { GenerateFromAnalysis } from '../requirements/GenerateFromAnalysis';
-import { ValidateRequirementReadiness } from '../requirements/ValidateRequirementReadiness';
-import { PlanTestStrategy } from '../requirements/PlanTestStrategy';
-import { GenerateTestDesigns } from '../requirements/GenerateTestDesigns';
-import { PlanExecution } from '../requirements/PlanExecution';
+import { CreateAnalysis } from '../analysis/CreateAnalysis.js';
+import { GenerateFromAnalysis } from '../requirements/GenerateFromAnalysis.js';
+import { ValidateRequirementReadiness } from '../requirements/ValidateRequirementReadiness.js';
+import { PlanTestStrategy } from '../requirements/PlanTestStrategy.js';
+import { GenerateTestDesigns } from '../requirements/GenerateTestDesigns.js';
+import { PlanExecution } from '../requirements/PlanExecution.js';
 
 export class OrchestratePipeline {
   constructor(

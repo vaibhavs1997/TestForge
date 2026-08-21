@@ -1,24 +1,24 @@
 // RequirementController - Controller for Requirement Workspace endpoints
 import { Request, Response } from 'express';
-import { CreateRequirement } from '../../application/requirements/CreateRequirement';
-import { UpdateRequirement } from '../../application/requirements/UpdateRequirement';
-import { DeleteRequirement } from '../../application/requirements/DeleteRequirement';
-import { GetRequirement } from '../../application/requirements/GetRequirement';
-import { ListRequirements } from '../../application/requirements/ListRequirements';
-import { GenerateFromAnalysis } from '../../application/requirements/GenerateFromAnalysis';
-import { ValidateRequirementReadiness } from '../../application/requirements/ValidateRequirementReadiness';
-import { PlanTestStrategy } from '../../application/requirements/PlanTestStrategy';
-import { GenerateTestDesigns } from '../../application/requirements/GenerateTestDesigns';
-import { PlanExecution } from '../../application/requirements/PlanExecution';
-import { GenerateRequirementTestCases } from '../../application/requirements/GenerateRequirementTestCases';
-import { ImportRequirementFromJira } from '../../application/requirements/ImportRequirementFromJira';
-import { UpdateTestDesign } from '../../application/requirements/UpdateTestDesign';
-import { GetRequirementMappingContext } from '../../application/requirements/GetRequirementMappingContext';
-import { TestDesignRepository } from '../../infrastructure/requirements/TestDesignRepository';
-import { ExecutionPlanRepository } from '../../infrastructure/requirements/ExecutionPlanRepository';
-import { createSuccessResponse } from "../../shared/ApiResponse";
-import type { DesignStatus, RequestOverride } from '../../domain/requirements/TestDesignEntity';
-import type { ExecutionPlanStatus } from '../../domain/requirements/ExecutionPlanEntity';
+import { CreateRequirement } from '../../application/requirements/CreateRequirement.js';
+import { UpdateRequirement } from '../../application/requirements/UpdateRequirement.js';
+import { DeleteRequirement } from '../../application/requirements/DeleteRequirement.js';
+import { GetRequirement } from '../../application/requirements/GetRequirement.js';
+import { ListRequirements } from '../../application/requirements/ListRequirements.js';
+import { GenerateFromAnalysis } from '../../application/requirements/GenerateFromAnalysis.js';
+import { ValidateRequirementReadiness } from '../../application/requirements/ValidateRequirementReadiness.js';
+import { PlanTestStrategy } from '../../application/requirements/PlanTestStrategy.js';
+import { GenerateTestDesigns } from '../../application/requirements/GenerateTestDesigns.js';
+import { PlanExecution } from '../../application/requirements/PlanExecution.js';
+import { GenerateRequirementTestCases } from '../../application/requirements/GenerateRequirementTestCases.js';
+import { ImportRequirementFromJira } from '../../application/requirements/ImportRequirementFromJira.js';
+import { UpdateTestDesign } from '../../application/requirements/UpdateTestDesign.js';
+import { GetRequirementMappingContext } from '../../application/requirements/GetRequirementMappingContext.js';
+import { TestDesignRepository } from '../../infrastructure/requirements/TestDesignRepository.js';
+import { ExecutionPlanRepository } from '../../infrastructure/requirements/ExecutionPlanRepository.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
+import type { DesignStatus, RequestOverride } from '../../domain/requirements/TestDesignEntity.js';
+import type { ExecutionPlanStatus } from '../../domain/requirements/ExecutionPlanEntity.js';
 
 export class RequirementController {
     constructor(

@@ -1,6 +1,6 @@
 // CustomProviderAdapter - Placeholder adapter for custom integrations
 // Do NOT call external services yet. Architecture preparation only.
-import { ProviderAdapter, ProviderTestResult, ProviderOperationResult } from '../ProviderAdapter';
+import { ProviderAdapter, ProviderTestResult, ProviderOperationResult } from '../ProviderAdapter.js';
 
 export class CustomProviderAdapter implements ProviderAdapter {
   readonly type = 'Custom';

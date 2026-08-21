@@ -2,9 +2,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { ImportApiContract } from '../../application/api/ImportApiContract';
-import { ApiServiceRepository } from '../../infrastructure/api/ApiServiceRepository';
-import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
+import { ImportApiContract } from '../../application/api/ImportApiContract.js';
+import { ApiServiceRepository } from '../../infrastructure/api/ApiServiceRepository.js';
+import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository.js';
 
 const OPENAPI_SPEC = JSON.stringify({
   openapi: '3.0.0',

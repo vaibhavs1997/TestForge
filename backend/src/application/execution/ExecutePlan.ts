@@ -5,28 +5,34 @@
 // Validate Assertions → Capture Runtime Variables → Store Step Result → Continue.
 import { randomUUID } from 'node:crypto';
 import axios from 'axios';
-import { ExecutionRunEntity, ExecutionContext, ExecutionStepResult, ExecutionSummary, FailureMode, RunStatus, StepStatus, ExecutionProfileMetadata } from '../../domain/execution/ExecutionRunEntity';
-import { ExecutionRunRepository } from '../../domain/execution/ExecutionRunRepository';
-import { ExecutionPlanRepository } from '../../domain/requirements/ExecutionPlanRepository';
-import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
-import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository';
-import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository';
-import { DatasetRepository } from '../../infrastructure/test-data/DatasetRepository';
-import { DataSourceMappingRepository } from '../../infrastructure/test-data/DataSourceMappingRepository';
-import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowRepository';
-import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
-import { ApiServiceRepository } from '../../infrastructure/api/ApiServiceRepository';
-import { ValidationEngine } from '../../domain/validation/ValidationEngine';
-import { ValidationRule, StepValidationResult } from '../../domain/validation/ValidationRuleEntity';
-import { TestDataResolutionService, ResolutionContext, ResolvedValue } from '../test-data/TestDataResolutionService';
-import { AssertionRepository } from '../../infrastructure/assertion/AssertionRepository';
-import type { AssertionEntity, AssertionReference } from '../../domain/assertion/AssertionEntity';
-import { IExecutionProfileRepository } from '../../domain/execution/ExecutionProfileRepository';
-import { ExecutionProfileEntity } from '../../domain/execution/ExecutionProfileEntity';
-import { ProviderRepository } from '../../domain/providers/ProviderRepository';
-import { ProviderResolutionService } from '../../infrastructure/providers/ProviderResolutionService';
-import { EventPublisher } from '../EventPublisher';
-import { DEFAULT_TIMEOUT_MS } from '../../constants/defaults';
+import { ExecutionRunEntity, ExecutionContext, ExecutionStepResult, ExecutionSummary, FailureMode, RunStatus, StepStatus, ExecutionProfileMetadata } from '../../domain/execution/ExecutionRunEntity.js';
+import { ExecutionRunRepository } from '../../domain/execution/ExecutionRunRepository.js';
+import { ExecutionPlanRepository } from '../../domain/requirements/ExecutionPlanRepository.js';
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
+import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository.js';
+import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository.js';
+import { DatasetRepository } from '../../infrastructure/test-data/DatasetRepository.js';
+import { ColumnRepository } from '../../infrastructure/test-data/ColumnRepository.js';
+import { DataSourceMappingRepository } from '../../infrastructure/test-data/DataSourceMappingRepository.js';
+import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowRepository.js';
+import { RuntimeVariableRepository } from '../../infrastructure/knowledge/RuntimeVariableRepository.js';
+import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository.js';
+import { ApiServiceRepository } from '../../infrastructure/api/ApiServiceRepository.js';
+import { ValidationEngine } from '../../domain/validation/ValidationEngine.js';
+import { ValidationRule, StepValidationResult } from '../../domain/validation/ValidationRuleEntity.js';
+import { TestDataResolutionService, ResolutionContext, ResolvedValue } from '../test-data/TestDataResolutionService.js';
+import { AssertionRepository } from '../../infrastructure/assertion/AssertionRepository.js';
+import type { AssertionEntity, AssertionReference } from '../../domain/assertion/AssertionEntity.js';
+import { IExecutionProfileRepository } from '../../domain/execution/ExecutionProfileRepository.js';
+import { ExecutionProfileEntity } from '../../domain/execution/ExecutionProfileEntity.js';
+import { ProviderRepository } from '../../domain/providers/ProviderRepository.js';
+import { ProviderResolutionService } from '../../infrastructure/providers/ProviderResolutionService.js';
+import { EventPublisher } from '../EventPublisher.js';
+import { DEFAULT_TIMEOUT_MS } from '../../constants/defaults.js';
+import { ExecutionSafetyService } from './ExecutionSafetyService.js';
+import { sensitiveDataRedactor } from '../../infrastructure/security/SensitiveDataRedactionService.js';
+import type { SecretStore } from '../../domain/security/SecretStore.js';
+import { SecretResolutionService } from '../security/SecretResolutionService.js';
 
 export class ExecutePlan {
   private loadedProfile: ExecutionProfileEntity | null = null;
@@ -41,26 +47,30 @@ export class ExecutePlan {
     private readonly apiOperationRepository: ApiOperationRepository,
     private readonly dataSourceMappingRepository: DataSourceMappingRepository,
     private readonly datasetRowRepository: DatasetRowRepository,
+    private readonly columnRepository: ColumnRepository,
+    private readonly runtimeVariableRepository: RuntimeVariableRepository,
     private readonly testDesignRepository: TestDesignRepository,
     private readonly assertionRepository: AssertionRepository,
     private readonly executionProfileRepository?: IExecutionProfileRepository,
     private readonly eventPublisher?: EventPublisher,
-    private readonly apiServiceRepository?: ApiServiceRepository
+    private readonly apiServiceRepository?: ApiServiceRepository,
+    private readonly executionSafetyService = new ExecutionSafetyService(),
+    private readonly secretStore?: SecretStore,
   ) {
     // Initialize resolution service
     this.testDataResolutionService = new TestDataResolutionService(
       dataSourceMappingRepository,
       datasetRowRepository,
       datasetRepository,
-      null as any, // ColumnRepository - not critical for basic resolution
-      null as any, // RuntimeVariableRepository - not critical for basic resolution
+      columnRepository,
+      runtimeVariableRepository,
       environmentRepository
     );
   }
 
   private readonly testDataResolutionService: TestDataResolutionService;
 
-  async execute(executionPlanId: string, failureMode: FailureMode = 'StopOnFailure', executionProfileId?: string): Promise<ExecutionRunEntity> {
+  async execute(executionPlanId: string, failureMode: FailureMode = 'StopOnFailure', executionProfileId?: string, environmentOverrideId?: string): Promise<ExecutionRunEntity> {
     if (this.inFlightPlanIds.has(executionPlanId)) {
       throw new Error('An execution is already in progress for this step. Wait for it to finish.');
     }
@@ -83,7 +93,7 @@ export class ExecutePlan {
     if (!plan) {
       throw new Error(`Execution Plan with id ${executionPlanId} not found`);
     }
-    return await this.executePlan(plan, failureMode);
+    return await this.executePlan(plan, failureMode, undefined, undefined, undefined, environmentOverrideId);
     } finally {
       this.inFlightPlanIds.delete(executionPlanId);
       this.loadedProfile = null;
@@ -107,7 +117,7 @@ export class ExecutePlan {
     };
   }
 
-  async executeCombined(planIds: string[], failureMode: FailureMode = 'StopOnFailure', executionProfileId?: string, suiteId?: string, suiteSnapshot?: Record<string, unknown>): Promise<ExecutionRunEntity> {
+  async executeCombined(planIds: string[], failureMode: FailureMode = 'StopOnFailure', executionProfileId?: string, suiteId?: string, suiteSnapshot?: Record<string, unknown>, environmentOverrideId?: string): Promise<ExecutionRunEntity> {
     if (planIds.length === 0) throw new Error('No execution plans supplied');
     const lockId = `suite:${suiteId || planIds.join(',')}`;
     if (this.inFlightPlanIds.has(lockId)) throw new Error('An execution is already in progress for this suite.');
@@ -126,14 +136,14 @@ export class ExecutePlan {
         if (!this.loadedProfile) throw new Error(`Execution Profile with id ${executionProfileId} not found`);
         failureMode = this.loadedProfile.failureMode as FailureMode;
       }
-      return await this.executePlan(firstPlan, failureMode, planIds, suiteId, suiteSnapshot);
+      return await this.executePlan(firstPlan, failureMode, planIds, suiteId, suiteSnapshot, environmentOverrideId);
     } finally {
       this.inFlightPlanIds.delete(lockId);
       this.loadedProfile = null;
     }
   }
 
-  private async executePlan(plan: any, failureMode: FailureMode, explicitPlanIds?: string[], suiteId?: string, suiteSnapshot?: Record<string, unknown>): Promise<ExecutionRunEntity> {
+  private async executePlan(plan: any, failureMode: FailureMode, explicitPlanIds?: string[], suiteId?: string, suiteSnapshot?: Record<string, unknown>, environmentOverrideId?: string): Promise<ExecutionRunEntity> {
     // Legacy execution plans may predate requirementId persistence. Recover it
     // from the referenced design so they remain executable without rewriting data.
     const referencedDesign = !plan.requirementId && plan.testDesignId
@@ -156,11 +166,15 @@ export class ExecutePlan {
     // The API workspace's current shared default is authoritative. This keeps
     // execution aligned with the URL/environment the user just tested.
     const sharedDefault = environments.find(e => e.isDefault);
-    let environmentId = sharedDefault?.id || plan.environmentId;
+    let environmentId = environmentOverrideId || sharedDefault?.id || plan.environmentId;
     if (!environmentId && this.loadedProfile) {
       environmentId = this.loadedProfile.defaultEnvironmentId;
     }
-    let environment = environments.find(e => e.id === environmentId) || environments[0];
+    let environment = environments.find(e => e.id === environmentId);
+    if (environmentOverrideId && !environment) {
+      throw new Error(`Scheduled execution environment "${environmentOverrideId}" was not found for this project`);
+    }
+    environment = environment || environments[0];
     if (!environment && mappedOperation?.serviceId && this.apiServiceRepository) {
       const service = await this.apiServiceRepository.findById(mappedOperation.serviceId);
       if (service?.baseUrl) {
@@ -182,6 +196,25 @@ export class ExecutePlan {
       throw new Error('No environment configured for this project');
     }
 
+    const selectedEnvironment = environment;
+    const secretResolver = this.secretStore ? new SecretResolutionService(this.secretStore) : null;
+    const secretValues = secretResolver ? await secretResolver.values({ authentication: selectedEnvironment.authentication, variables: selectedEnvironment.variables }) : [];
+    const executionEnvironment = secretResolver
+      ? { ...selectedEnvironment, authentication: await secretResolver.resolve(selectedEnvironment.authentication), variables: await secretResolver.resolve(selectedEnvironment.variables) } as any
+      : selectedEnvironment;
+
+    const resolvedSuiteSnapshot = suiteSnapshot
+      ? {
+          ...suiteSnapshot,
+          environment: {
+            id: executionEnvironment.id,
+            name: executionEnvironment.name,
+            baseUrl: executionEnvironment.baseUrl,
+            source: environmentOverrideId ? 'schedule' : 'resolved',
+          },
+        }
+      : null;
+
     // Resolve dataset values
     let datasetValues: Record<string, any> = {};
     if (plan.datasetId) {
@@ -201,19 +234,25 @@ export class ExecutePlan {
     const runtimeVariables: Record<string, any> = this.loadedProfile?.runtimeVariableReset ? {} : {};
     const resolutionContext: ResolutionContext = {
       runtimeVariables,
-      environmentVariables: environment.variables || {},
+      environmentVariables: executionEnvironment.variables || {},
       sequentialPositions: new Map(),
     };
 
     const serviceId = mappedOperation?.serviceId ?? '';
 
     // Validate test data mappings before execution
-    const validationErrors = await this.testDataResolutionService.validateMappings(
-      plan.projectId,
-      serviceId,
-      plan.operationId,
-      resolutionContext
-    );
+    let validationErrors;
+    try {
+      validationErrors = await this.testDataResolutionService.validateMappings(
+        plan.projectId,
+        serviceId,
+        plan.operationId,
+        resolutionContext
+      );
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(`Test data resolution failed before execution: ${detail}`);
+    }
 
     if (validationErrors.length > 0) {
       const errorMessages = validationErrors.map(e => `${e.field}: ${e.message}`).join(', ');
@@ -222,9 +261,9 @@ export class ExecutePlan {
 
     // Initialize execution context
     const context: ExecutionContext = {
-      environmentId: environment.id,
-      baseUrl: environment.baseUrl,
-      environmentVariables: environment.variables || {},
+      environmentId: executionEnvironment.id,
+      baseUrl: executionEnvironment.baseUrl,
+      environmentVariables: executionEnvironment.variables || {},
       datasetValues,
       runtimeVariables: {},
       responses: {},
@@ -232,11 +271,11 @@ export class ExecutePlan {
     };
 
     // Add auth headers if environment has authentication
-    if (environment.authentication) {
-      if (environment.authentication.type === 'bearer') {
-        context.headers['Authorization'] = `Bearer ${environment.authentication.token}`;
-      } else if (environment.authentication.type === 'basic') {
-        context.headers['Authorization'] = `Basic ${Buffer.from(`${environment.authentication.username}:${environment.authentication.password}`).toString('base64')}`;
+    if (executionEnvironment.authentication) {
+      if (executionEnvironment.authentication.type === 'bearer') {
+        context.headers['Authorization'] = `Bearer ${executionEnvironment.authentication.token}`;
+      } else if (executionEnvironment.authentication.type === 'basic') {
+        context.headers['Authorization'] = `Basic ${Buffer.from(`${executionEnvironment.authentication.username}:${executionEnvironment.authentication.password}`).toString('base64')}`;
       }
     }
 
@@ -244,10 +283,10 @@ export class ExecutePlan {
     // active token automatically for operations that require bearer auth;
     // request-level headers (including negative/security cases) still win
     // later when the request template is merged.
-    const environmentToken = environment.variables?.accessToken
-      || environment.variables?.access_token
-      || environment.variables?.oauthToken
-      || environment.variables?.oauth_token;
+    const environmentToken = executionEnvironment.variables?.accessToken
+      || executionEnvironment.variables?.access_token
+      || executionEnvironment.variables?.oauthToken
+      || executionEnvironment.variables?.oauth_token;
     // Some imported contracts incorrectly mark protected operations as
     // `None`, even though the API workspace sends the environment bearer
     // token. If a token is active, attach it by default; explicit request
@@ -259,33 +298,9 @@ export class ExecutePlan {
     const profileMetadata = this.loadedProfile ? this.buildProfileMetadata(this.loadedProfile) : null;
     const profileId = this.loadedProfile?.id || null;
 
-    const now = Date.now();
-    const run = new ExecutionRunEntity(
-      randomUUID(),
-      plan.projectId,
-      requirementId,
-      plan.id,
-      failureMode,
-      'Running',
-      context,
-      [],
-      [],
-      { totalSteps: 0, passed: 0, failed: 0, skipped: 0, blocked: 0, duration: 0, validationPassed: 0, validationFailed: 0, validationWarnings: 0 },
-      now,
-      now,
-      null,
-      profileId,
-      profileMetadata,
-      suiteId || null,
-      explicitPlanIds || [plan.id],
-      [],
-      suiteSnapshot || null
-    );
-
-    // Persist initial run
-    const persistedRun = await this.executionRunRepository.create(run);
-
-    // Execute each step
+    // Resolve all participating steps before creating the run. Safety checks
+    // intentionally happen here so every caller (manual, scheduled, or future)
+    // is stopped before it can dispatch an HTTP request or write a run result.
     const allPlans = explicitPlanIds
       ? await this.executionPlanRepository.findByProject(plan.projectId)
       : await this.executionPlanRepository.findByRequirement(requirementId);
@@ -317,6 +332,29 @@ export class ExecutePlan {
         .map((id: string) => allPlans.find((item: any) => item.id === id || item.testDesignId === id)?.id)
         .filter(Boolean),
     }));
+    const safetyCandidates = await Promise.all(sortedPlans.map(async (candidate: any) => {
+      const design = candidate.testDesignId
+        ? await this.testDesignRepository.findById(candidate.testDesignId)
+        : null;
+      const candidateRequirement = await this.requirementRepository.findById(candidate.requirementId || requirementId);
+      return {
+        plan: candidate,
+        design,
+        requirementApprovalStatus: candidateRequirement?.approvalStatus,
+      };
+    }));
+    this.executionSafetyService.assertSafe(executionEnvironment, safetyCandidates);
+
+    const now = Date.now();
+    const run = new ExecutionRunEntity(
+      randomUUID(), plan.projectId, requirementId, plan.id, failureMode, 'Running', context,
+      [], [],
+      { totalSteps: 0, passed: 0, failed: 0, skipped: 0, blocked: 0, duration: 0, validationPassed: 0, validationFailed: 0, validationWarnings: 0 },
+      now, now, null, profileId, profileMetadata, suiteId || null, explicitPlanIds || [plan.id], [], resolvedSuiteSnapshot,
+    );
+    const persistedRun = await this.executionRunRepository.create(sensitiveDataRedactor.redactKnownValues(sensitiveDataRedactor.redact(run), secretValues));
+
+    // Execute each step
     const stepResults: ExecutionStepResult[] = [];
     const failedStepIds: Set<string> = new Set();
 
@@ -386,12 +424,18 @@ export class ExecutePlan {
       const stepServiceId = stepOperation?.serviceId ?? '';
 
       // Resolve test data for this step
-      const resolvedValues = await this.testDataResolutionService.resolveRequestFields(
-        currentPlan.projectId,
-        stepServiceId,
-        currentPlan.operationId,
-        resolutionContext
-      );
+      let resolvedValues: Record<string, ResolvedValue>;
+      try {
+        resolvedValues = await this.testDataResolutionService.resolveRequestFields(
+          currentPlan.projectId,
+          stepServiceId,
+          currentPlan.operationId,
+          resolutionContext
+        );
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        throw new Error(`Test data resolution failed for execution plan ${currentPlan.id}: ${detail}`);
+      }
 
       // Load Test Design to get attached assertions
       const testDesign = await this.testDesignRepository.findById(currentPlan.testDesignId);
@@ -493,10 +537,10 @@ export class ExecutePlan {
       suiteId || null,
       [...requiredPlanIds],
       dependencyGraph,
-      suiteSnapshot || null
+      resolvedSuiteSnapshot
     );
 
-    const result = await this.executionRunRepository.update(persistedRun.id, updatedRun);
+    const result = await this.executionRunRepository.update(persistedRun.id, sensitiveDataRedactor.redactKnownValues(sensitiveDataRedactor.redact(updatedRun), secretValues));
 
     // Publish through central EventPublisher — triggers audit, notification,
     // cache invalidation, recommendation refresh, and pipeline refresh.

@@ -1,0 +1,5 @@
+export type TestCaseLifecycle = 'GENERATED' | 'REVIEW_REQUIRED' | 'APPROVED' | 'REJECTED' | 'DEPRECATED';
+
+export interface TestCaseVersionContent { requirementId: string; acceptanceCriterionId?: string; operationId: string; scenarioIntent: string; payload: unknown; assertions: unknown; mapping: unknown; mutationProvenance?: unknown; generatedContent?: unknown; operationLabel?: string; protocol?: string; operationRisk?: string; baselineInput?: unknown; }
+export class TestCaseEntity { constructor(public readonly id: string, public readonly projectId: string, public readonly fingerprint: string, public currentVersionId: string, public readonly createdAt: number, public updatedAt: number) {} }
+export class TestCaseVersionEntity { constructor(public readonly id: string, public readonly testCaseId: string, public readonly version: number, public readonly content: TestCaseVersionContent, public lifecycle: TestCaseLifecycle, public readonly createdAt: number, public reviewer?: string, public reviewedAt?: number, public reviewReason?: string) {} }

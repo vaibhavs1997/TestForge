@@ -1,4 +1,4 @@
-import { AuditLogEntity } from '../../domain/audit';
+import { AuditLogEntity } from '../../domain/audit/index.js';
 
 export interface AuditLogFilters {
   module?: string;

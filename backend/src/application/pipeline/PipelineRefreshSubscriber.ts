@@ -1,6 +1,6 @@
 // PipelineRefreshSubscriber - Refreshes pipeline state when project dependencies change
 // Subscribes to INVALIDATED events without triggering generation side effects.
-import { EventBus, DomainEvent } from '../../domain/events/EventBus';
+import { EventBus, DomainEvent } from '../../domain/events/EventBus.js';
 
 export class PipelineRefreshSubscriber {
   constructor(

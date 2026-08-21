@@ -2,7 +2,7 @@
 // and delegates operations (validate, estimate, generate, stream, health).
 // Reuses the AIProviderRegistry for adapter resolution.
 
-import { AIProviderEntity } from '../../domain/ai-provider';
+import { AIProviderEntity } from '../../domain/ai-provider/index.js';
 import type {
   AIProviderConfig,
   AIProviderMessage,
@@ -11,8 +11,8 @@ import type {
   AIProviderStreamChunk,
   AIProviderHealthResult,
   AIProviderEstimate,
-} from '../../domain/ai-provider';
-import { AIProviderRegistry } from './AIProviderRegistry';
+} from '../../domain/ai-provider/index.js';
+import { AIProviderRegistry } from './AIProviderRegistry.js';
 
 export class AIProviderResolutionService {
   constructor(private readonly registry: AIProviderRegistry) {}

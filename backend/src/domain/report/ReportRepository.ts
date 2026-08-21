@@ -1,5 +1,5 @@
 // ReportRepository - Domain Repository Interface for Reporting Module
-import { ReportEntity } from './ReportEntity';
+import { ReportEntity } from './ReportEntity.js';
 
 export interface ReportRepository {
   create(report: ReportEntity): Promise<ReportEntity>;

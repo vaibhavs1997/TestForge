@@ -1,8 +1,8 @@
 // DatasetRepository - File-based repository implementation
 import * as fs from 'fs';
 import * as path from 'path';
-import { DatasetEntity } from '../../domain/test-data/DatasetEntity';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { DatasetEntity } from '../../domain/test-data/DatasetEntity.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'test-data');

@@ -1,7 +1,7 @@
 // NotificationController - Controller for Notification Module endpoints
 import { Request, Response } from 'express';
-import { NotificationService } from '../../application/notification/NotificationService';
-import { createSuccessResponse } from "../../shared/ApiResponse";
+import { NotificationService } from '../../application/notification/NotificationService.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
 export class NotificationController {
     constructor(private readonly notificationService: NotificationService) { }
     async create(req: Request, res: Response): Promise<void> {
@@ -13,6 +13,10 @@ export class NotificationController {
         const { notificationId } = req.params;
         const notification = await this.notificationService.get(notificationId);
         res.status(200).json(createSuccessResponse(notification));
+    }
+    async findForAuthorization(notificationId: string): Promise<{ projectId: string } | null> {
+        const notification = await this.notificationService.get(notificationId);
+        return notification ? { projectId: notification.projectId } : null;
     }
     async listNotifications(req: Request, res: Response): Promise<void> {
         const { projectId } = req.params;

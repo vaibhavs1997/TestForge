@@ -1,7 +1,7 @@
 // Barrel export file for AI Provider domain module
-export { AIProviderEntity } from './AIProviderEntity';
-export type { AIProviderType, AIProviderConfig } from './AIProviderEntity';
-export type { AIProviderRepository } from './AIProviderRepository';
+export { AIProviderEntity } from './AIProviderEntity.js';
+export type { AIProviderType, AIProviderConfig } from './AIProviderEntity.js';
+export type { AIProviderRepository } from './AIProviderRepository.js';
 export type {
   AIProviderAdapter,
   AIProviderMessage,
@@ -12,4 +12,4 @@ export type {
   AIProviderStreamChunk,
   AIProviderHealthResult,
   AIProviderEstimate,
-} from './AIProviderAdapter';
+} from './AIProviderAdapter.js';

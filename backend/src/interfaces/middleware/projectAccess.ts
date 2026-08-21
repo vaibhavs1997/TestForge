@@ -1,7 +1,7 @@
 import type { Request } from 'express';
-import type { ProjectRecord } from '../../domain/project/ProjectRecord';
-import { getAuthConfig } from '../../config';
-import type { AuthContext } from './auth';
+import type { ProjectRecord } from '../../domain/project/ProjectRecord.js';
+import { getAuthConfig } from '../../config.js';
+import type { AuthContext } from './auth.js';
 
 /** JWT users with full access (shared API key). */
 export function hasGlobalProjectAccess(auth: AuthContext | undefined): boolean {

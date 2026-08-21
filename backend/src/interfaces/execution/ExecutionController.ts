@@ -1,9 +1,9 @@
 // ExecutionController - Controller for Execution Engine endpoints
 import { Request, Response } from 'express';
-import { ExecutePlan } from '../../application/execution/ExecutePlan';
-import { ExecutionRunRepository } from '../../infrastructure/execution/ExecutionRunRepository';
-import { ExecutionPlanRepository } from '../../infrastructure/requirements/ExecutionPlanRepository';
-import { createSuccessResponse } from "../../shared/ApiResponse";
+import { ExecutePlan } from '../../application/execution/ExecutePlan.js';
+import { ExecutionRunRepository } from '../../infrastructure/execution/ExecutionRunRepository.js';
+import { ExecutionPlanRepository } from '../../infrastructure/requirements/ExecutionPlanRepository.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
 export class ExecutionController {
     constructor(
         private readonly executePlanUseCase: ExecutePlan,

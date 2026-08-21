@@ -1,7 +1,7 @@
 // AnalysisRoutes - Route definitions for AI Project Analysis
 import { Router } from 'express';
-import { AnalysisController } from './AnalysisController';
-import { container } from '../../application/ApplicationContainer';
+import { AnalysisController } from './AnalysisController.js';
+import { container } from '../../application/ApplicationContainer.js';
 
 // Reuse shared repositories and use cases from the ApplicationContainer
 const {
@@ -13,13 +13,13 @@ const {
 } = container;
 
 // Initialize use cases
-import { CreateAnalysis } from '../../application/analysis/CreateAnalysis';
-import { UpdateAnalysis } from '../../application/analysis/UpdateAnalysis';
-import { DeleteAnalysis } from '../../application/analysis/DeleteAnalysis';
-import { GetAnalysis } from '../../application/analysis/GetAnalysis';
-import { ListAnalysis } from '../../application/analysis/ListAnalysis';
-import { AnalyzeProject } from '../../application/analysis/AnalyzeProject';
-import { asyncHandler } from '../middleware/AsyncHandler';
+import { CreateAnalysis } from '../../application/analysis/CreateAnalysis.js';
+import { UpdateAnalysis } from '../../application/analysis/UpdateAnalysis.js';
+import { DeleteAnalysis } from '../../application/analysis/DeleteAnalysis.js';
+import { GetAnalysis } from '../../application/analysis/GetAnalysis.js';
+import { ListAnalysis } from '../../application/analysis/ListAnalysis.js';
+import { AnalyzeProject } from '../../application/analysis/AnalyzeProject.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 const createAnalysis = new CreateAnalysis(analysisRepository);
 const updateAnalysis = new UpdateAnalysis(analysisRepository);

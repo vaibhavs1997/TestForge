@@ -2,10 +2,10 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { ImportApiContract } from './ImportApiContract';
-import { ApiServiceRepository } from '../../infrastructure/api/ApiServiceRepository';
-import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
-import { serializeApiOperation, serializeApiService } from '../../interfaces/api/ApiDtos';
+import { ImportApiContract } from './ImportApiContract.js';
+import { ApiServiceRepository } from '../../infrastructure/api/ApiServiceRepository.js';
+import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository.js';
+import { serializeApiOperation, serializeApiService } from '../../interfaces/api/ApiDtos.js';
 
 function createTempWorkspace() {
   const previousCwd = process.cwd();

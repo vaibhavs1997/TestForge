@@ -1,5 +1,5 @@
 // GetDataset - Application Use Case
-import { DatasetRepository } from '../../domain/test-data/DatasetRepository';
+import { DatasetRepository } from '../../domain/test-data/DatasetRepository.js';
 
 export class GetDataset {
   constructor(private readonly datasetRepository: DatasetRepository) {}

@@ -1,13 +1,13 @@
-import type { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
-import type { RequirementEntity } from '../../domain/requirements/RequirementEntity';
-import type { MappingProvenance, MappingState, TestDesignEntity } from '../../domain/requirements/TestDesignEntity';
+import type { ApiOperationEntity } from '../../domain/api/ApiOperationEntity.js';
+import type { RequirementEntity } from '../../domain/requirements/RequirementEntity.js';
+import type { MappingProvenance, MappingState, TestDesignEntity } from '../../domain/requirements/TestDesignEntity.js';
 import {
   getOperationMatchDiagnostics,
   mappingConfidencePercent,
   pickOperationForCategory,
   rankOperationsForRequirement,
-} from './RequirementOperationMatcher';
-import type { StrategyCategory } from '../../domain/requirements/TestStrategyEntity';
+} from './RequirementOperationMatcher.js';
+import type { StrategyCategory } from '../../domain/requirements/TestStrategyEntity.js';
 
 export interface OperationCandidate extends ApiOperationEntity { score: number }
 export interface MappingDecision {

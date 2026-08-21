@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ExecuteSuite } from './ExecuteSuite';
+import { ExecuteSuite } from './ExecuteSuite.js';
 
 describe('ExecuteSuite', () => {
   it('executes selected plans once as one combined run and deduplicates identical plan IDs', async () => {
@@ -20,6 +20,7 @@ describe('ExecuteSuite', () => {
       undefined,
       'suite-1',
       expect.objectContaining({ suite: expect.objectContaining({ id: 'suite-1', version: 1 }) }),
+      undefined,
     );
     expect(result).toMatchObject({ id: 'run-1', suiteId: 'suite-1' });
   });

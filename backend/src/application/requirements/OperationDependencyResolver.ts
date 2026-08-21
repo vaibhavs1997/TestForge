@@ -1,8 +1,8 @@
-import type { Dependency } from '../../domain/knowledge/DependencyEntity';
-import type { KnowledgeFlowEntity } from '../../domain/knowledge/KnowledgeFlowEntity';
-import type { RuntimeVariable } from '../../domain/knowledge/RuntimeVariableEntity';
-import type { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
-import type { OperationDependency, TestDesignEntity } from '../../domain/requirements/TestDesignEntity';
+import type { Dependency } from '../../domain/knowledge/DependencyEntity.js';
+import type { KnowledgeFlowEntity } from '../../domain/knowledge/KnowledgeFlowEntity.js';
+import type { RuntimeVariable } from '../../domain/knowledge/RuntimeVariableEntity.js';
+import type { ApiOperationEntity } from '../../domain/api/ApiOperationEntity.js';
+import type { OperationDependency, TestDesignEntity } from '../../domain/requirements/TestDesignEntity.js';
 
 export interface DependencyResolutionResult { dependencies: OperationDependency[]; warnings: string[]; }
 

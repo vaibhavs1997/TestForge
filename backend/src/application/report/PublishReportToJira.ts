@@ -1,7 +1,9 @@
-import { JiraClient } from '../../infrastructure/jira/JiraClient';
-import { ReportRepository } from '../../domain/report/ReportRepository';
-import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
-import type { ReportEntity } from '../../domain/report/ReportEntity';
+import { JiraClient } from '../../infrastructure/jira/JiraClient.js';
+import { ReportRepository } from '../../domain/report/ReportRepository.js';
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
+import type { ReportEntity } from '../../domain/report/ReportEntity.js';
+import { sensitiveDataRedactor } from '../../infrastructure/security/SensitiveDataRedactionService.js';
+import { defaultEvidenceGovernance } from '../../infrastructure/security/EvidenceGovernanceService.js';
 
 export class PublishReportToJira {
   constructor(
@@ -37,9 +39,10 @@ export class PublishReportToJira {
   }
 }
 
-function formatReportComment(report: ReportEntity, issueKey: string): string {
-  const overview = report.sections?.overview;
-  const summary = report.sections?.executionSummary;
+export function formatReportComment(report: ReportEntity, issueKey: string): string {
+  const safeReport = defaultEvidenceGovernance.protect(sensitiveDataRedactor.redact(report), 'jira') as ReportEntity;
+  const overview = safeReport.sections?.overview;
+  const summary = safeReport.sections?.executionSummary;
   const appUrl = process.env.TESTFORGE_PUBLIC_URL?.trim();
 
   const lines = [

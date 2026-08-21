@@ -1,8 +1,8 @@
 // NotificationRepository - Infrastructure implementation for Notification Module
 // Uses in-memory storage. Can be swapped for DB implementation.
 
-import { NotificationEntity } from '../../domain/notification';
-import type { NotificationRepository } from '../../domain/notification';
+import { NotificationEntity } from '../../domain/notification/index.js';
+import type { NotificationRepository } from '../../domain/notification/index.js';
 
 export class InMemoryNotificationRepository implements NotificationRepository {
   private notifications: Map<string, NotificationEntity> = new Map();

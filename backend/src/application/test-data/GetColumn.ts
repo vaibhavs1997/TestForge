@@ -1,5 +1,5 @@
 // GetColumn - Application Use Case
-import { ColumnRepository } from '../../domain/test-data/ColumnRepository';
+import { ColumnRepository } from '../../domain/test-data/ColumnRepository.js';
 
 export class GetColumn {
   constructor(private readonly columnRepository: ColumnRepository) {}

@@ -1,8 +1,8 @@
 // ReportRoutes - Route definitions for Reporting Module
 import { Router } from 'express';
-import { ReportController } from './ReportController';
-import { PublishReportToJira } from '../../application/report/PublishReportToJira';
-import { container } from '../../application/ApplicationContainer';
+import { ReportController } from './ReportController.js';
+import { PublishReportToJira } from '../../application/report/PublishReportToJira.js';
+import { container } from '../../application/ApplicationContainer.js';
 
 // Reuse shared repositories and services from the ApplicationContainer
 const {
@@ -21,9 +21,9 @@ const {
 } = container;
 
 // Initialize use cases
-import { GenerateReport } from '../../application/report/GenerateReport';
-import { ManageReports } from '../../application/report/ManageReports';
-import { asyncHandler } from '../middleware/AsyncHandler';
+import { GenerateReport } from '../../application/report/GenerateReport.js';
+import { ManageReports } from '../../application/report/ManageReports.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 const generateReport = new GenerateReport(
   reportRepository,

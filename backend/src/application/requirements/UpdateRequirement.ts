@@ -1,7 +1,7 @@
 // UpdateRequirement - Application Use Case
-import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
-import { RequirementEntity, RequirementSource, ReviewStatus, ApprovalStatus, AcceptanceCriterion } from '../../domain/requirements/RequirementEntity';
-import { EventPublisher } from '../EventPublisher';
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
+import { RequirementEntity, RequirementSource, ReviewStatus, ApprovalStatus, AcceptanceCriterion } from '../../domain/requirements/RequirementEntity.js';
+import { EventPublisher } from '../EventPublisher.js';
 
 export class UpdateRequirement {
   constructor(

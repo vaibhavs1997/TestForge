@@ -1,6 +1,6 @@
 // UpdateAnalysis - Application Use Case
-import { AnalysisRepository } from '../../domain/analysis/AnalysisRepository';
-import { AnalysisEntity, AnalysisStatus } from '../../domain/analysis/AnalysisEntity';
+import { AnalysisRepository } from '../../domain/analysis/AnalysisRepository.js';
+import { AnalysisEntity, AnalysisStatus } from '../../domain/analysis/AnalysisEntity.js';
 
 export class UpdateAnalysis {
   constructor(private readonly analysisRepository: AnalysisRepository) {}

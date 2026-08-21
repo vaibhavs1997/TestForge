@@ -2,8 +2,8 @@
 // Persists providers to data/providers/{projectId}/providers.json
 import * as fs from 'fs';
 import * as path from 'path';
-import { ProviderEntity } from '../../domain/providers/ProviderEntity';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { ProviderEntity } from '../../domain/providers/ProviderEntity.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 // Mask credentials when persisting to disk
 const SECRET_KEYS = ['apiKey', 'apiSecret', 'token', 'password', 'authToken', 'secret', 'accountSid'];

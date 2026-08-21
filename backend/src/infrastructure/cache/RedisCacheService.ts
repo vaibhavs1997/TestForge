@@ -1,5 +1,5 @@
 // Redis cache service implementation (optional - falls back to no-op if Redis not available)
-import { CacheService, CACHE_TTL, CACHE_KEYS } from './CacheService';
+import { CacheService, CACHE_TTL, CACHE_KEYS } from './CacheService.js';
 
 // In-memory fallback for development
 class MemoryCache implements CacheService {

@@ -1,5 +1,5 @@
 // GetRow - Application Use Case for retrieving a Dataset Row
-import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowRepository';
+import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowRepository.js';
 
 export class GetRow {
   constructor(private readonly datasetRowRepository: DatasetRowRepository) {}

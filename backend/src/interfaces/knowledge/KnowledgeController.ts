@@ -1,16 +1,16 @@
 // KnowledgeController - Controller for Knowledge Management endpoints
 import { Request, Response } from 'express';
-import { CreateKnowledgeFlow } from '../../application/knowledge/CreateKnowledgeFlow';
-import { UpdateKnowledgeFlow } from '../../application/knowledge/UpdateKnowledgeFlow';
-import { DeleteKnowledgeFlow } from '../../application/knowledge/DeleteKnowledgeFlow';
-import { GetKnowledgeFlow } from '../../application/knowledge/GetKnowledgeFlow';
-import { ListKnowledgeFlows } from '../../application/knowledge/ListKnowledgeFlows';
-import { ManageBusinessRules } from '../../application/knowledge/ManageBusinessRules';
-import { ManageRuntimeVariables } from '../../application/knowledge/ManageRuntimeVariables';
-import { ManageDependencies } from '../../application/knowledge/ManageDependencies';
-import { ManageDocumentation } from '../../application/knowledge/ManageDocumentation';
-import { ImportKnowledgeDocuments } from '../../application/knowledge/ImportKnowledgeDocuments';
-import { createSuccessResponse } from "../../shared/ApiResponse";
+import { CreateKnowledgeFlow } from '../../application/knowledge/CreateKnowledgeFlow.js';
+import { UpdateKnowledgeFlow } from '../../application/knowledge/UpdateKnowledgeFlow.js';
+import { DeleteKnowledgeFlow } from '../../application/knowledge/DeleteKnowledgeFlow.js';
+import { GetKnowledgeFlow } from '../../application/knowledge/GetKnowledgeFlow.js';
+import { ListKnowledgeFlows } from '../../application/knowledge/ListKnowledgeFlows.js';
+import { ManageBusinessRules } from '../../application/knowledge/ManageBusinessRules.js';
+import { ManageRuntimeVariables } from '../../application/knowledge/ManageRuntimeVariables.js';
+import { ManageDependencies } from '../../application/knowledge/ManageDependencies.js';
+import { ManageDocumentation } from '../../application/knowledge/ManageDocumentation.js';
+import { ImportKnowledgeDocuments } from '../../application/knowledge/ImportKnowledgeDocuments.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
 export class KnowledgeController {
     constructor(private readonly createKnowledgeFlow: CreateKnowledgeFlow, private readonly updateKnowledgeFlow: UpdateKnowledgeFlow, private readonly deleteKnowledgeFlow: DeleteKnowledgeFlow, private readonly getKnowledgeFlow: GetKnowledgeFlow, private readonly listKnowledgeFlows: ListKnowledgeFlows, private readonly manageBusinessRules: ManageBusinessRules, private readonly manageRuntimeVariables: ManageRuntimeVariables, private readonly manageDependencies: ManageDependencies, private readonly manageDocumentation: ManageDocumentation, private readonly importKnowledgeDocuments: ImportKnowledgeDocuments) { }
     // Business Flow endpoints

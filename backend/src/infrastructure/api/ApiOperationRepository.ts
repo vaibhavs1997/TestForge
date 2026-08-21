@@ -1,8 +1,8 @@
 // ApiOperationRepository - File-based repository implementation
 import * as fs from 'fs';
 import * as path from 'path';
-import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'apis');

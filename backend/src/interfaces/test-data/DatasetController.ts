@@ -1,11 +1,11 @@
 // DatasetController - Controller for Test Data Library endpoints
 import { Request, Response } from 'express';
-import { CreateDataset } from '../../application/test-data/CreateDataset';
-import { UpdateDataset } from '../../application/test-data/UpdateDataset';
-import { DeleteDataset } from '../../application/test-data/DeleteDataset';
-import { GetDataset } from '../../application/test-data/GetDataset';
-import { ListDatasets } from '../../application/test-data/ListDatasets';
-import { createSuccessResponse } from "../../shared/ApiResponse";
+import { CreateDataset } from '../../application/test-data/CreateDataset.js';
+import { UpdateDataset } from '../../application/test-data/UpdateDataset.js';
+import { DeleteDataset } from '../../application/test-data/DeleteDataset.js';
+import { GetDataset } from '../../application/test-data/GetDataset.js';
+import { ListDatasets } from '../../application/test-data/ListDatasets.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
 export class DatasetController {
     constructor(private readonly createDatasetUseCase: CreateDataset, private readonly updateDatasetUseCase: UpdateDataset, private readonly deleteDatasetUseCase: DeleteDataset, private readonly getDatasetUseCase: GetDataset, private readonly listDatasetsUseCase: ListDatasets) { }
     async listDatasets(req: Request, res: Response): Promise<void> {

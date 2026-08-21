@@ -1,5 +1,5 @@
 import type { Response } from 'express';
-import type { EventBus, DomainEvent } from '../../domain/events/EventBus';
+import type { EventBus, DomainEvent } from '../../domain/events/EventBus.js';
 
 export interface ActivityStreamClient {
   id: string;

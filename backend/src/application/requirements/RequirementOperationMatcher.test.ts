@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
-import { RequirementEntity } from '../../domain/requirements/RequirementEntity';
+import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity.js';
+import { RequirementEntity } from '../../domain/requirements/RequirementEntity.js';
 import {
   getOperationMatchDiagnostics,
   pickOperationForCategory,
-} from './RequirementOperationMatcher';
+} from './RequirementOperationMatcher.js';
 
 const operation = (id: string, name: string, path: string, method = 'POST') =>
   new ApiOperationEntity(

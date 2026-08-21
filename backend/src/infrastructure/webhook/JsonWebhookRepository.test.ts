@@ -2,8 +2,8 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { JsonWebhookRepository } from './JsonWebhookRepository';
-import type { WebhookEntity } from '../../domain/webhook/WebhookEntity';
+import { JsonWebhookRepository } from './JsonWebhookRepository.js';
+import type { WebhookEntity } from '../../domain/webhook/WebhookEntity.js';
 
 describe('JsonWebhookRepository', () => {
   let tempDir: string;

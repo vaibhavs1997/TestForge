@@ -1,5 +1,5 @@
 // Validators - Individual validators for each validation rule type
-import { ValidationResult, ValidationRule } from './ValidationRuleEntity';
+import { ValidationResult, ValidationRule } from './ValidationRuleEntity.js';
 
 export class Validators {
   static validateHTTPStatus(rule: ValidationRule, response: any): ValidationResult {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ApiController } from './ApiController';
-import { serializeApiOperation, serializeApiService } from './ApiDtos';
+import { ApiController } from './ApiController.js';
+import { serializeApiOperation, serializeApiService } from './ApiDtos.js';
 
 function createResponseMock() {
   const res: any = {};

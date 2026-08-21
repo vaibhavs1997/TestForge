@@ -1,12 +1,12 @@
 // EnvironmentController - Controller for Environment Management endpoints
 import { Request, Response } from 'express';
-import { CreateEnvironment } from '../../application/environment/CreateEnvironment';
-import { UpdateEnvironment } from '../../application/environment/UpdateEnvironment';
-import { DeleteEnvironment } from '../../application/environment/DeleteEnvironment';
-import { GetEnvironment } from '../../application/environment/GetEnvironment';
-import { ListEnvironments } from '../../application/environment/ListEnvironments';
-import { UpsertEnvironments } from '../../application/environment/UpsertEnvironments';
-import { createSuccessResponse } from '../../shared/ApiResponse';
+import { CreateEnvironment } from '../../application/environment/CreateEnvironment.js';
+import { UpdateEnvironment } from '../../application/environment/UpdateEnvironment.js';
+import { DeleteEnvironment } from '../../application/environment/DeleteEnvironment.js';
+import { GetEnvironment } from '../../application/environment/GetEnvironment.js';
+import { ListEnvironments } from '../../application/environment/ListEnvironments.js';
+import { UpsertEnvironments } from '../../application/environment/UpsertEnvironments.js';
+import { createSuccessResponse } from '../../shared/ApiResponse.js';
 
 export class EnvironmentController {
   constructor(
@@ -26,7 +26,7 @@ export class EnvironmentController {
 
   async createEnvironment(req: Request, res: Response): Promise<void> {
     const projectId = req.params.projectId;
-    const { name, baseUrl, description, authentication, variables, timeout } = req.body;
+    const { name, baseUrl, description, authentication, variables, timeout, tier, executionPolicy } = req.body;
 
     const environment = await this.createEnvironmentUseCase.execute({
       projectId,
@@ -36,6 +36,8 @@ export class EnvironmentController {
       authentication,
       variables,
       timeout,
+      tier,
+      executionPolicy,
     });
 
     res.status(201).json(createSuccessResponse(environment));
@@ -55,6 +57,8 @@ export class EnvironmentController {
         authentication?: unknown;
         variables?: Record<string, string>;
         timeout?: number;
+        tier?: import('../../domain/environment/EnvironmentEntity.js').EnvironmentTier;
+        executionPolicy?: Partial<import('../../domain/environment/EnvironmentEntity.js').EnvironmentExecutionPolicy>;
       }[],
     });
 
@@ -69,7 +73,7 @@ export class EnvironmentController {
 
   async updateEnvironment(req: Request, res: Response): Promise<void> {
     const { environmentId } = req.params;
-    const { name, baseUrl, description, authentication, variables, timeout, isDefault } = req.body;
+    const { name, baseUrl, description, authentication, variables, timeout, isDefault, tier, executionPolicy } = req.body;
 
     const environment = await this.updateEnvironmentUseCase.execute({
       id: environmentId,
@@ -80,6 +84,8 @@ export class EnvironmentController {
       variables,
       timeout,
       isDefault,
+      tier,
+      executionPolicy,
     });
 
     res.status(200).json(createSuccessResponse(environment));

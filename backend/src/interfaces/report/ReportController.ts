@@ -1,12 +1,12 @@
 // ReportController - Controller for Reporting Module endpoints
 import { Request, Response } from 'express';
-import { GenerateReport } from '../../application/report/GenerateReport';
-import { ManageReports } from '../../application/report/ManageReports';
-import { PublishReportToJira } from '../../application/report/PublishReportToJira';
-import { createSuccessResponse } from "../../shared/ApiResponse";
-import { assertProjectAccess } from '../middleware/auth';
-import { getAuthConfig } from '../../config';
-import type { ReportEntity } from '../../domain/report/ReportEntity';
+import { GenerateReport } from '../../application/report/GenerateReport.js';
+import { ManageReports } from '../../application/report/ManageReports.js';
+import { PublishReportToJira } from '../../application/report/PublishReportToJira.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
+import { assertProjectAccess } from '../middleware/auth.js';
+import { getAuthConfig } from '../../config.js';
+import type { ReportEntity } from '../../domain/report/ReportEntity.js';
 export class ReportController {
     constructor(
         private readonly generateReportUseCase: GenerateReport,

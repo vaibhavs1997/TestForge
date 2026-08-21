@@ -1,6 +1,6 @@
 // UpdateRow - Application Use Case for updating a Dataset Row
-import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowRepository';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowRepository.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export class UpdateRow {
   constructor(private readonly datasetRowRepository: DatasetRowRepository) {}

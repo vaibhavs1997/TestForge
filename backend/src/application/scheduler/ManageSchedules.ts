@@ -1,6 +1,6 @@
 // ManageSchedules - Application Use Cases for schedule retrieval and deletion
-import { ScheduleEntity } from '../../domain/scheduler/ScheduleEntity';
-import type { ScheduleRepository } from '../../domain/scheduler/ScheduleRepository';
+import { ScheduleEntity } from '../../domain/scheduler/ScheduleEntity.js';
+import type { ScheduleRepository } from '../../domain/scheduler/ScheduleRepository.js';
 
 export class GetSchedule {
   constructor(private readonly scheduleRepository: ScheduleRepository) {}

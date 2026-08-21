@@ -1,6 +1,6 @@
 // SuggestColumns - AI-assisted column recommendations based on API schemas
-import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
-import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
+import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository.js';
+import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository.js';
 
 export interface ColumnSuggestion {
   name: string;

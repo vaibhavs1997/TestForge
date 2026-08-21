@@ -1,7 +1,7 @@
 // ErrorHandler - Centralized error handling middleware for Express
 
 import { Request, Response, NextFunction } from 'express';
-import { createErrorResponse, ERROR_CODES } from '../../shared/ApiResponse';
+import { createErrorResponse, ERROR_CODES } from '../../shared/ApiResponse.js';
 import {
   AppError,
   NotFoundError,
@@ -10,7 +10,7 @@ import {
   UnauthorizedError,
   ForbiddenError,
   NotImplementedError,
-} from '../../shared/errors';
+} from '../../shared/errors.js';
 
 // Re-export AppError for convenience (legacy imports in some routes)
 export { AppError };

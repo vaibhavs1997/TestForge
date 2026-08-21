@@ -1,8 +1,8 @@
 // RequirementRoutes - Route definitions for Requirement Workspace
 import { Router } from 'express';
-import { RequirementController } from './RequirementController';
-import { AIRequirementController } from './AIRequirementController';
-import { container } from '../../application/ApplicationContainer';
+import { RequirementController } from './RequirementController.js';
+import { AIRequirementController } from './AIRequirementController.js';
+import { container } from '../../application/ApplicationContainer.js';
 
 // Reuse shared use cases from the ApplicationContainer
 const {
@@ -27,21 +27,21 @@ const {
 } = container;
 
 // Initialize use cases
-import { CreateRequirement } from '../../application/requirements/CreateRequirement';
-import { UpdateRequirement } from '../../application/requirements/UpdateRequirement';
-import { DeleteRequirement } from '../../application/requirements/DeleteRequirement';
-import { GetRequirement } from '../../application/requirements/GetRequirement';
-import { ListRequirements } from '../../application/requirements/ListRequirements';
-import { GenerateFromAnalysis } from '../../application/requirements/GenerateFromAnalysis';
-import { ValidateRequirementReadiness } from '../../application/requirements/ValidateRequirementReadiness';
-import { PlanTestStrategy } from '../../application/requirements/PlanTestStrategy';
-import { GenerateTestDesigns } from '../../application/requirements/GenerateTestDesigns';
-import { PlanExecution } from '../../application/requirements/PlanExecution';
-import { GenerateRequirementTestCases } from '../../application/requirements/GenerateRequirementTestCases';
-import { ImportRequirementFromJira } from '../../application/requirements/ImportRequirementFromJira';
-import { UpdateTestDesign } from '../../application/requirements/UpdateTestDesign';
-import { GetRequirementMappingContext } from '../../application/requirements/GetRequirementMappingContext';
-import { asyncHandler } from '../middleware/AsyncHandler';
+import { CreateRequirement } from '../../application/requirements/CreateRequirement.js';
+import { UpdateRequirement } from '../../application/requirements/UpdateRequirement.js';
+import { DeleteRequirement } from '../../application/requirements/DeleteRequirement.js';
+import { GetRequirement } from '../../application/requirements/GetRequirement.js';
+import { ListRequirements } from '../../application/requirements/ListRequirements.js';
+import { GenerateFromAnalysis } from '../../application/requirements/GenerateFromAnalysis.js';
+import { ValidateRequirementReadiness } from '../../application/requirements/ValidateRequirementReadiness.js';
+import { PlanTestStrategy } from '../../application/requirements/PlanTestStrategy.js';
+import { GenerateTestDesigns } from '../../application/requirements/GenerateTestDesigns.js';
+import { PlanExecution } from '../../application/requirements/PlanExecution.js';
+import { GenerateRequirementTestCases } from '../../application/requirements/GenerateRequirementTestCases.js';
+import { ImportRequirementFromJira } from '../../application/requirements/ImportRequirementFromJira.js';
+import { UpdateTestDesign } from '../../application/requirements/UpdateTestDesign.js';
+import { GetRequirementMappingContext } from '../../application/requirements/GetRequirementMappingContext.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 const createRequirement = new CreateRequirement(requirementRepository);
 const importRequirementFromJira = new ImportRequirementFromJira(createRequirement);

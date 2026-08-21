@@ -1,4 +1,4 @@
-import type { ProjectRecord } from '../../domain/project/ProjectRecord';
+import type { ProjectRecord } from '../../domain/project/ProjectRecord.js';
 
 export interface ProjectRepository {
   list(): Promise<ProjectRecord[]>;

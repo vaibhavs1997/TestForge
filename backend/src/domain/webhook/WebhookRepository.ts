@@ -1,6 +1,6 @@
 // Webhook repository interface
 
-import { WebhookEntity } from './WebhookEntity';
+import { WebhookEntity } from './WebhookEntity.js';
 
 export interface WebhookRepository {
   list(projectId?: string): Promise<WebhookEntity[]>;

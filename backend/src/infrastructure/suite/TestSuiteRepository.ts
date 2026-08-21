@@ -1,8 +1,8 @@
 // TestSuiteRepository - File-based repository implementation for Test Suite Management
 import * as fs from 'fs';
 import * as path from 'path';
-import { TestSuiteEntity } from '../../domain/suite/TestSuiteEntity';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { TestSuiteEntity } from '../../domain/suite/TestSuiteEntity.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'test-suites');

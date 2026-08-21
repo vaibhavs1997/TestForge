@@ -1,8 +1,8 @@
 // ExecutionRoutes - Route definitions for Execution Engine
 import { Router } from 'express';
-import { ExecutionController } from './ExecutionController';
-import { container } from '../../application/ApplicationContainer';
-import { asyncHandler } from '../middleware/AsyncHandler';
+import { ExecutionController } from './ExecutionController.js';
+import { container } from '../../application/ApplicationContainer.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 // Reuse the ExecutePlan instance from ApplicationContainer — it is already
 // wired with EventPublisher (Sprint 3 cross-cutting integration).

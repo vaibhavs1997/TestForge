@@ -1,8 +1,8 @@
 // ApiServiceRepository - File-based repository implementation
 import * as fs from 'fs';
 import * as path from 'path';
-import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'apis');

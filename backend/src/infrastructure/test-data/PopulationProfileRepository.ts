@@ -1,8 +1,8 @@
 // PopulationProfileRepository - File-based repository implementation
 import * as fs from 'fs';
 import * as path from 'path';
-import { PopulationProfileEntity } from '../../domain/test-data/PopulationProfileEntity';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { PopulationProfileEntity } from '../../domain/test-data/PopulationProfileEntity.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'test-data');

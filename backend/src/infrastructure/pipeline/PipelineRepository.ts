@@ -1,9 +1,9 @@
 // PipelineRepository - File-based repository implementation
 import * as fs from 'fs';
 import * as path from 'path';
-import { PipelineRepository } from '../../domain/pipeline/PipelineRepository';
-import { PipelineEntity, PipelineStage, PipelineStatus, StageResult } from '../../domain/pipeline/PipelineEntity';
-import { readJsonFile, writeJsonFile } from '../persistence/JsonFileStore';
+import { PipelineRepository } from '../../domain/pipeline/PipelineRepository.js';
+import { PipelineEntity, PipelineStage, PipelineStatus, StageResult } from '../../domain/pipeline/PipelineEntity.js';
+import { readJsonFile, writeJsonFile } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'pipelines');

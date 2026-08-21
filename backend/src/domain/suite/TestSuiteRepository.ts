@@ -1,5 +1,5 @@
 // TestSuiteRepository - Domain Repository Interface for Test Suite Management
-import { TestSuiteEntity } from './TestSuiteEntity';
+import { TestSuiteEntity } from './TestSuiteEntity.js';
 
 export interface TestSuiteRepository {
   create(suite: TestSuiteEntity): Promise<TestSuiteEntity>;

@@ -1,25 +1,25 @@
 // ApiController - Controller for API Management endpoints
 import { Request, Response } from 'express';
-import { CreateApiService } from '../../application/api/CreateApiService';
-import { UpdateApiService } from '../../application/api/UpdateApiService';
-import { DeleteApiService } from '../../application/api/DeleteApiService';
-import { GetApiService } from '../../application/api/GetApiService';
-import { ListApiServices } from '../../application/api/ListApiServices';
-import { CreateApiOperation } from '../../application/api/CreateApiOperation';
-import { UpdateApiOperation } from '../../application/api/UpdateApiOperation';
-import { DeleteApiOperation } from '../../application/api/DeleteApiOperation';
-import { DeleteApiContract } from '../../application/api/DeleteApiContract';
-import { GetApiOperation } from '../../application/api/GetApiOperation';
-import { ListApiOperations } from '../../application/api/ListApiOperations';
-import { ExecuteApiRequest } from '../../application/api/ExecuteApiRequest';
-import { ImportApiContract, ImportSummary } from '../../application/api/ImportApiContract';
-import { RefreshApiContract, RefreshApiContractResult } from '../../application/api/RefreshApiContract';
-import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
-import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
-import { createSuccessResponse } from "../../shared/ApiResponse";
-import { fetchContractFromUrl } from '../../infrastructure/http/fetchContractFromUrl';
-import { serializeApiOperation, serializeApiService } from './ApiDtos';
-import { NotFoundError } from '../../shared/errors';
+import { CreateApiService } from '../../application/api/CreateApiService.js';
+import { UpdateApiService } from '../../application/api/UpdateApiService.js';
+import { DeleteApiService } from '../../application/api/DeleteApiService.js';
+import { GetApiService } from '../../application/api/GetApiService.js';
+import { ListApiServices } from '../../application/api/ListApiServices.js';
+import { CreateApiOperation } from '../../application/api/CreateApiOperation.js';
+import { UpdateApiOperation } from '../../application/api/UpdateApiOperation.js';
+import { DeleteApiOperation } from '../../application/api/DeleteApiOperation.js';
+import { DeleteApiContract } from '../../application/api/DeleteApiContract.js';
+import { GetApiOperation } from '../../application/api/GetApiOperation.js';
+import { ListApiOperations } from '../../application/api/ListApiOperations.js';
+import { ExecuteApiRequest } from '../../application/api/ExecuteApiRequest.js';
+import { ImportApiContract, ImportSummary } from '../../application/api/ImportApiContract.js';
+import { RefreshApiContract, RefreshApiContractResult } from '../../application/api/RefreshApiContract.js';
+import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository.js';
+import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
+import { fetchContractFromUrl } from '../../infrastructure/http/fetchContractFromUrl.js';
+import { serializeApiOperation, serializeApiService } from './ApiDtos.js';
+import { NotFoundError } from '../../shared/errors.js';
 export class ApiController {
     constructor(private readonly createApiService: CreateApiService, private readonly updateApiService: UpdateApiService, private readonly deleteApiService: DeleteApiService, private readonly getApiService: GetApiService, private readonly listApiServices: ListApiServices, private readonly createApiOperation: CreateApiOperation, private readonly updateApiOperation: UpdateApiOperation, private readonly deleteApiOperation: DeleteApiOperation, private readonly getApiOperation: GetApiOperation, private readonly listApiOperations: ListApiOperations, private readonly importApiContract: ImportApiContract, private readonly refreshApiContract: RefreshApiContract, private readonly deleteApiContract: DeleteApiContract, private readonly executeApiRequest: ExecuteApiRequest, private readonly apiServiceRepository: ApiServiceRepository, private readonly apiOperationRepository: ApiOperationRepository) { }
     private async requireServiceInProject(projectId: string, serviceId: string) {

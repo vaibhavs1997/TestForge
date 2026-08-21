@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
-import { OperationDependencyResolver } from './OperationDependencyResolver';
+import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity.js';
+import { OperationDependencyResolver } from './OperationDependencyResolver.js';
 
 const op = (id: string) => new ApiOperationEntity(id, 'p', 's', id, 'POST', `/${id}`, '', 'None', 'Active', 0, 0);
 

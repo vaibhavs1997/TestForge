@@ -1,5 +1,5 @@
 // ProviderRepository - Domain Repository Interface for Provider Framework
-import { ProviderEntity } from './ProviderEntity';
+import { ProviderEntity } from './ProviderEntity.js';
 
 export interface ProviderRepository {
   create(provider: ProviderEntity): Promise<ProviderEntity>;

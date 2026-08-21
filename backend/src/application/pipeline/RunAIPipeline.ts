@@ -2,13 +2,13 @@
 // Executes the complete AI workflow by reusing existing AI generation use cases.
 // Does NOT implement any new framework. Stop-on-failure semantics.
 
-import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
-import { GenerateRequirementsWithAI } from '../requirements/GenerateRequirementsWithAI';
-import { GenerateTestStrategyWithAI } from '../requirements/GenerateTestStrategyWithAI';
-import { GenerateTestDesignWithAI } from '../requirements/GenerateTestDesignWithAI';
-import { GenerateAssertionsWithAI } from '../assertion/GenerateAssertionsWithAI';
-import { GenerateExecutionPlanWithAI } from '../requirements/GenerateExecutionPlanWithAI';
-import { GenerateTestSuiteWithAI } from '../suite/GenerateTestSuiteWithAI';
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
+import { GenerateRequirementsWithAI } from '../requirements/GenerateRequirementsWithAI.js';
+import { GenerateTestStrategyWithAI } from '../requirements/GenerateTestStrategyWithAI.js';
+import { GenerateTestDesignWithAI } from '../requirements/GenerateTestDesignWithAI.js';
+import { GenerateAssertionsWithAI } from '../assertion/GenerateAssertionsWithAI.js';
+import { GenerateExecutionPlanWithAI } from '../requirements/GenerateExecutionPlanWithAI.js';
+import { GenerateTestSuiteWithAI } from '../suite/GenerateTestSuiteWithAI.js';
 
 export interface RunAIPipelineRequest {
   projectId: string;

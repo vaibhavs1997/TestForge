@@ -2,8 +2,8 @@
 // These are deterministic, system-provided templates that require no LLM calls
 // to be constructed. They are seeded into the PromptRepository on first access.
 
-import { PromptTemplateEntity, PromptTemplateCategory } from '../../domain/prompt';
-import { PromptRepository } from './PromptRepository';
+import { PromptTemplateEntity, PromptTemplateCategory } from '../../domain/prompt/index.js';
+import { PromptRepository } from './PromptRepository.js';
 
 export interface BuiltinTemplateDef {
   id: string;

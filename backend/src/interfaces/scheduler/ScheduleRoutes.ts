@@ -1,7 +1,7 @@
 // ScheduleRoutes - Route definitions for Scheduler Module
 import { Router } from 'express';
-import { ScheduleController } from './ScheduleController';
-import { container } from '../../application/ApplicationContainer';
+import { ScheduleController } from './ScheduleController.js';
+import { container } from '../../application/ApplicationContainer.js';
 
 // Reuse shared repositories and services from the ApplicationContainer
 const {
@@ -23,10 +23,10 @@ const {
 } = container;
 
 // Initialize use cases
-import { CreateSchedule } from '../../application/scheduler/CreateSchedule';
-import { UpdateSchedule } from '../../application/scheduler/UpdateSchedule';
-import { GetSchedule, ListSchedules, DeleteSchedule } from '../../application/scheduler/ManageSchedules';
-import { asyncHandler } from '../middleware/AsyncHandler';
+import { CreateSchedule } from '../../application/scheduler/CreateSchedule.js';
+import { UpdateSchedule } from '../../application/scheduler/UpdateSchedule.js';
+import { GetSchedule, ListSchedules, DeleteSchedule } from '../../application/scheduler/ManageSchedules.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 const createSchedule = new CreateSchedule(scheduleRepository, testSuiteRepository);
 const updateSchedule = new UpdateSchedule(scheduleRepository, testSuiteRepository);

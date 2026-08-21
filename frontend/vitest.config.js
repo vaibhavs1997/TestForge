@@ -18,5 +18,11 @@ export default defineConfig({
     css: true,
     pool: 'threads',
     maxWorkers: 1,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json-summary'],
+      reportsDirectory: 'coverage',
+      thresholds: { statements: 60, branches: 45, functions: 55, lines: 62 },
+    },
   },
 });

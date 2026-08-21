@@ -12,6 +12,7 @@ export interface AppConfig {
   gitCommit: string;
   mongodbUri?: string;
   auth: AuthConfig;
+  runtimeMode: 'local-node' | 'distributed';
 }
 
 export type PersistenceDriver = 'json' | 'memory' | 'sqlite';
@@ -80,6 +81,10 @@ export function validateConfig(env: NodeJS.ProcessEnv = process.env): AppConfig 
   const mongodbUri = env.MONGODB_URI?.trim() || undefined;
   const auth = getAuthConfig(env);
   const nodeEnv = env.NODE_ENV || 'development';
+  const runtimeMode = env.RUNTIME_COORDINATION_MODE === 'distributed' ? 'distributed' : 'local-node';
+  if (nodeEnv === 'production' && env.BACKEND_REPLICAS && Number(env.BACKEND_REPLICAS) > 1 && runtimeMode !== 'distributed') {
+    throw new Error('Configuration validation failed. Multi-instance production requires RUNTIME_COORDINATION_MODE=distributed with atomic job/lease adapters.');
+  }
   const defaultCorsOrigin =
     nodeEnv === 'production'
       ? 'https://your-domain.com'
@@ -104,5 +109,6 @@ export function validateConfig(env: NodeJS.ProcessEnv = process.env): AppConfig 
     gitCommit: env.GIT_COMMIT || GIT_COMMIT,
     mongodbUri,
     auth,
+    runtimeMode,
   };
 }

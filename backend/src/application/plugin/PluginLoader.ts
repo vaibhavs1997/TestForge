@@ -2,9 +2,9 @@
 // Registers existing providers and notification channels as plugins.
 
 import { randomUUID } from 'node:crypto';
-import { PluginEntity } from '../../domain/plugin';
-import type { PluginCategory, PluginCapability } from '../../domain/plugin';
-import { PluginRegistry } from './PluginRegistry';
+import { PluginEntity } from '../../domain/plugin/index.js';
+import type { PluginCategory, PluginCapability } from '../../domain/plugin/index.js';
+import { PluginRegistry } from './PluginRegistry.js';
 
 export class PluginLoader {
   constructor(private readonly pluginRegistry: PluginRegistry) {}

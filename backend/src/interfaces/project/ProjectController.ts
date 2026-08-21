@@ -1,12 +1,12 @@
 import { Request, Response } from 'express';
-import { CreateProject, DeleteProject, GetProject, ListProjects, UpdateProject } from '../../application/project/ProjectUseCases';
-import { createSuccessResponse } from '../../shared/ApiResponse';
-import { AppError } from '../middleware/ErrorHandler';
-import { ERROR_CODES } from '../../shared/ApiResponse';
-import { canAccessProject, filterProjectsForAuth, getAuthSubject, getAuthTenantId, hasGlobalProjectAccess } from '../middleware/projectAccess';
-import { getAuthConfig } from '../../config';
-import { AuditLogService } from '../../application/audit/AuditLogService';
-import { ValidationError } from '../../shared/errors';
+import { CreateProject, DeleteProject, GetProject, ListProjects, UpdateProject } from '../../application/project/ProjectUseCases.js';
+import { createSuccessResponse } from '../../shared/ApiResponse.js';
+import { AppError } from '../middleware/ErrorHandler.js';
+import { ERROR_CODES } from '../../shared/ApiResponse.js';
+import { canAccessProject, filterProjectsForAuth, getAuthSubject, getAuthTenantId, hasGlobalProjectAccess } from '../middleware/projectAccess.js';
+import { getAuthConfig } from '../../config.js';
+import { AuditLogService } from '../../application/audit/AuditLogService.js';
+import { ValidationError } from '../../shared/errors.js';
 
 export class ProjectController {
   constructor(

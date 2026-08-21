@@ -2,26 +2,16 @@
 // Generates a report from a completed Execution Run.
 // Reuses existing execution and validation results. Does NOT recompute execution.
 import { randomUUID } from 'node:crypto';
-import { ReportEntity, ReportStatus, ReportSection, ReportValidationSummary, ReportRecommendationSummary, ReportEnvironment } from '../../domain/report/ReportEntity';
-import { ReportRepository } from '../../domain/report/ReportRepository';
-import { ExecutionRunRepository } from '../../domain/execution/ExecutionRunRepository';
-import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository';
-import { RecommendationEngine } from '../recommendation/RecommendationEngine';
-import { EventPublisher } from '../EventPublisher';
+import { ReportEntity, ReportStatus, ReportSection, ReportValidationSummary, ReportRecommendationSummary, ReportEnvironment } from '../../domain/report/ReportEntity.js';
+import { ReportRepository } from '../../domain/report/ReportRepository.js';
+import { ExecutionRunRepository } from '../../domain/execution/ExecutionRunRepository.js';
+import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository.js';
+import { RecommendationEngine } from '../recommendation/RecommendationEngine.js';
+import { EventPublisher } from '../EventPublisher.js';
+import { sensitiveDataRedactor } from '../../infrastructure/security/SensitiveDataRedactionService.js';
+import { defaultEvidenceGovernance } from '../../infrastructure/security/EvidenceGovernanceService.js';
 
 const REPORT_VERSION = '1.0.0';
-
-// Sensitive variable name patterns to mask
-const SENSITIVE_PATTERNS = [
-  /password/i,
-  /secret/i,
-  /token/i,
-  /api[_-]?key/i,
-  /auth/i,
-  /credential/i,
-  /private[_-]?key/i,
-  /access[_-]?key/i,
-];
 
 export class GenerateReport {
   constructor(
@@ -69,11 +59,11 @@ export class GenerateReport {
     }
 
     // 6. Build report sections from execution run data (reuse, do NOT recompute)
-    const stepResults = run.stepResults || [];
+    const stepResults = defaultEvidenceGovernance.protect(run.stepResults || [], 'report') as any[];
     const validationResults = this.extractValidationResults(stepResults);
     const failures = stepResults.filter((s: any) => s.status === 'Failed');
     const executionTimeline = [...stepResults].sort((a, b) => a.startedAt - b.startedAt);
-    const runtimeVariablesCaptured = this.maskSensitiveVariables(run.context.runtimeVariables || {});
+    const runtimeVariablesCaptured = defaultEvidenceGovernance.protect(run.context.runtimeVariables || {}, 'runtime') as Record<string, unknown>;
 
     // 7. Calculate summaries
     const validationSummary: ReportValidationSummary = {
@@ -115,7 +105,7 @@ export class GenerateReport {
       dependencyGraph: run.dependencyGraph || [],
       stepResults,
       validationResults,
-      recommendations,
+      recommendations: defaultEvidenceGovernance.protect(recommendations, 'report') as any[],
       environmentInfo: reportEnvironment,
       runtimeVariablesCaptured,
       failures,
@@ -166,18 +156,6 @@ export class GenerateReport {
       }
     }
     return results;
-  }
-
-  private maskSensitiveVariables(variables: Record<string, any>): Record<string, any> {
-    const masked: Record<string, any> = {};
-    for (const [key, value] of Object.entries(variables)) {
-      if (SENSITIVE_PATTERNS.some(pattern => pattern.test(key))) {
-        masked[key] = '********';
-      } else {
-        masked[key] = value;
-      }
-    }
-    return masked;
   }
 
   private determineOverallStatus(run: any, validationSummary: ReportValidationSummary): ReportStatus {

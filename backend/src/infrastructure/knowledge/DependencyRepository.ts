@@ -1,8 +1,8 @@
 // DependencyRepository - File-based repository implementation for Dependencies
 import * as fs from 'fs';
 import * as path from 'path';
-import { Dependency } from '../../domain/knowledge/DependencyEntity';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { Dependency } from '../../domain/knowledge/DependencyEntity.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'knowledge');

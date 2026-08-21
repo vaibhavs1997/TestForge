@@ -1,5 +1,5 @@
 // ListPopulationProfiles - Application Use Case
-import { PopulationProfileRepository } from '../../domain/test-data/PopulationProfileRepository';
+import { PopulationProfileRepository } from '../../domain/test-data/PopulationProfileRepository.js';
 
 export class ListPopulationProfiles {
   constructor(private readonly profileRepository: PopulationProfileRepository) {}

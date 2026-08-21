@@ -3,7 +3,7 @@
  * Provides consistent error response formatting across the API
  */
 
-import { ApiErrorResponse } from '../../interfaces/types/ApiResponse';
+import { ApiErrorResponse } from '../../interfaces/types/ApiResponse.js';
 
 export class ErrorResponseBuilder {
   /**

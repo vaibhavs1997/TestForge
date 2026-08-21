@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { IntegrationsController } from './IntegrationsController';
-import { asyncHandler } from '../middleware/AsyncHandler';
+import { IntegrationsController } from './IntegrationsController.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 const integrationsController = new IntegrationsController();
 const router = Router();

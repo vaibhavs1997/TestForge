@@ -1,6 +1,6 @@
 const MAX_BYTES = 10 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 30_000;
-import { assertSafeOutboundUrl } from '../security/outboundUrl';
+import { assertSafeOutboundUrl } from '../security/outboundUrl.js';
 
 export async function fetchContractFromUrl(
   urlString: string,

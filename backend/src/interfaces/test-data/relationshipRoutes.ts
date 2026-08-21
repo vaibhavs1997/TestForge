@@ -1,8 +1,8 @@
 // RelationshipRoutes - Route definitions for Dataset Relationships
 import { Router } from 'express';
-import { RelationshipController } from './RelationshipController';
-import { container } from '../../application/ApplicationContainer';
-import { asyncHandler } from '../middleware/AsyncHandler';
+import { RelationshipController } from './RelationshipController.js';
+import { container } from '../../application/ApplicationContainer.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 // Reuse shared repository from the ApplicationContainer
 const { relationshipRepository } = container;

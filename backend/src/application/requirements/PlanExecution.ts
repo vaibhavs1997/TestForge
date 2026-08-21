@@ -3,13 +3,13 @@
 // Does NOT execute APIs. It prepares execution.
 // Reuses Test Design, Knowledge Flows, Runtime Variables, Population Strategies, API Operations.
 import { randomUUID } from 'node:crypto';
-import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
-import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository';
-import { ExecutionPlanRepository } from '../../domain/requirements/ExecutionPlanRepository';
-import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository';
-import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
-import { ExecutionPlanEntity, RequestTemplate, ExecutionPlanStatus } from '../../domain/requirements/ExecutionPlanEntity';
-import { TestDesignEntity } from '../../domain/requirements/TestDesignEntity';
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
+import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository.js';
+import { ExecutionPlanRepository } from '../../domain/requirements/ExecutionPlanRepository.js';
+import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository.js';
+import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository.js';
+import { ExecutionPlanEntity, RequestTemplate, ExecutionPlanStatus } from '../../domain/requirements/ExecutionPlanEntity.js';
+import { TestDesignEntity } from '../../domain/requirements/TestDesignEntity.js';
 
 export class PlanExecution {
   constructor(

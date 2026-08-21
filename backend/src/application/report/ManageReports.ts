@@ -1,9 +1,9 @@
 // ManageReports - Application Use Case for Reporting Module
 // Handles CRUD operations for reports (create, get, list, delete).
 // Report generation is handled by GenerateReport use case.
-import { deleteById, requireById } from '../shared/crudHelpers';
-import { ReportEntity } from '../../domain/report/ReportEntity';
-import { ReportRepository } from '../../domain/report/ReportRepository';
+import { deleteById, requireById } from '../shared/crudHelpers.js';
+import { ReportEntity } from '../../domain/report/ReportEntity.js';
+import { ReportRepository } from '../../domain/report/ReportRepository.js';
 
 export class ManageReports {
   constructor(private readonly reportRepository: ReportRepository) {}

@@ -1,8 +1,8 @@
 // AnalysisRepository - File-based repository implementation
 import * as fs from 'fs';
 import * as path from 'path';
-import { AnalysisEntity } from '../../domain/analysis/AnalysisEntity';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { AnalysisEntity } from '../../domain/analysis/AnalysisEntity.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'analysis');

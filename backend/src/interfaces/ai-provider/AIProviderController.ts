@@ -1,7 +1,7 @@
 // AIProviderController - Controller for AI Provider Management endpoints
 import { Request, Response } from 'express';
-import { ManageAIProviders } from '../../application/ai-provider/ManageAIProviders';
-import { createSuccessResponse } from "../../shared/ApiResponse";
+import { ManageAIProviders } from '../../application/ai-provider/ManageAIProviders.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
 export class AIProviderController {
     constructor(private readonly manageAIProviders: ManageAIProviders) { }
     private toPublicProvider(provider: any): any {

@@ -1,8 +1,8 @@
 // ProviderAdapters - Concrete adapter implementations for each supported AI provider category.
 
-import type { AIProviderType } from '../../../domain/ai-provider';
-import { BaseAIProviderAdapter } from './BaseAIProviderAdapter';
-import { OllamaAdapter } from './OllamaAdapter';
+import type { AIProviderType } from '../../../domain/ai-provider/index.js';
+import { BaseAIProviderAdapter } from './BaseAIProviderAdapter.js';
+import { OllamaAdapter } from './OllamaAdapter.js';
 import axios from 'axios';
 
 export { OllamaAdapter };
@@ -15,7 +15,7 @@ export class OpenAIAdapter extends BaseAIProviderAdapter {
   protected readonly inputCostPer1K = 0.005;
   protected readonly outputCostPer1K = 0.015;
 
-  override validateConfiguration(config: import('../../../domain/ai-provider').AIProviderConfig): string[] {
+  override validateConfiguration(config: import('../../../domain/ai-provider/index.js').AIProviderConfig): string[] {
     const errors = super.validateConfiguration(config);
     if (!config.apiKey?.trim()) errors.push('API key is required for OpenAI.');
     if (config.endpoint && !/^https?:\/\//i.test(config.endpoint)) {
@@ -24,7 +24,7 @@ export class OpenAIAdapter extends BaseAIProviderAdapter {
     return errors;
   }
 
-  override async health(config: import('../../../domain/ai-provider').AIProviderConfig): Promise<import('../../../domain/ai-provider').AIProviderHealthResult> {
+  override async health(config: import('../../../domain/ai-provider/index.js').AIProviderConfig): Promise<import('../../../domain/ai-provider/index.js').AIProviderHealthResult> {
     const errors = this.validateConfiguration(config);
     if (errors.length > 0) return { healthy: false, message: errors.join('; '), details: { errors } };
 
@@ -41,10 +41,10 @@ export class OpenAIAdapter extends BaseAIProviderAdapter {
   }
 
   override async generate(
-    config: import('../../../domain/ai-provider').AIProviderConfig,
-    messages: import('../../../domain/ai-provider').AIProviderMessage[],
-    options?: import('../../../domain/ai-provider').AIProviderGenerateOptions,
-  ): Promise<import('../../../domain/ai-provider').AIProviderGenerateResult> {
+    config: import('../../../domain/ai-provider/index.js').AIProviderConfig,
+    messages: import('../../../domain/ai-provider/index.js').AIProviderMessage[],
+    options?: import('../../../domain/ai-provider/index.js').AIProviderGenerateOptions,
+  ): Promise<import('../../../domain/ai-provider/index.js').AIProviderGenerateResult> {
     const errors = this.validateConfiguration(config);
     if (errors.length > 0) throw new Error(errors.join('; '));
 
@@ -97,11 +97,11 @@ export class GroqAdapter extends OpenAIAdapter {
   protected override readonly defaultEndpoint: string = 'https://api.groq.com/openai/v1';
 }
 
-function resolveOpenAIBase(config: import('../../../domain/ai-provider').AIProviderConfig, fallback: string): string {
+function resolveOpenAIBase(config: import('../../../domain/ai-provider/index.js').AIProviderConfig, fallback: string): string {
   return (config.endpoint || fallback).trim().replace(/\/+$/, '');
 }
 
-function openAIHeaders(config: import('../../../domain/ai-provider').AIProviderConfig): Record<string, string> {
+function openAIHeaders(config: import('../../../domain/ai-provider/index.js').AIProviderConfig): Record<string, string> {
   return {
     Authorization: `Bearer ${config.apiKey}`,
     ...(config.organization ? { 'OpenAI-Organization': config.organization } : {}),

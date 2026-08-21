@@ -1,8 +1,8 @@
 // CreateAnalysis - Application Use Case
 import { randomUUID } from 'node:crypto';
-import { AnalysisRepository } from '../../domain/analysis/AnalysisRepository';
-import { AnalysisEntity, AnalysisStatus } from '../../domain/analysis/AnalysisEntity';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { AnalysisRepository } from '../../domain/analysis/AnalysisRepository.js';
+import { AnalysisEntity, AnalysisStatus } from '../../domain/analysis/AnalysisEntity.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export class CreateAnalysis {
   constructor(private readonly analysisRepository: AnalysisRepository) {}

@@ -3,9 +3,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'node:crypto';
-import { IExecutionProfileRepository } from '../../domain/execution/ExecutionProfileRepository';
-import { ExecutionProfileEntity } from '../../domain/execution/ExecutionProfileEntity';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { IExecutionProfileRepository } from '../../domain/execution/ExecutionProfileRepository.js';
+import { ExecutionProfileEntity } from '../../domain/execution/ExecutionProfileEntity.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 const getDataRoot = () => path.join(process.cwd(), 'data', 'execution-profiles');
 

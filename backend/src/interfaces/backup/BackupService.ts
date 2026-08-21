@@ -1,7 +1,7 @@
 // Backup & Restore Service
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
+import { execFileSync, execSync } from 'child_process';
 import { APP_VERSION, BUILD_TIMESTAMP, GIT_COMMIT } from '../../config';
 
 export interface BackupMetadata {
@@ -119,6 +119,7 @@ export class BackupService {
    * Restore from a backup by ID.
    */
   async restoreBackup(id: string): Promise<{ success: boolean; message: string }> {
+    this.validateBackupId(id);
     const backupPath = path.join(this.backupDir, id);
     if (!fs.existsSync(backupPath)) {
       return { success: false, message: `Backup not found: ${id}` };
@@ -161,12 +162,34 @@ export class BackupService {
    * Delete a backup by ID.
    */
   deleteBackup(id: string): { success: boolean; message: string } {
+    this.validateBackupId(id);
     const backupPath = path.join(this.backupDir, id);
     if (!fs.existsSync(backupPath)) {
       return { success: false, message: `Backup not found: ${id}` };
     }
     fs.rmSync(backupPath, { recursive: true, force: true });
     return { success: true, message: `Backup ${id} deleted` };
+  }
+
+  private validateBackupId(id: string): void {
+    if (!/^[A-Za-z0-9._-]+$/.test(id) || id === '.' || id === '..' || path.basename(id) !== id) {
+      throw new Error('Invalid backup id');
+    }
+  }
+
+  private validateArchiveEntries(archivePath: string): void {
+    let listing = '';
+    try {
+      listing = execFileSync('unzip', ['-Z1', archivePath], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch {
+      listing = execFileSync('tar', ['-tzf', archivePath], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    }
+    for (const entry of listing.split(/\r?\n/).filter(Boolean)) {
+      const normalized = entry.replace(/\\/g, '/');
+      if (normalized.startsWith('/') || normalized.split('/').includes('..') || /^[A-Za-z]:\//.test(normalized)) {
+        throw new Error('Archive contains an unsafe path');
+      }
+    }
   }
 
   /**
@@ -240,6 +263,7 @@ export class BackupService {
     fs.mkdirSync(importDir, { recursive: true });
 
     try {
+      this.validateArchiveEntries(zipPath);
       // Extract archive
       try {
         execSync(`cd "${importDir}" && unzip -o "${zipPath}"`, { stdio: 'pipe' });

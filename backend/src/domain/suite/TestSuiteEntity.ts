@@ -29,7 +29,11 @@ export class TestSuiteEntity {
     public estimatedDuration: number,
     public status: SuiteStatus,
     public readonly createdAt: number,
-    public updatedAt: number
+    public updatedAt: number,
+    /** Incremented whenever an active suite is re-approved. */
+    public version: number = 0,
+    /** The moment this executable suite version was approved. */
+    public approvedAt: number | null = null
   ) {}
 }
 

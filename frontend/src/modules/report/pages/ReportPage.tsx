@@ -8,7 +8,7 @@ import { Badge } from '../../../components/ui/Badge';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
-import { FileText, Download, Plus, CheckCircle, XCircle, AlertTriangle, Eye, Trash2, FileDown, Clock, Play } from 'lucide-react';
+import { FileText, Download, Plus, CheckCircle, XCircle, AlertTriangle, Eye, Trash2, FileDown, Clock } from 'lucide-react';
 
 // Hooks
 import { useReports } from '../hooks';
@@ -181,10 +181,6 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
             <Download className='mr-2 h-4 w-4' />
             Export All
           </Button>
-          <Button variant='outline' onClick={() => navigate(`/projects/${projectId}/execution`)}>
-            <Play className='mr-2 h-4 w-4' />
-            Executions
-          </Button>
           <Button onClick={() => setGenerateOpen(true)}>
             <Plus className='mr-2 h-4 w-4' />
             Generate Report
@@ -302,7 +298,7 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
                     <th className='px-4 py-3 font-medium'>Requirement</th>
                     <th className='px-4 py-3 font-medium'>Environment</th>
                     <th className='px-4 py-3 font-medium'>Status</th>
-                    <th className='px-4 py-3 font-medium'>Steps</th>
+                    <th className='px-4 py-3 font-medium'>Test cases</th>
                     <th className='px-4 py-3 font-medium'>Passed</th>
                     <th className='px-4 py-3 font-medium'>Failed</th>
                     <th className='px-4 py-3 font-medium'>Duration</th>

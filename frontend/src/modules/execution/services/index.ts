@@ -4,6 +4,7 @@ import { apiAxios } from '../../../services/apiAxios';
 import type { ExecutionPlanDto, ExecutionRunDto } from '../../../types/moduleContracts';
 import { normalizeExecutionPlan, normalizeExecutionRun } from '../../../utils/moduleAdapters';
 import type { ExecutionPlan } from '../../requirements/types';
+import type { RunnableSuite } from '../types';
 import { API_BASE_URL } from '../../../constants/api';
 
 export const executionService = {
@@ -48,6 +49,19 @@ export const executionService = {
           .filter((plan) => plan && typeof plan.testDesignId === 'string' && typeof plan.operationId === 'string' && plan.requestTemplate && typeof plan.requestTemplate === 'object')
           .map(normalizeExecutionPlan)
       : [];
+  },
+
+  listRunnableSuites: async (projectId: string): Promise<RunnableSuite[]> => {
+    const { data } = await apiAxios.get(`${API_BASE_URL}/projects/${projectId}/execution/suites`);
+    return Array.isArray(data?.data) ? data.data as RunnableSuite[] : [];
+  },
+
+  executeApprovedSuite: async (projectId: string, suiteId: string, executionProfileId?: string): Promise<ExecutionRunDto> => {
+    const { data } = await apiAxios.post(
+      `${API_BASE_URL}/projects/${projectId}/execution/suites/${suiteId}/execute`,
+      { executionProfileId },
+    );
+    return normalizeExecutionRun(data.data as ExecutionRunDto);
   },
 
   deleteExecution: async (projectId: string, runId: string): Promise<void> => {

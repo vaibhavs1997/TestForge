@@ -52,6 +52,17 @@ export class UpdateEnvironment {
     if (params.timeout !== undefined) updateData.timeout = params.timeout;
     if (params.isDefault !== undefined) updateData.isDefault = params.isDefault;
 
+    // Keep one project-wide default environment. The API workspace uses this
+    // flag as the shared environment selection for requirements and execution.
+    if (params.isDefault === true) {
+      const projectEnvironments = await this.environmentRepository.findByProject(existing.projectId);
+      for (const environment of projectEnvironments) {
+        if (environment.id !== existing.id && environment.isDefault) {
+          await this.environmentRepository.update(environment.id, { isDefault: false });
+        }
+      }
+    }
+
     const updated = await this.environmentRepository.update(params.id, updateData);
 
     if (this.eventPublisher) {

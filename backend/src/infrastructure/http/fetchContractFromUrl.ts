@@ -1,5 +1,6 @@
 const MAX_BYTES = 10 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 30_000;
+import { assertSafeOutboundUrl } from '../security/outboundUrl';
 
 export async function fetchContractFromUrl(
   urlString: string,
@@ -14,6 +15,7 @@ export async function fetchContractFromUrl(
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     throw new Error('Only http and https URLs are supported');
   }
+  await assertSafeOutboundUrl(parsed.toString());
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -21,6 +23,7 @@ export async function fetchContractFromUrl(
   try {
     const response = await fetch(urlString, {
       signal: controller.signal,
+      redirect: 'manual',
       headers: { Accept: 'application/json, application/yaml, text/yaml, */*' },
     });
 

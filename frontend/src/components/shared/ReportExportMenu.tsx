@@ -6,12 +6,14 @@ export interface ReportExportMenuProps {
   onExportHtml: () => void;
   onExportJson: () => void;
   onExportCsv: () => void;
+  onExportPdf: () => void;
 }
 
 export const ReportExportMenu: React.FC<ReportExportMenuProps> = ({
   onExportHtml,
   onExportJson,
   onExportCsv,
+  onExportPdf,
 }) => {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
@@ -65,6 +67,17 @@ export const ReportExportMenu: React.FC<ReportExportMenuProps> = ({
           >
             <FileDown className="h-4 w-4" />
             CSV summary
+          </button>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text hover:bg-muted"
+            onClick={() => {
+              onExportPdf();
+              setOpen(false);
+            }}
+          >
+            <FileDown className="h-4 w-4" />
+            PDF
           </button>
         </div>
       )}

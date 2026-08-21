@@ -50,7 +50,9 @@ export class ManageTestSuites {
       input.estimatedDuration || 0,
       input.status || 'Draft',
       now,
-      now
+      now,
+      input.status === 'Active' ? 1 : 0,
+      input.status === 'Active' ? now : null,
     );
 
     return this.suiteRepository.create(suite);
@@ -66,6 +68,13 @@ export class ManageTestSuites {
       ValidationHelpers.validateNotEmpty(input.name, 'Suite name');
     }
 
+    const changesSuiteDefinition = input.name !== undefined || input.description !== undefined ||
+      input.tags !== undefined || input.executionPlans !== undefined ||
+      input.defaultEnvironmentId !== undefined || input.executionPolicy !== undefined ||
+      input.estimatedDuration !== undefined;
+    const becomesOrRemainsActive = (input.status ?? existing.status) === 'Active';
+    const reapproved = becomesOrRemainsActive && (existing.status !== 'Active' || changesSuiteDefinition);
+
     return this.suiteRepository.update(input.id, {
       ...(input.name !== undefined ? { name: input.name.trim() } : {}),
       ...(input.description !== undefined ? { description: input.description } : {}),
@@ -75,6 +84,7 @@ export class ManageTestSuites {
       ...(input.executionPolicy !== undefined ? { executionPolicy: input.executionPolicy } : {}),
       ...(input.estimatedDuration !== undefined ? { estimatedDuration: input.estimatedDuration } : {}),
       ...(input.status !== undefined ? { status: input.status } : {}),
+      ...(reapproved ? { version: Math.max(existing.version || 0, 0) + 1, approvedAt: Date.now() } : {}),
     });
   }
 
@@ -103,6 +113,9 @@ export class ManageTestSuites {
     if (!suite) {
       throw new Error(`Test Suite with id ${suiteId} not found`);
     }
+    if (suite.status === 'Active') {
+      throw new Error('Approved suites are immutable. Duplicate or move the suite to Draft before changing its test cases.');
+    }
 
     const existing = suite.executionPlans.find(item => item.executionPlanId === executionPlanId);
     if (existing) {
@@ -122,6 +135,9 @@ export class ManageTestSuites {
     if (!suite) {
       throw new Error(`Test Suite with id ${suiteId} not found`);
     }
+    if (suite.status === 'Active') {
+      throw new Error('Approved suites are immutable. Duplicate or move the suite to Draft before changing its test cases.');
+    }
 
     const updatedPlans = suite.executionPlans.filter(item => item.executionPlanId !== executionPlanId);
     return this.suiteRepository.update(suiteId, { executionPlans: updatedPlans });
@@ -131,6 +147,9 @@ export class ManageTestSuites {
     const suite = await this.suiteRepository.findById(suiteId);
     if (!suite) {
       throw new Error(`Test Suite with id ${suiteId} not found`);
+    }
+    if (suite.status === 'Active') {
+      throw new Error('Approved suites are immutable. Duplicate or move the suite to Draft before changing its test cases.');
     }
 
     const updatedPlans: TestSuiteItem[] = orderedPlanIds.map((planId, index) => ({

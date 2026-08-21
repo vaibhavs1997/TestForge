@@ -283,6 +283,7 @@ export interface ExecutionRunDto extends TimestampedDto {
   suiteId?: string | null;
   executionPlanIds?: string[];
   dependencyGraph?: Array<{ executionPlanId: string; prerequisitePlanIds: string[] }>;
+  suiteSnapshot?: Record<string, unknown> | null;
 }
 
 export interface ExecutionPlanDto extends TimestampedDto {

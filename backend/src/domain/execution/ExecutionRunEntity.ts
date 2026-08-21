@@ -121,7 +121,9 @@ export class ExecutionRunEntity {
     public readonly executionProfile: ExecutionProfileMetadata | null = null,
     public readonly suiteId: string | null = null,
     public readonly executionPlanIds: string[] = [],
-    public readonly dependencyGraph: ExecutionDependencyRecord[] = []
+    public readonly dependencyGraph: ExecutionDependencyRecord[] = [],
+    /** Immutable audit record of the approved suite definition used for this run. */
+    public readonly suiteSnapshot: Record<string, unknown> | null = null
   ) {}
 }
 

@@ -12,6 +12,8 @@ const {
   generateTestSuiteWithAI,
   executePlan,
   executionPlanRepository,
+  executionProfileRepository,
+  requirementRepository,
 } = container;
 
 // Initialize use cases
@@ -21,13 +23,19 @@ const manageTestSuites = new ManageTestSuites(testSuiteRepository);
 const testSuiteController = new TestSuiteController(
   manageTestSuites,
   generateTestSuiteWithAI,
-  new ExecuteSuite(testSuiteRepository, executePlan, executionPlanRepository)
+  new ExecuteSuite(testSuiteRepository, executePlan, executionPlanRepository),
+  executionPlanRepository,
+  executionProfileRepository,
+  requirementRepository,
+  executePlan,
 );
 
 const router = Router();
 
 // Test Suite routes
 router.get('/projects/:projectId/suites', asyncHandler((req, res) => testSuiteController.listSuites(req, res)));
+router.get('/projects/:projectId/execution/suites', asyncHandler((req, res) => testSuiteController.listRunnableSuites(req, res)));
+router.post('/projects/:projectId/execution/suites/:suiteId/execute', asyncHandler((req, res) => testSuiteController.executeApprovedSuite(req, res)));
 router.post('/projects/:projectId/suites', asyncHandler((req, res) => testSuiteController.createSuite(req, res)));
 router.get('/projects/:projectId/suites/:suiteId', asyncHandler((req, res) => testSuiteController.getSuite(req, res)));
 router.patch('/projects/:projectId/suites/:suiteId', asyncHandler((req, res) => testSuiteController.updateSuite(req, res)));

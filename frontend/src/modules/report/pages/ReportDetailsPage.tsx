@@ -20,6 +20,7 @@ import { executionService } from '../../execution/services';
 import { useProjectApiOperations } from '../../api/hooks/useProjectApiOperations';
 import { resolveExecutionPlanOperationLabel, explainBlockedPrerequisites } from '../../execution/utils/dependencyDisplay';
 import type { ExecutionPlan } from '../../requirements/types';
+import { testDesignService } from '../../requirements/services/testDesignService';
 
 export interface ReportDetailsPageProps {}
 
@@ -68,6 +69,13 @@ const getPriorityBadge = (priority: string) => {
   return <Badge variant={variants[priority] || 'secondary'}>{priority}</Badge>;
 };
 
+const escapeHtml = (value: unknown): string => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
+
 export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
   const { projectId: routeProjectId, reportId } = useParams<{ projectId: string; reportId: string }>();
   const navigate = useNavigate();
@@ -77,28 +85,14 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
   const [activeTab, setActiveTab] = React.useState<
     'overview' | 'execution' | 'validation' | 'recommendations' | 'timeline' | 'assertions'
   >('overview');
-  const [moreMenuOpen, setMoreMenuOpen] = React.useState(false);
-  const moreMenuRef = React.useRef<HTMLDivElement>(null);
   const [jiraConfigured, setJiraConfigured] = React.useState(false);
   const [jiraIssueKey, setJiraIssueKey] = React.useState<string | null>(null);
   const [linkedRequirementTitle, setLinkedRequirementTitle] = React.useState<string | null>(null);
   const [publishingJira, setPublishingJira] = React.useState(false);
   const [jiraPublishMessage, setJiraPublishMessage] = React.useState<string | null>(null);
   const [executionPlans, setExecutionPlans] = React.useState<ExecutionPlan[]>([]);
+  const [testCaseStatements, setTestCaseStatements] = React.useState<Record<string, string>>({});
   const { operations: projectOperations } = useProjectApiOperations(projectId);
-
-  const secondaryTabs = ['recommendations', 'timeline', 'assertions'] as const;
-  const isSecondaryTab = (secondaryTabs as readonly string[]).includes(activeTab);
-
-  React.useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
-      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
-        setMoreMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, []);
 
   React.useEffect(() => {
     requirementService
@@ -129,6 +123,19 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
   React.useEffect(() => {
     executionService.listExecutionPlans(projectId).then(setExecutionPlans).catch(() => setExecutionPlans([]));
   }, [projectId]);
+
+  React.useEffect(() => {
+    const requirementId = report?.requirementIds?.[0];
+    if (!requirementId) {
+      setTestCaseStatements({});
+      return;
+    }
+    testDesignService.listByRequirement(projectId, requirementId)
+      .then((designs) => setTestCaseStatements(Object.fromEntries(
+        designs.filter((design) => design.title?.trim()).map((design) => [design.id, design.title!.trim()]),
+      )))
+      .catch(() => setTestCaseStatements({}));
+  }, [projectId, report?.requirementIds]);
 
   const handlePublishToJira = async () => {
     if (!reportId) return;
@@ -178,21 +185,23 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
   const stepResults = sections.stepResults || [];
   const validationResults = sections.validationResults || [];
   const recommendations = sections.recommendations || [];
-  const failures = sections.failures || [];
   const executionTimeline = sections.executionTimeline || [];
   const runtimeVariables = sections.runtimeVariablesCaptured || {};
-  const dependencyGraph = sections.dependencyGraph || [];
+  const failures: any[] = [];
+  const dependencyGraph: Array<{ executionPlanId: string; prerequisitePlanIds: string[] }> = [];
   const blockedSteps = report.blockedSteps ?? sections.executionSummary.blockedSteps ?? stepResults.filter((step: any) => step.status === 'Blocked').length;
-  const failedPlanIds = new Set(stepResults.filter((step: any) => step.status === 'Failed' || step.status === 'Blocked').map((step: any) => step.stepId));
+  const failedPlanIds = new Set<string>();
+  const passPercent = Math.round((report.passedSteps / Math.max(report.totalSteps, 1)) * 100);
 
   return (
     <div className='w-full max-w-none px-4 py-8'>
       {/* Page Header */}
-      <div className='mb-6 flex items-center justify-between'>
+      <div className='mb-6 rounded-2xl border border-border bg-surface/70 p-5'>
+        <div className='flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between'>
         <div className='flex items-center gap-4'>
-          <Button variant='ghost' size='sm' onClick={() => navigate(`/projects/${projectId}/reports`)}>
+          <Button variant='ghost' size='sm' className='mb-3 -ml-2 text-text-secondary' onClick={() => navigate(`/projects/${projectId}/reports`)}>
             <ArrowLeft className='h-4 w-4' />
-            Back
+            Back to reports
           </Button>
           <div>
             <div className='flex items-center gap-3 flex-wrap'>
@@ -207,12 +216,15 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
               )}
             </div>
             <p className='mt-1 text-sm text-text-secondary'>
-              {report.passedSteps}/{report.totalSteps} steps passed · {formatDuration(report.executionDuration)}
+              {report.passedSteps}/{report.totalSteps} test cases passed · {formatDuration(report.executionDuration)}
               {sections.overview.description ? ` · ${sections.overview.description}` : ''}
             </p>
+            <div className='mt-4 h-2 max-w-2xl overflow-hidden rounded-full bg-background' aria-label={`${passPercent}% of test cases passed`}>
+              <div className={`h-full rounded-full transition-all ${report.overallStatus === 'Failed' ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${passPercent}%` }} />
+            </div>
           </div>
         </div>
-        <div className='flex items-center gap-2'>
+        <div className='flex shrink-0 items-center gap-2'>
           <ReportExportMenu
             onExportHtml={() => {
               const title = report.sections?.overview?.title || report.id;
@@ -238,6 +250,19 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
                 'text/csv',
               );
             }}
+            onExportPdf={() => {
+              const title = report.sections?.overview?.title || report.id;
+              const rows = (report.sections?.stepResults || []).map((step: any, index: number) => `
+                <tr><td>${index + 1}</td><td>${escapeHtml(step.request?.method || '')} ${escapeHtml(step.request?.url || '')}</td><td class="${escapeHtml(step.status)}">${escapeHtml(step.status)}</td><td>${escapeHtml(step.response?.status ?? '')}</td><td>${escapeHtml(formatDuration(step.response?.duration || 0))}</td></tr>`).join('');
+              const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+              if (!printWindow) return;
+              printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)} - TestForge report</title><style>
+                *{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#172033;margin:32px;font-size:12px}h1{font-size:22px;margin:0 0 6px}h2{font-size:15px;margin:24px 0 8px;border-bottom:1px solid #d5dbe5;padding-bottom:5px}.meta{color:#596579;margin-bottom:18px}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.metric{border:1px solid #d5dbe5;border-radius:6px;padding:10px}.metric strong{display:block;font-size:17px;margin-top:3px}.success{color:#087f42}.failed,.Failed{color:#b42318}.Passed{color:#087f42}table{border-collapse:collapse;width:100%;margin-top:8px}th,td{border:1px solid #d5dbe5;padding:7px;text-align:left;vertical-align:top}th{background:#eef2f7}@media print{body{margin:16px}}
+              </style></head><body><h1>${escapeHtml(title)}</h1><div class="meta">Status: ${escapeHtml(report.overallStatus)} · Generated from execution run ${escapeHtml(report.executionRunId || '')}</div><div class="summary"><div class="metric">Total test cases<strong>${report.totalSteps}</strong></div><div class="metric">Passed<strong class="success">${report.passedSteps}</strong></div><div class="metric">Failed<strong class="failed">${report.failedSteps}</strong></div><div class="metric">Duration<strong>${escapeHtml(formatDuration(report.executionDuration))}</strong></div></div><h2>Test-case results</h2><table><thead><tr><th>#</th><th>Request</th><th>Status</th><th>HTTP</th><th>Duration</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
+              printWindow.document.close();
+              printWindow.focus();
+              window.setTimeout(() => printWindow.print(), 250);
+            }}
           />
           {jiraConfigured && jiraIssueKey && reportId && (
             <Button
@@ -252,6 +277,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
             </Button>
           )}
         </div>
+        </div>
       </div>
       {jiraPublishMessage && (
         <p className='mb-4 text-sm text-text-secondary'>{jiraPublishMessage}</p>
@@ -261,8 +287,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
       <div className='mb-6 flex flex-wrap items-center gap-2 border-b border-border pb-2'>
         {([
           { key: 'overview' as const, label: 'Overview', icon: FileText },
-          { key: 'execution' as const, label: 'Execution', icon: ListChecks },
-          { key: 'validation' as const, label: 'Validation', icon: Shield },
+          { key: 'execution' as const, label: 'Validation', icon: ListChecks },
         ]).map((tab) => {
           const Icon = tab.icon;
           return (
@@ -280,40 +305,6 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
             </button>
           );
         })}
-        <div className='relative' ref={moreMenuRef}>
-          <button
-            type='button'
-            onClick={() => setMoreMenuOpen((v) => !v)}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-[9px] ${
-              isSecondaryTab
-                ? 'border-primary text-primary'
-                : 'border-transparent text-text-secondary hover:text-text'
-            }`}
-          >
-            More
-          </button>
-          {moreMenuOpen && (
-            <div className='absolute left-0 z-20 mt-1 min-w-[200px] rounded-lg border border-border bg-surface py-1 shadow-lg'>
-              {([
-                { key: 'recommendations' as const, label: 'Recommendations' },
-                { key: 'timeline' as const, label: 'Timeline' },
-                { key: 'assertions' as const, label: 'Reusable assertions' },
-              ]).map((item) => (
-                <button
-                  key={item.key}
-                  type='button'
-                  className='flex w-full px-3 py-2 text-left text-sm text-text hover:bg-muted'
-                  onClick={() => {
-                    setActiveTab(item.key);
-                    setMoreMenuOpen(false);
-                  }}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
       </div>
 
       {/* Tab Content */}
@@ -325,7 +316,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
               <CardContent className='pt-6'>
                 <div className='flex items-center justify-between'>
                   <div>
-                    <p className='text-sm font-medium text-text-secondary'>Total Steps</p>
+                    <p className='text-sm font-medium text-text-secondary'>Total test cases</p>
                     <p className='text-2xl font-bold text-text'>{report.totalSteps}</p>
                   </div>
                   <div className='h-12 w-12 rounded-lg bg-blue-100 dark:bg-blue-900 flex items-center justify-center'>
@@ -430,10 +421,10 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
             </Card>
           </div>
 
-          {/* Requirements Covered */}
+          {/* Requirements covered */}
           <Card>
             <CardHeader>
-              <CardTitle className='text-base'>Requirements Covered</CardTitle>
+              <CardTitle className='text-base'>Requirements covered</CardTitle>
             </CardHeader>
             <CardContent>
               <div className='flex flex-wrap gap-2'>
@@ -478,10 +469,10 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
 
       {activeTab === 'execution' && (
         <div className='space-y-6'>
-          {/* Execution Summary */}
+          {/* Test-case summary */}
           <Card>
             <CardHeader>
-              <CardTitle className='text-base'>Execution Summary</CardTitle>
+              <CardTitle className='text-base'>Test-case summary</CardTitle>
             </CardHeader>
             <CardContent className='space-y-4'>
               <div className='flex items-center justify-center'>
@@ -511,7 +502,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
               </div>
               <div className='space-y-2'>
                 <div className='flex items-center justify-between text-sm'>
-                  <span className='text-text-secondary'>Total Steps</span>
+                  <span className='text-text-secondary'>Total test cases</span>
                   <span className='font-medium text-text'>{report.totalSteps}</span>
                 </div>
                 <div className='flex items-center justify-between text-sm'>
@@ -538,10 +529,10 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
             </CardContent>
           </Card>
 
-          {/* Step Results */}
+          {/* Test-case results */}
           <Card>
             <CardHeader>
-              <CardTitle className='text-base'>Step Results</CardTitle>
+              <CardTitle className='text-base'>Test-case results</CardTitle>
             </CardHeader>
             <CardContent>
               {stepResults.length > 0 ? (
@@ -551,7 +542,9 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
                       <div className='flex items-center justify-between mb-2'>
                         <div className='flex items-center gap-2'>
                           {getStepStatusIcon(step.status)}
-                          <span className='text-sm font-medium text-text'>Step {step.executionOrder}</span>
+                          <span className='text-sm font-medium text-text'>
+                            Test case {step.executionOrder}: {step.statement || step.testCaseStatement || testCaseStatements[executionPlans.find((plan) => plan.id === step.stepId)?.testDesignId || ''] || 'Executed API validation'}
+                          </span>
                         </div>
                         <span className='text-xs text-text-secondary'>
                           {step.request?.method} {step.request?.url}
@@ -565,6 +558,20 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
                       {step.error && (
                         <p className='text-xs text-red-600 mt-1'>{step.error}</p>
                       )}
+                      <div className='mt-3 grid gap-2 sm:grid-cols-2'>
+                        <details className='rounded-lg border border-border bg-background/40 px-3 py-2'>
+                          <summary className='cursor-pointer text-xs font-medium text-text'>Request body</summary>
+                          <pre className='mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded bg-background p-2 text-[11px] text-text-secondary'>
+                            {step.request?.body === undefined ? 'No request body' : JSON.stringify(step.request.body, null, 2)}
+                          </pre>
+                        </details>
+                        <details className='rounded-lg border border-border bg-background/40 px-3 py-2'>
+                          <summary className='cursor-pointer text-xs font-medium text-text'>Response body</summary>
+                          <pre className='mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded bg-background p-2 text-[11px] text-text-secondary'>
+                            {step.response?.body === undefined ? 'No response body' : JSON.stringify(step.response.body, null, 2)}
+                          </pre>
+                        </details>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -574,7 +581,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
             </CardContent>
           </Card>
 
-          {dependencyGraph.length > 0 && (
+          {false && dependencyGraph.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className='text-base'>Dependency execution chain</CardTitle>
@@ -602,7 +609,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
           )}
 
           {/* Failures */}
-          {failures.length > 0 && (
+          {false && failures.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className='text-base flex items-center gap-2'>
@@ -677,7 +684,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
             </CardHeader>
             <CardContent>
               {validationResults.length > 0 ? (
-                <div className='space-y-3 max-h-96 overflow-y-auto'>
+                <div className='max-h-[32rem] space-y-3 overflow-y-auto scrollbar-none pr-1'>
                   {validationResults.map((validation: any, vIdx: number) => (
                     <div key={vIdx} className='flex items-start gap-2 text-xs border border-border rounded-lg p-3'>
                       {getValidationStatusIcon(validation.status)}

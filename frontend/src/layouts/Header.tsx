@@ -4,7 +4,6 @@ import { Link, useLocation } from 'react-router-dom';
 import { Sun, Moon, Home, FolderKanban } from 'lucide-react';
 
 // Components
-import { NotificationBell } from '../components/shared/NotificationBell';
 import { SessionBadge } from '../components/shared/SessionBadge';
 import { useThemeStore } from '../store/themeStore';
 import { appPaths } from '../routes/paths';
@@ -22,7 +21,6 @@ export const Header: React.FC = () => {
       <div className="hidden flex-1 md:block" aria-hidden />
       <div className="flex items-center gap-3">
         <SessionBadge />
-        <NotificationBell />
         {isInsideProject ? (
           <>
             <Link

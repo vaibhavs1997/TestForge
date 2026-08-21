@@ -66,6 +66,7 @@ async function bootstrap(): Promise<void> {
 
   const app = express();
   const port = config.port;
+  app.disable('x-powered-by');
 
   const connectMongoPromise =
     config.mongodbUri
@@ -85,6 +86,16 @@ async function bootstrap(): Promise<void> {
 
   const corsOrigins = config.corsOrigin.split(',').map((origin) => origin.trim());
   app.use(cors({ origin: corsOrigins }));
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
+    if (config.nodeEnv === 'production') {
+      res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    next();
+  });
   
   // Rate limiting (skip in development for easier testing)
   if (config.nodeEnv !== 'development') {

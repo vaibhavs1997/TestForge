@@ -97,7 +97,9 @@ export const ExecutionWorkspace: React.FC<ExecutionWorkspaceProps> = ({ projectI
           Select a section to manage execution.
         </p>
       </aside>
-      <div className='min-w-0 flex-1 overflow-y-auto'>
+      {/* AppShell owns the page scroll. Keeping this wrapper non-scrollable avoids
+          a nested scrollbar beside the workspace content. */}
+      <div className='min-w-0 flex-1'>
         <ExecutionRenderBoundary>
           <Routes key={location.pathname}>
           {/* Execute - main execution page (also contains validation history in details) */}

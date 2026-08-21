@@ -141,6 +141,8 @@ interface PersistedRequestDraft extends Omit<RequestDraft, 'binaryFile'> {
 
 interface ImportedApiEndpoint {
   id: string;
+  backendOperationId?: string;
+  backendServiceId?: string;
   groupId: string;
   groupName: string;
   name: string;
@@ -248,6 +250,20 @@ function responseCacheKey(selection: SelectionState | null): string | null {
   return selection.kind === 'api-endpoint'
     ? `${selection.kind}:${selection.collectionId || ''}:${selection.endpointId || selection.id}`
     : `${selection.kind}:${selection.id}`;
+}
+
+function comparableApiPath(value: string | undefined): string {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  try {
+    return new URL(raw, 'http://testforge.local').pathname
+      .split('/')
+      .filter((segment) => !/^\{\{[^}]+\}\}$/.test(segment))
+      .join('/')
+      .replace(/\/$/, '') || '/';
+  } catch {
+    return raw.split('?')[0].replace(/\/$/, '') || '/';
+  }
 }
 
 const HTTP_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
@@ -632,6 +648,18 @@ function sanitizeDraftForStorage(draft: RequestDraft): PersistedRequestDraft {
     ...cloneJson(draft),
     binaryFile: null,
   };
+}
+
+function payloadFromDraft(draft: RequestDraft): Record<string, unknown> | null {
+  if (draft.bodyMode === 'none' || draft.bodyMode === 'binary') return null;
+  if (draft.bodyMode === 'form-data') return rowsToRecord(draft.formDataRows);
+  if (draft.bodyMode === 'x-www-form-urlencoded') return rowsToRecord(draft.urlEncodedRows);
+  if (draft.bodyMode === 'graphql') {
+    const variables = parseJsonSafely(draft.graphqlVariables.trim());
+    return { query: draft.graphqlQuery, variables: variables && typeof variables === 'object' ? variables : {} };
+  }
+  const parsed = parseJsonSafely(draft.rawBody.trim());
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
 }
 
 function createScriptHelpers(draft: RequestDraft) {
@@ -1285,10 +1313,25 @@ function hydrateImportedArtifact(artifact: ImportedArtifact): ImportedArtifact {
 }
 
 function formatResponseBody(text: string): { body: string; isJson: boolean } {
-  const trimmed = text.trim();
+  const trimmed = text.replace(/^\uFEFF/, '').trim();
   if (!trimmed) return { body: '', isJson: false };
   try {
-    return { body: JSON.stringify(JSON.parse(trimmed), null, 2), isJson: true };
+    const parsed = JSON.parse(trimmed);
+    // Some gateways return a JSON document encoded as a JSON string for
+    // failures (for example: "{\\"statusCode\\":404,...}"). Decode that
+    // second layer so the response panel shows the actual error object.
+    if (typeof parsed === 'string') {
+      const nested = parsed.trim();
+      if (nested.startsWith('{') || nested.startsWith('[')) {
+        try {
+          return { body: JSON.stringify(JSON.parse(nested), null, 2), isJson: true };
+        } catch {
+          // Keep the decoded string below when it is not valid JSON.
+        }
+      }
+      return { body: parsed, isJson: false };
+    }
+    return { body: JSON.stringify(parsed, null, 2), isJson: true };
   } catch {
     return { body: text, isJson: false };
   }
@@ -1423,6 +1466,10 @@ export const ApiExecutionPage: React.FC = () => {
   const syncedApiArtifactIdsRef = React.useRef<Set<string>>(new Set());
   const apiSyncPromisesRef = React.useRef<Set<Promise<unknown>>>(new Set());
   const apiSyncDisabledRef = React.useRef(false);
+  const payloadSyncRef = React.useRef<Record<string, string>>({});
+  const autoTokenEnvironmentIdRef = React.useRef<string | null>(null);
+  const sharedEnvironmentSyncRef = React.useRef('');
+  const syncedEnvironmentArtifactIdsRef = React.useRef<Set<string>>(new Set());
 
   const [importedArtifacts, setImportedArtifacts] = React.useState<ImportedArtifact[]>([]);
   const [manualRequests, setManualRequests] = React.useState<ManualRequestRecord[]>([]);
@@ -1625,6 +1672,30 @@ export const ApiExecutionPage: React.FC = () => {
     managedEnvironmentIdsRef.current = managedIds;
   }, [lastHydrated, managedEnvironments]);
 
+  // Older imports may exist only in the API page's local artifact store. Move
+  // those environments into the shared backend repository so the manager,
+  // Requirements, and Execution all see the same records.
+  React.useEffect(() => {
+    if (!lastHydrated || managedEnvironments.length > 0 && importedArtifacts.length === 0) return;
+    const managedNames = new Set(managedEnvironments.map((environment) => environment.name.trim().toLowerCase()));
+    const localOnly = importedArtifacts.filter(
+      (artifact): artifact is ImportedEnvironment => artifact.kind === 'env'
+        && artifact.sourceFormat !== 'auto'
+        && !managedNames.has(artifact.name.trim().toLowerCase())
+        && !syncedEnvironmentArtifactIdsRef.current.has(artifact.id),
+    );
+    if (localOnly.length === 0) return;
+    localOnly.forEach((artifact) => syncedEnvironmentArtifactIdsRef.current.add(artifact.id));
+    void environmentService.batchUpsertEnvironments(projectId, localOnly.map((artifact) => ({
+      name: artifact.name,
+      baseUrl: artifact.variables.baseUrl || artifact.variables.BASE_URL || '',
+      variables: artifact.variables,
+    }))).then(() => queryClient.invalidateQueries({ queryKey: queryKeys.environments(projectId) }))
+      .catch(() => {
+        localOnly.forEach((artifact) => syncedEnvironmentArtifactIdsRef.current.delete(artifact.id));
+      });
+  }, [importedArtifacts, lastHydrated, managedEnvironments, projectId, queryClient]);
+
   React.useEffect(() => {
     if (!lastHydrated) return;
     localStorage.setItem(manualKey, JSON.stringify(manualRequests.map((item) => ({ ...item, draft: sanitizeDraftForStorage(item.draft) }))));
@@ -1687,7 +1758,18 @@ export const ApiExecutionPage: React.FC = () => {
     [importedArtifacts],
   );
   const environments = React.useMemo(
-    () => importedArtifacts.filter((item): item is ImportedEnvironment => item.kind === 'env'),
+    () => {
+      const candidates = importedArtifacts
+        .filter((item): item is ImportedEnvironment => item.kind === 'env')
+        .filter((environment) => environment.sourceFormat !== 'auto' && !/\(from \.env\)$/i.test(environment.name));
+      const byName = new Map<string, ImportedEnvironment>();
+      candidates.forEach((environment) => {
+        const key = environment.name.trim().toLowerCase();
+        const existing = byName.get(key);
+        if (!existing || environment.sourceFormat === 'managed-environment') byName.set(key, environment);
+      });
+      return Array.from(byName.values());
+    },
     [importedArtifacts],
   );
   const unknownImports = React.useMemo(
@@ -1699,6 +1781,37 @@ export const ApiExecutionPage: React.FC = () => {
     [activeEnvironmentId, environments],
   );
   const selectedEnvironment = activeEnvironment;
+
+  // Persist the API workspace selection as the project's shared default so
+  // requirement generation and execution resolve the same environment.
+  const selectEnvironment = React.useCallback(async (environmentId: string) => {
+    setActiveEnvironmentId(environmentId);
+    if (!environmentId) return;
+    try {
+      await environmentService.updateEnvironment(projectId, environmentId, { isDefault: true });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.environments(projectId) });
+    } catch {
+      // Keep the local selection usable even if the shared preference request
+      // fails (for example while an imported environment is still syncing).
+      setActiveRequestLog('Environment selected locally; shared environment sync will retry on save.');
+    }
+  }, [projectId, queryClient]);
+
+  // Also sync a selection restored from the API page's project-local storage
+  // (for example after a reload), not only fresh dropdown clicks.
+  React.useEffect(() => {
+    if (!lastHydrated || !activeEnvironmentId || sharedEnvironmentSyncRef.current === activeEnvironmentId) return;
+    sharedEnvironmentSyncRef.current = activeEnvironmentId;
+    void environmentService.updateEnvironment(projectId, activeEnvironmentId, { isDefault: true })
+      .then(() => queryClient.invalidateQueries({ queryKey: queryKeys.environments(projectId) }))
+      .catch(() => undefined);
+  }, [activeEnvironmentId, lastHydrated, projectId, queryClient]);
+
+  React.useEffect(() => {
+    if (activeEnvironmentId && environments.some((environment) => environment.id === activeEnvironmentId)) return;
+    if (environments.length > 0) setActiveEnvironmentId(environments[0].id);
+    else if (activeEnvironmentId) setActiveEnvironmentId('');
+  }, [activeEnvironmentId, environments]);
 
   const selectedApiEndpoint = React.useMemo(() => {
     if (selection?.kind !== 'api-endpoint') return null;
@@ -1764,6 +1877,37 @@ export const ApiExecutionPage: React.FC = () => {
       });
     }
   }, [selectedApiEndpoint, selection, draftCache]);
+
+  // Keep the shared operation in sync with edits made in the API workspace.
+  // Requirements and test generation read this persisted sample body.
+  React.useEffect(() => {
+    if (!lastHydrated || selection?.kind !== 'api-endpoint' || !selectedApiEndpoint) return;
+    const payload = payloadFromDraft(draft);
+    const signature = JSON.stringify(payload);
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const services = await apiService.listServices(projectId);
+        const groups = await Promise.all(services.map(async (service) => ({
+          service,
+          operations: await apiService.listOperations(projectId, service.id),
+        })));
+        const operations = groups.flatMap(({ operations }) => operations.filter((operation) =>
+          operation.method.toUpperCase() === draft.method.toUpperCase()
+          && (comparableApiPath(operation.path) === comparableApiPath(selectedApiEndpoint.path)
+            || operation.name.trim().toLowerCase() === selectedApiEndpoint.name.trim().toLowerCase()),
+        ));
+        const pending = operations.filter((operation) => {
+          const syncKey = `${operation.id}:${signature}`;
+          if (payloadSyncRef.current[operation.id] === syncKey) return false;
+          payloadSyncRef.current[operation.id] = syncKey;
+          return true;
+        });
+        await Promise.all(pending.map((operation) => apiService.updateOperation(projectId, operation.serviceId, operation.id, { sampleRequestBody: payload })));
+        if (pending.length > 0) await queryClient.invalidateQueries({ queryKey: queryKeys.operations(projectId) });
+      })().catch(() => undefined);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [apiCollections, draft, lastHydrated, projectId, queryClient, selectedApiEndpoint, selection, sharedApiOperations]);
 
   React.useEffect(() => {
     if (selection?.kind === 'manual') {
@@ -1831,7 +1975,7 @@ export const ApiExecutionPage: React.FC = () => {
     setSelectedSelection({ kind: 'manual', id: record.id }, createDraft());
   };
 
-  const saveCurrentRequest = () => {
+  const saveCurrentRequest = async () => {
     const persisted = sanitizeDraftForStorage(draft);
     const now = Date.now();
     const confirmation = `Saved ${draft.name}`;
@@ -1848,6 +1992,46 @@ export const ApiExecutionPage: React.FC = () => {
       const key = responseCacheKey(selection);
       if (key) {
         setDraftCache((current) => ({ ...current, [key]: persisted }));
+      }
+      const selectedCollection = apiCollections.find((collection) => collection.endpoints.some((endpoint) => endpoint.id === selection.endpointId));
+      const candidates = sharedApiOperations.filter((operation) =>
+        operation.method.toUpperCase() === persisted.method.toUpperCase()
+        && comparableApiPath(operation.path) === comparableApiPath(selectedApiEndpoint?.path),
+      );
+      const serviceOperation = candidates.find((operation) =>
+        operation.serviceName?.toLowerCase() === selectedCollection?.name?.toLowerCase(),
+      );
+      try {
+        // Always read the authoritative backend list. The cached operation
+        // query can contain the pre-import record or an old duplicate.
+        const services = await apiService.listServices(projectId);
+        const operationGroups = await Promise.all(services.map(async (service) => ({
+          service,
+          operations: await apiService.listOperations(projectId, service.id),
+        })));
+        const authoritative = operationGroups.flatMap(({ service, operations }) => operations
+          .filter((operation) => operation.method.toUpperCase() === persisted.method.toUpperCase()
+            && (comparableApiPath(operation.path) === comparableApiPath(selectedApiEndpoint?.path)
+              || operation.name.trim().toLowerCase() === (selectedApiEndpoint?.name || persisted.name).trim().toLowerCase()))
+          .map((operation) => ({ ...operation, serviceName: service.name })));
+        const byId = new Map(authoritative.map((operation) => [operation.id, operation]));
+        // Keep every matching backend operation in sync. A project can have
+        // duplicate records after repeated contract imports; Requirements
+        // may map to any of them, so updating only the cached ID can leave a
+        // stale import-time payload behind.
+        let operationsToSync = Array.from(byId.values());
+        if (operationsToSync.length === 0) operationsToSync = serviceOperation ? [serviceOperation] : candidates;
+        if (operationsToSync.length === 0) {
+          setActiveRequestLog('Saved locally, but no matching backend API operation was found');
+          return;
+        }
+        await Promise.all(operationsToSync.map((operation) => apiService.updateOperation(projectId, operation.serviceId, operation.id, {
+          sampleRequestBody: payloadFromDraft(persisted),
+        })));
+        await queryClient.invalidateQueries({ queryKey: queryKeys.operations(projectId) });
+      } catch {
+        setActiveRequestLog('Saved locally, but backend payload sync failed');
+        return;
       }
       setActiveRequestLog(confirmation);
       return;
@@ -2020,10 +2204,26 @@ export const ApiExecutionPage: React.FC = () => {
           setActiveRequestLog('Environment saved locally; shared environment sync failed');
         }
       }
+      if (syncedEnvironments.length > 0) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.environments(projectId) });
+      }
+      const allServices = await apiService.listServices(projectId);
+      const allOperations = (await Promise.all(allServices.map((service) => apiService.listOperations(projectId, service.id)))).flat();
+      const linkedCollections = collections.map((collection) => ({
+        ...collection,
+        endpoints: collection.endpoints.map((endpoint) => {
+          const operation = allOperations.find((candidate) =>
+            candidate.method.toUpperCase() === endpoint.method.toUpperCase()
+            && (comparableApiPath(candidate.path) === comparableApiPath(endpoint.path)
+              || candidate.name.trim().toLowerCase() === endpoint.name.trim().toLowerCase()),
+          );
+          return operation ? { ...endpoint, backendOperationId: operation.id, backendServiceId: operation.serviceId } : endpoint;
+        }),
+      }));
 
-      setImportedArtifacts((current) => [...current, ...collections, ...syncedEnvironments, ...unknowns]);
+      setImportedArtifacts((current) => [...current, ...linkedCollections, ...syncedEnvironments, ...unknowns]);
       if (syncedEnvironments.length > 0 && !activeEnvironmentId) setActiveEnvironmentId(syncedEnvironments[0].id);
-      const firstCollection = collections[0];
+      const firstCollection = linkedCollections[0];
       const firstEndpoint = firstCollection?.endpoints[0];
       if (firstEndpoint) {
         setExpandedCollections((current) => ({ ...current, [firstCollection.id]: true }));
@@ -2047,14 +2247,24 @@ export const ApiExecutionPage: React.FC = () => {
   };
 
   const captureOAuthToken = (responseState: ResponseState) => {
-    if (!activeEnvironmentId || !responseState.isJson) return;
+    if (!responseState.isJson) return;
+    const targetEnvironmentId = activeEnvironmentId || environments[0]?.id || autoTokenEnvironmentIdRef.current || makeId('auto-env');
+    autoTokenEnvironmentIdRef.current = targetEnvironmentId;
+    if (!activeEnvironmentId) setActiveEnvironmentId(targetEnvironmentId);
     const payload = parseJsonSafely(responseState.body);
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return;
     const tokenPayload = payload as Record<string, unknown>;
-    const accessToken = normalizeBearerToken(String(tokenPayload.access_token || tokenPayload.accessToken || ''));
+    const nestedPayload = tokenPayload.data && typeof tokenPayload.data === 'object' && !Array.isArray(tokenPayload.data)
+      ? tokenPayload.data as Record<string, unknown>
+      : {};
+    const accessToken = normalizeBearerToken(String(tokenPayload.access_token || tokenPayload.accessToken || nestedPayload.access_token || nestedPayload.accessToken || ''));
     if (!accessToken) return;
     const expiresIn = Number(tokenPayload.expires_in || 0);
-    const activeEnvironmentArtifact = importedArtifacts.find((artifact): artifact is ImportedEnvironment => artifact.kind === 'env' && artifact.id === activeEnvironmentId);
+    const activeEnvironmentArtifact = importedArtifacts.find((artifact): artifact is ImportedEnvironment => artifact.kind === 'env' && artifact.id === targetEnvironmentId);
+    const managedTokenEnvironment = managedEnvironments.find((environment) =>
+      environment.id === targetEnvironmentId
+      || (activeEnvironmentArtifact && environment.name.trim().toLowerCase() === activeEnvironmentArtifact.name.trim().toLowerCase()),
+    );
     const hasSnakeCaseToken = Boolean(activeEnvironmentArtifact && Object.prototype.hasOwnProperty.call(activeEnvironmentArtifact.variables, 'access_token'));
     const tokenKey = hasSnakeCaseToken ? 'access_token' : 'accessToken';
     const syncedVariables: Record<string, string> = {
@@ -2064,21 +2274,34 @@ export const ApiExecutionPage: React.FC = () => {
       ...(expiresIn > 0 ? { tokenExpiresAt: String(Date.now() + expiresIn * 1000) } : {}),
     };
 
-    setImportedArtifacts((current) => current.map((artifact) => {
-      if (artifact.kind !== 'env' || artifact.id !== activeEnvironmentId) return artifact;
-      const entries: EnvLine[] = artifact.entries.some((entry) => entry.kind === 'pair' && entry.key === tokenKey)
-        ? artifact.entries.map((entry) => entry.kind === 'pair' && (entry.key === tokenKey || entry.key === 'accessToken')
-          ? { ...entry, value: accessToken, raw: `${entry.key}=${accessToken}` }
-          : entry)
-        : [...artifact.entries, { kind: 'pair', key: tokenKey, value: accessToken, raw: `${tokenKey}=${accessToken}` }];
-      if (!entries.some((entry) => entry.kind === 'pair' && entry.key === 'accessToken')) {
-        entries.push({ kind: 'pair', key: 'accessToken', value: accessToken, raw: `accessToken=${accessToken}` });
-      }
-      return { ...artifact, variables: syncedVariables, entries, summary: `${Object.keys(syncedVariables).length} variables, OAuth token captured` };
-    }));
-    if (activeEnvironmentArtifact) {
-      void updateManagedEnvironment(activeEnvironmentId, { variables: syncedVariables });
-    }
+    setImportedArtifacts((current) => {
+      const hasTarget = current.some((artifact) => artifact.kind === 'env' && artifact.id === targetEnvironmentId);
+      const updated = current.map((artifact) => {
+        if (artifact.kind !== 'env' || artifact.id !== targetEnvironmentId) return artifact;
+        const entries: EnvLine[] = artifact.entries.some((entry) => entry.kind === 'pair' && entry.key === tokenKey)
+          ? artifact.entries.map((entry) => entry.kind === 'pair' && (entry.key === tokenKey || entry.key === 'accessToken' || entry.key === 'access_token')
+            ? { ...entry, value: accessToken, raw: `${entry.key}=${accessToken}` }
+            : entry)
+          : [...artifact.entries, { kind: 'pair', key: tokenKey, value: accessToken, raw: `${tokenKey}=${accessToken}` }];
+        if (!entries.some((entry) => entry.kind === 'pair' && entry.key === 'accessToken')) entries.push({ kind: 'pair', key: 'accessToken', value: accessToken, raw: `accessToken=${accessToken}` });
+        if (!entries.some((entry) => entry.kind === 'pair' && entry.key === 'access_token')) entries.push({ kind: 'pair', key: 'access_token', value: accessToken, raw: `access_token=${accessToken}` });
+        return { ...artifact, variables: syncedVariables, entries, summary: `${Object.keys(syncedVariables).length} variables, OAuth token captured` };
+      });
+      if (hasTarget) return updated;
+      const entries: EnvLine[] = [
+        { kind: 'pair', key: 'accessToken', value: accessToken, raw: `accessToken=${accessToken}` },
+        { kind: 'pair', key: 'access_token', value: accessToken, raw: `access_token=${accessToken}` },
+      ];
+      return [...updated, { id: targetEnvironmentId, kind: 'env', name: 'Default environment', sourceFormat: 'auto', rawText: '', lineCount: entries.length, summary: 'Environment created automatically', entries, variables: syncedVariables }];
+    });
+    const persistToken = managedTokenEnvironment
+      ? updateManagedEnvironment(managedTokenEnvironment.id, { variables: syncedVariables })
+      : environmentService.batchUpsertEnvironments(projectId, [{
+        name: activeEnvironmentArtifact?.name || 'Default environment',
+        baseUrl: activeEnvironmentArtifact?.variables.baseUrl || activeEnvironmentArtifact?.variables.BASE_URL || '',
+        variables: syncedVariables,
+      }]);
+    void persistToken.then(() => queryClient.invalidateQueries({ queryKey: queryKeys.environments(projectId) }));
     setActiveRequestLog(`OAuth token captured as ${Object.prototype.hasOwnProperty.call(currentEnvironmentVariables, 'access_token') ? 'access_token' : 'accessToken'}`);
   };
 
@@ -2175,6 +2398,7 @@ export const ApiExecutionPage: React.FC = () => {
       }
       if (payloads.length === 0) throw new Error('Select an environment file or enter an environment URL.');
       const result = await environmentService.batchUpsertEnvironments(projectId, payloads);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.environments(projectId) });
       setEnvironmentImportOpen(false);
       setActiveRequestLog(`Synchronized ${result.environments.length} environment${result.environments.length === 1 ? '' : 's'}`);
     } finally {
@@ -2251,6 +2475,41 @@ export const ApiExecutionPage: React.FC = () => {
   const rawTokenExpiry = currentEnvironmentVariables.tokenExpiresAt || currentEnvironmentVariables.expires_at || currentEnvironmentVariables.expiresAt || '';
   const tokenExpiryMs = parseTokenExpiry(rawTokenExpiry);
   const oauthTokenState = !environmentToken ? 'Missing token' : tokenExpiryMs > 0 && tokenNow >= tokenExpiryMs ? 'Expired' : 'Active';
+
+  const updateEnvironmentToken = (value: string) => {
+    const targetEnvironmentId = activeEnvironmentId || environments[0]?.id || autoTokenEnvironmentIdRef.current || makeId('auto-env');
+    autoTokenEnvironmentIdRef.current = targetEnvironmentId;
+    if (!activeEnvironmentId) setActiveEnvironmentId(targetEnvironmentId);
+    const target = importedArtifacts.find((artifact): artifact is ImportedEnvironment => artifact.kind === 'env' && artifact.id === targetEnvironmentId);
+    const variables: Record<string, string> = { ...(target?.variables || {}), accessToken: value, access_token: value };
+    delete variables.tokenExpiresAt;
+    delete variables.expires_at;
+    delete variables.expiresAt;
+    setImportedArtifacts((current) => {
+      const exists = current.some((artifact) => artifact.kind === 'env' && artifact.id === targetEnvironmentId);
+      const updated = current.map((artifact) => {
+        if (artifact.kind !== 'env' || artifact.id !== targetEnvironmentId) return artifact;
+        const entries = artifact.entries.some((entry) => entry.kind === 'pair' && (entry.key === 'accessToken' || entry.key === 'access_token'))
+          ? artifact.entries.map((entry) => entry.kind === 'pair' && (entry.key === 'accessToken' || entry.key === 'access_token') ? { ...entry, value, raw: `${entry.key}=${value}` } : entry)
+          : [...artifact.entries, { kind: 'pair' as const, key: 'accessToken', value, raw: `accessToken=${value}` }];
+        return { ...artifact, variables, entries, summary: `${Object.keys(variables).length} variables` };
+      });
+      if (exists) return updated;
+      return [...updated, { id: targetEnvironmentId, kind: 'env' as const, name: 'Default environment', sourceFormat: 'auto', rawText: '', lineCount: 2, summary: 'Environment saved automatically', entries: [{ kind: 'pair' as const, key: 'accessToken', value, raw: `accessToken=${value}` }, { kind: 'pair' as const, key: 'access_token', value, raw: `access_token=${value}` }], variables }];
+    });
+    const managedTokenEnvironment = managedEnvironments.find((environment) =>
+      environment.id === targetEnvironmentId
+      || (target && environment.name.trim().toLowerCase() === target.name.trim().toLowerCase()),
+    );
+    const persistToken = managedTokenEnvironment
+      ? updateManagedEnvironment(managedTokenEnvironment.id, { variables })
+      : environmentService.batchUpsertEnvironments(projectId, [{
+        name: target?.name || 'Default environment',
+        baseUrl: target?.variables.baseUrl || target?.variables.BASE_URL || '',
+        variables,
+      }]);
+    void persistToken.then(() => queryClient.invalidateQueries({ queryKey: queryKeys.environments(projectId) }));
+  };
 
 
   React.useEffect(() => {
@@ -2567,7 +2826,7 @@ export const ApiExecutionPage: React.FC = () => {
 
       <div className='relative mx-auto max-w-[1600px] px-4 pb-5 sm:px-6 lg:px-8' style={{ paddingTop: '24px' }}>
         <div className='mb-4 p-0'>
-          <div className='relative z-10 flex justify-end'>
+          <div className='relative z-50 flex justify-end'>
             <div className='flex flex-wrap items-center justify-end gap-3'>
               <Button type='button' variant='outline' className='h-11 w-44 border-border bg-background/40 px-4 text-sm font-medium text-text' onClick={() => fileInputRef.current?.click()}>
                 <UploadCloud className='mr-2 h-4 w-4' />
@@ -2577,7 +2836,7 @@ export const ApiExecutionPage: React.FC = () => {
                 <Plus className='mr-2 h-4 w-4' />
                 New Request
               </Button>
-              <div className='relative w-44'>
+              <div className='relative z-50 w-44'>
                 <button
                   type='button'
                   onClick={() => setEnvironmentMenuOpen((current) => !current)}
@@ -2587,11 +2846,11 @@ export const ApiExecutionPage: React.FC = () => {
                   aria-label='Select environment'
                   title='Select environment for request execution'
                 >
-                  <span className='truncate'>{selectedEnvironment?.name ?? 'No environment'}</span>
+                  <span className='truncate'>{selectedEnvironment?.name ?? (environmentToken ? 'Default environment' : 'No environment')}</span>
                   <ChevronDown className={`ml-2 h-4 w-4 shrink-0 transition-transform ${environmentMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {environmentMenuOpen && (
-                  <div className='absolute left-0 top-full z-30 mt-1 w-full overflow-hidden rounded-lg border border-border bg-surface p-1 shadow-xl' role='listbox'>
+                  <div className='absolute left-0 top-full z-[100] mt-1 w-full overflow-hidden rounded-lg border border-border bg-surface p-1 shadow-xl' role='listbox'>
                     <button
                       type='button'
                       role='option'
@@ -2611,7 +2870,7 @@ export const ApiExecutionPage: React.FC = () => {
                         role='option'
                         aria-selected={activeEnvironmentId === environment.id}
                         onClick={() => {
-                          setActiveEnvironmentId(environment.id);
+                          void selectEnvironment(environment.id);
                           setEnvironmentMenuOpen(false);
                         }}
                         className={`block w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${activeEnvironmentId === environment.id ? 'bg-background/60 text-primary' : 'text-text hover:bg-background/60'}`}
@@ -2846,7 +3105,7 @@ export const ApiExecutionPage: React.FC = () => {
                       <button
                         key={env.id}
                         type='button'
-                        onClick={() => setActiveEnvironmentId(env.id)}
+                        onClick={() => { void selectEnvironment(env.id); }}
                         className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition-colors ${
                           active ? 'bg-primary/15 text-primary' : 'hover:bg-background/40 text-text'
                         }`}
@@ -2886,7 +3145,7 @@ export const ApiExecutionPage: React.FC = () => {
           </Card>
 
           <div className='space-y-4'>
-            <Card ref={requestWorkspaceRef} className='border-border bg-background/40 text-text shadow-2xl backdrop-blur-xl'>
+            <Card ref={requestWorkspaceRef} className='relative z-40 overflow-visible border-border bg-background/40 text-text shadow-2xl backdrop-blur-xl'>
               <CardHeader className='pb-3'>
                 <div className='flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between'>
                   <div className='min-w-0 flex-1'>
@@ -3089,7 +3348,13 @@ export const ApiExecutionPage: React.FC = () => {
                     </div>
                     {draft.auth.type === 'bearer' && (
                       <div className='space-y-2'>
-                        <input value={draft.auth.bearerToken} onChange={(e) => setDraft((current) => ({ ...current, auth: { ...current.auth, bearerToken: e.target.value } }))} className='h-10 w-full rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='{{accessToken}} or enter a token' />
+                        <div className='group relative inline-flex max-w-full'>
+                          <span className='rounded-lg border border-dashed border-border bg-background/60 px-3 py-2 text-sm text-primary'>{draft.auth.bearerToken || '{{accessToken}}'}</span>
+                          <div className='pointer-events-none absolute left-0 top-full z-30 mt-2 w-[min(32rem,calc(100vw-3rem))] rounded-xl border border-border bg-surface p-3 opacity-0 shadow-2xl transition-opacity group-hover:pointer-events-auto group-hover:opacity-100'>
+                            <input aria-label='Resolved bearer token' value={environmentToken} onChange={(e) => updateEnvironmentToken(e.target.value)} className='h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-text outline-none' placeholder='Add token value' />
+                            <div className='mt-2 flex items-center justify-between text-xs text-text-secondary'><span>{activeEnvironment?.name || 'Environment'}</span><span>{environmentToken ? 'Resolved token' : 'Missing token'}</span></div>
+                          </div>
+                        </div>
                         {environmentToken && <p className='text-xs text-emerald-200'>Using the active environment token automatically.</p>}
                       </div>
                     )}
@@ -3112,7 +3377,13 @@ export const ApiExecutionPage: React.FC = () => {
                     )}
                     {draft.auth.type === 'oauth2' && (
                       <div className='space-y-2'>
-                        <input value={draft.auth.oauth2Token} onChange={(e) => setDraft((current) => ({ ...current, auth: { ...current.auth, oauth2Token: e.target.value } }))} className='h-10 w-full rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='{{accessToken}} or enter a token' />
+                        <div className='group relative inline-flex max-w-full'>
+                          <span className='rounded-lg border border-dashed border-border bg-background/60 px-3 py-2 text-sm text-primary'>{draft.auth.oauth2Token || '{{accessToken}}'}</span>
+                          <div className='pointer-events-none absolute left-0 top-full z-30 mt-2 w-[min(32rem,calc(100vw-3rem))] rounded-xl border border-border bg-surface p-3 opacity-0 shadow-2xl transition-opacity group-hover:pointer-events-auto group-hover:opacity-100'>
+                            <input aria-label='Resolved OAuth token' value={environmentToken} onChange={(e) => updateEnvironmentToken(e.target.value)} className='h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-text outline-none' placeholder='Add token value' />
+                            <div className='mt-2 flex items-center justify-between text-xs text-text-secondary'><span>{activeEnvironment?.name || 'Environment'}</span><span>{environmentToken ? 'Resolved token' : 'Missing token'}</span></div>
+                          </div>
+                        </div>
                         <input value={draft.auth.oauth2Scopes} onChange={(e) => setDraft((current) => ({ ...current, auth: { ...current.auth, oauth2Scopes: e.target.value } }))} className='h-10 w-full rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Scopes, space separated' />
                         {environmentToken && !draft.auth.oauth2Token && <p className='text-xs text-emerald-200'>Using the active environment token automatically.</p>}
                       </div>
@@ -3294,7 +3565,7 @@ export const ApiExecutionPage: React.FC = () => {
             </Card>
 
             <div className='space-y-4'>
-              <Card ref={responsePanelRef} className='border-border bg-background/40 text-text shadow-2xl backdrop-blur-xl'>
+              <Card ref={responsePanelRef} className='relative z-10 border-border bg-background/40 text-text shadow-2xl backdrop-blur-xl'>
                 <CardHeader className='pb-3'>
                   <div className='flex items-center justify-between gap-3'>
                     <div>
@@ -3495,7 +3766,7 @@ export const ApiExecutionPage: React.FC = () => {
                           <button
                             key={env.id}
                             type='button'
-                            onClick={() => setActiveEnvironmentId(env.id)}
+                            onClick={() => { void selectEnvironment(env.id); }}
                             className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition-colors ${activeEnvironmentId === env.id ? 'bg-primary/15 text-primary' : 'hover:bg-background/40 text-text'}`}
                           >
                             <span className='truncate'>{env.name}</span>
@@ -3619,7 +3890,7 @@ export const ApiExecutionPage: React.FC = () => {
               {managedEnvironmentList.length > 0 ? managedEnvironmentList.map((environment) => (
                 <div key={environment.id} className={`rounded-2xl border p-4 ${activeEnvironmentId === environment.id ? 'border-violet-400/50 bg-violet-400/10' : 'border-border bg-background/40'}`}>
                   <div className='flex items-start justify-between gap-3'>
-                    <button type='button' className='min-w-0 flex-1 text-left' onClick={() => setActiveEnvironmentId(environment.id)}>
+                    <button type='button' className='min-w-0 flex-1 text-left' onClick={() => { void selectEnvironment(environment.id); }}>
                       <div className='flex items-center gap-2'>
                         <span className='truncate font-medium'>{environment.name}</span>
                         {activeEnvironmentId === environment.id && <Badge variant='outline' className='border-success/30 bg-success/10 text-success'>Active</Badge>}

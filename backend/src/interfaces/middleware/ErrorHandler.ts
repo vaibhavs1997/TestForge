@@ -105,9 +105,8 @@ export const errorHandler = (
   });
 
   // Send error response
-  res.status(appError.statusCode).json(
-    createErrorResponse(appError.message, appError.errorCode)
-  );
+  const clientMessage = appError.statusCode >= 500 ? 'Internal server error' : appError.message;
+  res.status(appError.statusCode).json(createErrorResponse(clientMessage, appError.errorCode));
 };
 
 /**

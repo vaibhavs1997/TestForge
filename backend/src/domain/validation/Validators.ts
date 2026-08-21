@@ -138,7 +138,10 @@ export class Validators {
     const startTime = Date.now();
     const expected = rule.config.expected as string;
     const actual = JSON.stringify(response?.data);
-    const passed = actual.includes(expected);
+    const legacyErrorAssertion = rule.config.path === '$.error' && expected === 'true';
+    const passed = legacyErrorAssertion
+      ? Boolean(response?.data?.error || response?.data?.message || response?.data?.errors)
+      : actual.includes(expected);
     
     return {
       rule,

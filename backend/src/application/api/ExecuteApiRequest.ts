@@ -1,4 +1,5 @@
 import axios, { AxiosError, type AxiosRequestHeaders } from 'axios';
+import { assertSafeOutboundUrl } from '../../infrastructure/security/outboundUrl';
 
 export interface ExecuteApiRequestInput {
   requestUrl: string;
@@ -172,6 +173,7 @@ function tryParseBody(rawBody: string, contentType?: string): unknown {
 
 export class ExecuteApiRequest {
   async execute(input: ExecuteApiRequestInput): Promise<ExecuteApiRequestResult> {
+    await assertSafeOutboundUrl(input.requestUrl);
     const requestedAt = new Date().toISOString();
     const startedAt = Date.now();
     const requestHeaders = normalizeHeaders(input.headers);
@@ -204,6 +206,7 @@ export class ExecuteApiRequest {
       const response = await axios.request({
         method,
         url: input.requestUrl,
+        maxRedirects: 0,
         headers: transportHeaders as AxiosRequestHeaders,
         data: preparedBody.body,
         timeout: input.timeoutMs || 30000,

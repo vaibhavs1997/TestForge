@@ -79,6 +79,7 @@ export interface EnvironmentDto extends TimestampedDto {
   authentication: unknown;
   variables: Record<string, string>;
   timeout: number;
+  isDefault?: boolean;
 }
 
 export interface ApiOperationView {

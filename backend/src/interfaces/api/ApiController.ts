@@ -109,7 +109,7 @@ export class ApiController {
     async updateOperation(req: Request, res: Response): Promise<void> {
         const { projectId, serviceId, apiId } = req.params;
         await this.requireOperationInProject(projectId, serviceId, apiId);
-        const { name, method, path, description, authenticationType, status } = req.body;
+        const { name, method, path, description, authenticationType, status, sampleRequestBody } = req.body;
         const operation = await this.updateApiOperation.execute({
             id: apiId,
             name,
@@ -118,6 +118,7 @@ export class ApiController {
             description,
             authenticationType,
             status,
+            sampleRequestBody,
         });
         res.status(200).json(createSuccessResponse(serializeApiOperation(operation)));
     }

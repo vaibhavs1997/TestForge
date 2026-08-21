@@ -86,6 +86,7 @@ class ApiService extends ApiClient<ApiServiceDto> {
       description?: string;
       authenticationType?: string;
       status?: string;
+      sampleRequestBody?: Record<string, unknown> | null;
     }
   ): Promise<ApiOperationDto> {
     const path = `/projects/${projectId}/services/${serviceId}/apis`;
@@ -103,6 +104,7 @@ class ApiService extends ApiClient<ApiServiceDto> {
       description?: string;
       authenticationType?: string;
       status?: string;
+      sampleRequestBody?: Record<string, unknown> | null;
     }
   ): Promise<ApiOperationDto> {
     return apiRequest.patch<ApiOperationDto>(

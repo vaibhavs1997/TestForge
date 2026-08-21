@@ -2,6 +2,7 @@
 
 import { WebhookRepository } from '../../domain/webhook/WebhookRepository';
 import { WebhookEntity, WebhookEvent, WebhookPayload } from '../../domain/webhook/WebhookEntity';
+import { assertSafeOutboundUrl } from '../../infrastructure/security/outboundUrl';
 
 export class ListWebhooks {
   constructor(
@@ -112,8 +113,10 @@ export class TriggerWebhooks {
 
   private async sendWebhook(webhook: WebhookEntity, payload: WebhookPayload): Promise<void> {
     try {
+      await assertSafeOutboundUrl(webhook.url);
       const response = await fetch(webhook.url, {
         method: 'POST',
+        redirect: 'manual',
         headers: {
           'Content-Type': 'application/json',
           'User-Agent': 'TestForge-Webhook/1.0',

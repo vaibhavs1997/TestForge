@@ -24,8 +24,14 @@ jobs:
       - name: TypeScript build
         run: npm run build:backend
 
-      - name: Unit tests
-        run: npm test
+      - name: Type check
+        run: npm run typecheck --workspace backend
+
+      - name: Backend tests and coverage gate
+        run: npm run test:coverage --workspace backend
+
+      - name: Compiled backend startup smoke
+        run: npm run smoke:compiled --workspace backend
 
       - name: Lint
         run: npm run lint --workspace backend
@@ -53,6 +59,12 @@ jobs:
 
       - name: TypeScript build
         run: npm run build:frontend
+
+      - name: Type check
+        run: npm run typecheck --workspace frontend
+
+      - name: Frontend tests and coverage gate
+        run: npm run test:coverage --workspace frontend
 
       - name: Lint
         run: npm run lint --workspace frontend

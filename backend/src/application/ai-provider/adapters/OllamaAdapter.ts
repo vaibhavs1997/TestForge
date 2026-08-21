@@ -7,8 +7,8 @@ import type {
   AIProviderGenerateResult,
   AIProviderHealthResult,
   AIProviderType,
-} from '../../../domain/ai-provider';
-import { BaseAIProviderAdapter } from './BaseAIProviderAdapter';
+} from '../../../domain/ai-provider/index.js';
+import { BaseAIProviderAdapter } from './BaseAIProviderAdapter.js';
 
 const DEFAULT_OLLAMA_BASE = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 

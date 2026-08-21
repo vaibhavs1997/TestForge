@@ -1,5 +1,6 @@
 // Structured logging (no external dependencies)
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+import { sensitiveDataRedactor } from '../security/SensitiveDataRedactionService.js';
 
 const LOG_LEVELS: Record<LogLevel, number> = {
   debug: 0,
@@ -22,30 +23,9 @@ class Logger {
     const timestamp = new Date().toISOString();
     const entry: any = { timestamp, level, message };
     
-    if (data) {
-      if (this.isProduction) {
-        entry.data = this.redactSensitiveFields(data);
-      } else {
-        entry.data = data;
-      }
-    }
+    if (data) entry.data = sensitiveDataRedactor.redact(data);
     
     return this.isProduction ? JSON.stringify(entry) : this.prettyPrint(entry);
-  }
-
-  private redactSensitiveFields(obj: any): any {
-    if (!obj || typeof obj !== 'object') return obj;
-    
-    const sensitiveFields = ['password', 'token', 'secret', 'apiKey', 'authorization', 'jwt'];
-    const redacted = { ...obj };
-    
-    for (const field of sensitiveFields) {
-      if (field in redacted) {
-        redacted[field] = '[REDACTED]';
-      }
-    }
-    
-    return redacted;
   }
 
   private prettyPrint(entry: { level: string; [key: string]: any }): string {

@@ -123,7 +123,8 @@ export class ExecutionRunEntity {
     public readonly executionPlanIds: string[] = [],
     public readonly dependencyGraph: ExecutionDependencyRecord[] = [],
     /** Immutable audit record of the approved suite definition used for this run. */
-    public readonly suiteSnapshot: Record<string, unknown> | null = null
+    public readonly suiteSnapshot: Record<string, unknown> | null = null,
+    public readonly testCaseReferences: Array<{ testCaseId: string; testCaseVersionId: string; version: number }> = []
   ) {}
 }
 

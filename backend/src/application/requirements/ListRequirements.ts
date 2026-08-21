@@ -1,6 +1,6 @@
 // ListRequirements - Application Use Case
-import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
-import { RequirementEntity } from '../../domain/requirements/RequirementEntity';
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
+import { RequirementEntity } from '../../domain/requirements/RequirementEntity.js';
 
 export class ListRequirements {
   constructor(private readonly requirementRepository: RequirementRepository) {}

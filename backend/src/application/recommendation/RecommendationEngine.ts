@@ -1,15 +1,15 @@
 // RecommendationEngine - Analyzes project state and generates deterministic recommendations
 // Does NOT execute APIs or generate reports. Does NOT use AI/LLM.
-import { Recommendation, RecommendationCategory, RecommendationPriority } from '../../domain/recommendation/RecommendationEntity';
-import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
-import { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository';
-import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository';
-import { ExecutionPlanRepository } from '../../domain/requirements/ExecutionPlanRepository';
-import { ExecutionRunRepository } from '../../domain/execution/ExecutionRunRepository';
-import { KnowledgeFlowRepository } from '../../domain/knowledge/KnowledgeFlowRepository';
-import { DatasetRepository } from '../../domain/test-data/DatasetRepository';
-import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository';
-import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
+import { Recommendation, RecommendationCategory, RecommendationPriority } from '../../domain/recommendation/RecommendationEntity.js';
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
+import { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository.js';
+import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository.js';
+import { ExecutionPlanRepository } from '../../domain/requirements/ExecutionPlanRepository.js';
+import { ExecutionRunRepository } from '../../domain/execution/ExecutionRunRepository.js';
+import { KnowledgeFlowRepository } from '../../domain/knowledge/KnowledgeFlowRepository.js';
+import { DatasetRepository } from '../../domain/test-data/DatasetRepository.js';
+import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository.js';
+import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository.js';
 
 export interface ProjectAnalysisContext {
   projectId: string;

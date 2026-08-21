@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { ExecuteApiRequest } from './ExecuteApiRequest';
+import { ExecuteApiRequest } from './ExecuteApiRequest.js';
 
 vi.mock('axios', () => ({
   default: {

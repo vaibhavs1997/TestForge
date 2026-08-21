@@ -3,14 +3,14 @@
 // Determines WHAT should be tested. Does NOT generate test cases.
 // Reuses Requirement, Project Analysis, Knowledge, APIs, and Readiness Report.
 import { randomUUID } from 'node:crypto';
-import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
-import { AnalysisRepository } from '../../infrastructure/analysis/AnalysisRepository';
-import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository';
-import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
-import { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository';
-import { TestStrategyEntity, StrategyCategorySection, StrategyItem } from '../../domain/requirements/TestStrategyEntity';
-import { rankOperationsForRequirement } from './RequirementOperationMatcher';
-import { planScenariosFromAcceptanceCriteria } from './acceptanceCriteriaScenarios';
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
+import { AnalysisRepository } from '../../infrastructure/analysis/AnalysisRepository.js';
+import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository.js';
+import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository.js';
+import { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository.js';
+import { TestStrategyEntity, StrategyCategorySection, StrategyItem } from '../../domain/requirements/TestStrategyEntity.js';
+import { rankOperationsForRequirement } from './RequirementOperationMatcher.js';
+import { planScenariosFromAcceptanceCriteria } from './acceptanceCriteriaScenarios.js';
 
 export class PlanTestStrategy {
   constructor(

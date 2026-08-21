@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { RequirementEntity } from '../../domain/requirements/RequirementEntity';
-import { planScenariosFromAcceptanceCriteria } from './acceptanceCriteriaScenarios';
+import { RequirementEntity } from '../../domain/requirements/RequirementEntity.js';
+import { planScenariosFromAcceptanceCriteria } from './acceptanceCriteriaScenarios.js';
 
 function makeRequirement(ac: string): RequirementEntity {
   return new RequirementEntity(

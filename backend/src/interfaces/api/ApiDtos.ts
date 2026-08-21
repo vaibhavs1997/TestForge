@@ -1,5 +1,5 @@
-import type { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
-import type { ApiServiceEntity } from '../../domain/api/ApiServiceEntity';
+import type { ApiOperationEntity } from '../../domain/api/ApiOperationEntity.js';
+import type { ApiServiceEntity } from '../../domain/api/ApiServiceEntity.js';
 
 export interface ApiSourceContractDto {
   raw: Record<string, unknown>;

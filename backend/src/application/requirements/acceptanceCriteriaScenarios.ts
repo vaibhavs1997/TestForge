@@ -1,11 +1,11 @@
-import type { RequirementEntity } from '../../domain/requirements/RequirementEntity';
-import type { StrategyCategory, StrategyPriority } from '../../domain/requirements/TestStrategyEntity';
-import { getAcceptanceCriteriaFocusText } from './requirementAcceptanceFocus';
+import type { RequirementEntity } from '../../domain/requirements/RequirementEntity.js';
+import type { StrategyCategory, StrategyPriority } from '../../domain/requirements/TestStrategyEntity.js';
+import { getAcceptanceCriteriaFocusText } from './requirementAcceptanceFocus.js';
 import {
   formatFieldList,
   inferFieldsFromAcceptanceCriteria,
   type AcceptanceFieldContext,
-} from './acceptanceCriteriaFields';
+} from './acceptanceCriteriaFields.js';
 
 export type TestCaseType = 'Positive' | 'Negative' | 'Security';
 

@@ -1,7 +1,7 @@
 // GetRequirement - Application Use Case
-import { requireById } from '../shared/crudHelpers';
-import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
-import { RequirementEntity } from '../../domain/requirements/RequirementEntity';
+import { requireById } from '../shared/crudHelpers.js';
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
+import { RequirementEntity } from '../../domain/requirements/RequirementEntity.js';
 
 export class GetRequirement {
   constructor(private readonly requirementRepository: RequirementRepository) {}

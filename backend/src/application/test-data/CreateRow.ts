@@ -1,7 +1,7 @@
 // CreateRow - Application Use Case for creating a Dataset Row
-import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowRepository';
-import { DatasetRowEntity } from '../../domain/test-data/DatasetRowEntity';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowRepository.js';
+import { DatasetRowEntity } from '../../domain/test-data/DatasetRowEntity.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export class CreateRow {
   constructor(private readonly datasetRowRepository: DatasetRowRepository) {}

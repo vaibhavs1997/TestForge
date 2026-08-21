@@ -1,14 +1,14 @@
 // ManageExecutionProfiles - Application Use Case for Execution Profiles
 
 import { randomUUID } from 'node:crypto';
-import { IExecutionProfileRepository } from '../../domain/execution/ExecutionProfileRepository';
-import { ExecutionProfileEntity } from '../../domain/execution/ExecutionProfileEntity';
+import { IExecutionProfileRepository } from '../../domain/execution/ExecutionProfileRepository.js';
+import { ExecutionProfileEntity } from '../../domain/execution/ExecutionProfileEntity.js';
 import {
   buildExecutionProfileDuplicate,
   buildExecutionProfileEntity,
   normalizeExecutionProfileName,
-} from '../../domain/execution/ExecutionProfilePolicy';
-import { validateUniqueProjectName } from '../shared/crudHelpers';
+} from '../../domain/execution/ExecutionProfilePolicy.js';
+import { validateUniqueProjectName } from '../shared/crudHelpers.js';
 
 export interface CreateProfileInput {
   projectId: string;

@@ -1,12 +1,12 @@
 // ProviderAdapterRegistry - Maps adapter types to their placeholder implementations
 // Do NOT call external services yet. Architecture preparation only.
-import { ProviderAdapter } from '../ProviderAdapter';
-import { MailtrapAdapter } from './MailtrapAdapter';
-import { MailHogAdapter } from './MailHogAdapter';
-import { TempMailAdapter } from './TempMailAdapter';
-import { TwilioAdapter } from './TwilioAdapter';
-import { StripeSandboxAdapter } from './StripeSandboxAdapter';
-import { CustomProviderAdapter } from './CustomProviderAdapter';
+import { ProviderAdapter } from '../ProviderAdapter.js';
+import { MailtrapAdapter } from './MailtrapAdapter.js';
+import { MailHogAdapter } from './MailHogAdapter.js';
+import { TempMailAdapter } from './TempMailAdapter.js';
+import { TwilioAdapter } from './TwilioAdapter.js';
+import { StripeSandboxAdapter } from './StripeSandboxAdapter.js';
+import { CustomProviderAdapter } from './CustomProviderAdapter.js';
 
 export class ProviderAdapterRegistry {
   private static instance: ProviderAdapterRegistry;

@@ -1,1 +1,1 @@
-export * from './ProjectApplicationService';
+export * from './ProjectApplicationService.js';

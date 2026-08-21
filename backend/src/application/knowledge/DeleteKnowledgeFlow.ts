@@ -1,5 +1,5 @@
 // DeleteKnowledgeFlow - Application Use Case
-import { KnowledgeFlowRepository } from '../../domain/knowledge/KnowledgeFlowRepository';
+import { KnowledgeFlowRepository } from '../../domain/knowledge/KnowledgeFlowRepository.js';
 
 export class DeleteKnowledgeFlow {
   constructor(private readonly knowledgeFlowRepository: KnowledgeFlowRepository) {}

@@ -1,5 +1,5 @@
 // DeleteDataset - Application Use Case
-import { DatasetRepository } from '../../domain/test-data/DatasetRepository';
+import { DatasetRepository } from '../../domain/test-data/DatasetRepository.js';
 
 export class DeleteDataset {
   constructor(private readonly datasetRepository: DatasetRepository) {}

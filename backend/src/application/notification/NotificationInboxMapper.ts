@@ -1,5 +1,5 @@
 // Maps audit activity to user-facing inbox notifications (all projects).
-import { AuditLogEntity } from '../../domain/audit/AuditLogEntity';
+import { AuditLogEntity } from '../../domain/audit/AuditLogEntity.js';
 
 export interface NotificationInboxItem {
   id: string;

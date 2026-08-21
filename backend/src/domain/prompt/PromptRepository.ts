@@ -1,8 +1,8 @@
 // PromptRepository - Domain Repository interface for Prompt Framework
 // Handles persistence operations for PromptEntity and PromptTemplateEntity.
 
-import { PromptEntity } from './PromptEntity';
-import { PromptTemplateEntity, PromptTemplateCategory } from './PromptTemplateEntity';
+import { PromptEntity } from './PromptEntity.js';
+import { PromptTemplateEntity, PromptTemplateCategory } from './PromptTemplateEntity.js';
 
 export interface PromptRepository {
   // Prompt persistence

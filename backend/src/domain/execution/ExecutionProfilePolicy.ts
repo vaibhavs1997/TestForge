@@ -1,5 +1,5 @@
-import { ExecutionProfileEntity } from './ExecutionProfileEntity';
-import { ValidationHelpers } from '../validation/ValidationHelpers';
+import { ExecutionProfileEntity } from './ExecutionProfileEntity.js';
+import { ValidationHelpers } from '../validation/ValidationHelpers.js';
 
 export interface ExecutionProfileCreateDraft {
   projectId: string;

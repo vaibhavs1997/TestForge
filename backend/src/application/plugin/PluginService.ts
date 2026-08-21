@@ -2,10 +2,10 @@
 // Manages plugin lifecycle and registration.
 
 import { randomUUID } from 'node:crypto';
-import { PluginEntity } from '../../domain/plugin';
-import type { PluginCategory, PluginCapability, PluginRepository } from '../../domain/plugin';
-import { PluginRegistry } from './PluginRegistry';
-import { EventPublisher } from '../EventPublisher';
+import { PluginEntity } from '../../domain/plugin/index.js';
+import type { PluginCategory, PluginCapability, PluginRepository } from '../../domain/plugin/index.js';
+import { PluginRegistry } from './PluginRegistry.js';
+import { EventPublisher } from '../EventPublisher.js';
 
 export interface CreatePluginInput {
   name: string;

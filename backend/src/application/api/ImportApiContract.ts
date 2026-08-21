@@ -8,13 +8,13 @@
 //   • GraphQL Introspection JSON
 import { randomUUID } from 'node:crypto';
 import * as yaml from 'js-yaml';
-import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity';
-import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
-import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
-import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
-import { EventPublisher } from '../EventPublisher';
-import { extractOpenApiSampleRequestBody, extractOpenApiRequiredRequestBodyFields, extractPostmanSampleRequestBody } from './openApiSampleBody';
-import { buildOpenApiServiceImportKey, resolveOpenApiOperationContract } from './openApiResolution';
+import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity.js';
+import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity.js';
+import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository.js';
+import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository.js';
+import { EventPublisher } from '../EventPublisher.js';
+import { extractOpenApiSampleRequestBody, extractOpenApiRequiredRequestBodyFields, extractPostmanSampleRequestBody } from './openApiSampleBody.js';
+import { buildOpenApiServiceImportKey, resolveOpenApiOperationContract } from './openApiResolution.js';
 
 // ─── DTOs ────────────────────────────────────────────────
 

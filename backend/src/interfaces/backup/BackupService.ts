@@ -2,7 +2,8 @@
 import fs from 'fs';
 import path from 'path';
 import { execFileSync, execSync } from 'child_process';
-import { APP_VERSION, BUILD_TIMESTAMP, GIT_COMMIT } from '../../config';
+import { APP_VERSION, BUILD_TIMESTAMP, GIT_COMMIT } from '../../config.js';
+import { defaultEvidenceGovernance } from '../../infrastructure/security/EvidenceGovernanceService.js';
 
 export interface BackupMetadata {
   id: string;
@@ -325,6 +326,15 @@ export class BackupService {
       const destPath = path.join(dest, entry.name);
       if (entry.isDirectory()) {
         this.copyDir(srcPath, destPath);
+      } else if (entry.name === 'secret-store.key' || entry.name === 'secrets.enc.json') {
+        continue;
+      } else if (entry.name.endsWith('.json')) {
+        try {
+          const safe = defaultEvidenceGovernance.protect(JSON.parse(fs.readFileSync(srcPath, 'utf8')), 'export');
+          fs.writeFileSync(destPath, JSON.stringify(safe, null, 2), 'utf8');
+        } catch {
+          fs.copyFileSync(srcPath, destPath);
+        }
       } else {
         fs.copyFileSync(srcPath, destPath);
       }

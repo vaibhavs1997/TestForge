@@ -3,5 +3,5 @@
  * Centralized configuration and default values
  */
 
-export * from './defaults';
-export * from './statuses';
+export * from './defaults.js';
+export * from './statuses.js';

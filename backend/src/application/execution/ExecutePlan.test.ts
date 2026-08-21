@@ -1,8 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import axios from 'axios';
-import { ExecutePlan } from './ExecutePlan';
-import { EnvironmentEntity } from '../../domain/environment/EnvironmentEntity';
-import { ExecutionRunEntity } from '../../domain/execution/ExecutionRunEntity';
+import { ExecutePlan } from './ExecutePlan.js';
+import { EnvironmentEntity } from '../../domain/environment/EnvironmentEntity.js';
+import { ExecutionRunEntity } from '../../domain/execution/ExecutionRunEntity.js';
 
 vi.mock('axios', () => ({
   default: vi.fn(),
@@ -75,6 +75,8 @@ describe('ExecutePlan', () => {
       { findById: vi.fn().mockResolvedValue({ id: 'op-1', serviceId: 'svc-1', method: 'GET', path: '/get' }) } as any,
       { findByProjectAndOperation: vi.fn().mockResolvedValue([]) } as any,
       {} as any,
+      { findByDataset: vi.fn().mockResolvedValue([]) } as any,
+      { findByProject: vi.fn().mockResolvedValue([]) } as any,
       { findById: vi.fn().mockResolvedValue({ assertionIds: [] }) } as any,
       { findById: vi.fn() } as any
     );
@@ -85,6 +87,26 @@ describe('ExecutePlan', () => {
     expect(result.status).toBe('Completed');
     expect(executionRunRepository.create).toHaveBeenCalled();
     expect(executionRunRepository.update).toHaveBeenCalled();
+  });
+
+  it('uses a resolved secret in the outbound request but never persists that value in the run', async () => {
+    const secretEnvironment = new EnvironmentEntity('env-1', 'p1', 'dev', 'https://example.test', '', null, { accessToken: { secretRef: 'token-1' } } as any, 30000, Date.now(), Date.now());
+    const executor = new ExecutePlan(
+      executionRunRepository as any,
+      { findByProject: vi.fn().mockResolvedValue([]), findById: vi.fn().mockResolvedValue(plan), findByRequirement: vi.fn().mockResolvedValue([plan]) } as any,
+      { findById: vi.fn().mockResolvedValue({ id: 'req-1' }) } as any,
+      { findByProject: vi.fn().mockResolvedValue([secretEnvironment]) } as any,
+      { findById: vi.fn() } as any,
+      { findById: vi.fn().mockResolvedValue({ id: 'op-1', serviceId: 'svc-1', method: 'GET', path: '/get' }) } as any,
+      { findByProjectAndOperation: vi.fn().mockResolvedValue([]) } as any,
+      {} as any, { findByDataset: vi.fn().mockResolvedValue([]) } as any, { findByProject: vi.fn().mockResolvedValue([]) } as any,
+      { findById: vi.fn().mockResolvedValue({ assertionIds: [] }) } as any, { findById: vi.fn() } as any,
+      undefined, undefined, undefined, undefined,
+      { get: vi.fn().mockResolvedValue('actual-token') } as any,
+    );
+    await executor.execute('plan-1');
+    expect((mockedAxios.mock.calls[0][0] as any).headers.Authorization).toBe('Bearer actual-token');
+    expect(JSON.stringify(executionRunRepository.create.mock.calls)).not.toContain('actual-token');
   });
 
   it('recovers requirement identity for legacy plans missing requirementId', async () => {
@@ -98,6 +120,8 @@ describe('ExecutePlan', () => {
       { findById: vi.fn().mockResolvedValue({ id: 'op-1', serviceId: 'svc-1', method: 'GET', path: '/get' }) } as any,
       { findByProjectAndOperation: vi.fn().mockResolvedValue([]) } as any,
       {} as any,
+      { findByDataset: vi.fn().mockResolvedValue([]) } as any,
+      { findByProject: vi.fn().mockResolvedValue([]) } as any,
       { findById: vi.fn().mockResolvedValue({ id: 'design-1', requirementId: 'req-1', assertionIds: [] }) } as any,
       { findById: vi.fn() } as any,
     );
@@ -115,6 +139,8 @@ describe('ExecutePlan', () => {
       { findById: vi.fn().mockResolvedValue({ id: 'op-1', serviceId: 'svc-1', method: 'GET', path: '/get' }) } as any,
       { findByProjectAndOperation: vi.fn().mockResolvedValue([]) } as any,
       {} as any,
+      { findByDataset: vi.fn().mockResolvedValue([]) } as any,
+      { findByProject: vi.fn().mockResolvedValue([]) } as any,
       { findById: vi.fn().mockResolvedValue({ assertionIds: [] }) } as any,
       { findById: vi.fn() } as any,
       undefined,
@@ -123,6 +149,82 @@ describe('ExecutePlan', () => {
     );
     const result = await executor.execute('plan-1');
     expect(result.status).toBe('Completed');
+  });
+
+  it('uses a scheduled environment override and records it in the suite snapshot', async () => {
+    const scheduledEnvironment = new EnvironmentEntity(
+      'env-scheduled', 'p1', 'scheduled', 'https://scheduled.example.test', '', null, {}, 30000, Date.now(), Date.now(),
+    );
+    const executor = new ExecutePlan(
+      executionRunRepository as any,
+      { findByProject: vi.fn().mockResolvedValue([plan]), findById: vi.fn().mockResolvedValue(plan), findByRequirement: vi.fn().mockResolvedValue([plan]) } as any,
+      { findById: vi.fn().mockResolvedValue({ id: 'req-1' }) } as any,
+      { findByProject: vi.fn().mockResolvedValue([environment, scheduledEnvironment]) } as any,
+      { findById: vi.fn() } as any,
+      { findById: vi.fn().mockResolvedValue({ id: 'op-1', serviceId: 'svc-1', method: 'GET', path: '/get' }) } as any,
+      { findByProjectAndOperation: vi.fn().mockResolvedValue([]) } as any,
+      {} as any,
+      { findByDataset: vi.fn().mockResolvedValue([]) } as any,
+      { findByProject: vi.fn().mockResolvedValue([]) } as any,
+      { findById: vi.fn().mockResolvedValue({ assertionIds: [] }) } as any,
+      { findById: vi.fn() } as any,
+    );
+
+    const result = await executor.executeCombined(['plan-1'], 'StopOnFailure', undefined, 'suite-1', { suite: { id: 'suite-1' } }, 'env-scheduled');
+
+    expect(result.context.environmentId).toBe('env-scheduled');
+    expect(result.suiteSnapshot).toMatchObject({
+      environment: { id: 'env-scheduled', name: 'scheduled', baseUrl: 'https://scheduled.example.test', source: 'schedule' },
+    });
+  });
+
+  it('uses injected column and runtime-variable repositories for generated and runtime mappings', async () => {
+    const columnRepository = { findByDataset: vi.fn().mockResolvedValue([{ name: 'email', dataType: 'email' }]) };
+    const runtimeVariableRepository = { findByProject: vi.fn().mockResolvedValue([{ name: 'accountId', defaultValue: 'account-1' }]) };
+    const mappings = [
+      { fieldPath: 'email', sourceType: 'Generated Value', datasetId: 'dataset-1', datasetColumn: 'email' },
+      { fieldPath: 'accountId', sourceType: 'Runtime Variable', runtimeField: 'accountId' },
+    ];
+    const executor = new ExecutePlan(
+      executionRunRepository as any,
+      { findByProject: vi.fn().mockResolvedValue([plan]), findById: vi.fn().mockResolvedValue(plan), findByRequirement: vi.fn().mockResolvedValue([plan]) } as any,
+      { findById: vi.fn().mockResolvedValue({ id: 'req-1' }) } as any,
+      { findByProject: vi.fn().mockResolvedValue([environment]) } as any,
+      { findById: vi.fn() } as any,
+      { findById: vi.fn().mockResolvedValue({ id: 'op-1', serviceId: 'svc-1', method: 'GET', path: '/get' }) } as any,
+      { findByProjectAndOperation: vi.fn().mockResolvedValue(mappings) } as any,
+      {} as any,
+      columnRepository as any,
+      runtimeVariableRepository as any,
+      { findById: vi.fn().mockResolvedValue({ assertionIds: [] }) } as any,
+      { findById: vi.fn() } as any,
+    );
+
+    await executor.execute('plan-1');
+
+    expect(columnRepository.findByDataset).toHaveBeenCalledWith('dataset-1');
+    expect(runtimeVariableRepository.findByProject).toHaveBeenCalledWith('p1');
+  });
+
+  it('surfaces test-data repository failures as a clear execution error', async () => {
+    const executor = new ExecutePlan(
+      executionRunRepository as any,
+      { findByProject: vi.fn().mockResolvedValue([plan]), findById: vi.fn().mockResolvedValue(plan), findByRequirement: vi.fn().mockResolvedValue([plan]) } as any,
+      { findById: vi.fn().mockResolvedValue({ id: 'req-1' }) } as any,
+      { findByProject: vi.fn().mockResolvedValue([environment]) } as any,
+      { findById: vi.fn() } as any,
+      { findById: vi.fn().mockResolvedValue({ id: 'op-1', serviceId: 'svc-1', method: 'GET', path: '/get' }) } as any,
+      { findByProjectAndOperation: vi.fn().mockResolvedValue([{ fieldPath: 'email', sourceType: 'Generated Value', datasetId: 'dataset-1', datasetColumn: 'email' }]) } as any,
+      {} as any,
+      { findByDataset: vi.fn().mockRejectedValue(new Error('column store unavailable')) } as any,
+      { findByProject: vi.fn().mockResolvedValue([]) } as any,
+      { findById: vi.fn().mockResolvedValue({ assertionIds: [] }) } as any,
+      { findById: vi.fn() } as any,
+    );
+
+    await expect(executor.execute('plan-1')).rejects.toThrow(
+      'Test data resolution failed before execution: Unable to resolve Generated Value for field "email": column store unavailable',
+    );
   });
 
   function buildExecutor(plans: any[], designs: any[], responses: any[] = [{ id: 'value-a' }, { ok: true }]) {
@@ -137,6 +239,8 @@ describe('ExecutePlan', () => {
       { findById: vi.fn() } as any,
       { findById: vi.fn(async (id: string) => ({ id, serviceId: 'svc-1', method: 'POST', path: `/${id}` })) } as any,
       { findByProjectAndOperation: vi.fn().mockResolvedValue([]) } as any,
+      { findByDataset: vi.fn().mockResolvedValue([]) } as any,
+      { findByProject: vi.fn().mockResolvedValue([]) } as any,
       { findById: vi.fn(async (id: string) => designs.find((item) => item.id === id) || { assertionIds: [] }) } as any,
       { findById: vi.fn().mockResolvedValue({ assertionIds: [] }) } as any,
       { findById: vi.fn() } as any,

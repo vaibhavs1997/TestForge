@@ -1,7 +1,7 @@
 import * as path from 'node:path';
-import { AuditLogEntity, AuditLogRepository } from '../../domain/audit';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
-import { filterAuditLogs, sortAuditLogsDescending } from './AuditLogRepositorySupport';
+import { AuditLogEntity, AuditLogRepository } from '../../domain/audit/index.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
+import { filterAuditLogs, sortAuditLogsDescending } from './AuditLogRepositorySupport.js';
 
 function logsFilePath(): string {
   return path.join(process.cwd(), 'data', 'audit', 'logs.json');

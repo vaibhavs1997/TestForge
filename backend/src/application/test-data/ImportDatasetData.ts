@@ -3,13 +3,13 @@
 // Reuses existing Dataset, Column, and Dataset Row repositories
 
 import { randomUUID } from 'node:crypto';
-import { DatasetRepository } from '../../domain/test-data/DatasetRepository';
-import { ColumnRepository } from '../../domain/test-data/ColumnRepository';
-import { IDatasetRowRepository } from '../../domain/test-data/DatasetRowRepository';
-import { IRelationshipRepository } from '../../domain/test-data/RelationshipRepository';
-import { DatasetEntity } from '../../domain/test-data/DatasetEntity';
-import { ColumnEntity } from '../../domain/test-data/ColumnEntity';
-import { DatasetRowEntity } from '../../domain/test-data/DatasetRowEntity';
+import { DatasetRepository } from '../../domain/test-data/DatasetRepository.js';
+import { ColumnRepository } from '../../domain/test-data/ColumnRepository.js';
+import { IDatasetRowRepository } from '../../domain/test-data/DatasetRowRepository.js';
+import { IRelationshipRepository } from '../../domain/test-data/RelationshipRepository.js';
+import { DatasetEntity } from '../../domain/test-data/DatasetEntity.js';
+import { ColumnEntity } from '../../domain/test-data/ColumnEntity.js';
+import { DatasetRowEntity } from '../../domain/test-data/DatasetRowEntity.js';
 
 export interface ColumnMapping {
   sourceColumn: string;

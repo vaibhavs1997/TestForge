@@ -2,8 +2,8 @@
 import { randomUUID } from 'node:crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { DatasetRowEntity } from '../../domain/test-data/DatasetRowEntity';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { DatasetRowEntity } from '../../domain/test-data/DatasetRowEntity.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'test-data');

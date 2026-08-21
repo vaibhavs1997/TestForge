@@ -1,6 +1,6 @@
 // UpdatePopulationProfile - Application Use Case
-import { PopulationProfileRepository } from '../../domain/test-data/PopulationProfileRepository';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { PopulationProfileRepository } from '../../domain/test-data/PopulationProfileRepository.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export class UpdatePopulationProfile {
   constructor(private readonly profileRepository: PopulationProfileRepository) {}

@@ -3,9 +3,9 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { AIProviderEntity } from '../../domain/ai-provider';
-import type { AIProviderType, AIProviderRepository } from '../../domain/ai-provider';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { AIProviderEntity } from '../../domain/ai-provider/index.js';
+import type { AIProviderType, AIProviderRepository } from '../../domain/ai-provider/index.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'ai-providers');

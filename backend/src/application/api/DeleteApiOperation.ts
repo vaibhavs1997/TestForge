@@ -1,5 +1,5 @@
 // DeleteApiOperation - Application Use Case
-import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
+import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository.js';
 
 export class DeleteApiOperation {
   constructor(private readonly apiOperationRepository: ApiOperationRepository) {}

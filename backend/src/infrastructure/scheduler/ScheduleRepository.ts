@@ -2,9 +2,9 @@
 // Persists schedules to data/schedules/{projectId}/schedules.json
 import * as fs from 'fs';
 import * as path from 'path';
-import { ScheduleEntity } from '../../domain/scheduler/ScheduleEntity';
-import type { ScheduleRepository as ScheduleRepositoryInterface } from '../../domain/scheduler/ScheduleRepository';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { ScheduleEntity } from '../../domain/scheduler/ScheduleEntity.js';
+import type { ScheduleRepository as ScheduleRepositoryInterface } from '../../domain/scheduler/ScheduleRepository.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'schedules');

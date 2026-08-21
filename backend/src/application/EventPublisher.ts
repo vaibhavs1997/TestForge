@@ -2,7 +2,8 @@
 // Eliminates duplicated eventBus.publish() calls across repositories and services.
 // Every entity mutation should go through this utility.
 
-import { EventBus, EventType, ModuleName, DomainEvent } from '../domain/events/EventBus';
+import { EventBus, EventType, ModuleName, DomainEvent } from '../domain/events/EventBus.js';
+import { sensitiveDataRedactor } from '../infrastructure/security/SensitiveDataRedactionService.js';
 
 export interface PublishOptions {
   type: EventType;
@@ -27,9 +28,9 @@ export class EventPublisher {
       timestamp: Date.now(),
       payload: {
         entityType: options.entityType,
-        oldValue: options.oldValue || null,
-        newValue: options.newValue || null,
-        metadata: options.metadata || {},
+        oldValue: options.oldValue ? sensitiveDataRedactor.redact(options.oldValue) : null,
+        newValue: options.newValue ? sensitiveDataRedactor.redact(options.newValue) : null,
+        metadata: options.metadata ? sensitiveDataRedactor.redact(options.metadata) : {},
       },
     };
 

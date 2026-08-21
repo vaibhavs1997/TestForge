@@ -1,14 +1,14 @@
 // ProviderRoutes - Route definitions for Provider Framework
 import { Router } from 'express';
-import { ProviderController } from './ProviderController';
-import { container } from '../../application/ApplicationContainer';
+import { ProviderController } from './ProviderController.js';
+import { container } from '../../application/ApplicationContainer.js';
 
 // Reuse shared repository from the ApplicationContainer
 const { providerRepository } = container;
 
 // Initialize use case
-import { ManageProviders } from '../../application/providers/ManageProviders';
-import { asyncHandler } from '../middleware/AsyncHandler';
+import { ManageProviders } from '../../application/providers/ManageProviders.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 const manageProviders = new ManageProviders(providerRepository);
 

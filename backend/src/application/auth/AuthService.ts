@@ -1,9 +1,9 @@
 import jwt from 'jsonwebtoken';
-import { getAuthConfig } from '../../config';
-import type { PublicUser } from '../../domain/auth/types';
-import { normalizeEmail } from '../../domain/auth/normalizeEmail';
-import { AuthRepository } from '../../infrastructure/auth/AuthRepository';
-import { sendWelcomeEmail } from './sendWelcomeEmail';
+import { getAuthConfig } from '../../config.js';
+import type { PublicUser } from '../../domain/auth/types.js';
+import { normalizeEmail } from '../../domain/auth/normalizeEmail.js';
+import { AuthRepository } from '../../infrastructure/auth/AuthRepository.js';
+import { sendWelcomeEmail } from './sendWelcomeEmail.js';
 
 export interface AuthTokenPair {
   accessToken: string;

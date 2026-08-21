@@ -1,6 +1,6 @@
 // ListAnalysis - Application Use Case
-import { AnalysisRepository } from '../../domain/analysis/AnalysisRepository';
-import { AnalysisEntity } from '../../domain/analysis/AnalysisEntity';
+import { AnalysisRepository } from '../../domain/analysis/AnalysisRepository.js';
+import { AnalysisEntity } from '../../domain/analysis/AnalysisEntity.js';
 
 export class ListAnalysis {
   constructor(private readonly analysisRepository: AnalysisRepository) {}

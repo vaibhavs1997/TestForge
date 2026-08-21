@@ -3,15 +3,15 @@
 // Reuses existing services and repositories. No new AI framework.
 
 import { randomUUID } from 'node:crypto';
-import { ExecutionPlanRepository } from '../../domain/requirements/ExecutionPlanRepository';
-import { TestSuiteRepository } from '../../domain/suite/TestSuiteRepository';
-import { TestSuiteEntity, SuiteExecutionPolicy, SuiteStatus, SuiteTag, TestSuiteItem } from '../../domain/suite/TestSuiteEntity';
-import { ProjectContextService } from '../context/ProjectContextService';
-import { PromptBuilderService } from '../prompt/PromptBuilderService';
-import { ManageAIProviders } from '../ai-provider/ManageAIProviders';
-import { VersionService } from '../versioning/VersionService';
-import { EventPublisher } from '../EventPublisher';
-import type { AIProviderMessage } from '../../domain/ai-provider';
+import { ExecutionPlanRepository } from '../../domain/requirements/ExecutionPlanRepository.js';
+import { TestSuiteRepository } from '../../domain/suite/TestSuiteRepository.js';
+import { TestSuiteEntity, SuiteExecutionPolicy, SuiteStatus, SuiteTag, TestSuiteItem } from '../../domain/suite/TestSuiteEntity.js';
+import { ProjectContextService } from '../context/ProjectContextService.js';
+import { PromptBuilderService } from '../prompt/PromptBuilderService.js';
+import { ManageAIProviders } from '../ai-provider/ManageAIProviders.js';
+import { VersionService } from '../versioning/VersionService.js';
+import { EventPublisher } from '../EventPublisher.js';
+import type { AIProviderMessage } from '../../domain/ai-provider/index.js';
 
 export interface GenerateTestSuiteWithAIRequest {
   projectId: string;

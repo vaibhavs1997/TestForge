@@ -1,3 +1,3 @@
 // Barrel export file for environment domain
-export { EnvironmentEntity } from './EnvironmentEntity';
-export type { EnvironmentRepository } from './EnvironmentRepository';
+export { EnvironmentEntity } from './EnvironmentEntity.js';
+export type { EnvironmentRepository } from './EnvironmentRepository.js';

@@ -1,6 +1,6 @@
 // RefreshApiContract - Re-import a stored source contract when the canonical source is still available.
-import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
-import { ImportApiContract, type ImportSummary } from './ImportApiContract';
+import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository.js';
+import { ImportApiContract, type ImportSummary } from './ImportApiContract.js';
 
 export interface RefreshApiContractResult {
   refreshed: boolean;

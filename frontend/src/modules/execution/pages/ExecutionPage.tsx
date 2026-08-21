@@ -77,7 +77,7 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
     const variables = selectedEnvironment?.variables || {};
     setTokenDraft(String(variables.accessToken || variables.access_token || ''));
     setTokenSaveMessage(null);
-  }, [selectedEnvironment?.id, selectedEnvironment?.variables?.accessToken, selectedEnvironment?.variables?.access_token]);
+  }, [selectedEnvironment?.id, selectedEnvironment?.variables]);
 
   const saveManualToken = async () => {
     if (!selectedEnvironment || !tokenDraft.trim()) return;

@@ -1,1 +1,1 @@
-export { NotificationService, CreateNotificationInput, UpdateNotificationInput } from './NotificationService';
+export { NotificationService, CreateNotificationInput, UpdateNotificationInput } from './NotificationService.js';

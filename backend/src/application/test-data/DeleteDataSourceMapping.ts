@@ -1,5 +1,5 @@
 // DeleteDataSourceMapping - Application Use Case
-import { DataSourceMappingRepository } from '../../domain/test-data/DataSourceMappingRepository';
+import { DataSourceMappingRepository } from '../../domain/test-data/DataSourceMappingRepository.js';
 
 export class DeleteDataSourceMapping {
   constructor(private readonly mappingRepository: DataSourceMappingRepository) {}

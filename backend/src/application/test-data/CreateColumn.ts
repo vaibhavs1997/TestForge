@@ -1,8 +1,8 @@
 // CreateColumn - Application Use Case
 import { randomUUID } from 'node:crypto';
-import { ColumnRepository } from '../../domain/test-data/ColumnRepository';
-import { ColumnEntity } from '../../domain/test-data/ColumnEntity';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { ColumnRepository } from '../../domain/test-data/ColumnRepository.js';
+import { ColumnEntity } from '../../domain/test-data/ColumnEntity.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export class CreateColumn {
   constructor(private readonly columnRepository: ColumnRepository) {}

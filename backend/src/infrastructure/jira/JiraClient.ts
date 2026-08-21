@@ -1,4 +1,4 @@
-import { getJiraEnvConfig, type JiraEnvConfig } from '../../config/jiraEnv';
+import { getJiraEnvConfig, type JiraEnvConfig } from '../../config/jiraEnv.js';
 
 export interface JiraIssueFields {
   summary: string;

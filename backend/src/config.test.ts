@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validateConfig } from './config';
+import { validateConfig } from './config.js';
 
 const baseEnv = {
   PORT: '3001',

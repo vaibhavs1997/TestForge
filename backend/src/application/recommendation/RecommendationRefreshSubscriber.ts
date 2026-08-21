@@ -1,8 +1,8 @@
 // RecommendationRefreshSubscriber - Refreshes recommendations when project state changes
 // Subscribes to INVALIDATED events (published by CacheInvalidationService) and
 // re-runs the RecommendationEngine analysis so recommendations stay in sync.
-import { EventBus, DomainEvent } from '../../domain/events/EventBus';
-import { RecommendationEngine } from '../recommendation/RecommendationEngine';
+import { EventBus, DomainEvent } from '../../domain/events/EventBus.js';
+import { RecommendationEngine } from '../recommendation/RecommendationEngine.js';
 
 export class RecommendationRefreshSubscriber {
   constructor(

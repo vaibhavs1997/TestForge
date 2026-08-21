@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import { ListEnvironments, GetEnvironment, CreateEnvironment, UpdateEnvironment, DeleteEnvironment } from './index';
-import type { EnvironmentRepository } from '../../domain/environment/EnvironmentRepository';
-import type { EnvironmentEntity } from '../../domain/environment/EnvironmentEntity';
+import { ListEnvironments, GetEnvironment, CreateEnvironment, UpdateEnvironment, DeleteEnvironment } from './index.js';
+import type { EnvironmentRepository } from '../../domain/environment/EnvironmentRepository.js';
+import type { EnvironmentEntity } from '../../domain/environment/EnvironmentEntity.js';
 
 describe('Environment use cases', () => {
   let repository: EnvironmentRepository;
@@ -82,7 +82,7 @@ describe('Environment use cases', () => {
         authentication: null,
         createdAt: Date.now(),
         updatedAt: Date.now(),
-      } as EnvironmentEntity;
+      } as unknown as EnvironmentEntity;
       repository.create = () => Promise.resolve(created);
 
       const result = await useCases.create.execute({ projectId: 'proj-1', name: 'Dev', baseUrl: 'http://localhost' });
@@ -101,7 +101,7 @@ describe('Environment use cases', () => {
         timeout: 5000,
         createdAt: Date.now(),
         updatedAt: Date.now(),
-      } as EnvironmentEntity;
+      } as unknown as EnvironmentEntity;
       repository.create = () => Promise.resolve(created);
 
       const result = await useCases.create.execute({

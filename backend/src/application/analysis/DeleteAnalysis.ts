@@ -1,6 +1,6 @@
 // DeleteAnalysis - Application Use Case
-import { deleteById } from '../shared/crudHelpers';
-import { AnalysisRepository } from '../../domain/analysis/AnalysisRepository';
+import { deleteById } from '../shared/crudHelpers.js';
+import { AnalysisRepository } from '../../domain/analysis/AnalysisRepository.js';
 
 export class DeleteAnalysis {
   constructor(private readonly analysisRepository: AnalysisRepository) {}

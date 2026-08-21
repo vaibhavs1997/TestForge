@@ -1,15 +1,15 @@
 // TestDataResolutionService - Resolves test data from Data Source Mappings
 // Supports: Runtime Variable, Dataset Row, Generated Value, Environment Variable, Manual Value
 import { randomUUID } from 'node:crypto';
-import { DataSourceMappingRepository } from '../../infrastructure/test-data/DataSourceMappingRepository';
-import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowRepository';
-import { DatasetRepository } from '../../infrastructure/test-data/DatasetRepository';
-import { ColumnRepository } from '../../infrastructure/test-data/ColumnRepository';
-import { RuntimeVariableRepository } from '../../infrastructure/knowledge/RuntimeVariableRepository';
-import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository';
-import { DataSourceMappingEntity } from '../../domain/test-data/DataSourceMappingEntity';
-import { DatasetRowEntity } from '../../domain/test-data/DatasetRowEntity';
-import { ColumnEntity } from '../../domain/test-data/ColumnEntity';
+import { DataSourceMappingRepository } from '../../infrastructure/test-data/DataSourceMappingRepository.js';
+import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowRepository.js';
+import { DatasetRepository } from '../../infrastructure/test-data/DatasetRepository.js';
+import { ColumnRepository } from '../../infrastructure/test-data/ColumnRepository.js';
+import { RuntimeVariableRepository } from '../../infrastructure/knowledge/RuntimeVariableRepository.js';
+import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository.js';
+import { DataSourceMappingEntity } from '../../domain/test-data/DataSourceMappingEntity.js';
+import { DatasetRowEntity } from '../../domain/test-data/DatasetRowEntity.js';
+import { ColumnEntity } from '../../domain/test-data/ColumnEntity.js';
 
 export interface ResolvedValue {
   sourceType: string;
@@ -60,7 +60,7 @@ export class TestDataResolutionService {
     const resolvedValues: Record<string, ResolvedValue> = {};
 
     for (const mapping of mappings) {
-      const resolved = await this.resolveMapping(mapping, context);
+      const resolved = await this.resolveMapping(mapping, context, projectId);
       resolvedValues[mapping.fieldPath] = resolved;
     }
 
@@ -69,38 +69,37 @@ export class TestDataResolutionService {
 
   async resolveMapping(
     mapping: DataSourceMappingEntity,
-    context: ResolutionContext
+    context: ResolutionContext,
+    projectId?: string,
   ): Promise<ResolvedValue> {
-    const sourceType = mapping.sourceType.toLowerCase();
+    try {
+      const sourceType = mapping.sourceType.toLowerCase();
 
-    // Resolution order: Runtime Variable > Dataset Row > Generated Value > Environment Variable > Manual Value
-    switch (sourceType) {
-      case 'runtime variable':
-        return this.resolveRuntimeVariable(mapping, context);
-      
-      case 'dataset row':
-        return this.resolveDatasetRow(mapping, context);
-      
-      case 'generated value':
-        return this.resolveGeneratedValue(mapping, context);
-      
-      case 'environment variable':
-        return this.resolveEnvironmentVariable(mapping, context);
-      
-      case 'manual value':
-        return this.resolveManualValue(mapping, context);
-      
-      default:
-        return {
-          sourceType: mapping.sourceType,
-          value: null,
-        };
+      // Resolution order: Runtime Variable > Dataset Row > Generated Value > Environment Variable > Manual Value
+      switch (sourceType) {
+        case 'runtime variable':
+          return await this.resolveRuntimeVariable(mapping, context, projectId);
+        case 'dataset row':
+          return await this.resolveDatasetRow(mapping, context);
+        case 'generated value':
+          return await this.resolveGeneratedValue(mapping, context);
+        case 'environment variable':
+          return await this.resolveEnvironmentVariable(mapping, context);
+        case 'manual value':
+          return await this.resolveManualValue(mapping, context);
+        default:
+          return { sourceType: mapping.sourceType, value: null };
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(`Unable to resolve ${mapping.sourceType} for field "${mapping.fieldPath}": ${detail}`);
     }
   }
 
   private async resolveRuntimeVariable(
     mapping: DataSourceMappingEntity,
-    context: ResolutionContext
+    context: ResolutionContext,
+    projectId?: string,
   ): Promise<ResolvedValue> {
     const variableName = mapping.runtimeField || mapping.fieldPath;
     
@@ -110,6 +109,14 @@ export class TestDataResolutionService {
         value: context.runtimeVariables[variableName],
         variableName,
       };
+    }
+
+    if (projectId) {
+      const variable = (await this.runtimeVariableRepository.findByProject(projectId))
+        .find((candidate) => candidate.name === variableName);
+      if (variable?.defaultValue !== undefined && variable.defaultValue !== '') {
+        return { sourceType: 'Runtime Variable', value: variable.defaultValue, variableName };
+      }
     }
 
     return {
@@ -291,7 +298,7 @@ export class TestDataResolutionService {
     );
 
     for (const mapping of mappings) {
-      const resolved = await this.resolveMapping(mapping, context);
+      const resolved = await this.resolveMapping(mapping, context, projectId);
       
       if (resolved.value === null || resolved.value === undefined) {
         errors.push({

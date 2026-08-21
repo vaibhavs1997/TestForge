@@ -3,9 +3,9 @@
 import { randomUUID } from 'node:crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { AssertionEntity } from '../../domain/assertion/AssertionEntity';
-import { EventPublisher } from '../../application/EventPublisher';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { AssertionEntity } from '../../domain/assertion/AssertionEntity.js';
+import { EventPublisher } from '../../application/EventPublisher.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'assertions');

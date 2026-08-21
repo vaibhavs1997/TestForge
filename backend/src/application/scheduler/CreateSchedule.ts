@@ -1,17 +1,17 @@
 // CreateSchedule - Application Use Case for creating a scheduled execution
 import { randomUUID } from 'node:crypto';
-import { ScheduleEntity } from '../../domain/scheduler/ScheduleEntity';
-import type { ScheduleRepository } from '../../domain/scheduler/ScheduleRepository';
+import { ScheduleEntity } from '../../domain/scheduler/ScheduleEntity.js';
+import type { ScheduleRepository } from '../../domain/scheduler/ScheduleRepository.js';
 import {
   assertActiveSuite,
   buildScheduleEntity,
   normalizeScheduleDescription,
   normalizeScheduleName,
   normalizeScheduleTimezone,
-} from '../../domain/scheduler/SchedulePolicy';
-import { TestSuiteRepository } from '../../domain/suite/TestSuiteRepository';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
-import { CronExpression } from './CronExpression';
+} from '../../domain/scheduler/SchedulePolicy.js';
+import { TestSuiteRepository } from '../../domain/suite/TestSuiteRepository.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
+import { CronExpression } from './CronExpression.js';
 
 export interface CreateScheduleInput {
   projectId: string;

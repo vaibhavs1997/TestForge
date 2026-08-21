@@ -1,7 +1,7 @@
 // DeleteEnvironment - Application Use Case
-import { requireById } from '../shared/crudHelpers';
-import { EnvironmentRepository } from '../../domain/environment/EnvironmentRepository';
-import { EventPublisher } from '../EventPublisher';
+import { requireById } from '../shared/crudHelpers.js';
+import { EnvironmentRepository } from '../../domain/environment/EnvironmentRepository.js';
+import { EventPublisher } from '../EventPublisher.js';
 
 export class DeleteEnvironment {
   constructor(

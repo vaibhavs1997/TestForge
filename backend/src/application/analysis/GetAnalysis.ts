@@ -1,7 +1,7 @@
 // GetAnalysis - Application Use Case
-import { requireById } from '../shared/crudHelpers';
-import { AnalysisRepository } from '../../domain/analysis/AnalysisRepository';
-import { AnalysisEntity } from '../../domain/analysis/AnalysisEntity';
+import { requireById } from '../shared/crudHelpers.js';
+import { AnalysisRepository } from '../../domain/analysis/AnalysisRepository.js';
+import { AnalysisEntity } from '../../domain/analysis/AnalysisEntity.js';
 
 export class GetAnalysis {
   constructor(private readonly analysisRepository: AnalysisRepository) {}

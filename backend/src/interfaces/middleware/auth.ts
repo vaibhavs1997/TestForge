@@ -2,10 +2,10 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { timingSafeEqual } from 'node:crypto';
-import { AppError, UnauthorizedError, ForbiddenError } from '../../shared/errors';
-import { getAuthConfig } from '../../config';
-import { isProjectIdInAuthScope } from './projectAccess';
-import type { UserRole } from '../../domain/auth/types';
+import { AppError, UnauthorizedError, ForbiddenError, NotFoundError } from '../../shared/errors.js';
+import { getAuthConfig } from '../../config.js';
+import { isProjectIdInAuthScope } from './projectAccess.js';
+import type { UserRole } from '../../domain/auth/types.js';
 
 export interface AuthContext {
   subject: string;
@@ -147,4 +147,39 @@ export async function assertProjectAccess(projectId: string, auth: AuthContext |
   }
 
   throw new ForbiddenError('Forbidden for this project');
+}
+
+/** Restricted administrative operations (backups and metrics) require a global scope and an admin/owner role. */
+export function assertGlobalAccess(auth: AuthContext | undefined): void {
+  if (!getAuthConfig().enabled) return;
+  if (!auth) throw new UnauthorizedError('Authentication required');
+  if (auth.projectIds !== '*') throw new ForbiddenError('Global access is required');
+  if (auth.role && auth.role !== 'owner' && auth.role !== 'admin') {
+    throw new ForbiddenError('Administrator role is required');
+  }
+}
+
+export type ProjectOwnedResource = { projectId: string } | null;
+
+/**
+ * Reusable guard for global ID-based routes. It loads the resource once and
+ * verifies its project scope before the controller can read, change, restore,
+ * or test it. Missing resources are 404; authenticated cross-project access
+ * is 403; absent credentials remain 401 through assertProjectAccess.
+ */
+export function authorizeResource(
+  idParam: string,
+  load: (id: string) => Promise<ProjectOwnedResource>,
+): (req: Request, res: Response, next: NextFunction) => Promise<void> {
+  return async (req, _res, next) => {
+    try {
+      const resource = await load(req.params[idParam]);
+      if (!resource) throw new NotFoundError('Resource not found');
+      await assertProjectAccess(resource.projectId, req.auth);
+      (req as Request & { resource?: ProjectOwnedResource }).resource = resource;
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
 }

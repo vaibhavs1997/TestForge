@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
-import { RequirementEntity } from '../../domain/requirements/RequirementEntity';
-import { RequirementEndpointMappingService } from './RequirementEndpointMappingService';
-import { matchesGeneratedScenario } from './GenerateRequirementTestCases';
+import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity.js';
+import { RequirementEntity } from '../../domain/requirements/RequirementEntity.js';
+import { RequirementEndpointMappingService } from './RequirementEndpointMappingService.js';
+import { matchesGeneratedScenario } from './GenerateRequirementTestCases.js';
 
 const operation = (id: string, name: string, method: string, path: string) =>
   new ApiOperationEntity(id, 'project-1', 'service-1', name, method, path, name, 'None', 'Active', 0, 0);

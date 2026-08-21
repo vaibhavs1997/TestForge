@@ -1,3 +1,3 @@
 // Barrel export file for Report interfaces module
-export * from './ReportController';
-export { reportRoutes } from './ReportRoutes';
+export * from './ReportController.js';
+export { reportRoutes } from './ReportRoutes.js';

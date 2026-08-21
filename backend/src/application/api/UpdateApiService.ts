@@ -1,8 +1,8 @@
 // UpdateApiService - Application Use Case
-import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity';
-import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
-import { EventPublisher } from '../EventPublisher';
+import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity.js';
+import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
+import { EventPublisher } from '../EventPublisher.js';
 
 export class UpdateApiService {
   constructor(

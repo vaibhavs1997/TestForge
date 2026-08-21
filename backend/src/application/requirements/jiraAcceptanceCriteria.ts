@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { AcceptanceCriterion } from '../../domain/requirements/RequirementEntity';
+import type { AcceptanceCriterion } from '../../domain/requirements/RequirementEntity.js';
 
 const BULLET_LINE = /^\s*(?:[-*•]|\d+[.)])\s+(.+)$/;
 

@@ -3,16 +3,16 @@
 // Reuses existing services and repositories. No new AI framework.
 
 import { randomUUID } from 'node:crypto';
-import { AssertionRepository } from '../../infrastructure/assertion/AssertionRepository';
-import type { AssertionEntity } from '../../domain/assertion/AssertionEntity';
-import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository';
-import { TestDesignEntity } from '../../domain/requirements/TestDesignEntity';
-import { ProjectContextService } from '../context/ProjectContextService';
-import { PromptBuilderService } from '../prompt/PromptBuilderService';
-import { ManageAIProviders } from '../ai-provider/ManageAIProviders';
-import { VersionService } from '../versioning/VersionService';
-import { EventPublisher } from '../EventPublisher';
-import type { AIProviderMessage } from '../../domain/ai-provider';
+import { AssertionRepository } from '../../infrastructure/assertion/AssertionRepository.js';
+import type { AssertionEntity } from '../../domain/assertion/AssertionEntity.js';
+import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository.js';
+import { TestDesignEntity } from '../../domain/requirements/TestDesignEntity.js';
+import { ProjectContextService } from '../context/ProjectContextService.js';
+import { PromptBuilderService } from '../prompt/PromptBuilderService.js';
+import { ManageAIProviders } from '../ai-provider/ManageAIProviders.js';
+import { VersionService } from '../versioning/VersionService.js';
+import { EventPublisher } from '../EventPublisher.js';
+import type { AIProviderMessage } from '../../domain/ai-provider/index.js';
 
 export interface GenerateAssertionsWithAIRequest {
   projectId: string;

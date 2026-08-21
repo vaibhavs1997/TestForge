@@ -1,2 +1,2 @@
 // Barrel export file for context domain
-export * from './ProjectContextEntity';
+export * from './ProjectContextEntity.js';

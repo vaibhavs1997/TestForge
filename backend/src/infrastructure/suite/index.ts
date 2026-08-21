@@ -1,1 +1,1 @@
-export * from './TestSuiteRepository';
+export * from './TestSuiteRepository.js';

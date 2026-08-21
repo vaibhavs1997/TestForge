@@ -1,6 +1,6 @@
-import { ExecutePlan } from '../execution/ExecutePlan';
-import { TestSuiteRepository } from '../../infrastructure/suite/TestSuiteRepository';
-import { ExecutionPlanRepository } from '../../infrastructure/requirements/ExecutionPlanRepository';
+import { ExecutePlan } from '../execution/ExecutePlan.js';
+import { TestSuiteRepository } from '../../infrastructure/suite/TestSuiteRepository.js';
+import { ExecutionPlanRepository } from '../../infrastructure/requirements/ExecutionPlanRepository.js';
 
 /** Executes every ordered execution plan attached to an active suite. */
 export class ExecuteSuite {
@@ -14,6 +14,7 @@ export class ExecuteSuite {
     suiteId: string,
     failureMode?: 'ContinueOnFailure' | 'StopOnFailure',
     executionProfileId?: string,
+    environmentOverrideId?: string,
   ) {
     const suite = await this.suiteRepository.findById(suiteId);
     if (!suite) throw new Error('Test suite not found');
@@ -38,7 +39,7 @@ export class ExecuteSuite {
         },
         plans,
       }));
-      return this.executePlan.executeCombined(selectedPlanIds, mode, executionProfileId, suite.id, snapshot);
+      return this.executePlan.executeCombined(selectedPlanIds, mode, executionProfileId, suite.id, snapshot, environmentOverrideId);
     }
     // Compatibility fallback for callers that have not supplied the repository.
     return this.executePlan.execute(selectedPlanIds[0], mode, executionProfileId);

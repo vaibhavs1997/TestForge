@@ -1,1 +1,1 @@
-export * from './ManageTestSuites';
+export * from './ManageTestSuites.js';

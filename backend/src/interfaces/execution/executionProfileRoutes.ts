@@ -1,14 +1,14 @@
 // Execution Profile Routes
 import { Router } from 'express';
-import { ExecutionProfileController } from './ExecutionProfileController';
-import { container } from '../../application/ApplicationContainer';
+import { ExecutionProfileController } from './ExecutionProfileController.js';
+import { container } from '../../application/ApplicationContainer.js';
 
 // Reuse shared repository from the ApplicationContainer
 const { executionProfileRepository } = container;
 
 // Initialize use case
-import { ManageExecutionProfiles } from '../../application/execution/ManageExecutionProfiles';
-import { asyncHandler } from '../middleware/AsyncHandler';
+import { ManageExecutionProfiles } from '../../application/execution/ManageExecutionProfiles.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 const manageProfiles = new ManageExecutionProfiles(executionProfileRepository);
 

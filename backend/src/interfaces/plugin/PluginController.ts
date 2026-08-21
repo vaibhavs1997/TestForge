@@ -1,7 +1,7 @@
 // PluginController - Controller for Plugin Module endpoints
 import { Request, Response } from 'express';
-import { PluginService } from '../../application/plugin/PluginService';
-import { createSuccessResponse } from "../../shared/ApiResponse";
+import { PluginService } from '../../application/plugin/PluginService.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
 export class PluginController {
     constructor(private readonly pluginService: PluginService) { }
     async listPlugins(req: Request, res: Response): Promise<void> {

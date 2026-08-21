@@ -1,9 +1,9 @@
 // Integration tests for webhook API endpoints
 import { describe, expect, it, beforeEach } from 'vitest';
-import { ListWebhooks, GetWebhook, CreateWebhook, UpdateWebhook, DeleteWebhook } from './WebhookUseCases';
-import type { WebhookRepository } from '../../domain/webhook/WebhookRepository';
-import type { WebhookEntity } from '../../domain/webhook/WebhookEntity';
-import { TriggerWebhooks } from './WebhookUseCases';
+import { ListWebhooks, GetWebhook, CreateWebhook, UpdateWebhook, DeleteWebhook } from './WebhookUseCases.js';
+import type { WebhookRepository } from '../../domain/webhook/WebhookRepository.js';
+import type { WebhookEntity } from '../../domain/webhook/WebhookEntity.js';
+import { TriggerWebhooks } from './WebhookUseCases.js';
 
 // In-memory repository for integration testing
 class InMemoryWebhookRepository implements WebhookRepository {

@@ -4,4 +4,4 @@ export type {
   RecommendationPriority,
   RecommendationStatus,
   Recommendation,
-} from './RecommendationEntity';
+} from './RecommendationEntity.js';

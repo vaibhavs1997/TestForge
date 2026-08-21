@@ -1,13 +1,13 @@
 // RowController - Controller for Dataset Row endpoints
 import { Request, Response } from 'express';
-import { CreateRow } from '../../application/test-data/CreateRow';
-import { UpdateRow } from '../../application/test-data/UpdateRow';
-import { DeleteRow } from '../../application/test-data/DeleteRow';
-import { GetRow } from '../../application/test-data/GetRow';
-import { ListRows } from '../../application/test-data/ListRows';
-import { createSuccessResponse } from "../../shared/ApiResponse";
+import { CreateRow } from '../../application/test-data/CreateRow.js';
+import { UpdateRow } from '../../application/test-data/UpdateRow.js';
+import { DeleteRow } from '../../application/test-data/DeleteRow.js';
+import { GetRow } from '../../application/test-data/GetRow.js';
+import { ListRows } from '../../application/test-data/ListRows.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
 export class RowController {
-    constructor(private readonly createRow: CreateRow, private readonly updateRow: UpdateRow, private readonly deleteRow: DeleteRow, private readonly getRow: GetRow, private readonly listRows: ListRows, private readonly datasetRowRepository: import('../../infrastructure/test-data/DatasetRowRepository').DatasetRowRepository) { }
+    constructor(private readonly createRow: CreateRow, private readonly updateRow: UpdateRow, private readonly deleteRow: DeleteRow, private readonly getRow: GetRow, private readonly listRows: ListRows, private readonly datasetRowRepository: import('../../infrastructure/test-data/DatasetRowRepository.js').DatasetRowRepository) { }
     async list(req: Request, res: Response): Promise<void> {
         const datasetId = req.query.datasetId as string | undefined;
         if (!datasetId) {

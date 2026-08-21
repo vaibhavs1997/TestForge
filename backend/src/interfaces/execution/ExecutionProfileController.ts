@@ -1,8 +1,8 @@
 // ExecutionProfileController - REST Controller for Execution Profiles
 import { Request, Response } from 'express';
-import { ManageExecutionProfiles } from '../../application/execution/ManageExecutionProfiles';
-import { ExecutionProfileRepository } from '../../infrastructure/execution/ExecutionProfileRepository';
-import { createSuccessResponse } from "../../shared/ApiResponse";
+import { ManageExecutionProfiles } from '../../application/execution/ManageExecutionProfiles.js';
+import { ExecutionProfileRepository } from '../../infrastructure/execution/ExecutionProfileRepository.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
 export class ExecutionProfileController {
     constructor(private readonly manageProfiles: ManageExecutionProfiles) { }
     async listByProject(req: Request, res: Response): Promise<void> {

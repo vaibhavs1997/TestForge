@@ -2,12 +2,12 @@
 // Reuses imported API operations, Knowledge Flows, and Dataset names to generate
 // simple analysis cards. This is NOT AI — it is a deterministic keyword-based analyzer.
 import { randomUUID } from 'node:crypto';
-import { AnalysisRepository } from '../../domain/analysis/AnalysisRepository';
-import { AnalysisEntity } from '../../domain/analysis/AnalysisEntity';
-import { ApiServiceRepository } from '../../infrastructure/api/ApiServiceRepository';
-import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
-import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository';
-import { DatasetRepository } from '../../infrastructure/test-data/DatasetRepository';
+import { AnalysisRepository } from '../../domain/analysis/AnalysisRepository.js';
+import { AnalysisEntity } from '../../domain/analysis/AnalysisEntity.js';
+import { ApiServiceRepository } from '../../infrastructure/api/ApiServiceRepository.js';
+import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository.js';
+import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository.js';
+import { DatasetRepository } from '../../infrastructure/test-data/DatasetRepository.js';
 
 interface AnalysisPattern {
   category: string;

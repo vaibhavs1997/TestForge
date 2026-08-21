@@ -1,9 +1,9 @@
 // ExecutionPlanRepository - File-based repository implementation
 import * as fs from 'fs';
 import * as path from 'path';
-import { ExecutionPlanEntity } from '../../domain/requirements/ExecutionPlanEntity';
-import { EventPublisher } from '../../application/EventPublisher';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { ExecutionPlanEntity } from '../../domain/requirements/ExecutionPlanEntity.js';
+import { EventPublisher } from '../../application/EventPublisher.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'execution-plans');

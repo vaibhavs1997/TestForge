@@ -1,8 +1,8 @@
-import type { RequirementEntity } from '../../domain/requirements/RequirementEntity';
-import type { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
-import type { StrategyCategory } from '../../domain/requirements/TestStrategyEntity';
-import { getAcceptanceCriteriaFocusText } from './requirementAcceptanceFocus';
-import { expandRequirementWithSynonyms, expandOperationWithSynonyms, getSynonymReasoning } from './OperationMappingSynonyms';
+import type { RequirementEntity } from '../../domain/requirements/RequirementEntity.js';
+import type { ApiOperationEntity } from '../../domain/api/ApiOperationEntity.js';
+import type { StrategyCategory } from '../../domain/requirements/TestStrategyEntity.js';
+import { getAcceptanceCriteriaFocusText } from './requirementAcceptanceFocus.js';
+import { expandRequirementWithSynonyms, expandOperationWithSynonyms, getSynonymReasoning } from './OperationMappingSynonyms.js';
 
 const CREATE_HINTS = ['create', 'register', 'signup', 'sign-up', 'registration', 'enroll', 'onboard'];
 const READ_HINTS = ['get', 'list', 'fetch', 'read'];

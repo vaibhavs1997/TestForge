@@ -1,6 +1,6 @@
 // GetKnowledgeFlow - Application Use Case
-import { KnowledgeFlowRepository } from '../../domain/knowledge/KnowledgeFlowRepository';
-import { KnowledgeFlowEntity } from '../../domain/knowledge/KnowledgeFlowEntity';
+import { KnowledgeFlowRepository } from '../../domain/knowledge/KnowledgeFlowRepository.js';
+import { KnowledgeFlowEntity } from '../../domain/knowledge/KnowledgeFlowEntity.js';
 
 export class GetKnowledgeFlow {
   constructor(private readonly knowledgeFlowRepository: KnowledgeFlowRepository) {}

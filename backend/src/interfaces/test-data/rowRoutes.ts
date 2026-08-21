@@ -1,18 +1,18 @@
 // RowRoutes - Route definitions for Dataset Row management
 import { Router } from 'express';
-import { RowController } from './RowController';
-import { container } from '../../application/ApplicationContainer';
+import { RowController } from './RowController.js';
+import { container } from '../../application/ApplicationContainer.js';
 
 // Reuse shared repository from the ApplicationContainer
 const { datasetRowRepository: datasetRowRepository } = container;
 
 // Initialize use cases
-import { CreateRow } from '../../application/test-data/CreateRow';
-import { UpdateRow } from '../../application/test-data/UpdateRow';
-import { DeleteRow } from '../../application/test-data/DeleteRow';
-import { GetRow } from '../../application/test-data/GetRow';
-import { ListRows } from '../../application/test-data/ListRows';
-import { asyncHandler } from '../middleware/AsyncHandler';
+import { CreateRow } from '../../application/test-data/CreateRow.js';
+import { UpdateRow } from '../../application/test-data/UpdateRow.js';
+import { DeleteRow } from '../../application/test-data/DeleteRow.js';
+import { GetRow } from '../../application/test-data/GetRow.js';
+import { ListRows } from '../../application/test-data/ListRows.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 const createRow = new CreateRow(datasetRowRepository);
 const updateRow = new UpdateRow(datasetRowRepository);

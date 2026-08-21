@@ -1,13 +1,13 @@
 // TestSuiteController - Controller for Test Suite Management endpoints
 import { Request, Response } from 'express';
-import { ManageTestSuites } from '../../application/suite/ManageTestSuites';
-import { GenerateTestSuiteWithAI } from '../../application/suite/GenerateTestSuiteWithAI';
-import { createSuccessResponse } from "../../shared/ApiResponse";
-import { ExecuteSuite } from '../../application/suite/ExecuteSuite';
-import { ExecutionPlanRepository } from '../../infrastructure/requirements/ExecutionPlanRepository';
-import { ExecutionProfileRepository } from '../../infrastructure/execution/ExecutionProfileRepository';
-import { RequirementRepository } from '../../infrastructure/requirements/RequirementRepository';
-import { ExecutePlan } from '../../application/execution/ExecutePlan';
+import { ManageTestSuites } from '../../application/suite/ManageTestSuites.js';
+import { GenerateTestSuiteWithAI } from '../../application/suite/GenerateTestSuiteWithAI.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
+import { ExecuteSuite } from '../../application/suite/ExecuteSuite.js';
+import { ExecutionPlanRepository } from '../../infrastructure/requirements/ExecutionPlanRepository.js';
+import { ExecutionProfileRepository } from '../../infrastructure/execution/ExecutionProfileRepository.js';
+import { RequirementRepository } from '../../infrastructure/requirements/RequirementRepository.js';
+import { ExecutePlan } from '../../application/execution/ExecutePlan.js';
 export class TestSuiteController {
     constructor(
         private readonly manageTestSuites: ManageTestSuites,

@@ -8,12 +8,12 @@ import {
   PromptTemplateEntity,
   PromptTemplateCategory,
   PromptTemplateVariable,
-} from '../../domain/prompt';
-import { PromptEntity, PromptVariableValue, PromptStatus } from '../../domain/prompt';
-import { PromptRepository } from '../../domain/prompt';
-import { ProjectContextService } from '../context/ProjectContextService';
-import { VersionService } from '../versioning/VersionService';
-import { EventPublisher } from '../EventPublisher';
+} from '../../domain/prompt/index.js';
+import { PromptEntity, PromptVariableValue, PromptStatus } from '../../domain/prompt/index.js';
+import { PromptRepository } from '../../domain/prompt/index.js';
+import { ProjectContextService } from '../context/ProjectContextService.js';
+import { VersionService } from '../versioning/VersionService.js';
+import { EventPublisher } from '../EventPublisher.js';
 
 export interface BuildPromptInput {
   templateId: string;

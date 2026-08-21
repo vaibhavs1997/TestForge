@@ -1,8 +1,8 @@
 // PipelineRoutes - Route definitions for Pipeline Orchestration
 import { Router } from 'express';
-import { PipelineController } from './PipelineController';
-import { container } from '../../application/ApplicationContainer';
-import { asyncHandler } from '../middleware/AsyncHandler';
+import { PipelineController } from './PipelineController.js';
+import { container } from '../../application/ApplicationContainer.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 // Reuse shared use cases from the ApplicationContainer
 const {

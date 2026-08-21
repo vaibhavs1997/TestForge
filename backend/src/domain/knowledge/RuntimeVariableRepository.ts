@@ -1,5 +1,5 @@
 // RuntimeVariableRepository - Domain Repository Interface for Runtime Variables
-import { RuntimeVariable } from './RuntimeVariableEntity';
+import { RuntimeVariable } from './RuntimeVariableEntity.js';
 
 export interface RuntimeVariableRepository {
   create(variable: RuntimeVariable): Promise<RuntimeVariable>;

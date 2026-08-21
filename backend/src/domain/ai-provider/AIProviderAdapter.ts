@@ -3,7 +3,7 @@
 // generate(), stream(), health().
 // For now, generate() returns deterministic placeholder responses with NO external API calls.
 
-import type { AIProviderEntity, AIProviderConfig, AIProviderType } from './AIProviderEntity';
+import type { AIProviderEntity, AIProviderConfig, AIProviderType } from './AIProviderEntity.js';
 
 export interface AIProviderMessage {
   role: 'system' | 'user' | 'assistant';

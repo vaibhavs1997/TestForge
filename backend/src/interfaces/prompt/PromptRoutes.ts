@@ -1,8 +1,8 @@
 // PromptRoutes - Route definitions for Prompt Builder module
 import { Router } from 'express';
-import { PromptController } from './PromptController';
-import { container } from '../../application/ApplicationContainer';
-import { asyncHandler } from '../middleware/AsyncHandler';
+import { PromptController } from './PromptController.js';
+import { container } from '../../application/ApplicationContainer.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 // Reuse shared service from the ApplicationContainer
 const { promptBuilderService } = container;

@@ -1,8 +1,8 @@
 // DataSourceMappingRepository - File-based repository implementation
 import * as fs from 'fs';
 import * as path from 'path';
-import { DataSourceMappingEntity } from '../../domain/test-data/DataSourceMappingEntity';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { DataSourceMappingEntity } from '../../domain/test-data/DataSourceMappingEntity.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'test-data');

@@ -1,6 +1,6 @@
 // AIProviderRepository - Domain Repository interface for AI Provider Framework
 
-import { AIProviderEntity, AIProviderType } from './AIProviderEntity';
+import { AIProviderEntity, AIProviderType } from './AIProviderEntity.js';
 
 export interface AIProviderRepository {
   create(provider: AIProviderEntity): Promise<AIProviderEntity>;

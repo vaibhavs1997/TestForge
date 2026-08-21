@@ -1,8 +1,8 @@
 // RelationshipController - REST Controller for Dataset Relationships
 import { Request, Response } from 'express';
-import { RelationshipRepository } from '../../infrastructure/test-data/RelationshipRepository';
-import { RelationshipEntity } from '../../domain/test-data/RelationshipEntity';
-import { createSuccessResponse } from "../../shared/ApiResponse";
+import { RelationshipRepository } from '../../infrastructure/test-data/RelationshipRepository.js';
+import { RelationshipEntity } from '../../domain/test-data/RelationshipEntity.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
 export class RelationshipController {
     constructor(private readonly relationshipRepository: RelationshipRepository) { }
     async listByProject(req: Request, res: Response): Promise<void> {

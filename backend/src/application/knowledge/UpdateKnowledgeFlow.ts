@@ -1,7 +1,7 @@
 // UpdateKnowledgeFlow - Application Use Case
-import { KnowledgeFlowRepository } from '../../domain/knowledge/KnowledgeFlowRepository';
-import { KnowledgeFlowEntity, FlowStatus, FlowStep } from '../../domain/knowledge/KnowledgeFlowEntity';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { KnowledgeFlowRepository } from '../../domain/knowledge/KnowledgeFlowRepository.js';
+import { KnowledgeFlowEntity, FlowStatus, FlowStep } from '../../domain/knowledge/KnowledgeFlowEntity.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export class UpdateKnowledgeFlow {
   constructor(private readonly knowledgeFlowRepository: KnowledgeFlowRepository) {}

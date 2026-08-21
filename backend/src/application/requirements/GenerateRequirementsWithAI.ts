@@ -6,18 +6,18 @@
 // and structured JSON parsing with graceful fallbacks.
 
 import { randomUUID } from 'node:crypto';
-import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
 import {
   RequirementEntity,
   RequirementSource,
   AcceptanceCriterion,
-} from '../../domain/requirements/RequirementEntity';
-import { ProjectContextService } from '../context/ProjectContextService';
-import { PromptBuilderService } from '../prompt/PromptBuilderService';
-import { ManageAIProviders } from '../ai-provider/ManageAIProviders';
-import { VersionService } from '../versioning/VersionService';
-import { EventPublisher } from '../EventPublisher';
-import type { AIProviderMessage } from '../../domain/ai-provider';
+} from '../../domain/requirements/RequirementEntity.js';
+import { ProjectContextService } from '../context/ProjectContextService.js';
+import { PromptBuilderService } from '../prompt/PromptBuilderService.js';
+import { ManageAIProviders } from '../ai-provider/ManageAIProviders.js';
+import { VersionService } from '../versioning/VersionService.js';
+import { EventPublisher } from '../EventPublisher.js';
+import type { AIProviderMessage } from '../../domain/ai-provider/index.js';
 
 export interface GenerateRequirementsWithAIRequest {
   projectId: string;

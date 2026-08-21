@@ -1,4 +1,4 @@
 // Barrel export file for prompt domain
-export * from './PromptTemplateEntity';
-export * from './PromptEntity';
-export * from './PromptRepository';
+export * from './PromptTemplateEntity.js';
+export * from './PromptEntity.js';
+export * from './PromptRepository.js';

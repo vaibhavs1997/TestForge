@@ -1,11 +1,11 @@
 // DataSourceMappingController - Controller for Data Source Mapping endpoints
 import { Request, Response } from 'express';
-import { CreateDataSourceMapping } from '../../application/test-data/CreateDataSourceMapping';
-import { UpdateDataSourceMapping } from '../../application/test-data/UpdateDataSourceMapping';
-import { DeleteDataSourceMapping } from '../../application/test-data/DeleteDataSourceMapping';
-import { GetDataSourceMapping } from '../../application/test-data/GetDataSourceMapping';
-import { ListDataSourceMappings } from '../../application/test-data/ListDataSourceMappings';
-import { createSuccessResponse } from "../../shared/ApiResponse";
+import { CreateDataSourceMapping } from '../../application/test-data/CreateDataSourceMapping.js';
+import { UpdateDataSourceMapping } from '../../application/test-data/UpdateDataSourceMapping.js';
+import { DeleteDataSourceMapping } from '../../application/test-data/DeleteDataSourceMapping.js';
+import { GetDataSourceMapping } from '../../application/test-data/GetDataSourceMapping.js';
+import { ListDataSourceMappings } from '../../application/test-data/ListDataSourceMappings.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
 export class DataSourceMappingController {
     constructor(private readonly createMappingUseCase: CreateDataSourceMapping, private readonly updateMappingUseCase: UpdateDataSourceMapping, private readonly deleteMappingUseCase: DeleteDataSourceMapping, private readonly getMappingUseCase: GetDataSourceMapping, private readonly listMappingsUseCase: ListDataSourceMappings) { }
     async listMappings(req: Request, res: Response): Promise<void> {

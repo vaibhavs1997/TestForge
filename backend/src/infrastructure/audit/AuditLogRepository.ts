@@ -1,8 +1,8 @@
 // AuditLogRepository - Infrastructure implementation for Audit Log Framework
 // Uses in-memory storage. Can be swapped for DB implementation.
 
-import { AuditLogEntity, AuditLogRepository } from '../../domain/audit';
-import { filterAuditLogs, sortAuditLogsDescending } from './AuditLogRepositorySupport';
+import { AuditLogEntity, AuditLogRepository } from '../../domain/audit/index.js';
+import { filterAuditLogs, sortAuditLogsDescending } from './AuditLogRepositorySupport.js';
 
 export class InMemoryAuditLogRepository implements AuditLogRepository {
   private logs: Map<string, AuditLogEntity> = new Map();

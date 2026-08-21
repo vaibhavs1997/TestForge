@@ -1,11 +1,11 @@
 // AIRequirementController - Controller for AI-based Requirement generation endpoints
 import { Request, Response } from 'express';
-import { GenerateRequirementsWithAI } from '../../application/requirements/GenerateRequirementsWithAI';
-import { GenerateTestStrategyWithAI } from '../../application/requirements/GenerateTestStrategyWithAI';
-import { GenerateTestDesignWithAI } from '../../application/requirements/GenerateTestDesignWithAI';
-import { GenerateAssertionsWithAI } from '../../application/assertion/GenerateAssertionsWithAI';
-import { GenerateExecutionPlanWithAI } from '../../application/requirements/GenerateExecutionPlanWithAI';
-import { createSuccessResponse } from "../../shared/ApiResponse";
+import { GenerateRequirementsWithAI } from '../../application/requirements/GenerateRequirementsWithAI.js';
+import { GenerateTestStrategyWithAI } from '../../application/requirements/GenerateTestStrategyWithAI.js';
+import { GenerateTestDesignWithAI } from '../../application/requirements/GenerateTestDesignWithAI.js';
+import { GenerateAssertionsWithAI } from '../../application/assertion/GenerateAssertionsWithAI.js';
+import { GenerateExecutionPlanWithAI } from '../../application/requirements/GenerateExecutionPlanWithAI.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
 export class AIRequirementController {
     constructor(private readonly generateRequirementsWithAI: GenerateRequirementsWithAI, private readonly generateTestStrategyWithAI: GenerateTestStrategyWithAI, private readonly generateTestDesignWithAI: GenerateTestDesignWithAI, private readonly generateAssertionsUseCase: GenerateAssertionsWithAI, private readonly generateExecutionPlanWithAI: GenerateExecutionPlanWithAI) { }
     async generateWithAI(req: Request, res: Response): Promise<void> {

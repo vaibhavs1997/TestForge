@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { errorHandler } from './ErrorHandler';
+import { errorHandler } from './ErrorHandler.js';
 
 describe('errorHandler', () => {
   it('maps unknown errors to internal server error', () => {

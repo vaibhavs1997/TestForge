@@ -6,7 +6,7 @@
 // and structured JSON parsing with graceful fallbacks.
 
 import { randomUUID } from 'node:crypto';
-import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
 import {
   TestStrategyEntity,
   StrategyCategory,
@@ -14,15 +14,15 @@ import {
   StrategyPriority,
   StrategyStatus,
   StrategyCategorySection,
-} from '../../domain/requirements/TestStrategyEntity';
-import { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository';
-import { ProjectContextService } from '../context/ProjectContextService';
-import { PromptBuilderService } from '../prompt/PromptBuilderService';
-import { ManageAIProviders } from '../ai-provider/ManageAIProviders';
-import { VersionService } from '../versioning/VersionService';
-import { EventPublisher } from '../EventPublisher';
-import type { AIProviderMessage } from '../../domain/ai-provider';
-import { toRequirementPromptPayload } from './requirementAcceptanceFocus';
+} from '../../domain/requirements/TestStrategyEntity.js';
+import { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository.js';
+import { ProjectContextService } from '../context/ProjectContextService.js';
+import { PromptBuilderService } from '../prompt/PromptBuilderService.js';
+import { ManageAIProviders } from '../ai-provider/ManageAIProviders.js';
+import { VersionService } from '../versioning/VersionService.js';
+import { EventPublisher } from '../EventPublisher.js';
+import type { AIProviderMessage } from '../../domain/ai-provider/index.js';
+import { toRequirementPromptPayload } from './requirementAcceptanceFocus.js';
 
 export interface GenerateTestStrategyWithAIRequest {
   projectId: string;

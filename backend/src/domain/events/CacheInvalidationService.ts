@@ -1,7 +1,7 @@
 // CacheInvalidationService - Handles cache invalidation for dependent modules
 // Subscribes to entity-change events and publishes INVALIDATED events so that
 // Recommendation Refresh and Pipeline Refresh subscribers can react.
-import { EventBus, DomainEvent, ModuleName } from './EventBus';
+import { EventBus, DomainEvent, ModuleName } from './EventBus.js';
 
 export class CacheInvalidationService {
   constructor(private readonly eventBus: EventBus) {

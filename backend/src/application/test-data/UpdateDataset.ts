@@ -1,6 +1,6 @@
 // UpdateDataset - Application Use Case
-import { DatasetRepository } from '../../domain/test-data/DatasetRepository';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { DatasetRepository } from '../../domain/test-data/DatasetRepository.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export class UpdateDataset {
   constructor(private readonly datasetRepository: DatasetRepository) {}

@@ -1,1 +1,1 @@
-export { VersionService, CreateVersionInput, RestoreVersionInput } from './VersionService';
+export { VersionService, CreateVersionInput, RestoreVersionInput } from './VersionService.js';

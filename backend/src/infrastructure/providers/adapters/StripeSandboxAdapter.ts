@@ -1,6 +1,6 @@
 // StripeSandboxAdapter - Placeholder adapter for Stripe Sandbox payments
 // Do NOT call external services yet. Architecture preparation only.
-import { ProviderAdapter, ProviderTestResult, ProviderOperationResult } from '../ProviderAdapter';
+import { ProviderAdapter, ProviderTestResult, ProviderOperationResult } from '../ProviderAdapter.js';
 
 export class StripeSandboxAdapter implements ProviderAdapter {
   readonly type = 'StripeSandbox';

@@ -1,6 +1,6 @@
 // UpdateDataSourceMapping - Application Use Case
-import { DataSourceMappingRepository } from '../../domain/test-data/DataSourceMappingRepository';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { DataSourceMappingRepository } from '../../domain/test-data/DataSourceMappingRepository.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export class UpdateDataSourceMapping {
   constructor(private readonly mappingRepository: DataSourceMappingRepository) {}

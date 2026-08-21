@@ -3,7 +3,7 @@
 // Reuses the Plugin Framework pattern for service orchestration.
 
 import { randomUUID } from 'node:crypto';
-import { AIProviderEntity } from '../../domain/ai-provider';
+import { AIProviderEntity } from '../../domain/ai-provider/index.js';
 import type {
   AIProviderType,
   AIProviderRepository,
@@ -12,11 +12,11 @@ import type {
   AIProviderGenerateResult,
   AIProviderHealthResult,
   AIProviderEstimate,
-} from '../../domain/ai-provider';
-import { AIProviderRegistry } from './AIProviderRegistry';
-import { AIProviderResolutionService } from './AIProviderResolutionService';
-import { getOllamaEnvConfig } from '../../config/ollamaEnv';
-import { DEFAULT_TIMEOUT_MS, DEFAULT_MAX_TOKENS } from '../../constants/defaults';
+} from '../../domain/ai-provider/index.js';
+import { AIProviderRegistry } from './AIProviderRegistry.js';
+import { AIProviderResolutionService } from './AIProviderResolutionService.js';
+import { getOllamaEnvConfig } from '../../config/ollamaEnv.js';
+import { DEFAULT_TIMEOUT_MS, DEFAULT_MAX_TOKENS } from '../../constants/defaults.js';
 
 export interface CreateAIProviderInput {
   projectId: string;

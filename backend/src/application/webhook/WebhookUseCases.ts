@@ -1,8 +1,8 @@
 // Webhook use cases
 
-import { WebhookRepository } from '../../domain/webhook/WebhookRepository';
-import { WebhookEntity, WebhookEvent, WebhookPayload } from '../../domain/webhook/WebhookEntity';
-import { assertSafeOutboundUrl } from '../../infrastructure/security/outboundUrl';
+import { WebhookRepository } from '../../domain/webhook/WebhookRepository.js';
+import { WebhookEntity, WebhookEvent, WebhookPayload } from '../../domain/webhook/WebhookEntity.js';
+import { assertSafeOutboundUrl } from '../../infrastructure/security/outboundUrl.js';
 
 export class ListWebhooks {
   constructor(

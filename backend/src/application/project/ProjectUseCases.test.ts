@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import { ListProjects, GetProject, CreateProject, UpdateProject, DeleteProject } from './ProjectUseCases';
-import type { ProjectRepository } from '../../domain/project/ProjectRepository';
-import type { ProjectRecord } from '../../domain/project/ProjectRecord';
+import { ListProjects, GetProject, CreateProject, UpdateProject, DeleteProject } from './ProjectUseCases.js';
+import type { ProjectRepository } from '../../domain/project/ProjectRepository.js';
+import type { ProjectRecord } from '../../domain/project/ProjectRecord.js';
 
 describe('Project use cases', () => {
   let repository: ProjectRepository;

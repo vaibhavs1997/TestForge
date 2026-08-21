@@ -1,9 +1,9 @@
 // ManageProviders - Application Use Case for Provider Framework
 // Handles CRUD operations for providers (create, get, list, update, delete).
 import { randomUUID } from 'node:crypto';
-import { ProviderEntity, ProviderCategory, ProviderAdapterType } from '../../domain/providers/ProviderEntity';
-import { ProviderRepository } from '../../domain/providers/ProviderRepository';
-import { ProviderAdapterRegistry } from '../../infrastructure/providers/adapters/ProviderAdapterRegistry';
+import { ProviderEntity, ProviderCategory, ProviderAdapterType } from '../../domain/providers/ProviderEntity.js';
+import { ProviderRepository } from '../../domain/providers/ProviderRepository.js';
+import { ProviderAdapterRegistry } from '../../infrastructure/providers/adapters/ProviderAdapterRegistry.js';
 
 export interface CreateProviderInput {
   projectId: string;

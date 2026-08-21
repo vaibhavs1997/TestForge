@@ -2,14 +2,14 @@ import Database from 'better-sqlite3';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { ProjectRecord } from '../../domain/project/ProjectRecord';
-import type { ProjectRepository } from '../../domain/project/ProjectRepository';
-import { JsonProjectRepository } from './JsonProjectRepository';
+import type { ProjectRecord } from '../../domain/project/ProjectRecord.js';
+import type { ProjectRepository } from '../../domain/project/ProjectRepository.js';
+import { JsonProjectRepository } from './JsonProjectRepository.js';
 
 import {
   allocateProjectIdentifiers,
   slugifyProjectKey,
-} from '../../domain/project/projectIdentifiers';
+} from '../../domain/project/projectIdentifiers.js';
 
 function rowToRecord(row: Record<string, unknown>): ProjectRecord {
   return {

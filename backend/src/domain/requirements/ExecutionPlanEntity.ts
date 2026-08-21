@@ -29,7 +29,10 @@ export class ExecutionPlanEntity {
     public readonly cleanupSteps: any[],
     public status: ExecutionPlanStatus,
     public readonly createdAt: number,
-    public updatedAt: number
+    public updatedAt: number,
+    public readonly testCaseId?: string,
+    public readonly testCaseVersionId?: string,
+    public readonly testCaseVersion?: number,
   ) {}
 }
 

@@ -2,11 +2,11 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { JsonProjectRepository } from './JsonProjectRepository';
+import { JsonProjectRepository } from './JsonProjectRepository.js';
 import {
   discoverProjectIdsFromData,
   isValidDiscoveredProjectId,
-} from './projectDataPaths';
+} from './projectDataPaths.js';
 
 describe('projectDataPaths', () => {
   it('rejects lock artifact folder names', () => {

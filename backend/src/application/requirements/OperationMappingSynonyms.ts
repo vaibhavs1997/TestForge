@@ -1,10 +1,10 @@
 // OperationMappingSynonyms - Domain-specific synonym expansion for API mapping
 // Bridges the gap between requirement terminology and API operation naming
 
-import type { RequirementEntity } from '../../domain/requirements/RequirementEntity';
-import type { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
-import { AIProviderResolutionService } from '../ai-provider/AIProviderResolutionService';
-import type { AIProviderEntity } from '../../domain/ai-provider';
+import type { RequirementEntity } from '../../domain/requirements/RequirementEntity.js';
+import type { ApiOperationEntity } from '../../domain/api/ApiOperationEntity.js';
+import { AIProviderResolutionService } from '../ai-provider/AIProviderResolutionService.js';
+import type { AIProviderEntity } from '../../domain/ai-provider/index.js';
 
 /**
  * Synonym groups for common testing/API terms.

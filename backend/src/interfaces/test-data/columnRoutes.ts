@@ -1,7 +1,7 @@
 // ColumnRoutes - Route definitions for Dataset Columns
 import { Router } from 'express';
-import { ColumnController } from './ColumnController';
-import { container } from '../../application/ApplicationContainer';
+import { ColumnController } from './ColumnController.js';
+import { container } from '../../application/ApplicationContainer.js';
 
 // Reuse shared repositories from the ApplicationContainer
 const {
@@ -11,13 +11,13 @@ const {
 } = container;
 
 // Initialize use cases
-import { CreateColumn } from '../../application/test-data/CreateColumn';
-import { UpdateColumn } from '../../application/test-data/UpdateColumn';
-import { DeleteColumn } from '../../application/test-data/DeleteColumn';
-import { GetColumn } from '../../application/test-data/GetColumn';
-import { ListColumns } from '../../application/test-data/ListColumns';
-import { SuggestColumns } from '../../application/test-data/SuggestColumns';
-import { asyncHandler } from '../middleware/AsyncHandler';
+import { CreateColumn } from '../../application/test-data/CreateColumn.js';
+import { UpdateColumn } from '../../application/test-data/UpdateColumn.js';
+import { DeleteColumn } from '../../application/test-data/DeleteColumn.js';
+import { GetColumn } from '../../application/test-data/GetColumn.js';
+import { ListColumns } from '../../application/test-data/ListColumns.js';
+import { SuggestColumns } from '../../application/test-data/SuggestColumns.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 const createColumn = new CreateColumn(columnRepository);
 const updateColumn = new UpdateColumn(columnRepository);

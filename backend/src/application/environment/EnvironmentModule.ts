@@ -1,14 +1,14 @@
 import { Router } from 'express';
-import { asyncHandler } from '../../interfaces/middleware/AsyncHandler';
-import { EnvironmentController } from '../../interfaces/environment/EnvironmentController';
-import type { EnvironmentRepository } from '../../domain/environment/EnvironmentRepository';
-import type { EventPublisher } from '../EventPublisher';
-import { CreateEnvironment } from './CreateEnvironment';
-import { UpdateEnvironment } from './UpdateEnvironment';
-import { DeleteEnvironment } from './DeleteEnvironment';
-import { GetEnvironment } from './GetEnvironment';
-import { ListEnvironments } from './ListEnvironments';
-import { UpsertEnvironments } from './UpsertEnvironments';
+import { asyncHandler } from '../../interfaces/middleware/AsyncHandler.js';
+import { EnvironmentController } from '../../interfaces/environment/EnvironmentController.js';
+import type { EnvironmentRepository } from '../../domain/environment/EnvironmentRepository.js';
+import type { EventPublisher } from '../EventPublisher.js';
+import { CreateEnvironment } from './CreateEnvironment.js';
+import { UpdateEnvironment } from './UpdateEnvironment.js';
+import { DeleteEnvironment } from './DeleteEnvironment.js';
+import { GetEnvironment } from './GetEnvironment.js';
+import { ListEnvironments } from './ListEnvironments.js';
+import { UpsertEnvironments } from './UpsertEnvironments.js';
 
 export interface EnvironmentModuleDeps {
   environmentRepository: EnvironmentRepository;

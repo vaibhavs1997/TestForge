@@ -1,8 +1,8 @@
 import bcrypt from 'bcrypt';
-import { getMongoDb, getUsersCollectionName } from './mongoClient';
-import type { PublicUser, UserAuthenticationDocument, UserRole } from '../../domain/auth/types';
-import { normalizeEmail } from '../../domain/auth/normalizeEmail';
-import { formatMongoDocumentValidationError } from './mongoErrors';
+import { getMongoDb, getUsersCollectionName } from './mongoClient.js';
+import type { PublicUser, UserAuthenticationDocument, UserRole } from '../../domain/auth/types.js';
+import { normalizeEmail } from '../../domain/auth/normalizeEmail.js';
+import { formatMongoDocumentValidationError } from './mongoErrors.js';
 
 const BCRYPT_ROUNDS = 12;
 

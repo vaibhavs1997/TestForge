@@ -1,6 +1,6 @@
 // TwilioAdapter - Placeholder adapter for Twilio SMS testing
 // Do NOT call external services yet. Architecture preparation only.
-import { ProviderAdapter, ProviderTestResult, ProviderOperationResult } from '../ProviderAdapter';
+import { ProviderAdapter, ProviderTestResult, ProviderOperationResult } from '../ProviderAdapter.js';
 
 export class TwilioAdapter implements ProviderAdapter {
   readonly type = 'Twilio';

@@ -1,5 +1,5 @@
 // DependencyRepository - Domain Repository Interface for Dependencies
-import { Dependency } from './DependencyEntity';
+import { Dependency } from './DependencyEntity.js';
 
 export interface DependencyRepository {
   create(dependency: Dependency): Promise<Dependency>;

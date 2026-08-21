@@ -1,4 +1,4 @@
-import type { AcceptanceCriterion } from '../../domain/requirements/RequirementEntity';
+import type { AcceptanceCriterion } from '../../domain/requirements/RequirementEntity.js';
 
 /** Text used for matching APIs and AI prompts — acceptance criteria only, with description fallback. */
 export function getAcceptanceCriteriaFocusText(requirement: {

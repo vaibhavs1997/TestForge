@@ -1,16 +1,17 @@
 // TestSuiteRoutes - Route definitions for Test Suite Management
 import { Router } from 'express';
-import { TestSuiteController } from './TestSuiteController';
-import { ManageTestSuites } from '../../application/suite/ManageTestSuites';
-import { container } from '../../application/ApplicationContainer';
-import { asyncHandler } from '../middleware/AsyncHandler';
-import { ExecuteSuite } from '../../application/suite/ExecuteSuite';
+import { TestSuiteController } from './TestSuiteController.js';
+import { ManageTestSuites } from '../../application/suite/ManageTestSuites.js';
+import { container } from '../../application/ApplicationContainer.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
+import { ExecuteSuite } from '../../application/suite/ExecuteSuite.js';
 
 // Reuse shared use cases from the ApplicationContainer
 const {
   testSuiteRepository,
   generateTestSuiteWithAI,
   executePlan,
+  executeSuite,
   executionPlanRepository,
   executionProfileRepository,
   requirementRepository,
@@ -23,7 +24,7 @@ const manageTestSuites = new ManageTestSuites(testSuiteRepository);
 const testSuiteController = new TestSuiteController(
   manageTestSuites,
   generateTestSuiteWithAI,
-  new ExecuteSuite(testSuiteRepository, executePlan, executionPlanRepository),
+  executeSuite,
   executionPlanRepository,
   executionProfileRepository,
   requirementRepository,

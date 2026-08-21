@@ -1,6 +1,6 @@
 // RelationshipRepository - Repository interface for Dataset Relationships
 
-import { RelationshipEntity } from './RelationshipEntity';
+import { RelationshipEntity } from './RelationshipEntity.js';
 
 export interface IRelationshipRepository {
   create(relationship: Omit<RelationshipEntity, 'id' | 'createdAt' | 'updatedAt'>): Promise<RelationshipEntity>;

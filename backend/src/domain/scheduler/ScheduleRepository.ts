@@ -1,5 +1,5 @@
 // ScheduleRepository - Domain Repository Interface for the Scheduler Module
-import { ScheduleEntity } from './ScheduleEntity';
+import { ScheduleEntity } from './ScheduleEntity.js';
 
 export interface ScheduleRepository {
   create(schedule: ScheduleEntity): Promise<ScheduleEntity>;

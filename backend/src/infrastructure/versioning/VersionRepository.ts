@@ -1,7 +1,7 @@
 // VersionRepository - Infrastructure implementation for Versioning Framework
 // Uses in-memory storage. Can be swapped for DB implementation.
 
-import { VersionEntity, VersionRepository } from '../../domain/versioning';
+import { VersionEntity, VersionRepository } from '../../domain/versioning/index.js';
 
 export class InMemoryVersionRepository implements VersionRepository {
   private versions: Map<string, VersionEntity> = new Map();

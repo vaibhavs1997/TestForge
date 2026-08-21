@@ -1,9 +1,9 @@
 // ManageBusinessRules - Application Use Case for Business Rules in Knowledge Hub
 import { randomUUID } from 'node:crypto';
-import { deleteById, requireById, validateUniqueProjectName } from '../shared/crudHelpers';
-import { BusinessRule } from '../../domain/knowledge/BusinessRuleEntity';
-import { BusinessRuleRepository } from '../../domain/knowledge/BusinessRuleRepository';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { deleteById, requireById, validateUniqueProjectName } from '../shared/crudHelpers.js';
+import { BusinessRule } from '../../domain/knowledge/BusinessRuleEntity.js';
+import { BusinessRuleRepository } from '../../domain/knowledge/BusinessRuleRepository.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export class ManageBusinessRules {
   constructor(private readonly businessRuleRepository: BusinessRuleRepository) {}

@@ -1,5 +1,5 @@
 // Barrel export file for AI Provider application module
-export { AIProviderRegistry } from './AIProviderRegistry';
-export { AIProviderResolutionService } from './AIProviderResolutionService';
-export { ManageAIProviders, CreateAIProviderInput, UpdateAIProviderInput } from './ManageAIProviders';
-export * from './adapters';
+export { AIProviderRegistry } from './AIProviderRegistry.js';
+export { AIProviderResolutionService } from './AIProviderResolutionService.js';
+export { ManageAIProviders, CreateAIProviderInput, UpdateAIProviderInput } from './ManageAIProviders.js';
+export * from './adapters/index.js';

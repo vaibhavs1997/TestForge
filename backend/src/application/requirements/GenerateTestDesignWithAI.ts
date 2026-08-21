@@ -3,29 +3,29 @@
 // Reuses existing services and repositories. No new AI framework.
 
 import { randomUUID } from 'node:crypto';
-import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
-import { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository';
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
+import { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository.js';
 import {
   TestDesignEntity,
   RequestOverride,
   RuntimeBinding,
   Assertion,
   CleanupStep,
-} from '../../domain/requirements/TestDesignEntity';
-import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository';
-import { TestStrategyEntity } from '../../domain/requirements/TestStrategyEntity';
-import { ProjectContextService } from '../context/ProjectContextService';
-import { PromptBuilderService } from '../prompt/PromptBuilderService';
-import { ManageAIProviders } from '../ai-provider/ManageAIProviders';
-import { VersionService } from '../versioning/VersionService';
-import { EventPublisher } from '../EventPublisher';
-import type { AIProviderMessage } from '../../domain/ai-provider';
+} from '../../domain/requirements/TestDesignEntity.js';
+import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository.js';
+import { TestStrategyEntity } from '../../domain/requirements/TestStrategyEntity.js';
+import { ProjectContextService } from '../context/ProjectContextService.js';
+import { PromptBuilderService } from '../prompt/PromptBuilderService.js';
+import { ManageAIProviders } from '../ai-provider/ManageAIProviders.js';
+import { VersionService } from '../versioning/VersionService.js';
+import { EventPublisher } from '../EventPublisher.js';
+import type { AIProviderMessage } from '../../domain/ai-provider/index.js';
 import {
   getAcceptanceCriteriaFocusText,
   toRequirementPromptPayload,
-} from './requirementAcceptanceFocus';
-import { pickOperationForCategory } from './RequirementOperationMatcher';
-import { requirementEndpointMappingService } from './RequirementEndpointMappingService';
+} from './requirementAcceptanceFocus.js';
+import { pickOperationForCategory } from './RequirementOperationMatcher.js';
+import { requirementEndpointMappingService } from './RequirementEndpointMappingService.js';
 
 export interface GenerateTestDesignWithAIRequest {
   projectId: string;

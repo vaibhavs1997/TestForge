@@ -1,8 +1,8 @@
 // RelationshipRepository - In-memory implementation of Relationship Repository
 
 import { randomUUID } from 'node:crypto';
-import { IRelationshipRepository } from '../../domain/test-data/RelationshipRepository';
-import { RelationshipEntity } from '../../domain/test-data/RelationshipEntity';
+import { IRelationshipRepository } from '../../domain/test-data/RelationshipRepository.js';
+import { RelationshipEntity } from '../../domain/test-data/RelationshipEntity.js';
 
 export class RelationshipRepository implements IRelationshipRepository {
   private relationships: Map<string, RelationshipEntity> = new Map();

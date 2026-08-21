@@ -1,14 +1,14 @@
-import type { TestDesignRepository } from '../../domain/requirements/TestDesignRepository';
-import type { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
-import type { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository';
+import type { TestDesignRepository } from '../../domain/requirements/TestDesignRepository.js';
+import type { ApiOperationRepository } from '../../domain/api/ApiOperationRepository.js';
+import type { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository.js';
 import type {
   DesignStatus,
   RequestOverride,
   TestDesignEntity,
-} from '../../domain/requirements/TestDesignEntity';
-import type { StrategyCategory, TestStrategyEntity } from '../../domain/requirements/TestStrategyEntity';
-import { buildPayloadForScenario } from './RequirementOperationMatcher';
-import { requirementEndpointMappingService } from './RequirementEndpointMappingService';
+} from '../../domain/requirements/TestDesignEntity.js';
+import type { StrategyCategory, TestStrategyEntity } from '../../domain/requirements/TestStrategyEntity.js';
+import { buildPayloadForScenario } from './RequirementOperationMatcher.js';
+import { requirementEndpointMappingService } from './RequirementEndpointMappingService.js';
 
 export interface UpdateTestDesignRequest {
   testDesignId: string;

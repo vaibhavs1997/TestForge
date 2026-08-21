@@ -52,9 +52,9 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
   const { reports: queriedReports, isLoading, isError, error, generateReportAsync, deleteReport, isGenerating, isDeleting } = useReports(projectId);
   const { runs: queriedRuns } = useExecution(projectId);
   const { requirements: queriedRequirements } = useRequirements(projectId);
-  const reports = Array.isArray(queriedReports) ? queriedReports : [];
-  const runs = Array.isArray(queriedRuns) ? queriedRuns : [];
-  const requirements = Array.isArray(queriedRequirements) ? queriedRequirements : [];
+  const reports = React.useMemo(() => Array.isArray(queriedReports) ? queriedReports : [], [queriedReports]);
+  const runs = React.useMemo(() => Array.isArray(queriedRuns) ? queriedRuns : [], [queriedRuns]);
+  const requirements = React.useMemo(() => Array.isArray(queriedRequirements) ? queriedRequirements : [], [queriedRequirements]);
 
   const requirementTitleById = React.useMemo(() => {
     const m = new Map<string, string>();

@@ -1,7 +1,7 @@
 // RecommendationController - Controller for Recommendation endpoints
 import { Request, Response } from 'express';
-import { RecommendationEngine } from '../../application/recommendation/RecommendationEngine';
-import { createSuccessResponse } from "../../shared/ApiResponse";
+import { RecommendationEngine } from '../../application/recommendation/RecommendationEngine.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
 export class RecommendationController {
     constructor(private readonly recommendationEngine: RecommendationEngine) { }
     async analyzeProject(req: Request, res: Response): Promise<void> {

@@ -1,5 +1,5 @@
 import axios, { AxiosError, type AxiosRequestHeaders } from 'axios';
-import { assertSafeOutboundUrl } from '../../infrastructure/security/outboundUrl';
+import { assertSafeOutboundUrl } from '../../infrastructure/security/outboundUrl.js';
 
 export interface ExecuteApiRequestInput {
   requestUrl: string;

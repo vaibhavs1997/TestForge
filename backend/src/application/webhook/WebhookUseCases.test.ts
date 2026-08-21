@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import { ListWebhooks, GetWebhook, CreateWebhook, UpdateWebhook, DeleteWebhook, TriggerWebhooks } from './WebhookUseCases';
-import type { WebhookRepository } from '../../domain/webhook/WebhookRepository';
-import type { WebhookEntity, WebhookEvent } from '../../domain/webhook/WebhookEntity';
+import { ListWebhooks, GetWebhook, CreateWebhook, UpdateWebhook, DeleteWebhook, TriggerWebhooks } from './WebhookUseCases.js';
+import type { WebhookRepository } from '../../domain/webhook/WebhookRepository.js';
+import type { WebhookEntity, WebhookEvent } from '../../domain/webhook/WebhookEntity.js';
 
 describe('Webhook use cases', () => {
   let repository: WebhookRepository;

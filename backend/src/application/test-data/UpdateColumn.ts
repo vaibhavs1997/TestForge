@@ -1,6 +1,6 @@
 // UpdateColumn - Application Use Case
-import { ColumnRepository } from '../../domain/test-data/ColumnRepository';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { ColumnRepository } from '../../domain/test-data/ColumnRepository.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export class UpdateColumn {
   constructor(private readonly columnRepository: ColumnRepository) {}

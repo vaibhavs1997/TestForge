@@ -1,10 +1,10 @@
 // CreateEnvironment - Application Use Case
 import { randomUUID } from 'node:crypto';
-import { EnvironmentRepository } from '../../domain/environment/EnvironmentRepository';
-import { EnvironmentEntity } from '../../domain/environment/EnvironmentEntity';
-import { DEFAULT_TIMEOUT_MS } from '../../constants/defaults';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
-import { EventPublisher } from '../EventPublisher';
+import { EnvironmentRepository } from '../../domain/environment/EnvironmentRepository.js';
+import { EnvironmentEntity, type EnvironmentExecutionPolicy, type EnvironmentTier, normalizeEnvironmentTier } from '../../domain/environment/EnvironmentEntity.js';
+import { DEFAULT_TIMEOUT_MS } from '../../constants/defaults.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
+import { EventPublisher } from '../EventPublisher.js';
 
 export class CreateEnvironment {
   constructor(
@@ -20,6 +20,8 @@ export class CreateEnvironment {
     authentication?: any;
     variables?: Record<string, string>;
     timeout?: number;
+    tier?: EnvironmentTier;
+    executionPolicy?: Partial<EnvironmentExecutionPolicy>;
   }): Promise<EnvironmentEntity> {
     const name = ValidationHelpers.validateRequired(params.name, 'Environment Name');
     const baseUrl = ValidationHelpers.validateRequired(params.baseUrl, 'Base URL');
@@ -41,7 +43,10 @@ export class CreateEnvironment {
       params.variables || {},
       params.timeout || DEFAULT_TIMEOUT_MS,
       now,
-      now
+      now,
+      undefined,
+      normalizeEnvironmentTier(params.tier),
+      params.executionPolicy || null,
     );
 
     const created = await this.environmentRepository.create(environment);

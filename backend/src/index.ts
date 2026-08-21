@@ -1,57 +1,58 @@
 // External libraries
 import express from 'express';
 import cors from 'cors';
-import { apiRoutes } from './interfaces/api/ApiRoutes';
-import { environmentRoutes } from './interfaces/environment/routes';
-import { datasetRoutes } from './interfaces/test-data/routes';
-import { mappingRoutes } from './interfaces/test-data/mappingRoutes';
-import { columnRoutes } from './interfaces/test-data/columnRoutes';
-import { profileRoutes } from './interfaces/test-data/profileRoutes';
-import { rowRoutes } from './interfaces/test-data/rowRoutes';
-import { knowledgeRoutes } from './interfaces/knowledge/KnowledgeRoutes';
-import { analysisRoutes } from './interfaces/analysis/AnalysisRoutes';
-import { requirementRoutes } from './interfaces/requirements/RequirementRoutes';
-import { executionRoutes } from './interfaces/execution/ExecutionRoutes';
-import { executionProfileRoutes } from './interfaces/execution/executionProfileRoutes';
-import { recommendationRoutes } from './interfaces/recommendation/RecommendationRoutes';
-import { pipelineRoutes } from './interfaces/pipeline/PipelineRoutes';
-import { testSuiteRoutes } from './interfaces/suite/TestSuiteRoutes';
-import { reportRoutes } from './interfaces/report/ReportRoutes';
-import { integrationRoutes } from './interfaces/integrations/IntegrationRoutes';
-import { assertionRoutes } from './interfaces/assertion/AssertionRoutes';
-import { importRoutes } from './interfaces/test-data/importRoutes';
-import { relationshipRoutes } from './interfaces/test-data/relationshipRoutes';
-import { providerRoutes } from './interfaces/providers/ProviderRoutes';
-import { scheduleRoutes } from './interfaces/scheduler/ScheduleRoutes';
-import { createNotificationRoutes } from './interfaces/notification/NotificationRoutes';
-import { createVersionRoutes } from './interfaces/versioning/VersionRoutes';
-import { createAuditLogRoutes } from './interfaces/audit/AuditLogRoutes';
-import { createPluginRoutes } from './interfaces/plugin/PluginRoutes';
-import { projectContextRoutes } from './interfaces/context/ProjectContextRoutes';
-import { promptRoutes } from './interfaces/prompt/PromptRoutes';
-import { aiProviderRoutes } from './interfaces/ai-provider/AIProviderRoutes';
-import { container } from './application/ApplicationContainer';
-import { PluginController } from './interfaces/plugin/PluginController';
-import { NotificationController } from './interfaces/notification/NotificationController';
-import { VersionController } from './interfaces/versioning/VersionController';
-import { AuditLogController } from './interfaces/audit/AuditLogController';
-import { validateConfig } from './config';
-import { BackupService } from './interfaces/backup/BackupService';
-import { createBackupRoutes } from './interfaces/backup/BackupRoutes';
-import { errorHandler, notFoundHandler } from './interfaces/middleware/ErrorHandler';
-import { authenticate, authorizeProject, setProjectAccessLookup } from './interfaces/middleware/auth';
-import { asyncHandler } from './interfaces/middleware/AsyncHandler';
-import { createSuccessResponse } from './shared/ApiResponse';
-import { projectRoutes } from './interfaces/project/ProjectRoutes';
-import { createActivityStreamRoutes } from './interfaces/realtime/ActivityStreamRoutes';
-import { createAuthRoutes } from './interfaces/auth/AuthRoutes';
-import { connectMongo, disconnectMongo } from './infrastructure/auth/mongoClient';
-import { loadEnv } from './config/loadEnv';
-import { logger } from './infrastructure/logging/Logger';
-import { createRateLimiter } from './infrastructure/security/rateLimiter';
-import { sanitizeRequestBody, sanitizeQuery } from './infrastructure/security/sanitize';
-import { metrics } from './infrastructure/metrics/Metrics';
-import { registerWebhookModule } from './interfaces/webhook/WebhookModule';
+import { apiRoutes } from './interfaces/api/ApiRoutes.js';
+import { environmentRoutes } from './interfaces/environment/routes.js';
+import { datasetRoutes } from './interfaces/test-data/routes.js';
+import { mappingRoutes } from './interfaces/test-data/mappingRoutes.js';
+import { columnRoutes } from './interfaces/test-data/columnRoutes.js';
+import { profileRoutes } from './interfaces/test-data/profileRoutes.js';
+import { rowRoutes } from './interfaces/test-data/rowRoutes.js';
+import { knowledgeRoutes } from './interfaces/knowledge/KnowledgeRoutes.js';
+import { analysisRoutes } from './interfaces/analysis/AnalysisRoutes.js';
+import { requirementRoutes } from './interfaces/requirements/RequirementRoutes.js';
+import { executionRoutes } from './interfaces/execution/ExecutionRoutes.js';
+import { executionProfileRoutes } from './interfaces/execution/executionProfileRoutes.js';
+import { recommendationRoutes } from './interfaces/recommendation/RecommendationRoutes.js';
+import { pipelineRoutes } from './interfaces/pipeline/PipelineRoutes.js';
+import { testSuiteRoutes } from './interfaces/suite/TestSuiteRoutes.js';
+import { reportRoutes } from './interfaces/report/ReportRoutes.js';
+import { integrationRoutes } from './interfaces/integrations/IntegrationRoutes.js';
+import { assertionRoutes } from './interfaces/assertion/AssertionRoutes.js';
+import { importRoutes } from './interfaces/test-data/importRoutes.js';
+import { relationshipRoutes } from './interfaces/test-data/relationshipRoutes.js';
+import { providerRoutes } from './interfaces/providers/ProviderRoutes.js';
+import { scheduleRoutes } from './interfaces/scheduler/ScheduleRoutes.js';
+import { createNotificationRoutes } from './interfaces/notification/NotificationRoutes.js';
+import { createVersionRoutes } from './interfaces/versioning/VersionRoutes.js';
+import { createAuditLogRoutes } from './interfaces/audit/AuditLogRoutes.js';
+import { createPluginRoutes } from './interfaces/plugin/PluginRoutes.js';
+import { projectContextRoutes } from './interfaces/context/ProjectContextRoutes.js';
+import { promptRoutes } from './interfaces/prompt/PromptRoutes.js';
+import { aiProviderRoutes } from './interfaces/ai-provider/AIProviderRoutes.js';
+import { container } from './application/ApplicationContainer.js';
+import { PluginController } from './interfaces/plugin/PluginController.js';
+import { NotificationController } from './interfaces/notification/NotificationController.js';
+import { VersionController } from './interfaces/versioning/VersionController.js';
+import { AuditLogController } from './interfaces/audit/AuditLogController.js';
+import { validateConfig } from './config.js';
+import { BackupService } from './interfaces/backup/BackupService.js';
+import { createBackupRoutes } from './interfaces/backup/BackupRoutes.js';
+import { errorHandler, notFoundHandler } from './interfaces/middleware/ErrorHandler.js';
+import { authenticate, authorizeProject, setProjectAccessLookup, assertGlobalAccess } from './interfaces/middleware/auth.js';
+import { asyncHandler } from './interfaces/middleware/AsyncHandler.js';
+import { createSuccessResponse } from './shared/ApiResponse.js';
+import { ForbiddenError } from './shared/errors.js';
+import { projectRoutes } from './interfaces/project/ProjectRoutes.js';
+import { createActivityStreamRoutes } from './interfaces/realtime/ActivityStreamRoutes.js';
+import { createAuthRoutes } from './interfaces/auth/AuthRoutes.js';
+import { connectMongo, disconnectMongo } from './infrastructure/auth/mongoClient.js';
+import { loadEnv } from './config/loadEnv.js';
+import { logger } from './infrastructure/logging/Logger.js';
+import { createRateLimiter } from './infrastructure/security/rateLimiter.js';
+import { metrics } from './infrastructure/metrics/Metrics.js';
+import { registerWebhookModule } from './interfaces/webhook/WebhookModule.js';
+import { createTestReviewRoutes } from './interfaces/review/TestReviewRoutes.js';
 
 loadEnv();
 
@@ -103,10 +104,6 @@ async function bootstrap(): Promise<void> {
   }
   
   app.use(express.json());
-  
-  // Input sanitization
-  app.use(sanitizeRequestBody);
-  app.use(sanitizeQuery);
   
   // Metrics tracking middleware
   app.use((req, res, next) => {
@@ -174,6 +171,8 @@ async function bootstrap(): Promise<void> {
   );
 
   container.activityStreamHub.start();
+  container.schedulerService.start();
+  container.durableJobWorker.start();
   app.use('/api', createActivityStreamRoutes(container.activityStreamHub));
   app.use('/api', projectRoutes);
 
@@ -200,7 +199,12 @@ async function bootstrap(): Promise<void> {
   });
 
   // ── Metrics Endpoint ───────────────────────────────────────────────────
-  app.get('/metrics', (_req, res) => {
+  app.get('/metrics', authenticate, (req, res, next) => {
+    const remote = (req.ip || '').replace(/^::ffff:/, '');
+    const internalOnly = process.env.METRICS_INTERNAL_ONLY !== 'false';
+    const isLoopback = remote === '127.0.0.1' || remote === '::1';
+    try { assertGlobalAccess(req.auth); } catch (error) { return next(error); }
+    if (!config.auth.enabled && internalOnly && !isLoopback) return next(new ForbiddenError('Metrics are restricted to the internal network'));
     res.setHeader('Content-Type', 'text/plain; version=0.0.4');
     res.send(metrics.getMetrics());
   });
@@ -215,6 +219,7 @@ async function bootstrap(): Promise<void> {
   app.use('/api', knowledgeRoutes);
   app.use('/api', analysisRoutes);
   app.use('/api', requirementRoutes);
+  app.use('/api', createTestReviewRoutes(container.testCaseVersionService));
   app.use('/api', executionRoutes);
   app.use('/api', executionProfileRoutes);
   app.use('/api', recommendationRoutes);
@@ -290,6 +295,8 @@ async function bootstrap(): Promise<void> {
 
     server.close(async () => {
       container.activityStreamHub.stop();
+      container.schedulerService.stop();
+      await container.durableJobWorker.stop();
       await disconnectMongo();
       logger.info('HTTP server closed.');
       process.exit(0);

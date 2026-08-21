@@ -1,5 +1,5 @@
-import { ValidationHelpers } from '../validation/ValidationHelpers';
-import { ScheduleEntity } from './ScheduleEntity';
+import { ValidationHelpers } from '../validation/ValidationHelpers.js';
+import { ScheduleEntity } from './ScheduleEntity.js';
 
 export interface CreateScheduleDraft {
   projectId: string;

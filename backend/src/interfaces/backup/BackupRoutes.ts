@@ -2,15 +2,13 @@
 import { Router } from 'express';
 import multer from 'multer';
 import fs from 'node:fs';
-import { BackupService } from './BackupService';
-import { ForbiddenError } from '../../shared/errors';
-import { getAuthConfig } from '../../config';
+import { BackupService } from './BackupService.js';
+import { assertGlobalAccess, assertProjectAccess, type AuthContext } from '../middleware/auth.js';
 
 const upload = multer({ dest: './data/uploads/', limits: { fileSize: 100 * 1024 * 1024 } });
 
-function requireGlobalAccess(req: { auth?: { projectIds: string[] | '*' } }): void {
-  if (!getAuthConfig().enabled) return;
-  if (req.auth?.projectIds !== '*') throw new ForbiddenError('Backup operations require global access');
+function requireGlobalAccess(req: { auth?: AuthContext }): void {
+  assertGlobalAccess(req.auth);
 }
 
 export function createBackupRoutes(backupService: BackupService): Router {
@@ -70,6 +68,7 @@ export function createBackupRoutes(backupService: BackupService): Router {
   // Export a project
   router.post('/projects/:projectId/export', async (req, res) => {
     try {
+      await assertProjectAccess(req.params.projectId, req.auth);
       const { projectName } = req.body;
       const result = await backupService.exportProject(req.params.projectId, projectName || req.params.projectId);
       res.download(result.path, (err) => {

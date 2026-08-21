@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatFieldList, inferFieldsFromAcceptanceCriteria } from './acceptanceCriteriaFields';
+import { formatFieldList, inferFieldsFromAcceptanceCriteria } from './acceptanceCriteriaFields.js';
 
 describe('inferFieldsFromAcceptanceCriteria', () => {
   it('defaults to email and password for account registration flows', () => {

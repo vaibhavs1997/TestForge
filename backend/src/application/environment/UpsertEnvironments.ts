@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { EnvironmentRepository } from '../../domain/environment/EnvironmentRepository';
-import { EnvironmentEntity } from '../../domain/environment/EnvironmentEntity';
-import { DEFAULT_TIMEOUT_MS } from '../../constants/defaults';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { EnvironmentRepository } from '../../domain/environment/EnvironmentRepository.js';
+import { EnvironmentEntity, type EnvironmentExecutionPolicy, type EnvironmentTier, normalizeEnvironmentTier } from '../../domain/environment/EnvironmentEntity.js';
+import { DEFAULT_TIMEOUT_MS } from '../../constants/defaults.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export interface UpsertEnvironmentInput {
   name: string;
@@ -11,6 +11,8 @@ export interface UpsertEnvironmentInput {
   authentication?: unknown;
   variables?: Record<string, string>;
   timeout?: number;
+  tier?: EnvironmentTier;
+  executionPolicy?: Partial<EnvironmentExecutionPolicy>;
 }
 
 export interface UpsertEnvironmentsResult {
@@ -37,6 +39,7 @@ export class UpsertEnvironments {
         description: ValidationHelpers.trimString(item.description),
         variables: item.variables ?? {},
         timeout: item.timeout && item.timeout > 0 ? item.timeout : DEFAULT_TIMEOUT_MS,
+        tier: normalizeEnvironmentTier(item.tier),
       });
     }
 

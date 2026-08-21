@@ -1,3 +1,3 @@
 // Barrel export file for Scheduler domain module
-export * from './ScheduleEntity';
-export * from './ScheduleRepository';
+export * from './ScheduleEntity.js';
+export * from './ScheduleRepository.js';

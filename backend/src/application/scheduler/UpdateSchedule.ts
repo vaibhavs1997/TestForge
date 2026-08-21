@@ -1,16 +1,16 @@
 // UpdateSchedule - Application Use Case for updating a scheduled execution
-import { ScheduleEntity } from '../../domain/scheduler/ScheduleEntity';
-import type { ScheduleRepository } from '../../domain/scheduler/ScheduleRepository';
+import { ScheduleEntity } from '../../domain/scheduler/ScheduleEntity.js';
+import type { ScheduleRepository } from '../../domain/scheduler/ScheduleRepository.js';
 import {
   assertActiveSuite,
   buildSchedulePatch,
   normalizeScheduleDescription,
   normalizeScheduleName,
   normalizeScheduleTimezone,
-} from '../../domain/scheduler/SchedulePolicy';
-import { TestSuiteRepository } from '../../domain/suite/TestSuiteRepository';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
-import { CronExpression } from './CronExpression';
+} from '../../domain/scheduler/SchedulePolicy.js';
+import { TestSuiteRepository } from '../../domain/suite/TestSuiteRepository.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
+import { CronExpression } from './CronExpression.js';
 
 export interface UpdateScheduleInput {
   id: string;

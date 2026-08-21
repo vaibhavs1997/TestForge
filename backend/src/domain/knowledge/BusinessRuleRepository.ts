@@ -1,5 +1,5 @@
 // BusinessRuleRepository - Domain Repository Interface for Business Rules
-import { BusinessRule } from './BusinessRuleEntity';
+import { BusinessRule } from './BusinessRuleEntity.js';
 
 export interface BusinessRuleRepository {
   create(rule: BusinessRule): Promise<BusinessRule>;

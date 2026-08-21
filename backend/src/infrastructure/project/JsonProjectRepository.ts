@@ -1,14 +1,14 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { ProjectRecord } from '../../domain/project/ProjectRecord';
-import type { ProjectRepository } from '../../domain/project/ProjectRepository';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import type { ProjectRecord } from '../../domain/project/ProjectRecord.js';
+import type { ProjectRepository } from '../../domain/project/ProjectRepository.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 import {
   deleteProjectDataOnDisk,
   discoverProjectIdsFromData,
   isValidDiscoveredProjectId,
-} from './projectDataPaths';
+} from './projectDataPaths.js';
 
 function registryPath(): string {
   return path.join(process.cwd(), 'data', 'projects', 'projects.json');
@@ -17,7 +17,7 @@ function registryPath(): string {
 import {
   allocateProjectIdentifiers,
   slugifyProjectKey,
-} from '../../domain/project/projectIdentifiers';
+} from '../../domain/project/projectIdentifiers.js';
 
 export class JsonProjectRepository implements ProjectRepository {
   private async readRegistry(): Promise<ProjectRecord[]> {

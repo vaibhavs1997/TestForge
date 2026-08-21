@@ -1,9 +1,9 @@
 // ManageDependencies - Application Use Case for Dependencies in Knowledge Hub
 import { randomUUID } from 'node:crypto';
-import { deleteById, requireById, validateUniqueProjectName } from '../shared/crudHelpers';
-import { Dependency } from '../../domain/knowledge/DependencyEntity';
-import { DependencyRepository } from '../../domain/knowledge/DependencyRepository';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { deleteById, requireById, validateUniqueProjectName } from '../shared/crudHelpers.js';
+import { Dependency } from '../../domain/knowledge/DependencyEntity.js';
+import { DependencyRepository } from '../../domain/knowledge/DependencyRepository.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export class ManageDependencies {
   constructor(private readonly dependencyRepository: DependencyRepository) {}

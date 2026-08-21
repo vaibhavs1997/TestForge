@@ -1,8 +1,8 @@
 // AIProviderRoutes - Route definitions for AI Provider Management module
 import { Router } from 'express';
-import { AIProviderController } from './AIProviderController';
-import { container } from '../../application/ApplicationContainer';
-import { asyncHandler } from '../middleware/AsyncHandler';
+import { AIProviderController } from './AIProviderController.js';
+import { container } from '../../application/ApplicationContainer.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 // Reuse shared repositories and services from the ApplicationContainer
 const {

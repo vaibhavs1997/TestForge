@@ -1,5 +1,5 @@
 // GetDataSourceMapping - Application Use Case
-import { DataSourceMappingRepository } from '../../domain/test-data/DataSourceMappingRepository';
+import { DataSourceMappingRepository } from '../../domain/test-data/DataSourceMappingRepository.js';
 
 export class GetDataSourceMapping {
   constructor(private readonly mappingRepository: DataSourceMappingRepository) {}

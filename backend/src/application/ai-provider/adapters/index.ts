@@ -1,5 +1,5 @@
 // Barrel export file for AI Provider adapters
-export { BaseAIProviderAdapter } from './BaseAIProviderAdapter';
+export { BaseAIProviderAdapter } from './BaseAIProviderAdapter.js';
 export {
   OpenAIAdapter,
   GroqAdapter,
@@ -8,5 +8,5 @@ export {
   AzureOpenAIAdapter,
   AWSBedrockAdapter,
   CustomAdapter,
-} from './ProviderAdapters';
-export { OllamaAdapter } from './OllamaAdapter';
+} from './ProviderAdapters.js';
+export { OllamaAdapter } from './OllamaAdapter.js';

@@ -1,6 +1,6 @@
 // ExecutionProfileRepository - Repository interface for Execution Profiles
 
-import { ExecutionProfileEntity } from './ExecutionProfileEntity';
+import { ExecutionProfileEntity } from './ExecutionProfileEntity.js';
 
 export interface IExecutionProfileRepository {
   create(profile: Omit<ExecutionProfileEntity, 'id' | 'createdAt' | 'updatedAt'>): Promise<ExecutionProfileEntity>;

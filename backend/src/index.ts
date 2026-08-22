@@ -54,6 +54,11 @@ import { metrics } from './infrastructure/metrics/Metrics.js';
 import { registerWebhookModule } from './interfaces/webhook/WebhookModule.js';
 import { createTestReviewRoutes } from './interfaces/review/TestReviewRoutes.js';
 import { fieldDataRuleRoutes } from './interfaces/test-data/FieldDataRuleRoutes.js';
+import { PostgresConnection, RagDatabaseHealthService, runKnowledgeChunkMigration, runRagDatabaseMigrations } from './infrastructure/database/index.js';
+import { OllamaEmbeddingProvider } from './infrastructure/embedding/index.js';
+import { PgVectorStore } from './infrastructure/database/PgVectorStore.js';
+import { RetrieveProjectKnowledge } from './application/rag/RetrieveProjectKnowledge.js';
+import { createKnowledgeSearchRoutes } from './interfaces/knowledge/KnowledgeSearchRoutes.js';
 
 loadEnv();
 
@@ -64,6 +69,43 @@ async function bootstrap(): Promise<void> {
   } catch (err) {
     logger.error('Configuration validation failed', { error: err instanceof Error ? err.message : err });
     process.exit(1);
+  }
+
+  const ragConnection = new PostgresConnection(config.rag);
+  const ragHealth = new RagDatabaseHealthService(config.rag, ragConnection);
+  let retrieval = new RetrieveProjectKnowledge(undefined, undefined);
+  if (config.rag.enabled) {
+    try {
+      await ragConnection.verifyConnection();
+      await runRagDatabaseMigrations(ragConnection);
+      logger.info('Optional RAG database is connected and migrated.');
+    } catch (error) {
+      // Do not include driver errors here: they can contain a database URL.
+      logger.error('Optional RAG database initialization failed.', {
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+        errorCode: typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : undefined,
+      });
+      await ragConnection.close();
+      process.exit(1);
+    }
+  }
+  if (config.embedding.enabled) {
+    try {
+      if (config.embedding.provider !== 'ollama' || !config.embedding.model || !config.embedding.ollamaBaseUrl) {
+        throw new Error('Unsupported embedding provider configuration.');
+      }
+      const embeddings = new OllamaEmbeddingProvider({ baseUrl: config.embedding.ollamaBaseUrl, model: config.embedding.model, timeoutMs: config.embedding.timeoutMs });
+      const metadata = await embeddings.metadata();
+      await runKnowledgeChunkMigration(ragConnection, metadata.dimension);
+      retrieval = new RetrieveProjectKnowledge(embeddings, new PgVectorStore(ragConnection, metadata.dimension));
+      logger.info('Optional embedding provider is available.', { provider: metadata.provider, model: metadata.model, dimension: metadata.dimension });
+    } catch (error) {
+      logger.error('Optional embedding provider initialization failed.', {
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      });
+      await ragConnection.close();
+      process.exit(1);
+    }
   }
 
   const app = express();
@@ -100,7 +142,9 @@ async function bootstrap(): Promise<void> {
   });
   
   // Rate limiting (skip in development for easier testing)
-  if (config.nodeEnv !== 'development') {
+  // Local Compose uses production-like artifacts but must not rate-limit its
+  // own browser while a page loads several independent workspace resources.
+  if (config.nodeEnv !== 'development' && process.env.RATE_LIMIT_ENABLED !== 'false') {
     app.use('/api', createRateLimiter({ windowMs: 15 * 60 * 1000, max: 100 }));
   }
   
@@ -190,14 +234,19 @@ async function bootstrap(): Promise<void> {
     });
   });
 
-  app.get('/ready', (_req, res) => {
-    res.status(200).json({
-      status: 'ready',
+  const readinessHandler = async (_req: express.Request, res: express.Response) => {
+    const rag = await ragHealth.check();
+    const ready = !rag.enabled || (rag.connected && rag.pgvectorEnabled);
+    res.status(ready ? 200 : 503).json({
+      status: ready ? 'ready' : 'not_ready',
       uptime: Math.round((Date.now() - serverStartTime) / 1000),
       version: config.version,
       build: config.buildTimestamp,
+      rag,
     });
-  });
+  };
+  app.get('/ready', readinessHandler);
+  app.get('/readiness', readinessHandler);
 
   // ── Metrics Endpoint ───────────────────────────────────────────────────
   app.get('/metrics', authenticate, (req, res, next) => {
@@ -219,6 +268,7 @@ async function bootstrap(): Promise<void> {
   app.use('/api', profileRoutes);
   app.use('/api', rowRoutes);
   app.use('/api', knowledgeRoutes);
+  app.use('/api', createKnowledgeSearchRoutes(retrieval));
   app.use('/api', analysisRoutes);
   app.use('/api', requirementRoutes);
   app.use('/api', createTestReviewRoutes(container.testCaseVersionService));
@@ -300,6 +350,7 @@ async function bootstrap(): Promise<void> {
       container.schedulerService.stop();
       await container.durableJobWorker.stop();
       await disconnectMongo();
+      await ragConnection.close();
       logger.info('HTTP server closed.');
       process.exit(0);
     });

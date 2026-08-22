@@ -13,7 +13,30 @@ export interface AppConfig {
   mongodbUri?: string;
   auth: AuthConfig;
   runtimeMode: 'local-node' | 'distributed';
+  rag: RagDatabaseConfig;
+  embedding: EmbeddingConfig;
+  ai: AiCapabilityConfig;
 }
+
+/** Configuration boundary for the optional PostgreSQL/pgvector RAG subsystem. */
+export interface RagDatabaseConfig {
+  enabled: boolean;
+  databaseUrl?: string;
+  connectionTimeoutMs: number;
+  maxPoolSize: number;
+  ssl: boolean;
+}
+
+/** Optional embedding configuration; independent from chat/reasoning providers. */
+export interface EmbeddingConfig {
+  enabled: boolean;
+  provider?: string;
+  model?: string;
+  ollamaBaseUrl?: string;
+  timeoutMs: number;
+  batchSize: number;
+}
+export interface AiCapabilityConfig { enabled: boolean; defaultProvider?: string; defaultModel?: string; fallbackProvider?: string; fallbackModel?: string; timeoutMs: number; retryLimit: number; temperature: number; externalGovernanceMode: 'ALLOW' | 'REDACT' | 'LOCAL_ONLY'; }
 
 export type PersistenceDriver = 'json' | 'memory' | 'sqlite';
 
@@ -82,6 +105,31 @@ export function validateConfig(env: NodeJS.ProcessEnv = process.env): AppConfig 
   const auth = getAuthConfig(env);
   const nodeEnv = env.NODE_ENV || 'development';
   const runtimeMode = env.RUNTIME_COORDINATION_MODE === 'distributed' ? 'distributed' : 'local-node';
+  const ragEnabled = env.RAG_ENABLED?.trim().toLowerCase() === 'true';
+  const embeddingEnabled = env.EMBEDDING_ENABLED?.trim().toLowerCase() === 'true';
+  const ragDatabaseUrl = env.RAG_DATABASE_URL?.trim() || undefined;
+  if (ragEnabled && !ragDatabaseUrl) {
+    throw new Error('Configuration validation failed. RAG_ENABLED=true requires RAG_DATABASE_URL.');
+  }
+  if (ragDatabaseUrl) {
+    try {
+      const parsed = new URL(ragDatabaseUrl);
+      if (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') {
+        throw new Error('unsupported protocol');
+      }
+    } catch {
+      throw new Error('Configuration validation failed. RAG_DATABASE_URL must be a valid PostgreSQL connection URL.');
+    }
+  }
+  const embeddingProvider = env.EMBEDDING_PROVIDER?.trim() || undefined;
+  const embeddingModel = env.EMBEDDING_MODEL?.trim() || undefined;
+  const ollamaBaseUrl = env.OLLAMA_BASE_URL?.trim() || undefined;
+  if (embeddingEnabled && (!ragEnabled || !embeddingProvider || !embeddingModel)) {
+    throw new Error('Configuration validation failed. Embedding support requires RAG_ENABLED=true, EMBEDDING_PROVIDER, and EMBEDDING_MODEL.');
+  }
+  if (embeddingEnabled && embeddingProvider === 'ollama' && !ollamaBaseUrl) {
+    throw new Error('Configuration validation failed. Ollama embeddings require OLLAMA_BASE_URL.');
+  }
   if (nodeEnv === 'production' && env.BACKEND_REPLICAS && Number(env.BACKEND_REPLICAS) > 1 && runtimeMode !== 'distributed') {
     throw new Error('Configuration validation failed. Multi-instance production requires RUNTIME_COORDINATION_MODE=distributed with atomic job/lease adapters.');
   }
@@ -110,5 +158,14 @@ export function validateConfig(env: NodeJS.ProcessEnv = process.env): AppConfig 
     mongodbUri,
     auth,
     runtimeMode,
+    rag: {
+      enabled: ragEnabled,
+      databaseUrl: ragDatabaseUrl,
+      connectionTimeoutMs: Number(env.RAG_DB_CONNECTION_TIMEOUT_MS || 5_000),
+      maxPoolSize: Number(env.RAG_DB_POOL_MAX || 5),
+      ssl: env.RAG_DB_SSL === 'true',
+    },
+    embedding: { enabled: embeddingEnabled, provider: embeddingProvider, model: embeddingModel, ollamaBaseUrl, timeoutMs: Number(env.EMBEDDING_TIMEOUT_MS || 30_000), batchSize: Number(env.EMBEDDING_BATCH_SIZE || 32) },
+    ai: { enabled: env.AI_ENABLED?.trim().toLowerCase() === 'true', defaultProvider: env.AI_DEFAULT_PROVIDER?.trim() || undefined, defaultModel: env.AI_DEFAULT_MODEL?.trim() || undefined, fallbackProvider: env.AI_FALLBACK_PROVIDER?.trim() || undefined, fallbackModel: env.AI_FALLBACK_MODEL?.trim() || undefined, timeoutMs: Number(env.AI_TIMEOUT_MS || 30_000), retryLimit: Number(env.AI_RETRY_LIMIT || 0), temperature: Number(env.AI_DEFAULT_TEMPERATURE || 0.2), externalGovernanceMode: env.AI_EXTERNAL_GOVERNANCE_MODE === 'LOCAL_ONLY' ? 'LOCAL_ONLY' : env.AI_EXTERNAL_GOVERNANCE_MODE === 'REDACT' ? 'REDACT' : 'ALLOW' },
   };
 }

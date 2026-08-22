@@ -55,6 +55,8 @@ import { useMappings } from '../hooks/useMappings';
 import { useColumns, useColumnSuggestions } from '../hooks/useColumns';
 import { useProfiles } from '../hooks/useProfiles';
 import { providerService } from '../services/providerService';
+import { ExecutionDataWorkspace } from '../components/ExecutionDataWorkspace';
+import { apiAxios } from '../../../services/apiAxios';
 import type { ColumnDto, PopulationProfileDto } from '../../../types/moduleContracts';
 
 // Memoized category badge to avoid re-renders
@@ -177,7 +179,7 @@ interface Dataset {
 }
 
 type ViewMode = 'card' | 'table';
-type TestDataSection = 'datasets' | 'scenarios' | 'bindings' | 'reservations' | 'mappings' | 'relationships' | 'providers' | 'datasources' | 'generators';
+type TestDataSection = 'primary' | 'datasets' | 'scenarios' | 'bindings' | 'reservations' | 'mappings' | 'relationships' | 'providers' | 'datasources' | 'generators';
 
 const CATEGORY_OPTIONS = ['General', 'Customer', 'Product', 'Order', 'Payment', 'User', 'Custom'];
 
@@ -210,7 +212,7 @@ export const TestDataLibraryPage: React.FC<TestDataLibraryPageProps> = ({ projec
   const [search, setSearch] = React.useState('');
   const [categoryFilter, setCategoryFilter] = React.useState<string>('All');
   const [viewMode, setViewMode] = React.useState<ViewMode>('card');
-  const [activeSection, setActiveSection] = React.useState<TestDataSection>('datasets');
+  const [activeSection, setActiveSection] = React.useState<TestDataSection>('primary');
   const [editOpen, setEditOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [selectedDataset, setSelectedDataset] = React.useState<Dataset | null>(null);
@@ -253,6 +255,9 @@ export const TestDataLibraryPage: React.FC<TestDataLibraryPageProps> = ({ projec
   const { mappings } = useMappings(resolvedProjectId);
   const [providerCount, setProviderCount] = React.useState(0);
   const [relationshipCount, setRelationshipCount] = React.useState(0);
+  const [reanalyzeBusy, setReanalyzeBusy] = React.useState(false);
+  const [reanalyzeMessage, setReanalyzeMessage] = React.useState('');
+  const [analysisRefresh, setAnalysisRefresh] = React.useState(0);
 
   React.useEffect(() => {
     if (!resolvedProjectId) return;
@@ -673,9 +678,11 @@ export const TestDataLibraryPage: React.FC<TestDataLibraryPageProps> = ({ projec
           <div>
             <h1 className='text-2xl font-bold text-text'>Test data</h1>
             <p className='mt-1 max-w-2xl text-sm text-text-secondary'>
-              Optional datasets, mappings, and providers — use when tests need tables of inputs or linked columns.
+              Control how TestForge supplies request data automatically when your APIs run.
             </p>
           </div>
+          <div className='flex flex-wrap items-center gap-2'>
+            <Button variant='outline' loading={reanalyzeBusy} onClick={async () => { setReanalyzeBusy(true); try { const response = await apiAxios.post(`/api/projects/${resolvedProjectId}/field-data-analysis/reanalyze`); const result = response.data.data || {}; setReanalyzeMessage(`${result.newInputs || 0} new inputs and ${result.reviewRequiredChanges || 0} changes need attention.`); setAnalysisRefresh((current) => current + 1); } catch { setReanalyzeMessage('Contract analysis could not be completed.'); } finally { setReanalyzeBusy(false); } }}>Re-analyze</Button>
           {activeSection === 'datasets' && (
             <div className='flex flex-wrap items-center gap-2'>
               <Button
@@ -696,42 +703,17 @@ export const TestDataLibraryPage: React.FC<TestDataLibraryPageProps> = ({ projec
               </Button>
             </div>
           )}
+          </div>
         </div>
-        <div className='mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6'>
-          {SECTION_CHIPS.map((chip) => {
-            const Icon = chip.icon;
-            const active = activeSection === chip.id;
-            const count = sectionCounts[chip.id];
-            return (
-              <button
-                key={chip.id}
-                type='button'
-                onClick={() => setActiveSection(chip.id)}
-                className={`rounded-lg border p-3 text-left transition-colors ${
-                  chip.comingSoon
-                    ? 'border-border bg-surface/50 opacity-90'
-                    : active
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border bg-surface hover:border-primary/50'
-                }`}
-              >
-                <div className='flex items-center justify-between gap-1'>
-                  <div className='flex items-center gap-2 text-xs font-medium text-text-secondary'>
-                    <Icon className='h-3.5 w-3.5' />
-                    {chip.label}
-                  </div>
-                  {chip.comingSoon ? (
-                    <Badge variant='secondary' className='text-[10px]'>
-                      Soon
-                    </Badge>
-                  ) : null}
-                </div>
-                <p className='mt-1 text-xl font-semibold text-text'>{chip.comingSoon ? '—' : count}</p>
-              </button>
-            );
-          })}
+        {reanalyzeMessage && <p role='status' className='mb-4 text-sm text-text-secondary'>{reanalyzeMessage}</p>}
+        <div className='mb-6'>
+          <ExecutionDataWorkspace
+            projectId={resolvedProjectId}
+            onDatasets={() => setActiveSection('datasets')}
+            onViewChange={(view) => setActiveSection(view)}
+            refreshToken={analysisRefresh}
+          />
         </div>
-
           {activeSection === 'relationships' && (
             <RelationshipsSection
               datasets={datasets}
@@ -1441,7 +1423,6 @@ export const TestDataLibraryPage: React.FC<TestDataLibraryPageProps> = ({ projec
               <Toast message={toastMessage} open={toastOpen} onClose={() => setToastOpen(false)} type={toastType} />
             </>
           )}
-          <ApiDataReadiness projectId={resolvedProjectId} />
       </div>
     </div>
   );

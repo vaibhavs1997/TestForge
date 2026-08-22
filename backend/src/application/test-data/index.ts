@@ -25,3 +25,8 @@ export { UpdateRow } from './UpdateRow.js';
 export { DeleteRow } from './DeleteRow.js';
 export { GetRow } from './GetRow.js';
 export { ListRows } from './ListRows.js';
+export { ManageFieldDataRules } from './ManageFieldDataRules.js';
+export { FieldDataResolutionService, OMIT } from './FieldDataResolutionService.js';
+export { FieldDataAnalyzer } from './FieldDataAnalyzer.js';
+export { FieldDataRuleReconciliationService } from './FieldDataRuleReconciliationService.js';
+export { ExecutionDataPreviewService } from './ExecutionDataPreviewService.js';

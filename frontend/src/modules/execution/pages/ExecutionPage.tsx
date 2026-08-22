@@ -9,6 +9,8 @@ import { EmptyState } from '../../../components/ui/EmptyState';
 import { ErrorAlert } from '../../../components/shared/ErrorAlert';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { SelectField } from '../../../components/ui/SelectField';
+import { EntityDialog } from '../../../components/dialogs/EntityDialog';
+import { apiAxios } from '../../../services/apiAxios';
 import { queryKeys } from '../../../constants';
 import { executionService } from '../services';
 import { useExecution } from '../hooks';
@@ -46,6 +48,8 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
   const [tokenDraft, setTokenDraft] = React.useState('');
   const [isSavingToken, setIsSavingToken] = React.useState(false);
   const [tokenSaveMessage, setTokenSaveMessage] = React.useState<string | null>(null);
+  const [readiness, setReadiness] = React.useState<any>(null);
+  const [readinessOpen, setReadinessOpen] = React.useState(false);
 
   const suitesQuery = useQuery({
     queryKey: [...queryKeys.suites(projectId), 'runnable'],
@@ -153,6 +157,7 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
       setIsExecuting(false);
     }
   };
+  const openReadiness = async () => { if (!selectedSuite) return; try { const { data } = await apiAxios.get(`/api/projects/${projectId}/suites/${selectedSuite.id}/data-readiness`); setReadiness(data.data); setReadinessOpen(true); } catch (error) { setLaunchError(error instanceof Error ? error.message : 'Data readiness could not be loaded.'); } };
   const handleViewReport = async (run: ExecutionRun) => {
     try {
       const report = await generateReportAsync({ projectId, executionRunId: run.id });
@@ -179,7 +184,7 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
                   <label className='mb-1 block text-xs font-medium text-text-secondary'>Approved suite</label>
                   <SelectField value={selectedSuiteId} onChange={setSelectedSuiteId} options={approvedSuites.map((suite) => ({ value: suite.id, label: `${suite.name} · ${suite.testCount} tests${suite.isRunnable ? '' : ' · Not ready'}` }))} />
                 </div>
-                <Button onClick={() => void handleRun()} disabled={!selectedSuite || !selectedSuite.isRunnable || isExecuting} className='min-w-32'>
+                <Button onClick={() => void openReadiness()} disabled={!selectedSuite || !selectedSuite.isRunnable || isExecuting} className='min-w-32'>
                   <Play className='mr-2 h-4 w-4' />{isExecuting ? 'Running…' : 'Run suite'}
                 </Button>
               </div>
@@ -223,6 +228,8 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
           )}
         </CardContent>
       </Card>
+      <EntityDialog open={readinessOpen} title='Suite Data Readiness' description='Review canonical data readiness before starting the suite.' submitLabel={readiness?.canExecute ? 'Run suite' : 'Resolve required inputs'} onClose={() => setReadinessOpen(false)} onSubmit={(event) => { event.preventDefault(); if (!readiness?.canExecute) return; setReadinessOpen(false); void handleRun(); }}>
+        <div className='grid grid-cols-2 gap-3 text-sm'>{[['Resolved inputs', readiness?.resolvedCount], ['Runtime links ready', readiness?.runtimeLinksReady], ['Secrets available', readiness?.secretsAvailable], ['Optional omitted', readiness?.optionalOmitted], ['Review required', readiness?.reviewRequired], ['Unresolved required', readiness?.unresolvedRequired]].map(([label, value]) => <div key={String(label)} className='rounded border border-border bg-background/40 p-2'><p className='text-xs text-text-secondary'>{label}</p><p className='font-semibold text-text'>{String(value ?? 0)}</p></div>)}</div>{readiness?.unresolvedRequired > 0 && <a className='mt-4 block text-sm text-primary underline' href={`/projects/${projectId}/test-data`}>Configure Test Data for unresolved inputs</a>}</EntityDialog>
 
       <section className='space-y-4'>
         <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>

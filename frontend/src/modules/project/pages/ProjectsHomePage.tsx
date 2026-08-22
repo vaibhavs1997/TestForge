@@ -447,51 +447,12 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
                 {search.trim() ? 'No archived projects match your search.' : 'Archived projects will appear here.'}
               </p>
             ) : (
-              <div className="grid grid-cols-1 gap-4">
+              <div className="space-y-2">
                 {archivedProjects.map((project) => (
-                  <Card
-                    key={project.id}
-                    className="w-full border-dashed transition-shadow hover:shadow-lg"
-                  >
-                    <CardContent className="pt-6">
-                      <div className="mb-4 flex items-start justify-between">
-                        <div className="text-primary">{project.icon}</div>
-                        <ProjectCardMenu
-                          onRename={() => {
-                            setRenameProject(project);
-                            setRenameOpen(true);
-                          }}
-                          onToggleArchive={() => {
-                            setArchiveProject(project);
-                            setArchiveOpen(true);
-                          }}
-                          onDelete={() => {
-                            setDeleteProject(project);
-                            setDeleteOpen(true);
-                          }}
-                          isArchived={project.status === 'archived'}
-                        />
-                      </div>
-                      <h3 className="mb-2 text-base font-semibold text-text">{project.name}</h3>
-                      <p className="mb-4 line-clamp-2 text-xs text-text-secondary">
-                        {project.description || 'No description'}
-                      </p>
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-text-secondary">Last opened</span>
-                          <span className="font-medium text-text">{formatRelativeTime(project.lastOpenedAt)}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-text-secondary">Status</span>
-                          <Badge variant="secondary">archived</Badge>
-                        </div>
-                        <div className="mt-3 grid grid-cols-2 gap-2">
-                          <Button variant="outline" size="sm" onClick={() => handleOpenProject(project)}>Open project</Button>
-                          <Button size="sm" onClick={() => { setArchiveProject(project); setArchiveOpen(true); }}>Restore</Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <div key={project.id} className="flex items-center justify-between gap-3 rounded-md border border-dashed border-border px-3 py-2">
+                    <span className="truncate text-sm font-semibold text-text">{project.name}</span>
+                    <Button size="sm" onClick={() => { setArchiveProject(project); setArchiveOpen(true); }}>Restore</Button>
+                  </div>
                 ))}
               </div>
             )}

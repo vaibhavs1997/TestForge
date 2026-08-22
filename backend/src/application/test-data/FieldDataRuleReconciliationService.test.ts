@@ -1,0 +1,11 @@
+import { describe, expect, it } from 'vitest';
+import { FieldDataRuleReconciliationService } from './FieldDataRuleReconciliationService.js';
+import { FieldDataRuleEntity } from '../../domain/test-data/FieldDataRuleEntity.js';
+const input = (path: string, schema: any = { type: 'string', format: 'email' }, required = true, location = 'BODY') => ({ input: { operationId: 'op', protocol: 'neutral', location, path }, schema, required });
+const rule = (i: any, strategy: any = 'GENERATE', source: any = null) => new FieldDataRuleEntity('r', 'p', i.input, 'email', i.required, strategy, 'EACH_EXECUTION', 'REUSABLE', 'POPULATE', source, 'ALLOW', 'ACCEPTED', 0, 0);
+describe('FieldDataRuleReconciliationService', () => {
+  it('preserves unchanged and description-only accepted rules', () => { const a = input('email'); const result = new FieldDataRuleReconciliationService().reconcile([input('email', { type: 'string', format: 'email', description: 'new copy' })], [a], [rule(a)]); expect(result.summary.preservedRules).toBe(1); expect(result.details[0].status).toBe('UNCHANGED'); });
+  it('flags required/type/enum changes and new inputs for review', () => { const a = input('value'); const result = new FieldDataRuleReconciliationService().reconcile([input('value', { type: 'integer' }, true), input('new')], [input('value', { type: 'string' }, false)], [rule(a)]); expect(result.details[0].status).toBe('BREAKING_CHANGE'); expect(result.details[1].status).toBe('NEW'); });
+  it('marks removed rules and removed runtime producers without deleting history', () => { const a = input('id'); const linked = rule(a, 'LINKED_RESPONSE', { operationId: 'producer', field: 'id' }); const result = new FieldDataRuleReconciliationService().reconcile([], [a], [linked], []); expect(result.details[0].status).toBe('REMOVED'); expect(result.summary.runtimeLinksRequiringReview).toBe(1); });
+  it('uses equivalent canonical behavior for REST paths and GraphQL variables', () => { const rest = input('id', { type: 'string', format: 'uuid' }, true, 'PATH'); const gql = input('input.id', { type: 'string', format: 'uuid' }, true, 'VARIABLE'); const service = new FieldDataRuleReconciliationService(); expect(service.reconcile([rest], [rest], []).details[0].status).toBe('UNCHANGED'); expect(service.reconcile([gql], [gql], []).details[0].status).toBe('UNCHANGED'); });
+});

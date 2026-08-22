@@ -10,6 +10,10 @@ import { EnvironmentRepository } from '../../infrastructure/environment/Environm
 import { DataSourceMappingEntity } from '../../domain/test-data/DataSourceMappingEntity.js';
 import { DatasetRowEntity } from '../../domain/test-data/DatasetRowEntity.js';
 import { ColumnEntity } from '../../domain/test-data/ColumnEntity.js';
+import type { FieldDataRuleRepository } from '../../domain/test-data/FieldDataRuleRepository.js';
+import type { FieldDataRuleEntity, FieldDataSourceReference } from '../../domain/test-data/FieldDataRuleEntity.js';
+import type { SecretStore } from '../../domain/security/SecretStore.js';
+import { FieldDataResolutionService, OMIT } from './FieldDataResolutionService.js';
 
 export interface ResolvedValue {
   sourceType: string;
@@ -25,8 +29,12 @@ export interface ResolvedValue {
 export interface ResolutionContext {
   runtimeVariables: Record<string, any>;
   environmentVariables: Record<string, string>;
+  /** Request/suite-run overrides stay transient; exact-version overrides are supplied by the caller. */
+  manualOverrides?: Record<string, unknown>;
+  testCaseOverrides?: Record<string, unknown>;
   datasetRow?: DatasetRowEntity;
   sequentialPositions: Map<string, number>;
+  fieldDataCache?: Map<string, unknown>;
 }
 
 export interface ValidationError {
@@ -42,8 +50,11 @@ export class TestDataResolutionService {
     private readonly datasetRepository: DatasetRepository,
     private readonly columnRepository: ColumnRepository,
     private readonly runtimeVariableRepository: RuntimeVariableRepository,
-    private readonly environmentRepository: EnvironmentRepository
-  ) {}
+    private readonly environmentRepository: EnvironmentRepository,
+    private readonly fieldDataRuleRepository?: FieldDataRuleRepository,
+    private readonly secretStore?: SecretStore,
+  ) { this.fieldDataResolver = new FieldDataResolutionService(secretStore); }
+  private readonly fieldDataResolver: FieldDataResolutionService;
 
   async resolveRequestFields(
     projectId: string,
@@ -58,13 +69,47 @@ export class TestDataResolutionService {
     );
 
     const resolvedValues: Record<string, ResolvedValue> = {};
+    const projectRules = this.fieldDataRuleRepository ? await this.fieldDataRuleRepository.findByProject(projectId) : [];
+    const rules = projectRules.filter((rule) => rule.scopeKind !== 'PROJECT_FALLBACK' && rule.input.operationId === operationId);
+    for (const rule of rules.filter((candidate) => candidate.status === 'ACCEPTED')) {
+      const resolved = await this.fieldDataResolver.resolve(rule.input, rule, {
+        projectId,
+        manualOverrides: context.manualOverrides,
+        testCaseOverrides: context.testCaseOverrides,
+        projectFallbackRules: projectRules.filter((rule) => rule.scopeKind === 'PROJECT_FALLBACK'),
+        linkedValues: context.runtimeVariables,
+        environmentValues: context.environmentVariables,
+        cache: context.fieldDataCache ?? new Map<string, unknown>(),
+      });
+      if (resolved.value !== OMIT) resolvedValues[rule.input.path] = { sourceType: resolved.sourceStrategy, value: resolved.value };
+    }
 
     for (const mapping of mappings) {
+      if (resolvedValues[mapping.fieldPath]) continue;
       const resolved = await this.resolveMapping(mapping, context, projectId);
       resolvedValues[mapping.fieldPath] = resolved;
     }
 
     return resolvedValues;
+  }
+
+  private async resolveRule(rule: FieldDataRuleEntity, context: ResolutionContext, projectId: string): Promise<ResolvedValue> {
+    const source = (rule.sourceReference || {}) as FieldDataSourceReference;
+    if (!rule.required && rule.optionalFieldPolicy === 'OMIT') return { sourceType: rule.valueStrategy, value: undefined };
+    if (!rule.required && rule.optionalFieldPolicy === 'EMPTY') return { sourceType: rule.valueStrategy, value: '' };
+    if (!rule.required && rule.optionalFieldPolicy === 'NULL') return { sourceType: rule.valueStrategy, value: null };
+    switch (rule.valueStrategy) {
+      case 'FIXED': case 'MANUAL': case 'CONTRACT_DEFAULT': return { sourceType: rule.valueStrategy, value: source.value };
+      case 'GENERATE': return { sourceType: 'Generated Value', value: this.generateDefaultValue(rule.input.path) };
+      case 'REUSE': case 'LINKED_RESPONSE': return { sourceType: rule.valueStrategy, value: context.runtimeVariables[String(source.field || rule.input.path)], variableName: String(source.field || rule.input.path) };
+      case 'ENVIRONMENT': return { sourceType: 'Environment Variable', value: context.environmentVariables[String(source.field || rule.input.path)], envVariableName: String(source.field || rule.input.path) };
+      case 'SECRET': {
+        const secretRef = String(source.secretRef || source.id || '');
+        if (!this.secretStore || !secretRef) throw new Error(`Secret rule for ${rule.input.path} has no resolvable secret reference`);
+        const value = await this.secretStore.get(secretRef); if (value === null) throw new Error(`Secret ${secretRef} could not be resolved`); return { sourceType: 'Secret', value };
+      }
+      case 'DATASET': return this.resolveDatasetRow({ fieldPath: rule.input.path, sourceType: 'Dataset Row', datasetId: String(source.datasetId || source.id || ''), datasetColumn: String(source.field || '') } as DataSourceMappingEntity, context);
+    }
   }
 
   async resolveMapping(

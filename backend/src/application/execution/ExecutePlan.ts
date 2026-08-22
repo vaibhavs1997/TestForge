@@ -33,6 +33,7 @@ import { ExecutionSafetyService } from './ExecutionSafetyService.js';
 import { sensitiveDataRedactor } from '../../infrastructure/security/SensitiveDataRedactionService.js';
 import type { SecretStore } from '../../domain/security/SecretStore.js';
 import { SecretResolutionService } from '../security/SecretResolutionService.js';
+import type { FieldDataRuleRepository } from '../../domain/test-data/FieldDataRuleRepository.js';
 
 export class ExecutePlan {
   private loadedProfile: ExecutionProfileEntity | null = null;
@@ -56,6 +57,7 @@ export class ExecutePlan {
     private readonly apiServiceRepository?: ApiServiceRepository,
     private readonly executionSafetyService = new ExecutionSafetyService(),
     private readonly secretStore?: SecretStore,
+    private readonly fieldDataRuleRepository?: FieldDataRuleRepository,
   ) {
     // Initialize resolution service
     this.testDataResolutionService = new TestDataResolutionService(
@@ -64,7 +66,9 @@ export class ExecutePlan {
       datasetRepository,
       columnRepository,
       runtimeVariableRepository,
-      environmentRepository
+      environmentRepository,
+      fieldDataRuleRepository,
+      secretStore,
     );
   }
 

@@ -53,6 +53,7 @@ import { createRateLimiter } from './infrastructure/security/rateLimiter.js';
 import { metrics } from './infrastructure/metrics/Metrics.js';
 import { registerWebhookModule } from './interfaces/webhook/WebhookModule.js';
 import { createTestReviewRoutes } from './interfaces/review/TestReviewRoutes.js';
+import { fieldDataRuleRoutes } from './interfaces/test-data/FieldDataRuleRoutes.js';
 
 loadEnv();
 
@@ -211,6 +212,7 @@ async function bootstrap(): Promise<void> {
 
   app.use('/api', apiRoutes);
   app.use('/api', environmentRoutes);
+  app.use('/api', fieldDataRuleRoutes);
   app.use('/api', datasetRoutes);
   app.use('/api', mappingRoutes);
   app.use('/api', columnRoutes);

@@ -12,6 +12,9 @@ import { ColumnRepository } from '../infrastructure/test-data/ColumnRepository.j
 import { RelationshipRepository } from '../infrastructure/test-data/RelationshipRepository.js';
 import { DatasetRowRepository } from '../infrastructure/test-data/DatasetRowRepository.js';
 import { DataSourceMappingRepository } from '../infrastructure/test-data/DataSourceMappingRepository.js';
+import { FieldDataRuleRepository } from '../infrastructure/test-data/FieldDataRuleRepository.js';
+import { ManageFieldDataRules } from './test-data/ManageFieldDataRules.js';
+import { FieldDataAnalyzer } from './test-data/FieldDataAnalyzer.js';
 import { PopulationProfileRepository } from '../infrastructure/test-data/PopulationProfileRepository.js';
 import { KnowledgeFlowRepository } from '../infrastructure/knowledge/KnowledgeFlowRepository.js';
 import { BusinessRuleRepository } from '../infrastructure/knowledge/BusinessRuleRepository.js';
@@ -139,6 +142,9 @@ export class ApplicationContainer {
   readonly relationshipRepository = new RelationshipRepository();
   readonly datasetRowRepository = new DatasetRowRepository();
   readonly dataSourceMappingRepository = new DataSourceMappingRepository();
+  readonly fieldDataRuleRepository = new FieldDataRuleRepository();
+  readonly manageFieldDataRules = new ManageFieldDataRules(this.fieldDataRuleRepository);
+  readonly fieldDataAnalyzer = new FieldDataAnalyzer();
   readonly populationProfileRepository = new PopulationProfileRepository();
   readonly knowledgeFlowRepository = new KnowledgeFlowRepository();
   readonly businessRuleRepository = new BusinessRuleRepository();
@@ -315,6 +321,7 @@ export class ApplicationContainer {
     this.apiServiceRepository,
     undefined,
     this.secretStore,
+    this.fieldDataRuleRepository,
   );
 
   // ─── Plugin framework ──────────────────────────────────

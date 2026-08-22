@@ -8,7 +8,7 @@ import { useApiOperations } from '../../api/hooks';
 import { environmentService } from '../../environment/services/environmentService';
 import { EnvironmentDialog, type EnvironmentDialogData } from '../../environment/components/EnvironmentDialog';
 import { ImportEnvironmentModal, type ImportEnvironmentModalData } from '../../environment/components/ImportEnvironmentModal';
-import { parseEnvironmentImport } from '../../environment/utils/parseEnvironmentImport';
+import { parseEnvironmentImport, resolveEnvironmentBaseUrl } from '../../environment/utils/parseEnvironmentImport';
 import type { EnvironmentDto } from '../../../types/apiModels';
 import { load as loadYaml } from 'js-yaml';
 import {
@@ -51,6 +51,7 @@ import { datasetService } from '../../test-data/services/datasetService';
 import { rowService } from '../../test-data/services/rowService';
 import type { DatasetDto } from '../../../types/moduleContracts';
 import { apiService } from '../../api/services/apiService';
+import { apiAxios } from '../../../services/apiAxios';
 import { queryKeys } from '../../../constants';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
@@ -62,6 +63,23 @@ type ResponseBodyView = 'pretty' | 'raw' | 'preview';
 type BottomTab = 'related' | 'tests' | 'environments' | 'mock' | 'documentation' | 'activity';
 type ImportedKind = 'api' | 'env' | 'unknown';
 type SelectionKind = 'api-endpoint' | 'manual' | 'saved' | null;
+export type CanonicalOverrideLocation = 'BODY' | 'QUERY' | 'PATH' | 'HEADER' | 'COOKIE' | 'GRAPHQL_VARIABLE';
+
+function previewSourceLabel(strategy?: string, scope?: string): string {
+  if (scope === 'PROJECT') return 'Project fallback';
+  return ({ MANUAL_OVERRIDE: 'Temporary change for this request', TEST_CASE_OVERRIDE: 'Saved TestCase rule', FIXED: 'Saved operation rule', MANUAL: 'Saved operation rule', GENERATE: 'Generated for this run', REUSE: 'Reused from an earlier value', LINKED_RESPONSE: 'Value from an earlier response', DATASET: 'Dataset value', ENVIRONMENT: 'Environment value', SECRET: 'Secure value', CONTRACT_DEFAULT: 'Contract example or default' } as Record<string, string>)[strategy || ''] || 'Needs configuration';
+}
+
+function previewScopeLabel(scope?: string): string {
+  return ({ EACH_REQUEST: 'Changes for every request', EACH_EXECUTION: 'Stays the same for this execution', SUITE_RUN: 'Stays the same for this suite run', TEST_CASE: 'Saved with this test case', ENVIRONMENT: 'Environment value', PROJECT: 'Project fallback', UNTIL_CHANGED: 'Stays until changed' } as Record<string, string>)[scope || ''] || 'Request value';
+}
+
+interface CanonicalTemporaryOverride {
+  operationId: string;
+  location: CanonicalOverrideLocation;
+  path: string;
+  value: string;
+}
 
 interface KeyValueRow {
   id: string;
@@ -194,6 +212,8 @@ type ImportedArtifact = ImportedApiCollection | ImportedEnvironment | ImportedUn
 interface ManualRequestRecord {
   id: string;
   draft: PersistedRequestDraft;
+  backendServiceId?: string;
+  backendOperationId?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -337,6 +357,10 @@ function storageKey(projectId: string | undefined, suffix: string): string {
   return `${STORAGE_SCOPE_PREFIX}:${suffix}:${getScope(projectId)}`;
 }
 
+export function isHydratedForProject(hydratedProjectId: string | null, projectId: string): boolean {
+  return hydratedProjectId === projectId;
+}
+
 function createIdRow(name = '', value = '', description = ''): KeyValueRow {
   return { id: makeId('row'), enabled: true, key: name, value, description };
 }
@@ -410,6 +434,93 @@ function emptyResponseState(): ResponseState {
 
 function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function parseCanonicalTemporaryOverride(key: string, value: string): CanonicalTemporaryOverride | null {
+  const [operationId, rawLocation, ...pathParts] = key.split('|');
+  const location = rawLocation as CanonicalOverrideLocation;
+  const path = pathParts.join('|').trim();
+  if (!operationId || !path || !['BODY', 'QUERY', 'PATH', 'HEADER', 'COOKIE', 'GRAPHQL_VARIABLE'].includes(location)) return null;
+  return { operationId, location, path, value };
+}
+
+function setNestedOverride(target: Record<string, unknown>, path: string, value: string): void {
+  const segments = path.match(/[^.[\]]+/g)?.filter(Boolean) ?? [];
+  if (segments.length === 0) return;
+  let cursor: Record<string, unknown> | unknown[] = target;
+  segments.forEach((segment, index) => {
+    const last = index === segments.length - 1;
+    const nextIsIndex = /^\d+$/.test(segments[index + 1] || '');
+    if (Array.isArray(cursor)) {
+      const arrayIndex = Number(segment);
+      if (!Number.isInteger(arrayIndex) || arrayIndex < 0) return;
+      if (last) { cursor[arrayIndex] = value; return; }
+      const existing = cursor[arrayIndex];
+      if (!existing || typeof existing !== 'object') cursor[arrayIndex] = nextIsIndex ? [] : {};
+      cursor = cursor[arrayIndex] as Record<string, unknown> | unknown[];
+      return;
+    }
+    if (last) { cursor[segment] = value; return; }
+    const existing = cursor[segment];
+    if (!existing || typeof existing !== 'object') cursor[segment] = nextIsIndex ? [] : {};
+    cursor = cursor[segment] as Record<string, unknown> | unknown[];
+  });
+}
+
+function setRowOverride(rows: KeyValueRow[], key: string, value: string): KeyValueRow[] {
+  const index = rows.findIndex((row) => row.key === key);
+  if (index < 0) return [...rows, createIdRow(key, value)];
+  return rows.map((row, rowIndex) => rowIndex === index ? { ...row, enabled: true, value } : row);
+}
+
+function setHeaderOverride(rows: HeaderRow[], name: string, value: string): HeaderRow[] {
+  const index = rows.findIndex((row) => row.name.toLowerCase() === name.toLowerCase());
+  if (index < 0) return [...rows, createHeaderRow(name, value)];
+  return rows.map((row, rowIndex) => rowIndex === index ? { ...row, name, value } : row);
+}
+
+function setCookieOverride(rows: HeaderRow[], name: string, value: string): HeaderRow[] {
+  const cookieIndex = rows.findIndex((row) => row.name.toLowerCase() === 'cookie');
+  const existing = cookieIndex < 0 ? [] : rows[cookieIndex].value.split(';').map((part) => part.trim()).filter(Boolean);
+  const cookieEntries = new Map(existing.map((part) => {
+    const separator = part.indexOf('=');
+    return [separator < 0 ? part : part.slice(0, separator).trim(), separator < 0 ? '' : part.slice(separator + 1)];
+  }));
+  cookieEntries.set(name, value);
+  return setHeaderOverride(rows, 'Cookie', Array.from(cookieEntries, ([key, item]) => `${key}=${item}`).join('; '));
+}
+
+/**
+ * Applies preview overrides to a cloned request draft.  The key includes the
+ * canonical location and path, so `id` in a query cannot overwrite `id` in a
+ * header or body. Overrides are deliberately not written to rules or storage.
+ */
+export function applyCanonicalTemporaryOverrides(draft: RequestDraft, overrides: Record<string, string>): RequestDraft {
+  const next = cloneJson(draft);
+  Object.entries(overrides).forEach(([key, value]) => {
+    const override = parseCanonicalTemporaryOverride(key, value);
+    if (!override) return;
+    if (override.location === 'QUERY') next.queryParams = setRowOverride(next.queryParams, override.path, override.value);
+    if (override.location === 'PATH') next.pathParams = setRowOverride(next.pathParams, override.path, override.value);
+    if (override.location === 'HEADER') next.headers = setHeaderOverride(next.headers, override.path, override.value);
+    if (override.location === 'COOKIE') next.headers = setCookieOverride(next.headers, override.path, override.value);
+    if (override.location === 'BODY') {
+      const rawBody = parseJsonSafely(next.rawBody);
+      if (rawBody && typeof rawBody === 'object' && !Array.isArray(rawBody)) {
+        setNestedOverride(rawBody as Record<string, unknown>, override.path, override.value);
+        next.rawBody = stringifyJson(rawBody);
+      }
+      next.formDataRows = setRowOverride(next.formDataRows, override.path, override.value);
+      next.urlEncodedRows = setRowOverride(next.urlEncodedRows, override.path, override.value);
+    }
+    if (override.location === 'GRAPHQL_VARIABLE') {
+      const variables = parseJsonSafely(next.graphqlVariables);
+      const target = variables && typeof variables === 'object' && !Array.isArray(variables) ? variables as Record<string, unknown> : {};
+      setNestedOverride(target, override.path, override.value);
+      next.graphqlVariables = stringifyJson(target);
+    }
+  });
+  return next;
 }
 
 function stringifyJson(value: unknown): string {
@@ -487,13 +598,13 @@ function applyPathParameters(url: string, params: Record<string, string>): strin
     });
 }
 
-function resolveUrl(url: string, pathParams: Record<string, string>, queryParams: Record<string, string>, env: Record<string, string>): string {
+export function resolveUrl(url: string, pathParams: Record<string, string>, queryParams: Record<string, string>, env: Record<string, string>): string {
   const withEnv = replaceTemplateVariables(url, env);
   const withPath = applyPathParameters(withEnv, pathParams);
   return appendQueryString(withPath, queryParams);
 }
 
-function rowsToRecord(rows: KeyValueRow[]): Record<string, string> {
+export function rowsToRecord(rows: KeyValueRow[]): Record<string, string> {
   return rows.reduce<Record<string, string>>((acc, row) => {
     const key = row.key.trim();
     if (!row.enabled || !key) return acc;
@@ -623,7 +734,7 @@ function applyRuntimeData(draft: RequestDraft, mappings: RuntimeDataMapping[], e
   return runtimeValues;
 }
 
-function requestHeadersToRecord(rows: HeaderRow[]): Record<string, string> {
+export function requestHeadersToRecord(rows: HeaderRow[]): Record<string, string> {
   return rows.reduce<Record<string, string>>((acc, row) => {
     const key = row.name.trim();
     if (!key) return acc;
@@ -1474,6 +1585,8 @@ export const ApiExecutionPage: React.FC = () => {
   const [importedArtifacts, setImportedArtifacts] = React.useState<ImportedArtifact[]>([]);
   const [manualRequests, setManualRequests] = React.useState<ManualRequestRecord[]>([]);
   const [savedRequests, setSavedRequests] = React.useState<SavedRequestRecord[]>([]);
+  const manualRequestsRef = React.useRef<ManualRequestRecord[]>(manualRequests);
+  const savedRequestsRef = React.useRef<SavedRequestRecord[]>(savedRequests);
   const [history, setHistory] = React.useState<HistoryRecord[]>([]);
   const [activeEnvironmentId, setActiveEnvironmentId] = React.useState('');
   const [testDataDatasets, setTestDataDatasets] = React.useState<DatasetDto[]>([]);
@@ -1495,7 +1608,13 @@ export const ApiExecutionPage: React.FC = () => {
   const [expandedFolders, setExpandedFolders] = React.useState<Record<string, boolean>>({});
   const [activeRequestLog, setActiveRequestLog] = React.useState<string>('Ready to send');
   const [lastScriptOutput, setLastScriptOutput] = React.useState<string[]>([]);
-  const [lastHydrated, setLastHydrated] = React.useState(false);
+  // Hydration is tied to the route project, not merely to whether this page
+  // has hydrated at least once. Without this distinction, a project change
+  // briefly leaves the previous project's state marked as hydrated; the
+  // persistence and shared-repository sync effects can then copy that state
+  // into the newly selected project.
+  const [hydratedProjectId, setHydratedProjectId] = React.useState<string | null>(null);
+  const lastHydrated = isHydratedForProject(hydratedProjectId, projectId);
   const [explorerHeight, setExplorerHeight] = React.useState<number | null>(null);
   const [tokenNow, setTokenNow] = React.useState(() => Date.now());
   const [saveConfirmation, setSaveConfirmation] = React.useState('');
@@ -1511,6 +1630,14 @@ export const ApiExecutionPage: React.FC = () => {
   const [apiImportBusy, setApiImportBusy] = React.useState(false);
   const [environmentSearch, setEnvironmentSearch] = React.useState('');
   const [environmentActionBusy, setEnvironmentActionBusy] = React.useState(false);
+  const [dataPreview, setDataPreview] = React.useState<any | null>(null);
+  const [dataPreviewOpen, setDataPreviewOpen] = React.useState(false);
+  const [dataPreviewLoading, setDataPreviewLoading] = React.useState(false);
+  const [previewOverrides, setPreviewOverrides] = React.useState<Record<string, string>>({});
+  const [previewSaveStrategies, setPreviewSaveStrategies] = React.useState<Record<string, string>>({});
+  const [previewSaveSources, setPreviewSaveSources] = React.useState<Record<string, string>>({});
+  const [previewTestCaseVersionId, setPreviewTestCaseVersionId] = React.useState('');
+  const [previewSaveStatus, setPreviewSaveStatus] = React.useState('');
 
   React.useEffect(() => {
     let cancelled = false;
@@ -1615,7 +1742,7 @@ export const ApiExecutionPage: React.FC = () => {
         setDraft(createDraft());
       }
 
-      setLastHydrated(true);
+      setHydratedProjectId(projectId);
     } catch {
       setImportedArtifacts([]);
       setManualRequests([]);
@@ -1624,9 +1751,9 @@ export const ApiExecutionPage: React.FC = () => {
       setSelection(null);
       setDraft(createDraft());
       setActiveEnvironmentId('');
-      setLastHydrated(true);
+      setHydratedProjectId(projectId);
     }
-  }, [importedKey, manualKey, savedKey, historyKey, envSelectionKey, selectionKey, responsesKey, draftsKey, runtimeDataKeyStorage]);
+  }, [projectId, importedKey, manualKey, savedKey, historyKey, envSelectionKey, selectionKey, responsesKey, draftsKey, runtimeDataKeyStorage]);
 
   React.useEffect(() => {
     if (!lastHydrated) return;
@@ -1688,7 +1815,7 @@ export const ApiExecutionPage: React.FC = () => {
     localOnly.forEach((artifact) => syncedEnvironmentArtifactIdsRef.current.add(artifact.id));
     void environmentService.batchUpsertEnvironments(projectId, localOnly.map((artifact) => ({
       name: artifact.name,
-      baseUrl: artifact.variables.baseUrl || artifact.variables.BASE_URL || '',
+      baseUrl: resolveEnvironmentBaseUrl(artifact.variables),
       variables: artifact.variables,
     }))).then(() => queryClient.invalidateQueries({ queryKey: queryKeys.environments(projectId) }))
       .catch(() => {
@@ -1910,8 +2037,17 @@ export const ApiExecutionPage: React.FC = () => {
   }, [apiCollections, draft, lastHydrated, projectId, queryClient, selectedApiEndpoint, selection, sharedApiOperations]);
 
   React.useEffect(() => {
+    manualRequestsRef.current = manualRequests;
+    savedRequestsRef.current = savedRequests;
+  }, [manualRequests, savedRequests]);
+
+  // Restore a request when the user changes selection. Do not depend on the
+  // request collections here: typing updates the selected manual record and
+  // a collection-driven restore would immediately overwrite the in-progress
+  // draft, causing the form inputs to flicker/reset.
+  React.useEffect(() => {
     if (selection?.kind === 'manual') {
-      const record = manualRequests.find((item) => item.id === selection.id);
+      const record = manualRequestsRef.current.find((item) => item.id === selection.id);
       if (record) {
         setDraft((current) => JSON.stringify(sanitizeDraftForStorage(current)) === JSON.stringify(record.draft)
           ? current
@@ -1919,14 +2055,14 @@ export const ApiExecutionPage: React.FC = () => {
       }
     }
     if (selection?.kind === 'saved') {
-      const record = savedRequests.find((item) => item.id === selection.id);
+      const record = savedRequestsRef.current.find((item) => item.id === selection.id);
       if (record) {
         setDraft((current) => JSON.stringify(sanitizeDraftForStorage(current)) === JSON.stringify(record.draft)
           ? current
           : cloneJson(record.draft));
       }
     }
-  }, [selection, manualRequests, savedRequests]);
+  }, [selection]);
 
   React.useEffect(() => {
     if (!selection || selection.kind !== 'manual') return;
@@ -2026,6 +2162,11 @@ export const ApiExecutionPage: React.FC = () => {
           return;
         }
         await Promise.all(operationsToSync.map((operation) => apiService.updateOperation(projectId, operation.serviceId, operation.id, {
+          name: persisted.name.trim() || operation.name,
+          method: persisted.method,
+          path: comparableApiPath(persisted.url),
+          authenticationType: persisted.auth.type,
+          status: 'active',
           sampleRequestBody: payloadFromDraft(persisted),
         })));
         await queryClient.invalidateQueries({ queryKey: queryKeys.operations(projectId) });
@@ -2041,6 +2182,101 @@ export const ApiExecutionPage: React.FC = () => {
       setManualRequests((current) =>
         current.map((item) => (item.id === selection.id ? { ...item, draft: persisted, updatedAt: now } : item)),
       );
+
+      try {
+        const manualCollectionId = 'manual-api-collection';
+        const path = comparableApiPath(persisted.url);
+        const operationName = persisted.name.trim() && persisted.name.trim() !== 'New Request'
+          ? persisted.name.trim()
+          : `${persisted.method} ${path}`;
+        const manualRecord = manualRequestsRef.current.find((item) => item.id === selection.id);
+        const services = await apiService.listServices(projectId);
+        let service = manualRecord?.backendServiceId
+          ? services.find((item) => item.id === manualRecord.backendServiceId)
+          : undefined;
+        if (!service) {
+          service = services.find((item) => item.name.trim().toLowerCase() === 'manual apis');
+        }
+        if (!service) {
+          service = await apiService.createService(projectId, {
+            name: 'Manual APIs',
+            description: 'Endpoints created manually in the API workspace.',
+            version: '1.0.0',
+            tags: ['manual'],
+          });
+        }
+
+        let operation = manualRecord?.backendOperationId
+          ? await apiService.getOperation(projectId, service.id, manualRecord.backendOperationId)
+          : undefined;
+        if (operation) {
+          operation = await apiService.updateOperation(projectId, service.id, operation.id, {
+            name: operationName,
+            method: persisted.method,
+            path,
+            authenticationType: persisted.auth.type,
+            status: 'active',
+            sampleRequestBody: payloadFromDraft(persisted),
+          });
+        } else {
+          operation = await apiService.createOperation(projectId, service.id, {
+            name: operationName,
+            method: persisted.method,
+            path,
+            authenticationType: persisted.auth.type,
+            status: 'active',
+          });
+          operation = await apiService.updateOperation(projectId, service.id, operation.id, {
+            sampleRequestBody: payloadFromDraft(persisted),
+          });
+        }
+
+        const endpoint: ImportedApiEndpoint = {
+          id: operation.id,
+          backendOperationId: operation.id,
+          backendServiceId: service.id,
+          groupId: manualCollectionId,
+          groupName: 'Manual APIs',
+          name: operationName,
+          method: persisted.method,
+          path,
+          url: persisted.url,
+          description: operation.description || 'Manually added endpoint',
+          requestTemplate: cloneJson(persisted),
+          raw: { source: 'manual' },
+        };
+        setManualRequests((current) => current.map((item) => item.id === selection.id
+          ? { ...item, draft: persisted, backendServiceId: service.id, backendOperationId: operation.id, updatedAt: now }
+          : item));
+        setImportedArtifacts((current) => {
+          const collection = current.find((item): item is ImportedApiCollection => item.kind === 'api' && item.id === manualCollectionId);
+          if (collection) {
+            return current.map((item) => item.kind === 'api' && item.id === manualCollectionId
+              ? { ...item, endpoints: [...item.endpoints.filter((candidate) => candidate.id !== endpoint.id), endpoint] }
+              : item);
+          }
+          return [...current, {
+            id: manualCollectionId,
+            kind: 'api',
+            name: 'Manual APIs',
+            sourceFormat: 'manual',
+            rawText: '',
+            parsed: null,
+            lineCount: 0,
+            summary: 'Endpoints created manually in the API workspace.',
+            endpoints: [endpoint],
+          }];
+        });
+        setExpandedCollections((current) => ({ ...current, [manualCollectionId]: true }));
+        setSelectedSelection({ kind: 'api-endpoint', id: endpoint.id, collectionId: manualCollectionId, endpointId: endpoint.id }, cloneJson(persisted));
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: queryKeys.services(projectId) }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.operations(projectId) }),
+        ]);
+      } catch {
+        setActiveRequestLog('Saved locally, but the endpoint could not be added to the API explorer');
+        return;
+      }
     }
     if (selection?.kind === 'saved') {
       setSavedRequests((current) =>
@@ -2196,7 +2432,7 @@ export const ApiExecutionPage: React.FC = () => {
         try {
           const result = await environmentService.batchUpsertEnvironments(projectId, envs.map((environment) => ({
             name: environment.name,
-            baseUrl: environment.variables.baseUrl || environment.variables.BASE_URL || '',
+            baseUrl: resolveEnvironmentBaseUrl(environment.variables),
             variables: environment.variables,
           })));
           syncedEnvironments = result.environments.map(environmentDtoToArtifact);
@@ -2298,7 +2534,7 @@ export const ApiExecutionPage: React.FC = () => {
       ? updateManagedEnvironment(managedTokenEnvironment.id, { variables: syncedVariables })
       : environmentService.batchUpsertEnvironments(projectId, [{
         name: activeEnvironmentArtifact?.name || 'Default environment',
-        baseUrl: activeEnvironmentArtifact?.variables.baseUrl || activeEnvironmentArtifact?.variables.BASE_URL || '',
+        baseUrl: activeEnvironmentArtifact ? resolveEnvironmentBaseUrl(activeEnvironmentArtifact.variables) : '',
         variables: syncedVariables,
       }]);
     void persistToken.then(() => queryClient.invalidateQueries({ queryKey: queryKeys.environments(projectId) }));
@@ -2505,7 +2741,7 @@ export const ApiExecutionPage: React.FC = () => {
       ? updateManagedEnvironment(managedTokenEnvironment.id, { variables })
       : environmentService.batchUpsertEnvironments(projectId, [{
         name: target?.name || 'Default environment',
-        baseUrl: target?.variables.baseUrl || target?.variables.BASE_URL || '',
+        baseUrl: target ? resolveEnvironmentBaseUrl(target.variables) : '',
         variables,
       }]);
     void persistToken.then(() => queryClient.invalidateQueries({ queryKey: queryKeys.environments(projectId) }));
@@ -2535,12 +2771,12 @@ export const ApiExecutionPage: React.FC = () => {
     });
   }, [draft.url]);
 
-  const executeRequest = async () => {
+  const executeRequest = async (temporaryOverrides: Record<string, string> = {}) => {
     setLoading(true);
     setResponse(emptyResponseState());
     setActiveRequestLog(`Sending ${draft.method} ${draft.url}`);
 
-    const workingDraft = cloneJson(draft);
+    let workingDraft = cloneJson(draft);
     const environmentVariables = currentEnvironmentVariables;
     const selectedRuntimeKey = runtimeDataKey(selection);
     const runtimeMappings = selectedRuntimeKey
@@ -2581,6 +2817,11 @@ export const ApiExecutionPage: React.FC = () => {
       setLoading(false);
       return;
     }
+
+    // The preview override is the last data-layer input before the outbound
+    // adapter reads this draft. It remains request-local and cannot alter the
+    // editor, a FieldDataRule, or a stored TestCase version.
+    workingDraft = applyCanonicalTemporaryOverrides(workingDraft, temporaryOverrides);
 
     try {
       const resolvedPathParams = rowsToRecord(workingDraft.pathParams);
@@ -2733,6 +2974,61 @@ export const ApiExecutionPage: React.FC = () => {
       setActiveRequestLog(message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openDataPreview = async (overrides = previewOverrides, testCaseVersionId = previewTestCaseVersionId) => {
+    if (!selectedApiEndpoint?.backendOperationId) { await executeRequest(); return; }
+    setDataPreviewLoading(true);
+    try {
+      const { data } = await apiAxios.post(`/api/projects/${projectId}/operations/${selectedApiEndpoint.backendOperationId}/data-preview`, { executionId: makeId('preview'), overrides, testCaseVersionId: testCaseVersionId.trim() || undefined });
+      setDataPreview(data.data); setDataPreviewOpen(true);
+    } catch { setActiveRequestLog('Data preview could not be loaded'); }
+    finally { setDataPreviewLoading(false); }
+  };
+
+  const savePreviewValue = async (item: any, scope: 'TEST_CASE' | 'OPERATION' | 'PROJECT') => {
+    if (!selectedApiEndpoint?.backendOperationId || item.sensitive) return;
+    const inputKey = `${item.input?.operationId}|${item.input?.location}|${item.input?.path}`;
+    const value = previewOverrides[inputKey] ?? (item.value === 'OMIT' || item.value === undefined ? '' : String(item.value));
+    const valueStrategy = previewSaveStrategies[inputKey] || 'FIXED';
+    const source = previewSaveSources[inputKey]?.trim();
+    const sourceReference = ['FIXED', 'MANUAL', 'CONTRACT_DEFAULT'].includes(valueStrategy)
+      ? { type: 'value', value }
+      : ['LINKED_RESPONSE', 'REUSE', 'DATASET', 'ENVIRONMENT'].includes(valueStrategy)
+        ? { type: valueStrategy.toLowerCase(), field: source || item.input?.path }
+        : valueStrategy === 'SECRET'
+          ? { type: 'secret', secretRef: source }
+          : null;
+    const rule = {
+      input: item.input,
+      semanticType: item.input?.semanticType || 'string',
+      required: Boolean(item.required),
+      valueStrategy,
+      changeScope: scope === 'PROJECT' ? 'PROJECT' : 'EACH_EXECUTION',
+      lifecycle: 'REUSABLE',
+      optionalFieldPolicy: item.value === 'OMIT' ? 'OMIT' : 'POPULATE',
+      sourceReference,
+      manualOverridePolicy: 'ALLOW',
+    };
+    try {
+      let savedTestCaseVersionId = previewTestCaseVersionId.trim();
+      if (scope === 'TEST_CASE') {
+        if (!previewTestCaseVersionId.trim()) { setPreviewSaveStatus('Enter an exact TestCase version ID before saving this override.'); return; }
+        const { data } = await apiAxios.post(`/api/projects/${projectId}/test-case-versions/${previewTestCaseVersionId.trim()}/data-overrides`, { input: item.input, value });
+        savedTestCaseVersionId = data.data.id;
+        setPreviewTestCaseVersionId(savedTestCaseVersionId);
+      } else if (scope === 'OPERATION') {
+        await apiAxios.post(`/api/projects/${projectId}/operations/${selectedApiEndpoint.backendOperationId}/field-data-rule`, rule);
+      } else {
+        await apiAxios.post(`/api/projects/${projectId}/project-data-defaults`, rule);
+      }
+      const nextOverrides = { ...previewOverrides }; delete nextOverrides[inputKey];
+      setPreviewOverrides(nextOverrides);
+      setPreviewSaveStatus(`Saved as ${scope === 'TEST_CASE' ? 'a new review-required TestCase version' : scope === 'OPERATION' ? 'an operation rule' : 'a project fallback'}.`);
+      await openDataPreview(nextOverrides, savedTestCaseVersionId);
+    } catch (error) {
+      setPreviewSaveStatus(error instanceof Error ? error.message : 'The override could not be saved.');
     }
   };
 
@@ -3215,7 +3511,7 @@ export const ApiExecutionPage: React.FC = () => {
                       <Save className='mr-2 h-4 w-4' />
                       Save
                     </Button>
-                    <Button type='button' onClick={() => void executeRequest()} loading={loading}>
+                    <Button type='button' onClick={() => void openDataPreview()} loading={loading || dataPreviewLoading}>
                       <Send className='mr-2 h-4 w-4' />
                       Send
                     </Button>
@@ -3961,6 +4257,35 @@ export const ApiExecutionPage: React.FC = () => {
           if (!endpointDeleteBusy) setEndpointDeleteTarget(null);
         }}
       />
+      <EntityDialog
+        open={dataPreviewOpen}
+        title='Data Preview'
+        description='Review the canonical execution data before sending. Sensitive values are always masked.'
+        submitLabel={dataPreview?.canExecute ? 'Send request' : 'Resolve required inputs'}
+        onClose={() => setDataPreviewOpen(false)}
+        onSubmit={(event) => { event.preventDefault(); if (!dataPreview?.canExecute) return; setDataPreviewOpen(false); void executeRequest(previewOverrides); }}
+      >
+        <div className='space-y-2'>
+          {(dataPreview?.inputs || []).map((item: any) => {
+            const inputKey = `${item.input?.operationId}|${item.input?.location}|${item.input?.path}`;
+            return <div key={`${item.input?.location}-${item.input?.path}`} className='rounded-lg border border-border bg-background/40 p-3 text-sm'>
+              <div className='flex justify-between gap-3'><span className='font-medium text-text'>{item.input?.path}</span><Badge variant={item.required ? 'secondary' : 'outline'}>{item.required ? 'Required' : item.value === 'OMIT' ? 'Optional · omitted' : 'Optional'}</Badge></div>
+              <p className='mt-1 text-text-secondary'>Final value: {item.displayValue === undefined ? 'Unresolved' : String(item.displayValue)}</p>
+              <p className='text-xs text-text-secondary'>Source: {previewSourceLabel(item.sourceStrategy, item.scope)} · {previewScopeLabel(item.scope)}</p>
+              {!item.sensitive && <div className='mt-2 space-y-2'>
+                <div className='flex gap-2'><input aria-label={`Temporary override ${item.input?.path}`} value={previewOverrides[inputKey] || ''} onChange={(event) => setPreviewOverrides((current) => ({ ...current, [inputKey]: event.target.value }))} placeholder='Temporary change for this request' className='h-8 flex-1 rounded border border-border bg-background px-2 text-xs text-text' /><Button size='sm' variant='outline' onClick={() => void openDataPreview({ ...previewOverrides, [inputKey]: previewOverrides[inputKey] || '' })}>Apply temporarily</Button></div>
+                <div className='flex flex-wrap items-center gap-2'><select aria-label={`Saved strategy ${item.input?.path}`} value={previewSaveStrategies[inputKey] || 'FIXED'} onChange={(event) => setPreviewSaveStrategies((current) => ({ ...current, [inputKey]: event.target.value }))} className='h-8 rounded border border-border bg-background px-2 text-xs text-text'>{['FIXED', 'GENERATE', 'REUSE', 'LINKED_RESPONSE', 'DATASET', 'ENVIRONMENT', 'SECRET', 'MANUAL', 'CONTRACT_DEFAULT'].map((strategy) => <option key={strategy} value={strategy}>{strategy}</option>)}</select><input aria-label={`Saved source ${item.input?.path}`} value={previewSaveSources[inputKey] || ''} onChange={(event) => setPreviewSaveSources((current) => ({ ...current, [inputKey]: event.target.value }))} placeholder='Source/reference (if needed)' className='h-8 min-w-40 rounded border border-border bg-background px-2 text-xs text-text' /><span className='text-xs text-text-secondary'>Save as:</span><Button size='sm' variant='ghost' onClick={() => void savePreviewValue(item, 'TEST_CASE')}>This TestCase</Button><Button size='sm' variant='ghost' onClick={() => void savePreviewValue(item, 'OPERATION')}>This operation</Button><Button size='sm' variant='ghost' onClick={() => void savePreviewValue(item, 'PROJECT')}>Project default</Button></div>
+              </div>}
+              {item.sensitive && <p className='mt-2 text-xs text-text-secondary'>Sensitive values are masked and cannot be overridden or saved here.</p>}
+              {item.unresolvedReason && <div className='mt-1 flex items-center justify-between gap-2'><p className='text-xs text-error'>{item.unresolvedReason}</p><a className='text-xs text-primary underline' href={`/projects/${projectId}/test-data?operationId=${encodeURIComponent(item.input?.operationId || '')}&input=${encodeURIComponent(item.input?.path || '')}`}>Configure Test Data</a></div>}
+              <details className='mt-2 text-xs text-text-secondary'><summary className='cursor-pointer text-primary'>View details</summary><p className='mt-1'>Location: {item.input?.location || 'Unknown'} · Rule: {item.sourceStrategy || 'Unresolved'} · Lifecycle: {item.lifecycle || 'Not set'}</p></details>
+            </div>;
+          })}
+          <label className='block text-xs text-text-secondary'>Exact TestCase version ID (only required for “This TestCase”)<input aria-label='Exact TestCase version ID' value={previewTestCaseVersionId} onChange={(event) => setPreviewTestCaseVersionId(event.target.value)} className='mt-1 h-8 w-full rounded border border-border bg-background px-2 text-xs text-text' /></label>
+          {previewSaveStatus && <p className='text-xs text-text-secondary'>{previewSaveStatus}</p>}
+          {dataPreview?.unresolvedRequired > 0 && <p className='text-sm text-error'>Required inputs are unresolved. Configure their Data Rules before sending.</p>}
+        </div>
+      </EntityDialog>
       <EntityDialog
         open={apiImportFiles.length > 0}
         title='Review API import'

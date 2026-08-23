@@ -1,6 +1,7 @@
 import type { TestDesignRepository } from '../../domain/requirements/TestDesignRepository.js';
 import type { ApiOperationRepository } from '../../domain/api/ApiOperationRepository.js';
 import type { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository.js';
+import type { ExecutionPlanRepository } from '../../infrastructure/requirements/ExecutionPlanRepository.js';
 import type {
   DesignStatus,
   RequestOverride,
@@ -23,6 +24,7 @@ export class UpdateTestDesign {
     private readonly testDesignRepository: TestDesignRepository,
     private readonly apiOperationRepository: ApiOperationRepository,
     private readonly testStrategyRepository: TestStrategyRepository,
+    private readonly executionPlanRepository?: ExecutionPlanRepository,
   ) {}
 
   async execute(request: UpdateTestDesignRequest): Promise<TestDesignEntity> {
@@ -97,7 +99,23 @@ export class UpdateTestDesign {
       patch.requestOverrides = requestOverrides;
     }
 
-    return this.testDesignRepository.update(request.testDesignId, patch as Partial<TestDesignEntity>);
+    const updated = await this.testDesignRepository.update(request.testDesignId, patch as Partial<TestDesignEntity>);
+
+    // A mapped design may already have a ready plan. Keep only the request
+    // body in that plan aligned with the explicit preview edit; no headers,
+    // query values, mapping, assertions, or execution evidence are changed.
+    const hasBodyOverride = Boolean(request.requestOverrides)
+      && Object.prototype.hasOwnProperty.call(request.requestOverrides, 'body');
+    if (hasBodyOverride && this.executionPlanRepository) {
+      const plan = await this.executionPlanRepository.findByTestDesign(updated.id);
+      if (plan) {
+        await this.executionPlanRepository.update(plan.id, {
+          requestTemplate: { ...plan.requestTemplate, body: updated.requestOverrides?.body },
+        });
+      }
+    }
+
+    return updated;
   }
 
   private resolveStrategyContext(

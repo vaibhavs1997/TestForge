@@ -403,11 +403,21 @@ export class ApplicationContainer {
     apiServiceRepository: this.apiServiceRepository,
     apiOperationRepository: this.apiOperationRepository,
     eventPublisher: this.eventPublisher,
+    fieldDataRuleRepository: this.fieldDataRuleRepository,
+    impactRepositories: [
+      { findByProject: (projectId: string) => this.requirementRepository.findByProject(projectId), impactKind: 'requirementMappings' },
+      { findByProject: (projectId: string) => this.testDesignRepository.findByProject(projectId), impactKind: 'testCases' },
+      { findByProject: (projectId: string) => this.executionPlanRepository.findByProject(projectId), impactKind: 'testCaseVersions' },
+      { findByProject: (projectId: string) => this.testSuiteRepository.findByProject(projectId), impactKind: 'suites' },
+      { findByProject: (projectId: string) => this.scheduleRepository.findByProject(projectId), impactKind: 'schedules' },
+      { findByProject: (projectId: string) => this.runtimeVariableRepository.findByProject(projectId), impactKind: 'runtimeLinks' },
+    ],
   });
   readonly projectModule = new ProjectModule(this.projectRepository, this.auditLogService);
   readonly environmentModule = new EnvironmentModule({
     environmentRepository: this.environmentRepository,
     eventPublisher: this.eventPublisher,
+    secretStore: this.secretStore,
   });
   readonly activityStreamHub = new ActivityStreamHub(this.eventBus);
   readonly authService = new AuthService();

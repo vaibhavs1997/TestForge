@@ -2,6 +2,7 @@
 import { Request, Response } from 'express';
 import { ManageAssertions } from '../../application/assertion/ManageAssertions.js';
 import { createSuccessResponse } from "../../shared/ApiResponse.js";
+import { Validators } from '../../domain/validation/Validators.js';
 export class AssertionController {
     constructor(private readonly manageAssertions: ManageAssertions) { }
     async createAssertion(req: Request, res: Response): Promise<void> {
@@ -50,6 +51,11 @@ export class AssertionController {
         const { id } = req.params;
         const assertion = await this.manageAssertions.duplicateAssertion(id);
         res.status(201).json(createSuccessResponse(assertion));
+    }
+    async previewAssertion(req: Request, res: Response): Promise<void> {
+        const { definition, response } = req.body || {};
+        const result = Validators.validateCustomAssertion({ id: 'preview', executionPlanId: 'preview', name: 'preview', type: 'Custom Assertion', config: { expected: definition } }, response || {}, { runtimeVariables: {} });
+        res.status(200).json(createSuccessResponse(result));
     }
 }
 export default AssertionController;

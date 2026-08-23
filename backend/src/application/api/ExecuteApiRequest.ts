@@ -1,5 +1,5 @@
-import axios, { AxiosError, type AxiosRequestHeaders } from 'axios';
-import { assertSafeOutboundUrl } from '../../infrastructure/security/outboundUrl.js';
+import { AxiosError, type AxiosRequestHeaders } from 'axios';
+import { secureHttpExecutor, type SecureHttpExecutor } from '../../infrastructure/http/SecureHttpExecutor.js';
 
 export interface ExecuteApiRequestInput {
   requestUrl: string;
@@ -172,8 +172,9 @@ function tryParseBody(rawBody: string, contentType?: string): unknown {
 }
 
 export class ExecuteApiRequest {
+  constructor(private readonly httpExecutor: SecureHttpExecutor = secureHttpExecutor) {}
+
   async execute(input: ExecuteApiRequestInput): Promise<ExecuteApiRequestResult> {
-    await assertSafeOutboundUrl(input.requestUrl);
     const requestedAt = new Date().toISOString();
     const startedAt = Date.now();
     const requestHeaders = normalizeHeaders(input.headers);
@@ -203,7 +204,7 @@ export class ExecuteApiRequest {
     }
 
     try {
-      const response = await axios.request({
+      const response = await this.httpExecutor.execute({
         method,
         url: input.requestUrl,
         maxRedirects: 0,
@@ -253,7 +254,7 @@ export class ExecuteApiRequest {
         },
         error: {
           message: axiosError.message || 'Failed to execute request',
-          code: axiosError.code,
+          code: (error as { errorCode?: string }).errorCode ?? axiosError.code,
           details: axiosError.response
             ? {
                 status: axiosError.response.status,

@@ -96,7 +96,7 @@ export class PlanExecution {
         design.operationId,
         design.environmentId,
         design.datasetId,
-        design.runtimeBindings,
+        design.runtimeBindings || [],
         requestTemplate,
         design.assertions,
         design.cleanup,
@@ -137,13 +137,13 @@ export class PlanExecution {
     for (const dependency of design.dependencies || []) collectDependencies(dependency.sourceOperationId);
     
     // Designs with runtime bindings that source from 'response' need prerequisites
-    for (const binding of design.runtimeBindings) {
+    for (const binding of design.runtimeBindings || []) {
       if (binding.source === 'response') {
         // Find designs that produce this variable
         for (let j = 0; j < currentIndex; j++) {
           const prevDesign = allDesigns[j];
           // If previous design has assertions that check for this variable
-          if (prevDesign.assertions.some(a => a.path?.includes(binding.variable))) {
+          if ((prevDesign.assertions || []).some(a => a.path?.includes(binding.variable))) {
             if (!prerequisites.includes(prevDesign.id)) {
               prerequisites.push(prevDesign.id);
             }
@@ -153,13 +153,13 @@ export class PlanExecution {
     }
 
     // Security and Authentication designs should come before Positive designs
-    if (design.assertions.some(a => a.expected === 200)) {
+    if ((design.assertions || []).some(a => a.expected === 200)) {
       for (let j = 0; j < currentIndex; j++) {
         const prevDesign = allDesigns[j];
-        if (prevDesign.assertions.some(a => a.expected === 401 || a.expected === 200) && 
+        if ((prevDesign.assertions || []).some(a => a.expected === 401 || a.expected === 200) && 
             !prerequisites.includes(prevDesign.id)) {
           // Only add if it's a security/auth design
-          if (prevDesign.runtimeBindings.some(b => b.variable === 'accessToken')) {
+          if ((prevDesign.runtimeBindings || []).some(b => b.variable === 'accessToken')) {
             prerequisites.push(prevDesign.id);
           }
         }

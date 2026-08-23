@@ -9,10 +9,12 @@ import { DeleteEnvironment } from './DeleteEnvironment.js';
 import { GetEnvironment } from './GetEnvironment.js';
 import { ListEnvironments } from './ListEnvironments.js';
 import { UpsertEnvironments } from './UpsertEnvironments.js';
+import type { SecretStore } from '../../domain/security/SecretStore.js';
 
 export interface EnvironmentModuleDeps {
   environmentRepository: EnvironmentRepository;
   eventPublisher: EventPublisher;
+  secretStore?: SecretStore;
 }
 
 export class EnvironmentModule {
@@ -20,12 +22,12 @@ export class EnvironmentModule {
   readonly router: Router;
 
   constructor(deps: EnvironmentModuleDeps) {
-    const createEnvironment = new CreateEnvironment(deps.environmentRepository, deps.eventPublisher);
-    const updateEnvironment = new UpdateEnvironment(deps.environmentRepository, deps.eventPublisher);
+    const createEnvironment = new CreateEnvironment(deps.environmentRepository, deps.eventPublisher, deps.secretStore);
+    const updateEnvironment = new UpdateEnvironment(deps.environmentRepository, deps.eventPublisher, deps.secretStore);
     const deleteEnvironment = new DeleteEnvironment(deps.environmentRepository, deps.eventPublisher);
     const getEnvironment = new GetEnvironment(deps.environmentRepository);
     const listEnvironments = new ListEnvironments(deps.environmentRepository);
-    const upsertEnvironments = new UpsertEnvironments(deps.environmentRepository);
+    const upsertEnvironments = new UpsertEnvironments(deps.environmentRepository, deps.secretStore);
 
     this.controller = new EnvironmentController(
       createEnvironment,

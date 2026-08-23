@@ -1,6 +1,6 @@
 const MAX_BYTES = 10 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 30_000;
-import { assertSafeOutboundUrl } from '../security/outboundUrl.js';
+import { secureHttpExecutor } from './SecureHttpExecutor.js';
 
 export async function fetchContractFromUrl(
   urlString: string,
@@ -15,23 +15,22 @@ export async function fetchContractFromUrl(
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     throw new Error('Only http and https URLs are supported');
   }
-  await assertSafeOutboundUrl(parsed.toString());
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
   try {
-    const response = await fetch(urlString, {
-      signal: controller.signal,
-      redirect: 'manual',
+    const response = await secureHttpExecutor.execute<ArrayBuffer>({
+      url: parsed.toString(),
+      method: 'GET',
+      timeout: FETCH_TIMEOUT_MS,
+      maxContentLength: MAX_BYTES,
+      responseType: 'arraybuffer',
+      validateStatus: () => true,
       headers: { Accept: 'application/json, application/yaml, text/yaml, */*' },
     });
 
-    if (!response.ok) {
+    if (response.status < 200 || response.status >= 300) {
       throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`);
     }
 
-    const buffer = await response.arrayBuffer();
+    const buffer = response.data;
     if (buffer.byteLength > MAX_BYTES) {
       throw new Error('Remote contract exceeds 10 MB limit');
     }
@@ -43,12 +42,8 @@ export async function fetchContractFromUrl(
 
     return { content, fileName };
   } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      throw new Error('Timed out fetching contract URL');
-    }
+    if (err instanceof Error && /timeout/i.test(err.message)) throw new Error('Timed out fetching contract URL');
     throw err;
-  } finally {
-    clearTimeout(timeout);
   }
 }
 

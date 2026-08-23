@@ -171,15 +171,63 @@ export class Validators {
 
   static validateCustomAssertion(rule: ValidationRule, response: any, context: any): ValidationResult {
     const startTime = Date.now();
-    // Placeholder for custom assertion logic
-    return {
-      rule,
-      expected: rule.config.expected,
-      actual: 'Custom assertion not implemented',
-      status: 'Warning',
-      duration: Date.now() - startTime,
-      error: 'Custom assertions are not yet implemented',
-    };
+    const config = rule.config || {};
+    try {
+      const definition = typeof config.expected === 'object' && config.expected !== null
+        ? { ...config.expected, path: config.expected.path ?? config.path }
+        : { path: config.path, expected: config.expected, operator: config.operator };
+      const operator = String(definition.operator || 'equals').toLowerCase();
+      const target = String(definition.target || definition.scope || 'body').toLowerCase();
+      const path = String(definition.path || definition.expression || '');
+      const actual = this.customValue(target, path, response, context);
+      const expected = definition.expected ?? definition.value;
+      const passed = this.customOperator(operator, actual, expected);
+      return { rule, expected, actual: this.safeActual(actual), status: passed ? 'Passed' : 'Failed', duration: Date.now() - startTime, error: passed ? null : `Custom assertion failed: ${operator} at ${path || target}` };
+    } catch (error: any) {
+      return { rule, expected: null, actual: null, status: 'Failed', duration: Date.now() - startTime, error: `Invalid custom assertion: ${error instanceof Error ? error.message : 'unsupported definition'}` };
+    }
+  }
+
+  private static customValue(target: string, path: string, response: any, context: any): any {
+    if (target === 'status') return response?.status;
+    if (target === 'duration' || target === 'time') return response?.duration;
+    if (target === 'header' || target === 'headers') return this.extractJSONPath(response?.headers || {}, path);
+    if (target === 'runtime') return this.extractJSONPath(context?.runtimeVariables || {}, path);
+    if (target === 'body' || target === 'json') return this.extractJSONPath(response?.data, path);
+    if (path.startsWith('headers.')) return this.extractJSONPath(response?.headers || {}, path.slice(8));
+    if (path === 'status') return response?.status;
+    if (path === 'duration') return response?.duration;
+    return this.extractJSONPath(response?.data, path);
+  }
+
+  private static customOperator(operator: string, actual: any, expected: any): boolean {
+    switch (operator) {
+      case 'equals': case 'equal': return actual === expected;
+      case 'not equals': case 'not_equals': case 'not-equals': return actual !== expected;
+      case 'exists': return actual !== undefined && actual !== null;
+      case 'not exists': case 'not_exists': case 'not-exists': return actual === undefined || actual === null;
+      case 'contains': return Array.isArray(actual) ? actual.includes(expected) : String(actual ?? '').includes(String(expected));
+      case 'matches': case 'regex': {
+        if (typeof expected !== 'string') throw new Error('matches requires a string regex');
+        try { return new RegExp(expected).test(String(actual ?? '')); } catch { throw new Error('matches has an invalid regex'); }
+      }
+      case 'greater than': case 'greater_than': case 'gt': return Number(actual) > Number(expected);
+      case 'less than': case 'less_than': case 'lt': return Number(actual) < Number(expected);
+      case 'type': case 'type check': case 'type_check': return expected === 'array' ? Array.isArray(actual) : typeof actual === expected;
+      case 'array length': case 'array_length': case 'count': return (Array.isArray(actual) || typeof actual === 'string') && actual.length === Number(expected);
+      case 'schema': return this.schemaMatches(actual, expected);
+      default: throw new Error(`unsupported operator "${operator}"`);
+    }
+  }
+
+  private static schemaMatches(actual: any, expected: any): boolean {
+    if (!expected || typeof expected !== 'object' || Array.isArray(expected) || !actual || typeof actual !== 'object') throw new Error('schema requires object expected and actual values');
+    return Object.entries(expected).every(([key, type]) => key in actual && (type === 'array' ? Array.isArray(actual[key]) : typeof actual[key] === type));
+  }
+
+  private static safeActual(actual: any): any {
+    if (typeof actual === 'string' && /(token|secret|password|api[_-]?key)/i.test(actual)) return '[REDACTED]';
+    return actual;
   }
 
   private static extractJSONPath(data: any, path: string): any {
@@ -191,7 +239,7 @@ export class Validators {
       cleanPath = cleanPath.substring(2);
     }
     
-    const parts = cleanPath.split('.');
+    const parts = cleanPath.replace(/\[(['"]?)([^\]'".]+)\1\]/g, '.$2').split('.').filter(Boolean);
     let value = data;
     for (const part of parts) {
       if (value === undefined || value === null) return undefined;

@@ -15,6 +15,7 @@ import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository.
 import { EventPublisher } from '../EventPublisher.js';
 import { extractOpenApiSampleRequestBody, extractOpenApiRequiredRequestBodyFields, extractPostmanSampleRequestBody } from './openApiSampleBody.js';
 import { buildOpenApiServiceImportKey, resolveOpenApiOperationContract } from './openApiResolution.js';
+import type { FieldDataRuleRepository } from '../../domain/test-data/FieldDataRuleRepository.js';
 
 // ─── DTOs ────────────────────────────────────────────────
 
@@ -28,6 +29,30 @@ export interface ImportSummary {
   duplicatesSkipped: number;
   warnings: string[];
   detectedEnvironments: DetectedEnvironment[];
+  /** Contract-agnostic reconciliation output. `REMOVED` is never a delete. */
+  changes?: ContractChange[];
+  impacts?: ContractImpact;
+  preview?: boolean;
+}
+
+export type ContractDiffStatus = 'ADDED' | 'UNCHANGED' | 'NON_MATERIAL_CHANGE' | 'MATERIAL_CHANGE' | 'BREAKING_CHANGE' | 'REMOVED';
+export interface ContractChange { operationId?: string; serviceId?: string; method: string; path: string; status: ContractDiffStatus; reasons: string[]; manual?: boolean; reviewRequired: boolean; }
+export interface ContractImpact { requirementMappings: number; testCases: number; testCaseVersions: number; suites: number; schedules: number; runtimeLinks: number; fieldDataRules: number; }
+
+type ImpactKind = keyof ContractImpact;
+type ProjectRecordRepository = { findByProject(projectId: string): Promise<any[]>; impactKind?: ImpactKind };
+
+function stable(value: unknown): string { return JSON.stringify(value ?? null); }
+function operationDiff(existing: any, incoming: ParsedOperation): { status: ContractDiffStatus; reasons: string[] } {
+  if (!existing) return { status: 'ADDED', reasons: ['Operation was added by the contract.'] };
+  const before = existing.sourceOperation ?? {};
+  const after = incoming.sourceOperation ?? {};
+  if (stable(before) === stable(after) && existing.name === incoming.name && existing.description === incoming.description) return { status: 'UNCHANGED', reasons: ['No contract metadata changed.'] };
+  const requestBefore = (before as any).requestBody ?? (before as any).parameters;
+  const requestAfter = (after as any).requestBody ?? (after as any).parameters;
+  if (stable(requestBefore) !== stable(requestAfter) || stable(existing.requiredRequestBodyFields) !== stable(incoming.requiredRequestBodyFields)) return { status: 'BREAKING_CHANGE', reasons: ['Request schema or required input changed.'] };
+  if (stable((before as any).responses) !== stable((after as any).responses)) return { status: 'MATERIAL_CHANGE', reasons: ['Response schema changed.'] };
+  return { status: 'NON_MATERIAL_CHANGE', reasons: ['Only descriptive, authentication, or non-executable metadata changed.'] };
 }
 
 export interface DetectedEnvironment {
@@ -874,6 +899,8 @@ export class ImportApiContract {
     private readonly apiServiceRepository: ApiServiceRepository,
     private readonly apiOperationRepository: ApiOperationRepository,
     private readonly eventPublisher?: EventPublisher,
+    private readonly fieldDataRuleRepository?: FieldDataRuleRepository,
+    private readonly impactRepositories: ProjectRecordRepository[] = [],
   ) {}
 
   async execute(params: {
@@ -881,6 +908,8 @@ export class ImportApiContract {
     fileName: string;
     content: string;
     preserveUnmatchedOperations?: boolean;
+    /** Preview performs the identical reconciliation without writes. */
+    preview?: boolean;
   }): Promise<ImportSummary> {
     const warnings: string[] = [];
     const content = stripBom(params.content);
@@ -949,8 +978,12 @@ export class ImportApiContract {
     let operationsImported = 0;
     let operationsUpdated = 0;
     let operationsRemoved = 0;
+    const changes: ContractChange[] = [];
+    const impacts: ContractImpact = { requirementMappings: 0, testCases: 0, testCaseVersions: 0, suites: 0, schedules: 0, runtimeLinks: 0, fieldDataRules: 0 };
+    const impactedOperationIds = new Set<string>();
 
     const existingServices = await this.apiServiceRepository.findByProject(params.projectId);
+    const reconciledServiceIds = new Set<string>();
     const operationKey = (method: string, path: string) =>
       `${method.toUpperCase()}:${path}`;
 
@@ -981,7 +1014,7 @@ export class ImportApiContract {
         );
         serviceEntity.importKey = svc.importKey || null;
         serviceEntity.sourceContract = svc.sourceContract ?? null;
-        await this.apiServiceRepository.create(serviceEntity);
+        if (!params.preview) await this.apiServiceRepository.create(serviceEntity);
         existingServices.push(serviceEntity);
         servicesImported++;
       } else {
@@ -990,7 +1023,7 @@ export class ImportApiContract {
           warnings.push(`Service "${svc.name}" exists but could not be retrieved. Skipping its operations.`);
           continue;
         }
-        serviceEntity = await this.apiServiceRepository.update(serviceEntity.id, {
+        const servicePatch = {
           description: svc.description,
           version: svc.version,
           tags: svc.tags,
@@ -998,7 +1031,8 @@ export class ImportApiContract {
           ...(svc.folderPath !== undefined ? { folderPath: svc.folderPath } : {}),
           importKey: svc.importKey || null,
           sourceContract: svc.sourceContract ?? null,
-        });
+        };
+        if (!params.preview) serviceEntity = await this.apiServiceRepository.update(serviceEntity.id, servicePatch);
         servicesUpdated++;
       }
 
@@ -1006,16 +1040,21 @@ export class ImportApiContract {
         params.projectId,
         serviceEntity!.id,
       );
+      reconciledServiceIds.add(serviceEntity!.id);
       const importedKeys = new Set<string>();
 
-      for (const op of svc.operations) {
+        for (const op of svc.operations) {
         importedKeys.add(operationKey(op.method, op.path));
-        const match = existingOps.find(
+          const match = existingOps.find(
           (e) =>
             e.method.toUpperCase() === op.method.toUpperCase() && e.path === op.path,
-        );
-        if (match) {
-          await this.apiOperationRepository.update(match.id, {
+          );
+          if (match) {
+          const diff = operationDiff(match, op);
+          const manual = !match.sourceOperation;
+          changes.push({ operationId: match.id, serviceId: serviceEntity!.id, method: op.method, path: op.path, status: diff.status, reasons: manual ? ['Manually maintained operation is preserved.', ...diff.reasons] : diff.reasons, manual, reviewRequired: diff.status === 'MATERIAL_CHANGE' || diff.status === 'BREAKING_CHANGE' });
+          if (diff.status !== 'UNCHANGED') impactedOperationIds.add(match.id);
+          const patch = {
             name: op.name,
             description: op.description,
             authenticationType: op.authenticationType,
@@ -1026,9 +1065,15 @@ export class ImportApiContract {
             tags: op.tags ?? [],
             contentTypes: op.contentTypes ?? [],
             sourceOperation: op.sourceOperation ?? null,
-          });
+          };
+          // Imported operations can be refreshed. Manual operations are never overwritten by a re-import.
+          if (!params.preview && !manual) await this.apiOperationRepository.update(match.id, patch);
+          if (!params.preview && (diff.status === 'MATERIAL_CHANGE' || diff.status === 'BREAKING_CHANGE') && !manual) {
+            await this.apiOperationRepository.update(match.id, { status: 'Review Required' });
+          }
           operationsUpdated++;
         } else {
+          changes.push({ serviceId: serviceEntity!.id, method: op.method, path: op.path, status: 'ADDED', reasons: ['Operation was added by the contract.'], reviewRequired: false });
           const now = Date.now();
           const operation = new ApiOperationEntity(
             randomUUID(),
@@ -1049,16 +1094,58 @@ export class ImportApiContract {
           operation.tags = op.tags ?? [];
           operation.contentTypes = op.contentTypes ?? [];
           operation.sourceOperation = op.sourceOperation ?? null;
-          await this.apiOperationRepository.create(operation);
+          if (!params.preview) await this.apiOperationRepository.create(operation);
           operationsImported++;
         }
       }
 
-      if (!params.preserveUnmatchedOperations) {
-        for (const existingOp of existingOps) {
-          if (!importedKeys.has(operationKey(existingOp.method, existingOp.path))) {
-            await this.apiOperationRepository.delete(existingOp.id);
-            operationsRemoved++;
+      // Re-imports are intentionally non-destructive. Missing operations retain their IDs and
+      // historical mappings; they become review-required rather than being deleted.
+      for (const existingOp of existingOps) {
+        if (!importedKeys.has(operationKey(existingOp.method, existingOp.path))) {
+          const manual = !existingOp.sourceOperation;
+          changes.push({ operationId: existingOp.id, serviceId: serviceEntity!.id, method: existingOp.method, path: existingOp.path, status: 'REMOVED', reasons: [manual ? 'Manual operation is absent from the imported contract and is preserved.' : 'Operation is absent from the imported contract.'], manual, reviewRequired: true });
+          impactedOperationIds.add(existingOp.id);
+          operationsRemoved++;
+          if (!params.preview && !manual) await this.apiOperationRepository.update(existingOp.id, { status: 'Review Required' });
+        }
+      }
+    }
+
+    // A valid re-import may remove an entire OpenAPI tag/service (including an
+    // empty `paths` document). Reconcile those imported services too; otherwise
+    // the absence is invisible because there is no parsed service loop entry.
+    for (const existingService of existingServices) {
+      if (reconciledServiceIds.has(existingService.id) || !existingService.sourceContract) continue;
+      const existingOps = await this.apiOperationRepository.findByProjectAndService(params.projectId, existingService.id);
+      for (const existingOp of existingOps) {
+        const manual = !existingOp.sourceOperation;
+        changes.push({ operationId: existingOp.id, serviceId: existingService.id, method: existingOp.method, path: existingOp.path, status: 'REMOVED', reasons: [manual ? 'Manual operation is absent from the imported contract and is preserved.' : 'Operation is absent because its imported service no longer exists.'], manual, reviewRequired: true });
+        impactedOperationIds.add(existingOp.id);
+        operationsRemoved++;
+        if (!params.preview && !manual) await this.apiOperationRepository.update(existingOp.id, { status: 'Review Required' });
+      }
+    }
+
+    if (impactedOperationIds.size) {
+      const hasReference = (value: unknown, operationId: string) => stable(value).includes(operationId);
+      for (const repository of this.impactRepositories) {
+        const records = await repository.findByProject(params.projectId);
+        for (const record of records) for (const operationId of impactedOperationIds) if (hasReference(record, operationId)) {
+          const kind = repository.impactKind;
+          if (kind) impacts[kind]++;
+          else impacts.requirementMappings++;
+          break;
+        }
+      }
+      if (this.fieldDataRuleRepository) {
+        const rules = await this.fieldDataRuleRepository.findByProject(params.projectId);
+        for (const rule of rules) if (impactedOperationIds.has(rule.input.operationId)) {
+          impacts.fieldDataRules++;
+          const change = changes.find((item) => item.operationId === rule.input.operationId);
+          // TD-4.2: accepted rules survive non-material changes; only material/removal requires review.
+          if (!params.preview && change && ['MATERIAL_CHANGE', 'BREAKING_CHANGE', 'REMOVED'].includes(change.status)) {
+            await this.fieldDataRuleRepository.update(rule.id, { status: 'REVIEW_REQUIRED', reviewMetadata: { reason: `Contract ${change.status.toLowerCase()}` } });
           }
         }
       }
@@ -1077,6 +1164,9 @@ export class ImportApiContract {
       duplicatesSkipped: 0,
       warnings,
       detectedEnvironments,
+      changes,
+      impacts,
+      preview: Boolean(params.preview),
     };
 
     const hadChanges =
@@ -1086,7 +1176,7 @@ export class ImportApiContract {
       || operationsUpdated > 0
       || operationsRemoved > 0;
 
-    if (this.eventPublisher && hadChanges) {
+    if (this.eventPublisher && hadChanges && !params.preview) {
       await this.eventPublisher.publish({
         type: 'IMPORTED',
         module: 'api',

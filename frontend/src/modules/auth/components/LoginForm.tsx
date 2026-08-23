@@ -8,8 +8,6 @@ import { getApiErrorMessage, validateLoginForm, type FieldErrors } from '../util
 import { cn } from '../../../utils/cn';
 import { AuthFormAlert, type AuthFormAlertType } from './AuthFormAlert';
 
-const REMEMBER_EMAIL_KEY = 'testforge_remember_email';
-
 export type LoginFormProps = {
   redirectTo?: string;
   sessionExpired?: boolean;
@@ -25,12 +23,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   onSwitchToRegister,
   footerClassName,
 }) => {
-  const [email, setEmail] = React.useState(() => {
-    if (typeof window === 'undefined') return '';
-    return sessionStorage.getItem(REMEMBER_EMAIL_KEY) ?? '';
-  });
+  const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
-  const [rememberEmail, setRememberEmail] = React.useState(Boolean(email));
   const [fieldErrors, setFieldErrors] = React.useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [formAlert, setFormAlert] = React.useState<{ type: AuthFormAlertType; message: string } | null>(
@@ -49,11 +43,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({
     setFormAlert(null);
     try {
       const result = await authApi.login(email.trim().toLowerCase(), password);
-      if (rememberEmail) {
-        sessionStorage.setItem(REMEMBER_EMAIL_KEY, email.trim().toLowerCase());
-      } else {
-        sessionStorage.removeItem(REMEMBER_EMAIL_KEY);
-      }
       setSession(result.accessToken, result.user);
       onSuccess?.();
       navigate(redirectTo, { replace: true });
@@ -124,17 +113,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           error={fieldErrors.password}
           hint="Enter your account password."
         />
-
-        <label className="flex items-center gap-2 text-sm text-text-secondary" htmlFor="login-remember-email">
-          <input
-            id="login-remember-email"
-            type="checkbox"
-            checked={rememberEmail}
-            onChange={(e) => setRememberEmail(e.target.checked)}
-            className="rounded border-border"
-          />
-          Remember my email on this device
-        </label>
 
         <Button type="submit" className="w-full" disabled={isSubmitting}>
           {isSubmitting ? 'Signing in…' : 'Sign in'}

@@ -13,6 +13,7 @@ vite_build_output.txt
 
 # Environment variables
 .env
+.env.staging
 .env.local
 .env.*.local
 
@@ -41,3 +42,7 @@ backend/data/**
 # Graphify (local codebase knowledge graph for Cursor MCP)
 graphify-out/
 **/graphify-out/
+
+# Playwright failure artifacts
+playwright-report/
+test-results/

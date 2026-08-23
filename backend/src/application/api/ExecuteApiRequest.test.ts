@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { ExecuteApiRequest } from './ExecuteApiRequest.js';
+import { secureHttpExecutor } from '../../infrastructure/http/SecureHttpExecutor.js';
 
 vi.mock('axios', () => ({
   default: {
@@ -13,6 +14,7 @@ const mockedAxios = vi.mocked(axios, true);
 describe('ExecuteApiRequest', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(secureHttpExecutor, 'execute').mockImplementation((config: any) => mockedAxios.request(config));
   });
 
   it('returns the upstream response with parsed JSON body', async () => {

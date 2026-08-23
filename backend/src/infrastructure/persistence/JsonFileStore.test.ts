@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { readJsonFile, writeJsonFile } from './JsonFileStore.js';
+import { readJsonArray, readJsonFile, writeJsonArray, writeJsonFile } from './JsonFileStore.js';
 
 describe('JsonFileStore', () => {
   let dir: string;
@@ -29,5 +29,14 @@ describe('JsonFileStore', () => {
   it('returns default when file is missing', async () => {
     const value = await readJsonFile('missing.json', ['empty']);
     expect(value).toEqual(['empty']);
+  });
+
+  it('returns a fresh empty array for every missing persistence file', async () => {
+    const environments = await readJsonArray<{ kind: string }>(join(dir, 'environments.json'));
+    const plans = await readJsonArray<{ kind: string }>(join(dir, 'plans.json'));
+    environments.push({ kind: 'environment' });
+    await writeJsonArray(join(dir, 'environments.json'), environments);
+    expect(plans).toEqual([]);
+    expect(await readJsonArray(join(dir, 'plans.json'))).toEqual([]);
   });
 });

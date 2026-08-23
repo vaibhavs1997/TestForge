@@ -4,6 +4,7 @@ import type { AIProviderType } from '../../../domain/ai-provider/index.js';
 import { BaseAIProviderAdapter } from './BaseAIProviderAdapter.js';
 import { OllamaAdapter } from './OllamaAdapter.js';
 import axios from 'axios';
+import { secureHttpExecutor } from '../../../infrastructure/http/SecureHttpExecutor.js';
 
 export { OllamaAdapter };
 
@@ -30,7 +31,9 @@ export class OpenAIAdapter extends BaseAIProviderAdapter {
 
     const base = resolveOpenAIBase(config, this.defaultEndpoint);
     try {
-      await axios.get(`${base}/models/${encodeURIComponent(config.model)}`, {
+      await secureHttpExecutor.execute({
+        url: `${base}/models/${encodeURIComponent(config.model)}`,
+        method: 'GET',
         headers: openAIHeaders(config),
         timeout: config.timeout ?? this.defaultTimeout,
       });
@@ -53,9 +56,10 @@ export class OpenAIAdapter extends BaseAIProviderAdapter {
     const base = resolveOpenAIBase(config, this.defaultEndpoint);
 
     try {
-      const { data } = await axios.post(
-        `${base}/chat/completions`,
-        {
+      const { data } = await secureHttpExecutor.execute<any>({
+        url: `${base}/chat/completions`,
+        method: 'POST',
+        data: {
           model,
           messages,
           temperature: options?.temperature ?? config.temperature ?? 0.7,
@@ -63,8 +67,8 @@ export class OpenAIAdapter extends BaseAIProviderAdapter {
           max_tokens: maxTokens,
           ...(options?.stop?.length ? { stop: options.stop } : {}),
         },
-        { headers: openAIHeaders(config), timeout: config.timeout ?? this.defaultTimeout },
-      );
+        headers: openAIHeaders(config), timeout: config.timeout ?? this.defaultTimeout,
+      });
 
       const content = data?.choices?.[0]?.message?.content;
       if (typeof content !== 'string') throw new Error('OpenAI returned no assistant content.');

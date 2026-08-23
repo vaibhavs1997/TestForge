@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import axios from 'axios';
 import { OpenAIAdapter } from './ProviderAdapters.js';
+import { secureHttpExecutor } from '../../../infrastructure/http/SecureHttpExecutor.js';
 import type { AIProviderConfig } from '../../../domain/ai-provider/index.js';
 
 vi.mock('axios', () => ({
@@ -28,7 +29,14 @@ const config: AIProviderConfig = {
 };
 
 describe('OpenAIAdapter', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(secureHttpExecutor, 'execute').mockImplementation((request: any) =>
+      String(request.method || 'GET').toUpperCase() === 'GET'
+        ? axios.get(request.url, { headers: request.headers, timeout: request.timeout })
+        : axios.post(request.url, request.data, { headers: request.headers, timeout: request.timeout }),
+    );
+  });
 
   it('requires an API key', () => {
     const errors = new OpenAIAdapter().validateConfiguration({ ...config, apiKey: undefined });

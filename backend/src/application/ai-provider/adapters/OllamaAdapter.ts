@@ -9,8 +9,12 @@ import type {
   AIProviderType,
 } from '../../../domain/ai-provider/index.js';
 import { BaseAIProviderAdapter } from './BaseAIProviderAdapter.js';
+import { secureHttpExecutor } from '../../../infrastructure/http/SecureHttpExecutor.js';
 
 const DEFAULT_OLLAMA_BASE = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
+const localInfrastructurePolicy = process.env.TESTFORGE_ALLOW_LOCAL_INFRASTRUCTURE === 'true'
+  ? { allowPrivateNetworks: true, allowLoopback: true }
+  : undefined;
 
 function resolveOllamaBase(config: AIProviderConfig): string {
   const raw = (config.endpoint || DEFAULT_OLLAMA_BASE).trim();
@@ -41,8 +45,11 @@ export class OllamaAdapter extends BaseAIProviderAdapter {
     const base = resolveOllamaBase(config);
     const model = config.model || this.defaultModel;
     try {
-      const { data } = await axios.get(`${base}/api/tags`, {
+      const { data } = await secureHttpExecutor.execute<any>({
+        url: `${base}/api/tags`,
+        method: 'GET',
         timeout: config.timeout ?? this.defaultTimeout,
+        egressPolicy: localInfrastructurePolicy,
       });
       const models: { name?: string }[] = data?.models ?? [];
       const names = models.map((m) => m.name ?? '').filter(Boolean);
@@ -89,9 +96,10 @@ export class OllamaAdapter extends BaseAIProviderAdapter {
     }));
 
     try {
-      const { data } = await axios.post(
-        `${base}/api/chat`,
-        {
+      const { data } = await secureHttpExecutor.execute<any>({
+        url: `${base}/api/chat`,
+        method: 'POST',
+        data: {
           model,
           messages: ollamaMessages,
           stream: false,
@@ -101,8 +109,9 @@ export class OllamaAdapter extends BaseAIProviderAdapter {
             num_predict: maxTokens,
           },
         },
-        { timeout },
-      );
+        timeout,
+        egressPolicy: localInfrastructurePolicy,
+      });
 
       const content = data?.message?.content ?? '';
       const promptTokens = data?.prompt_eval_count ?? Math.ceil(

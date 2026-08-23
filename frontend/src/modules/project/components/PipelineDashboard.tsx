@@ -55,7 +55,6 @@ const formatAgo = (timestamp: number | null | undefined): string => {
 export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId, projectName }) => {
   const navigate = useNavigate();
   const [showFullPipeline, setShowFullPipeline] = React.useState(false);
-  const [localImportedOperationCount, setLocalImportedOperationCount] = React.useState(0);
 
   const { services } = useServices(projectId);
   const serviceIds = React.useMemo(() => services.map((s) => s.id), [services]);
@@ -65,26 +64,11 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
   const { runs } = useExecution(projectId);
   const { reports } = useReports(projectId);
 
-  // Older API-workspace imports may still be waiting for their one-time
-  // migration into the shared API repository. Reflect that state here rather
-  // than incorrectly telling the user that no contract was imported.
-  React.useEffect(() => {
-    try {
-      const raw = localStorage.getItem(`testforge:api-workspace:imports:project:${projectId}`);
-      const artifacts = raw ? JSON.parse(raw) as Array<{ kind?: unknown; endpoints?: unknown }> : [];
-      const count = artifacts.reduce((total, artifact) =>
-        total + (artifact.kind === 'api' && Array.isArray(artifact.endpoints) ? artifact.endpoints.length : 0), 0);
-      setLocalImportedOperationCount(count);
-    } catch {
-      setLocalImportedOperationCount(0);
-    }
-  }, [projectId]);
-
   const opCount = operations?.length ?? 0;
   const sharedOperationCount = opCount;
-  const displayedOperationCount = sharedOperationCount || localImportedOperationCount;
+  const displayedOperationCount = sharedOperationCount;
   const hasApis = displayedOperationCount > 0;
-  const apiImportIsSyncing = sharedOperationCount === 0 && localImportedOperationCount > 0;
+  const apiImportIsSyncing = false;
   const hasEnv = environments.length > 0;
   const hasRequirements = requirements.length > 0;
   const hasRuns = runs.length > 0;
@@ -162,7 +146,6 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
       projectId,
       hasApis,
       services.length,
-      opCount,
       displayedOperationCount,
       apiImportIsSyncing,
       hasEnv,

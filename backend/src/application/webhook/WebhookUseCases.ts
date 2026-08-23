@@ -2,7 +2,7 @@
 
 import { WebhookRepository } from '../../domain/webhook/WebhookRepository.js';
 import { WebhookEntity, WebhookEvent, WebhookPayload } from '../../domain/webhook/WebhookEntity.js';
-import { assertSafeOutboundUrl } from '../../infrastructure/security/outboundUrl.js';
+import { secureHttpExecutor } from '../../infrastructure/http/SecureHttpExecutor.js';
 
 export class ListWebhooks {
   constructor(
@@ -113,19 +113,19 @@ export class TriggerWebhooks {
 
   private async sendWebhook(webhook: WebhookEntity, payload: WebhookPayload): Promise<void> {
     try {
-      await assertSafeOutboundUrl(webhook.url);
-      const response = await fetch(webhook.url, {
+      const response = await secureHttpExecutor.execute({
+        url: webhook.url,
         method: 'POST',
-        redirect: 'manual',
+        validateStatus: () => true,
         headers: {
           'Content-Type': 'application/json',
           'User-Agent': 'TestForge-Webhook/1.0',
           ...webhook.headers,
         },
-        body: JSON.stringify(payload),
+        data: JSON.stringify(payload),
       });
 
-      if (!response.ok) {
+      if (response.status < 200 || response.status >= 300) {
         throw new Error(`Webhook returned ${response.status}: ${response.statusText}`);
       }
     } catch (error) {

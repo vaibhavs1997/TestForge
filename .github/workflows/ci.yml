@@ -76,6 +76,32 @@ jobs:
           path: frontend/dist/
           retention-days: 7
 
+  production-e2e:
+    name: Production E2E Gate
+    runs-on: ubuntu-latest
+    needs: [backend-build, frontend-build]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run production-artifact E2E gate
+        run: npm run test:e2e
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
   dependency-audit:
     name: Dependency Audit
     runs-on: ubuntu-latest
@@ -106,4 +132,8 @@ jobs:
         run: docker build -t testforge-frontend:ci ./frontend
 
       - name: Validate docker-compose
-        run: docker-compose config --quiet
+        run: |
+          cp .env.staging.example .env
+          cp .env.staging.example .env.staging
+          docker compose config --quiet
+          docker compose -f docker-compose.staging.yml config --quiet

@@ -3,7 +3,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import lockfile from 'proper-lockfile';
 
-const DEFAULT_EMPTY: unknown[] = [];
 
 function ensureParentDir(filePath: string): void {
   const dir = path.dirname(filePath);
@@ -95,7 +94,10 @@ export async function updateJsonArray<T>(
 
 /** Convenience for array-backed repository files. */
 export async function readJsonArray<T>(filePath: string): Promise<T[]> {
-  return readJsonFile<T[]>(filePath, DEFAULT_EMPTY as T[]);
+  // Never share a mutable default between repositories. A shared empty array
+  // lets the first `push` performed by one missing-file repository leak into
+  // every other repository that subsequently reads a missing file.
+  return readJsonFile<T[]>(filePath, []);
 }
 
 export async function writeJsonArray<T>(filePath: string, data: T[]): Promise<void> {

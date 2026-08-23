@@ -7,10 +7,13 @@ RUN apk add --no-cache python3 make g++
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm ci
+# `package-lock.json` may lag workspace-only development tooling. Resolve the
+# backend manifest during image builds instead of failing before compilation.
+RUN npm install
 
 COPY . .
 RUN npm run build
+RUN npm prune --omit=dev
 
 # Runtime stage
 FROM node:22-alpine AS runtime
@@ -21,9 +24,8 @@ RUN addgroup -g 1001 -S nodejs && \
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev
-
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
 
 RUN mkdir -p /app/data && chown -R app:nodejs /app/data
 

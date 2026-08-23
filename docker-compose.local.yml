@@ -1,0 +1,43 @@
+services:
+  backend:
+    environment:
+      # Local-only RAG database. Production/staging remain opt-in.
+      RAG_ENABLED: ${RAG_ENABLED:-true}
+      RAG_DATABASE_URL: postgresql://${POSTGRES_USER:-testforge}:${POSTGRES_PASSWORD:-testforge_local_only}@postgres:5432/${POSTGRES_DB:-testforge}
+      EMBEDDING_ENABLED: ${EMBEDDING_ENABLED:-false}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-ollama}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      # Host localhost is not the backend container; override it for Docker.
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL_DOCKER:-http://host.docker.internal:11434}
+      EMBEDDING_TIMEOUT_MS: ${EMBEDDING_TIMEOUT_MS:-30000}
+      EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-32}
+      RATE_LIMIT_ENABLED: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: testforge-postgres-local
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-testforge}
+      POSTGRES_USER: ${POSTGRES_USER:-testforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-testforge_local_only}
+    volumes:
+      - testforge-postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    networks:
+      - testforge-network
+
+volumes:
+  testforge-postgres-data:
+    driver: local

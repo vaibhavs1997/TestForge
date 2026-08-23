@@ -82,6 +82,7 @@ TestForge/
 ### Prerequisites
 - Node.js 18+
 - npm
+- Docker Desktop (optional, for local PostgreSQL + pgvector)
 
 ### Installation
 
@@ -90,6 +91,26 @@ npm install
 npm run dev:frontend
 npm run dev:backend
 npm run build
+```
+
+### Local PostgreSQL + pgvector
+
+The application can run its existing JSON/SQLite persistence without PostgreSQL.
+For local pgvector development, start the isolated database service:
+
+```bash
+docker compose -f docker-compose.local.yml up -d
+```
+
+It exposes PostgreSQL on `localhost:5432` by default, stores data in the
+`testforge-postgres-data` Docker volume, and enables the `vector` extension on
+first initialization. Override `POSTGRES_PORT`, `POSTGRES_DB`,
+`POSTGRES_USER`, and `POSTGRES_PASSWORD` in your local `.env` as needed.
+
+To stop it while preserving data:
+
+```bash
+docker compose -f docker-compose.local.yml down
 ```
 
 ## API Endpoints

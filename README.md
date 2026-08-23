@@ -113,6 +113,15 @@ To stop it while preserving data:
 docker compose -f docker-compose.local.yml down
 ```
 
+### Single-node staging deployment
+
+The supported staging topology serves the frontend behind HTTPS and proxies the
+same-origin `/api` path to a private backend container with a persistent volume.
+See [the single-node staging deployment guide](docs/single-node-staging-deployment.md)
+for the required secrets, startup, health checks, backup location, and upgrade/
+rollback procedure. The current JSON/file repositories are deliberately
+single-node only.
+
 ## API Endpoints
 
 ### API Management

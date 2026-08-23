@@ -12,7 +12,9 @@
     "typecheck": "cd frontend && npm run typecheck && cd ../backend && npm run typecheck",
     "test:frontend": "cd frontend && npm test",
     "test:backend": "cd backend && npm test",
-    "test": "npm run test:frontend && npm run test:backend"
+    "test": "npm run test:frontend && npm run test:backend",
+    "test:e2e": "npm run build:backend && npm run build:frontend && playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "workspaces": [
     "frontend",

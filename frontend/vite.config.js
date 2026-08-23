@@ -9,6 +9,7 @@ const srcRoot = path.resolve(frontendRoot, 'src');
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const backendPort = env.PORT || '3000';
+  const previewBackend = process.env.TESTFORGE_E2E_BACKEND_URL || `http://localhost:${backendPort}`;
 
   return {
     plugins: [react()],
@@ -23,6 +24,14 @@ export default defineConfig(({ mode }) => {
           target: `http://localhost:${backendPort}`,
           changeOrigin: true,
         },
+      },
+    },
+    // `vite preview` is the production-artifact topology used by the E2E gate.
+    // Keeping the proxy here makes the built SPA use the same relative /api base
+    // in local production-like runs as it does behind a reverse proxy in deploys.
+    preview: {
+      proxy: {
+        '/api': { target: previewBackend, changeOrigin: true },
       },
     },
     test: {

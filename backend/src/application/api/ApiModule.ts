@@ -19,12 +19,15 @@ import { RefreshApiContract } from './RefreshApiContract.js';
 import type { ApiServiceRepository } from '../../domain/api/ApiServiceRepository.js';
 import type { ApiOperationRepository } from '../../domain/api/ApiOperationRepository.js';
 import type { EventPublisher } from '../EventPublisher.js';
+import type { FieldDataRuleRepository } from '../../domain/test-data/FieldDataRuleRepository.js';
 import { asyncHandler } from '../../interfaces/middleware/AsyncHandler.js';
 
 export interface ApiModuleDeps {
   apiServiceRepository: ApiServiceRepository;
   apiOperationRepository: ApiOperationRepository;
   eventPublisher: EventPublisher;
+  fieldDataRuleRepository?: FieldDataRuleRepository;
+  impactRepositories?: Array<{ findByProject(projectId: string): Promise<any[]>; impactKind?: 'requirementMappings' | 'testCases' | 'testCaseVersions' | 'suites' | 'schedules' | 'runtimeLinks' | 'fieldDataRules' }>;
 }
 
 const upload = multer({
@@ -69,6 +72,8 @@ export class ApiModule {
       deps.apiServiceRepository,
       deps.apiOperationRepository,
       deps.eventPublisher,
+      deps.fieldDataRuleRepository,
+      deps.impactRepositories,
     );
     const refreshApiContract = new RefreshApiContract(deps.apiServiceRepository, importApiContract);
 
@@ -110,7 +115,9 @@ export class ApiModule {
     router.post('/projects/:projectId/api-execution', asyncHandler((req, res) => apiController.executeOperation(req, res)));
 
     router.post('/projects/:projectId/import', upload.single('file'), asyncHandler((req, res) => apiController.importContract(req, res)));
+    router.post('/projects/:projectId/import/preview', upload.single('file'), asyncHandler((req, res) => apiController.previewImportContract(req, res)));
     router.post('/projects/:projectId/import/url', asyncHandler((req, res) => apiController.importContractFromUrl(req, res)));
+    router.post('/projects/:projectId/import/url/preview', asyncHandler((req, res) => apiController.previewImportContractFromUrl(req, res)));
 
     this.router = router;
   }

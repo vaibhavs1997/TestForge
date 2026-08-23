@@ -18,6 +18,23 @@ export interface AppConfig {
   ai: AiCapabilityConfig;
 }
 
+/** Staging intentionally follows the same safety requirements as production. */
+function isDeploymentEnvironment(nodeEnv: string): boolean {
+  return nodeEnv === 'production' || nodeEnv === 'staging';
+}
+
+function assertSecretStoreKey(value: string | undefined, required: boolean): void {
+  if (!value) {
+    if (required) {
+      throw new Error('Configuration validation failed. TESTFORGE_SECRET_STORE_KEY is required in staging/production. Provide a base64-encoded 32-byte key; it is never generated automatically in a deployment.');
+    }
+    return;
+  }
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(value) || Buffer.from(value, 'base64').length !== 32) {
+    throw new Error('Configuration validation failed. TESTFORGE_SECRET_STORE_KEY must be a base64-encoded 32-byte key.');
+  }
+}
+
 /** Configuration boundary for the optional PostgreSQL/pgvector RAG subsystem. */
 export interface RagDatabaseConfig {
   enabled: boolean;
@@ -104,6 +121,14 @@ export function validateConfig(env: NodeJS.ProcessEnv = process.env): AppConfig 
   const mongodbUri = env.MONGODB_URI?.trim() || undefined;
   const auth = getAuthConfig(env);
   const nodeEnv = env.NODE_ENV || 'development';
+  const deploymentEnvironment = isDeploymentEnvironment(nodeEnv);
+  assertSecretStoreKey(env.TESTFORGE_SECRET_STORE_KEY?.trim(), deploymentEnvironment);
+  if (deploymentEnvironment && auth.jwtSecret && Buffer.byteLength(auth.jwtSecret, 'utf8') < 32) {
+    throw new Error('Configuration validation failed. TESTFORGE_JWT_SECRET must contain at least 32 bytes in staging/production.');
+  }
+  if (deploymentEnvironment && auth.apiKey && Buffer.byteLength(auth.apiKey, 'utf8') < 32) {
+    throw new Error('Configuration validation failed. TESTFORGE_API_KEY must contain at least 32 bytes in staging/production.');
+  }
   const runtimeMode = env.RUNTIME_COORDINATION_MODE === 'distributed' ? 'distributed' : 'local-node';
   const ragEnabled = env.RAG_ENABLED?.trim().toLowerCase() === 'true';
   const embeddingEnabled = env.EMBEDDING_ENABLED?.trim().toLowerCase() === 'true';
@@ -130,18 +155,28 @@ export function validateConfig(env: NodeJS.ProcessEnv = process.env): AppConfig 
   if (embeddingEnabled && embeddingProvider === 'ollama' && !ollamaBaseUrl) {
     throw new Error('Configuration validation failed. Ollama embeddings require OLLAMA_BASE_URL.');
   }
-  if (nodeEnv === 'production' && env.BACKEND_REPLICAS && Number(env.BACKEND_REPLICAS) > 1 && runtimeMode !== 'distributed') {
-    throw new Error('Configuration validation failed. Multi-instance production requires RUNTIME_COORDINATION_MODE=distributed with atomic job/lease adapters.');
+  if (deploymentEnvironment && env.BACKEND_REPLICAS && Number(env.BACKEND_REPLICAS) > 1 && runtimeMode !== 'distributed') {
+    throw new Error('Configuration validation failed. Multi-instance staging/production requires RUNTIME_COORDINATION_MODE=distributed with atomic job/lease adapters.');
+  }
+  if (deploymentEnvironment && persistenceDriver === 'json' && env.TESTFORGE_ALLOW_SINGLE_NODE_JSON !== 'true') {
+    throw new Error('Configuration validation failed. JSON persistence is single-node only. Set TESTFORGE_ALLOW_SINGLE_NODE_JSON=true only for an explicitly single-node deployment, or configure durable database-backed repositories.');
+  }
+  if (deploymentEnvironment && runtimeMode === 'distributed' && persistenceDriver !== 'sqlite') {
+    throw new Error('Configuration validation failed. Distributed production is not supported by the JSON repository set. Use a database-backed repository deployment before enabling distributed coordination.');
   }
   const defaultCorsOrigin =
     nodeEnv === 'production'
       ? 'https://your-domain.com'
       : 'http://localhost:3000,http://localhost:5173';
+  const corsOrigin = env.CORS_ORIGIN?.trim() || defaultCorsOrigin;
+  if (deploymentEnvironment && (!env.CORS_ORIGIN?.trim() || corsOrigin === '*')) {
+    throw new Error('Configuration validation failed. CORS_ORIGIN must be an explicit non-wildcard public origin in staging/production.');
+  }
 
   // Require authentication in production
-  if (nodeEnv === 'production' && !auth.enabled) {
+  if (deploymentEnvironment && (!auth.enabled || (!auth.apiKey && !auth.jwtSecret && !auth.enterpriseLogin))) {
     throw new Error(
-      'Configuration validation failed. Authentication is required in production. Set TESTFORGE_API_KEY or TESTFORGE_JWT_SECRET.'
+      'Configuration validation failed. Authentication is required in staging/production. Set TESTFORGE_API_KEY or TESTFORGE_JWT_SECRET.'
     );
   }
 
@@ -150,7 +185,7 @@ export function validateConfig(env: NodeJS.ProcessEnv = process.env): AppConfig 
     nodeEnv,
     dbPath: env.DB_PATH || './data/testforge.db',
     persistenceDriver,
-    corsOrigin: env.CORS_ORIGIN?.trim() || defaultCorsOrigin,
+    corsOrigin,
     logLevel: env.LOG_LEVEL || 'info',
     version: env.npm_package_version || APP_VERSION,
     buildTimestamp: env.BUILD_TIMESTAMP || BUILD_TIMESTAMP,

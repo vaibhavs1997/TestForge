@@ -10,6 +10,7 @@ const {
   executePlan,
   executionRunRepository,
   executionPlanRepository,
+  durableJobRepository,
 } = container;
 
 // Initialize controller
@@ -17,6 +18,7 @@ const executionController = new ExecutionController(
   executePlan,
   executionRunRepository,
   executionPlanRepository,
+  durableJobRepository,
 );
 
 const router = Router();

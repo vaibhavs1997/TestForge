@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
@@ -44,6 +44,10 @@ export interface TestCasesListBlockProps {
 
   onChangeOperation?: (design: TestDesign, operationId: string) => void | Promise<void>;
 
+  onChangeRequestBody?: (design: TestDesign, body: unknown) => Promise<void>;
+
+  allowRequestBodyEdit?: boolean;
+
   allowMappingEdit?: boolean;
 
   isUpdatingMapping?: boolean;
@@ -68,6 +72,57 @@ function formatJsonPreview(body: unknown): string {
 
 }
 
+interface RequestBodyEditorProps {
+  designId: string;
+  body: unknown;
+  canEdit: boolean;
+  onSave: (body: unknown) => Promise<void>;
+}
+
+const RequestBodyEditor: React.FC<RequestBodyEditorProps> = ({ designId, body, canEdit, onSave }) => {
+  const serializedBody = formatJsonPreview(body);
+  const [draft, setDraft] = useState(serializedBody === '—' ? '' : serializedBody);
+  const [dirty, setDirty] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'invalid' | 'error'>('idle');
+  const previousDesignId = useRef(designId);
+  const previousIncomingBody = useRef(serializedBody);
+
+  useEffect(() => {
+    if (previousDesignId.current !== designId || previousIncomingBody.current !== serializedBody) {
+      setDraft(serializedBody === '—' ? '' : serializedBody);
+      setDirty(false);
+      setStatus('idle');
+    }
+    previousDesignId.current = designId;
+    previousIncomingBody.current = serializedBody;
+  }, [designId, serializedBody]);
+
+  useEffect(() => {
+    if (!dirty || !canEdit) return;
+    let value: unknown;
+    try {
+      value = draft.trim() === '' ? undefined : JSON.parse(draft);
+    } catch {
+      setStatus('invalid');
+      return;
+    }
+    setStatus('saving');
+    const timer = window.setTimeout(() => {
+      void onSave(value)
+        .then(() => { setDirty(false); setStatus('saved'); })
+        .catch(() => setStatus('error'));
+    }, 650);
+    return () => window.clearTimeout(timer);
+  }, [canEdit, dirty, draft, onSave]);
+
+  if (!canEdit) return <pre className='max-h-48 overflow-auto rounded border border-border bg-background p-2 font-mono text-xs text-text'>{serializedBody}</pre>;
+
+  return <div>
+    <textarea aria-label='Request body payload' value={draft} onChange={(event) => { setDraft(event.target.value); setDirty(true); setStatus('idle'); }} spellCheck={false} className='min-h-40 w-full rounded border border-border bg-background p-2 font-mono text-xs text-text outline-none focus:border-primary' />
+    <p className={`mt-1 text-xs ${status === 'invalid' || status === 'error' ? 'text-error' : 'text-text-secondary'}`}>{status === 'saving' ? 'Saving request body…' : status === 'saved' ? 'Request body saved' : status === 'invalid' ? 'Enter valid JSON to save' : status === 'error' ? 'Request body could not be saved. Changes remain in the editor.' : 'Changes save automatically.'}</p>
+  </div>;
+};
+
 
 
 export const TestCasesListBlock: React.FC<TestCasesListBlockProps> = ({
@@ -87,6 +142,10 @@ export const TestCasesListBlock: React.FC<TestCasesListBlockProps> = ({
   operations = [],
 
   onChangeOperation,
+
+  onChangeRequestBody,
+
+  allowRequestBodyEdit = false,
 
   allowMappingEdit = true,
 
@@ -393,11 +452,12 @@ export const TestCasesListBlock: React.FC<TestCasesListBlockProps> = ({
 
                     <td colSpan={7} className='bg-surface/50 px-3 py-2'>
 
-                      <pre className='max-h-48 overflow-auto rounded border border-border bg-background p-2 font-mono text-xs text-text'>
-
-                        {formatJsonPreview(body)}
-
-                      </pre>
+                      <RequestBodyEditor
+                        designId={design.id}
+                        body={body}
+                        canEdit={allowRequestBodyEdit && Boolean(design.operationId) && design.mappingState === 'confirmed' && Boolean(onChangeRequestBody)}
+                        onSave={(nextBody) => onChangeRequestBody?.(design, nextBody) ?? Promise.resolve()}
+                      />
                       {dependenciesExpanded && dependencyCount > 0 ? (
                         <div className='mt-2 rounded border border-border bg-background p-2 text-xs'>
                           <div className='mb-1 font-medium text-text'>Prerequisite chain</div>

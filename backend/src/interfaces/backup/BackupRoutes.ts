@@ -4,11 +4,16 @@ import multer from 'multer';
 import fs from 'node:fs';
 import { BackupService } from './BackupService.js';
 import { assertGlobalAccess, assertProjectAccess, type AuthContext } from '../middleware/auth.js';
+import { AppError } from '../../shared/errors.js';
 
 const upload = multer({ dest: './data/uploads/', limits: { fileSize: 100 * 1024 * 1024 } });
 
 function requireGlobalAccess(req: { auth?: AuthContext }): void {
   assertGlobalAccess(req.auth);
+}
+function sendError(res: any, error: unknown, fallback: string): void {
+  if (error instanceof AppError) { res.status(error.statusCode).json({ error: error.message, errorCode: error.errorCode }); return; }
+  res.status(500).json({ error: error instanceof Error ? error.message : fallback });
 }
 
 export function createBackupRoutes(backupService: BackupService): Router {
@@ -21,7 +26,7 @@ export function createBackupRoutes(backupService: BackupService): Router {
       const backup = await backupService.createBackup();
       res.status(201).json(backup);
     } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : 'Backup failed' });
+      sendError(res, err, 'Backup failed');
     }
   });
 
@@ -31,7 +36,7 @@ export function createBackupRoutes(backupService: BackupService): Router {
       requireGlobalAccess(req);
       res.json(backupService.listBackups());
     } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to list backups' });
+      sendError(res, err, 'Failed to list backups');
     }
   });
 
@@ -46,7 +51,7 @@ export function createBackupRoutes(backupService: BackupService): Router {
         res.json(result);
       }
     } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : 'Restore failed' });
+      sendError(res, err, 'Restore failed');
     }
   });
 
@@ -61,7 +66,7 @@ export function createBackupRoutes(backupService: BackupService): Router {
         res.json(result);
       }
     } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : 'Delete failed' });
+      sendError(res, err, 'Delete failed');
     }
   });
 
@@ -77,7 +82,7 @@ export function createBackupRoutes(backupService: BackupService): Router {
         }
       });
     } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : 'Export failed' });
+      sendError(res, err, 'Export failed');
     }
   });
 
@@ -98,7 +103,7 @@ export function createBackupRoutes(backupService: BackupService): Router {
         try { fs.unlinkSync(uploadedPath); } catch { /* already removed */ }
       }
     } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : 'Import failed' });
+      sendError(res, err, 'Import failed');
     }
   });
 

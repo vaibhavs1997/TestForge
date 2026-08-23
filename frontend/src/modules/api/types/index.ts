@@ -127,6 +127,9 @@ export interface ImportSummary {
   duplicatesSkipped: number;
   warnings: string[];
   detectedEnvironments: DetectedEnvironment[];
+  preview?: boolean;
+  changes?: Array<{ operationId?: string; method: string; path: string; status: 'ADDED' | 'UNCHANGED' | 'NON_MATERIAL_CHANGE' | 'MATERIAL_CHANGE' | 'BREAKING_CHANGE' | 'REMOVED'; reasons: string[]; manual?: boolean; reviewRequired: boolean }>;
+  impacts?: { requirementMappings: number; testCases: number; testCaseVersions: number; suites: number; schedules: number; runtimeLinks: number; fieldDataRules: number };
 }
 
 export interface DetectedEnvironment {

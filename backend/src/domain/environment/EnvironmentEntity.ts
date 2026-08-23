@@ -11,6 +11,15 @@ export interface EnvironmentExecutionPolicy {
   requireApproval: boolean;
   allowedHttpMethods: string[];
   mappingConfidenceThreshold: number;
+  outboundEgressPolicy?: OutboundEgressPolicy;
+}
+
+export interface OutboundEgressPolicy {
+  allowPrivateNetworks?: boolean;
+  allowLoopback?: boolean;
+  allowedHosts?: string[];
+  allowedHostPatterns?: string[];
+  allowedPorts?: number[];
 }
 
 const ALL_HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
@@ -66,7 +75,7 @@ export class EnvironmentEntity {
     public baseUrl: string,
     public description: string,
     public authentication: any,
-    public variables: Record<string, string>,
+    public variables: Record<string, unknown>,
     public timeout: number,
     public readonly createdAt: number,
     public updatedAt: number,

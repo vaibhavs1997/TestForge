@@ -5,11 +5,14 @@ import { EnvironmentEntity, type EnvironmentExecutionPolicy, type EnvironmentTie
 import { DEFAULT_TIMEOUT_MS } from '../../constants/defaults.js';
 import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 import { EventPublisher } from '../EventPublisher.js';
+import type { SecretStore } from '../../domain/security/SecretStore.js';
+import { persistEnvironmentSecrets } from './EnvironmentSecretPersistence.js';
 
 export class CreateEnvironment {
   constructor(
     private readonly environmentRepository: EnvironmentRepository,
     private readonly eventPublisher?: EventPublisher,
+    private readonly secretStore?: SecretStore,
   ) {}
 
   async execute(params: {
@@ -33,14 +36,18 @@ export class CreateEnvironment {
     );
 
     const now = Date.now();
+    const id = randomUUID();
+    const persistedSecrets = this.secretStore
+      ? await persistEnvironmentSecrets({ projectId: params.projectId, environmentId: id, authentication: params.authentication, variables: params.variables }, this.secretStore)
+      : { authentication: params.authentication, variables: params.variables };
     const environment = new EnvironmentEntity(
-      randomUUID(),
+      id,
       params.projectId,
       name,
       baseUrl,
       ValidationHelpers.trimString(params.description),
-      params.authentication || null,
-      params.variables || {},
+      persistedSecrets.authentication || null,
+      persistedSecrets.variables || {},
       params.timeout || DEFAULT_TIMEOUT_MS,
       now,
       now,

@@ -53,6 +53,8 @@ import type { DatasetDto } from '../../../types/moduleContracts';
 import { apiService } from '../../api/services/apiService';
 import { apiAxios } from '../../../services/apiAxios';
 import { queryKeys } from '../../../constants';
+import { clearLegacyApiWorkspaceState } from '../../../utils/sensitiveBrowserState';
+import { runSandboxedScript, SCRIPT_SANDBOX_VERSION, type ScriptMutation } from '../utils/scriptSandbox';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
 type BodyMode = 'none' | 'form-data' | 'x-www-form-urlencoded' | 'raw' | 'binary' | 'graphql';
@@ -64,15 +66,6 @@ type BottomTab = 'related' | 'tests' | 'environments' | 'mock' | 'documentation'
 type ImportedKind = 'api' | 'env' | 'unknown';
 type SelectionKind = 'api-endpoint' | 'manual' | 'saved' | null;
 export type CanonicalOverrideLocation = 'BODY' | 'QUERY' | 'PATH' | 'HEADER' | 'COOKIE' | 'GRAPHQL_VARIABLE';
-
-function previewSourceLabel(strategy?: string, scope?: string): string {
-  if (scope === 'PROJECT') return 'Project fallback';
-  return ({ MANUAL_OVERRIDE: 'Temporary change for this request', TEST_CASE_OVERRIDE: 'Saved TestCase rule', FIXED: 'Saved operation rule', MANUAL: 'Saved operation rule', GENERATE: 'Generated for this run', REUSE: 'Reused from an earlier value', LINKED_RESPONSE: 'Value from an earlier response', DATASET: 'Dataset value', ENVIRONMENT: 'Environment value', SECRET: 'Secure value', CONTRACT_DEFAULT: 'Contract example or default' } as Record<string, string>)[strategy || ''] || 'Needs configuration';
-}
-
-function previewScopeLabel(scope?: string): string {
-  return ({ EACH_REQUEST: 'Changes for every request', EACH_EXECUTION: 'Stays the same for this execution', SUITE_RUN: 'Stays the same for this suite run', TEST_CASE: 'Saved with this test case', ENVIRONMENT: 'Environment value', PROJECT: 'Project fallback', UNTIL_CHANGED: 'Stays until changed' } as Record<string, string>)[scope || ''] || 'Request value';
-}
 
 interface CanonicalTemporaryOverride {
   operationId: string;
@@ -343,18 +336,8 @@ const BOTTOM_TABS: Array<{ value: BottomTab; label: string; icon: React.Componen
   { value: 'activity', label: 'Activity', icon: Activity },
 ];
 
-const STORAGE_SCOPE_PREFIX = 'testforge:api-workspace';
-
 function makeId(prefix = 'id'): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function getScope(projectId?: string): string {
-  return projectId?.trim() ? `project:${projectId.trim()}` : 'project:global';
-}
-
-function storageKey(projectId: string | undefined, suffix: string): string {
-  return `${STORAGE_SCOPE_PREFIX}:${suffix}:${getScope(projectId)}`;
 }
 
 export function isHydratedForProject(hydratedProjectId: string | null, projectId: string): boolean {
@@ -773,57 +756,26 @@ function payloadFromDraft(draft: RequestDraft): Record<string, unknown> | null {
   return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
 }
 
-function createScriptHelpers(draft: RequestDraft) {
-  const logLines: string[] = [];
-  return {
-    logLines,
-    helpers: {
-      setUrl(value: string) {
-        draft.url = String(value);
-      },
-      setHeader(name: string, value: string) {
-        const next = String(name).trim();
-        if (!next) return;
-        const current = draft.headers.find((row) => row.name.trim().toLowerCase() === next.toLowerCase());
-        if (current) current.value = String(value);
-        else draft.headers.push(createHeaderRow(next, String(value)));
-      },
-      setQueryParam(name: string, value: string) {
-        const next = String(name).trim();
-        if (!next) return;
-        const current = draft.queryParams.find((row) => row.key.trim().toLowerCase() === next.toLowerCase());
-        if (current) current.value = String(value);
-        else draft.queryParams.push(createIdRow(next, String(value)));
-      },
-      setPathParam(name: string, value: string) {
-        const next = String(name).trim();
-        if (!next) return;
-        const current = draft.pathParams.find((row) => row.key.trim().toLowerCase() === next.toLowerCase());
-        if (current) current.value = String(value);
-        else draft.pathParams.push(createIdRow(next, String(value)));
-      },
-      setBody(value: string) {
-        draft.rawBody = String(value);
-      },
-      setAuthType(value: AuthType) {
-        draft.auth.type = value;
-      },
-      log(...args: unknown[]) {
-        logLines.push(args.map((arg) => String(arg)).join(' '));
-      },
-    },
+function applyScriptMutations(draft: RequestDraft, mutations: ScriptMutation[]): void {
+  const setRow = (rows: KeyValueRow[], key: string, value: string) => {
+    const existing = rows.find((row) => row.key.trim().toLowerCase() === key.toLowerCase());
+    if (existing) existing.value = value;
+    else rows.push(createIdRow(key, value));
   };
-}
-
-function runUserScript(script: string, context: Record<string, unknown>): { ok: boolean; error?: string } {
-  if (!script.trim()) return { ok: true };
-  try {
-    const fn = new Function('context', `with (context) { ${script} }`);
-    fn(context);
-    return { ok: true };
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'Script execution failed' };
-  }
+  mutations.forEach((mutation) => {
+    if (mutation.type === 'setUrl') draft.url = mutation.value;
+    if (mutation.type === 'setHeader') {
+      const name = mutation.name.trim();
+      if (!name) return;
+      const existing = draft.headers.find((row) => row.name.trim().toLowerCase() === name.toLowerCase());
+      if (existing) existing.value = mutation.value;
+      else draft.headers.push(createHeaderRow(name, mutation.value));
+    }
+    if (mutation.type === 'setQueryParam' && mutation.name.trim()) setRow(draft.queryParams, mutation.name.trim(), mutation.value);
+    if (mutation.type === 'setPathParam' && mutation.name.trim()) setRow(draft.pathParams, mutation.name.trim(), mutation.value);
+    if (mutation.type === 'setBody') draft.rawBody = mutation.value;
+    if (mutation.type === 'setAuthType' && ['none', 'bearer', 'basic', 'api-key', 'oauth2'].includes(mutation.value)) draft.auth.type = mutation.value as AuthType;
+  });
 }
 
 function parseEnvFile(text: string): { entries: EnvLine[]; variables: Record<string, string> } {
@@ -862,7 +814,11 @@ function parseEnvFile(text: string): { entries: EnvLine[]; variables: Record<str
 }
 
 function environmentDtoToArtifact(environment: EnvironmentDto): ImportedEnvironment {
-  const entries: EnvLine[] = Object.entries(environment.variables || {}).map(([key, value]) => ({
+  const variables = Object.fromEntries(Object.entries(environment.variables || {}).map(([key, value]) => [
+    key,
+    value && typeof value === 'object' ? '' : String(value ?? ''),
+  ]));
+  const entries: EnvLine[] = Object.entries(variables).map(([key, value]) => ({
     kind: 'pair',
     raw: `${key}=${value}`,
     key,
@@ -875,9 +831,9 @@ function environmentDtoToArtifact(environment: EnvironmentDto): ImportedEnvironm
     sourceFormat: 'managed-environment',
     rawText: entries.map((entry) => entry.raw).join('\n'),
     lineCount: entries.length,
-    summary: `${Object.keys(environment.variables || {}).length} variables managed by Environment page`,
+    summary: `${Object.keys(variables).length} variables managed by Environment page`,
     entries,
-    variables: environment.variables || {},
+    variables,
   };
 }
 
@@ -1391,38 +1347,6 @@ function parseImportedFile(file: File): Promise<ImportedArtifact> {
   });
 }
 
-function persistedImportedArtifact(artifact: ImportedArtifact): unknown {
-  if (artifact.kind === 'api') {
-    return {
-      ...artifact,
-      endpoints: artifact.endpoints.map((endpoint) => ({
-        ...endpoint,
-        requestTemplate: sanitizeDraftForStorage(endpoint.requestTemplate),
-      })),
-    };
-  }
-  return artifact;
-}
-
-function hydrateImportedArtifact(artifact: ImportedArtifact): ImportedArtifact {
-  if (artifact.kind === 'api') {
-    return {
-      ...artifact,
-      endpoints: artifact.endpoints.map((endpoint) => ({
-        ...endpoint,
-        requestTemplate: {
-          ...createDraft(),
-          ...endpoint.requestTemplate,
-          binaryFile: null,
-          settings: { ...createDefaultSettings(), ...endpoint.requestTemplate.settings },
-          auth: { ...createDefaultAuth(), ...endpoint.requestTemplate.auth },
-        },
-      })),
-    };
-  }
-  return artifact;
-}
-
 function formatResponseBody(text: string): { body: string; isJson: boolean } {
   const trimmed = text.replace(/^\uFEFF/, '').trim();
   if (!trimmed) return { body: '', isJson: false };
@@ -1556,16 +1480,6 @@ export const ApiExecutionPage: React.FC = () => {
     updateAsync: updateManagedEnvironment,
     removeAsync: removeManagedEnvironment,
   } = useEnvironments(projectId);
-  const importedKey = React.useMemo(() => storageKey(projectId, 'imports'), [projectId]);
-  const manualKey = React.useMemo(() => storageKey(projectId, 'manuals'), [projectId]);
-  const savedKey = React.useMemo(() => storageKey(projectId, 'saved'), [projectId]);
-  const envSelectionKey = React.useMemo(() => storageKey(projectId, 'environment'), [projectId]);
-  const selectionKey = React.useMemo(() => storageKey(projectId, 'selection'), [projectId]);
-  const responsesKey = React.useMemo(() => storageKey(projectId, 'responses'), [projectId]);
-  const draftsKey = React.useMemo(() => storageKey(projectId, 'drafts'), [projectId]);
-  const historyKey = React.useMemo(() => storageKey(projectId, 'history'), [projectId]);
-  const runtimeDataKeyStorage = React.useMemo(() => storageKey(projectId, 'runtime-data'), [projectId]);
-
   const [searchTerm, setSearchTerm] = React.useState('');
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -1630,14 +1544,6 @@ export const ApiExecutionPage: React.FC = () => {
   const [apiImportBusy, setApiImportBusy] = React.useState(false);
   const [environmentSearch, setEnvironmentSearch] = React.useState('');
   const [environmentActionBusy, setEnvironmentActionBusy] = React.useState(false);
-  const [dataPreview, setDataPreview] = React.useState<any | null>(null);
-  const [dataPreviewOpen, setDataPreviewOpen] = React.useState(false);
-  const [dataPreviewLoading, setDataPreviewLoading] = React.useState(false);
-  const [previewOverrides, setPreviewOverrides] = React.useState<Record<string, string>>({});
-  const [previewSaveStrategies, setPreviewSaveStrategies] = React.useState<Record<string, string>>({});
-  const [previewSaveSources, setPreviewSaveSources] = React.useState<Record<string, string>>({});
-  const [previewTestCaseVersionId, setPreviewTestCaseVersionId] = React.useState('');
-  const [previewSaveStatus, setPreviewSaveStatus] = React.useState('');
 
   React.useEffect(() => {
     let cancelled = false;
@@ -1670,95 +1576,21 @@ export const ApiExecutionPage: React.FC = () => {
   }, []);
 
   React.useEffect(() => {
-    try {
-      const rawImports = localStorage.getItem(importedKey);
-      const rawManuals = localStorage.getItem(manualKey);
-      const rawSaved = localStorage.getItem(savedKey);
-      const rawHistory = localStorage.getItem(historyKey);
-      const rawEnv = localStorage.getItem(envSelectionKey);
-      const rawSelection = localStorage.getItem(selectionKey);
-      const rawResponses = localStorage.getItem(responsesKey);
-      const rawDrafts = localStorage.getItem(draftsKey);
-      const rawRuntimeData = localStorage.getItem(runtimeDataKeyStorage);
-      const parsedImports = rawImports ? (JSON.parse(rawImports) as ImportedArtifact[]) : [];
-      const parsedManuals = rawManuals ? (JSON.parse(rawManuals) as ManualRequestRecord[]) : [];
-      const parsedSaved = rawSaved ? (JSON.parse(rawSaved) as SavedRequestRecord[]) : [];
-      const parsedHistory = rawHistory ? (JSON.parse(rawHistory) as HistoryRecord[]) : [];
-      const parsedSelection = rawSelection ? (JSON.parse(rawSelection) as SelectionState | null) : null;
-      const parsedResponses = rawResponses ? (JSON.parse(rawResponses) as Record<string, ResponseState>) : {};
-      const parsedDrafts = rawDrafts ? (JSON.parse(rawDrafts) as Record<string, PersistedRequestDraft>) : {};
-      const parsedRuntimeData = rawRuntimeData ? (JSON.parse(rawRuntimeData) as RuntimeDataCache) : {};
-
-      const hydratedImports = parsedImports.map(hydrateImportedArtifact);
-      const hydratedManuals = parsedManuals.map((item) => ({
-        ...item,
-        draft: { ...createDraft(), ...item.draft, binaryFile: null, settings: { ...createDefaultSettings(), ...item.draft.settings }, auth: { ...createDefaultAuth(), ...item.draft.auth } },
-      }));
-      const hydratedSaved = parsedSaved.map((item) => ({
-        ...item,
-        draft: { ...createDraft(), ...item.draft, binaryFile: null, settings: { ...createDefaultSettings(), ...item.draft.settings }, auth: { ...createDefaultAuth(), ...item.draft.auth } },
-      }));
-
-      setImportedArtifacts(hydratedImports);
-      setManualRequests(hydratedManuals);
-      setSavedRequests(hydratedSaved);
-      setHistory(parsedHistory);
-      setResponseCache(parsedResponses);
-      setDraftCache(parsedDrafts);
-      setRuntimeData(parsedRuntimeData);
-      setActiveEnvironmentId(rawEnv || '');
-
-      const firstCollection = hydratedImports.find((item) => item.kind === 'api') as ImportedApiCollection | undefined;
-      const firstEndpoint = firstCollection?.endpoints[0];
-      const firstManual = hydratedManuals[0];
-      const restoredApi = parsedSelection?.kind === 'api-endpoint'
-        ? hydratedImports
-            .filter((item): item is ImportedApiCollection => item.kind === 'api')
-            .find((collection) => collection.id === parsedSelection.collectionId)?.endpoints.find((endpoint) => endpoint.id === parsedSelection.endpointId)
-        : null;
-      const restoredManual = parsedSelection?.kind === 'manual' ? hydratedManuals.find((item) => item.id === parsedSelection.id) : null;
-      const restoredSaved = parsedSelection?.kind === 'saved' ? hydratedSaved.find((item) => item.id === parsedSelection.id) : null;
-      if (restoredApi && parsedSelection?.kind === 'api-endpoint') {
-        setSelection(parsedSelection);
-        setDraft(cloneJson(restoredApi.requestTemplate));
-      } else if (restoredManual && parsedSelection?.kind === 'manual') {
-        setSelection(parsedSelection);
-        setDraft(cloneJson(restoredManual.draft));
-      } else if (restoredSaved && parsedSelection?.kind === 'saved') {
-        setSelection(parsedSelection);
-        setDraft(cloneJson(restoredSaved.draft));
-      } else if (firstEndpoint) {
-        const fallbackSelection = { kind: 'api-endpoint' as const, id: firstEndpoint.id, collectionId: firstCollection.id, endpointId: firstEndpoint.id };
-        setSelection(fallbackSelection);
-        setDraft(cloneJson(firstEndpoint.requestTemplate));
-      } else if (firstManual) {
-        setSelection({ kind: 'manual', id: firstManual.id });
-        setDraft(cloneJson(firstManual.draft));
-      } else if (hydratedSaved[0]) {
-        setSelection({ kind: 'saved', id: hydratedSaved[0].id });
-        setDraft(cloneJson(hydratedSaved[0].draft));
-      } else {
-        setSelection(null);
-        setDraft(createDraft());
-      }
-
-      setHydratedProjectId(projectId);
-    } catch {
-      setImportedArtifacts([]);
-      setManualRequests([]);
-      setSavedRequests([]);
-      setHistory([]);
-      setSelection(null);
-      setDraft(createDraft());
-      setActiveEnvironmentId('');
-      setHydratedProjectId(projectId);
-    }
-  }, [projectId, importedKey, manualKey, savedKey, historyKey, envSelectionKey, selectionKey, responsesKey, draftsKey, runtimeDataKeyStorage]);
-
-  React.useEffect(() => {
-    if (!lastHydrated) return;
-    localStorage.setItem(importedKey, JSON.stringify(importedArtifacts.map(persistedImportedArtifact)));
-  }, [importedArtifacts, importedKey, lastHydrated]);
+    // Prior versions stored complete requests, responses and imported .env
+    // files. Remove those snapshots before creating the memory-only workspace.
+    clearLegacyApiWorkspaceState();
+    setImportedArtifacts([]);
+    setManualRequests([]);
+    setSavedRequests([]);
+    setHistory([]);
+    setResponseCache({});
+    setDraftCache({});
+    setRuntimeData({});
+    setSelection(null);
+    setDraft(createDraft());
+    setActiveEnvironmentId('');
+    setHydratedProjectId(projectId);
+  }, [projectId]);
 
   // Migrate collections previously stored only in the API workspace into the
   // shared backend repository used by Requirements and other project pages.
@@ -1824,44 +1656,14 @@ export const ApiExecutionPage: React.FC = () => {
   }, [importedArtifacts, lastHydrated, managedEnvironments, projectId, queryClient]);
 
   React.useEffect(() => {
-    if (!lastHydrated) return;
-    localStorage.setItem(manualKey, JSON.stringify(manualRequests.map((item) => ({ ...item, draft: sanitizeDraftForStorage(item.draft) }))));
-  }, [manualRequests, manualKey, lastHydrated]);
-
-  React.useEffect(() => {
-    if (!lastHydrated) return;
-    localStorage.setItem(savedKey, JSON.stringify(savedRequests.map((item) => ({ ...item, draft: sanitizeDraftForStorage(item.draft) }))));
-  }, [savedRequests, savedKey, lastHydrated]);
-
-  React.useEffect(() => {
-    if (!lastHydrated) return;
-    localStorage.setItem(historyKey, JSON.stringify(history));
-  }, [history, historyKey, lastHydrated]);
-
-  React.useEffect(() => {
-    if (!lastHydrated) return;
-    localStorage.setItem(envSelectionKey, activeEnvironmentId);
-  }, [activeEnvironmentId, envSelectionKey, lastHydrated]);
-
-  React.useEffect(() => {
-    if (!lastHydrated) return;
-    localStorage.setItem(selectionKey, JSON.stringify(selection));
-  }, [selection, selectionKey, lastHydrated]);
-
-  React.useEffect(() => {
-    if (!lastHydrated) return;
-    localStorage.setItem(responsesKey, JSON.stringify(responseCache));
-  }, [responseCache, responsesKey, lastHydrated]);
-
-  React.useEffect(() => {
-    if (!lastHydrated) return;
-    localStorage.setItem(draftsKey, JSON.stringify(draftCache));
-  }, [draftCache, draftsKey, lastHydrated]);
-
-  React.useEffect(() => {
-    if (!lastHydrated) return;
-    localStorage.setItem(runtimeDataKeyStorage, JSON.stringify(runtimeData));
-  }, [runtimeData, runtimeDataKeyStorage, lastHydrated]);
+    const clearTransientState = () => {
+      setImportedArtifacts([]); setManualRequests([]); setSavedRequests([]); setHistory([]);
+      setResponseCache({}); setDraftCache({}); setRuntimeData({}); setSelection(null);
+      setDraft(createDraft()); setResponse(emptyResponseState()); setActiveEnvironmentId('');
+    };
+    window.addEventListener('testforge:clear-sensitive-state', clearTransientState);
+    return () => window.removeEventListener('testforge:clear-sensitive-state', clearTransientState);
+  }, []);
 
   React.useEffect(() => {
     if (!lastHydrated) return;
@@ -2326,7 +2128,6 @@ export const ApiExecutionPage: React.FC = () => {
         ? artifact
         : { ...artifact, endpoints: artifact.endpoints.filter((item) => item.id !== endpoint.id) })
       .filter((artifact) => artifact.kind !== 'api' || artifact.endpoints.length > 0);
-    localStorage.setItem(importedKey, JSON.stringify(remainingImports.map(persistedImportedArtifact)));
 
     if (selection?.kind === 'api-endpoint' && selection.endpointId === endpoint.id) {
       setSelection(null);
@@ -2377,7 +2178,6 @@ export const ApiExecutionPage: React.FC = () => {
     // Remove the local snapshot immediately as well. Otherwise a remount
     // hydrates the deleted contract and the migration effect can recreate it.
     const remainingImports = importedArtifacts.filter((item) => item.kind !== 'api');
-    localStorage.setItem(importedKey, JSON.stringify(remainingImports.map(persistedImportedArtifact)));
     if (selection?.kind === 'api-endpoint') {
       setSelection(null);
       setDraft(createDraft());
@@ -2777,7 +2577,7 @@ export const ApiExecutionPage: React.FC = () => {
     setActiveRequestLog(`Sending ${draft.method} ${draft.url}`);
 
     let workingDraft = cloneJson(draft);
-    const environmentVariables = currentEnvironmentVariables;
+    const environmentVariables = { ...currentEnvironmentVariables };
     const selectedRuntimeKey = runtimeDataKey(selection);
     const runtimeMappings = selectedRuntimeKey
       ? runtimeData[selectedRuntimeKey] || detectRuntimeFields(workingDraft).map((field) => ({ field, strategy: defaultRuntimeStrategy(field, workingDraft) }))
@@ -2794,14 +2594,17 @@ export const ApiExecutionPage: React.FC = () => {
     const envResolved = replaceTemplateVariables(workingDraft.url, environmentVariables);
     workingDraft.url = envResolved;
 
-    const scriptHelpers = createScriptHelpers(workingDraft);
-    const preContext = {
-      request: workingDraft,
-      environment: environmentVariables,
-      helpers: scriptHelpers.helpers,
-      console: { log: (...args: unknown[]) => scriptHelpers.logLines.push(args.map((value) => String(value)).join(' ')) },
-    };
-    const preResult = runUserScript(workingDraft.preRequestScript, preContext);
+    const preResult = await runSandboxedScript({
+      phase: 'pre-request',
+      script: workingDraft.preRequestScript,
+      request: { method: workingDraft.method, url: workingDraft.url, headers: requestHeadersToRecord(workingDraft.headers), body: payloadFromDraft(workingDraft) },
+      variables: environmentVariables,
+    });
+    setLastScriptOutput(preResult.logs);
+    applyScriptMutations(workingDraft, preResult.mutations);
+    Object.entries(preResult.variables).forEach(([key, value]) => {
+      if (!/(token|secret|password|api.?key|authorization|credential|private.?key|access.?key)/i.test(key)) environmentVariables[key] = value;
+    });
     if (!preResult.ok) {
       setResponse((current) => ({
         ...current,
@@ -2884,7 +2687,7 @@ export const ApiExecutionPage: React.FC = () => {
           requestUrl: urlWithParams,
           requestMethod: workingDraft.method,
         };
-        const testResults = runTestsOnResponse(workingDraft, responseState);
+        const testResults = await runTestsOnResponse(workingDraft, responseState, environmentVariables);
         setResponse({ ...responseState, tests: testResults });
         const cachedKey = responseCacheKey(selection);
         if (cachedKey) setResponseCache((current) => ({ ...current, [cachedKey]: { ...responseState, tests: testResults } }));
@@ -2951,7 +2754,7 @@ export const ApiExecutionPage: React.FC = () => {
         requestUrl: urlWithParams,
         requestMethod: workingDraft.method,
       };
-      const testResults = runTestsOnResponse(workingDraft, responseState);
+      const testResults = await runTestsOnResponse(workingDraft, responseState, environmentVariables);
       setResponse({ ...responseState, tests: testResults });
       const cachedKey = responseCacheKey(selection);
       if (cachedKey) setResponseCache((current) => ({ ...current, [cachedKey]: { ...responseState, tests: testResults } }));
@@ -2977,84 +2780,16 @@ export const ApiExecutionPage: React.FC = () => {
     }
   };
 
-  const openDataPreview = async (overrides = previewOverrides, testCaseVersionId = previewTestCaseVersionId) => {
-    if (!selectedApiEndpoint?.backendOperationId) { await executeRequest(); return; }
-    setDataPreviewLoading(true);
-    try {
-      const { data } = await apiAxios.post(`/api/projects/${projectId}/operations/${selectedApiEndpoint.backendOperationId}/data-preview`, { executionId: makeId('preview'), overrides, testCaseVersionId: testCaseVersionId.trim() || undefined });
-      setDataPreview(data.data); setDataPreviewOpen(true);
-    } catch { setActiveRequestLog('Data preview could not be loaded'); }
-    finally { setDataPreviewLoading(false); }
-  };
-
-  const savePreviewValue = async (item: any, scope: 'TEST_CASE' | 'OPERATION' | 'PROJECT') => {
-    if (!selectedApiEndpoint?.backendOperationId || item.sensitive) return;
-    const inputKey = `${item.input?.operationId}|${item.input?.location}|${item.input?.path}`;
-    const value = previewOverrides[inputKey] ?? (item.value === 'OMIT' || item.value === undefined ? '' : String(item.value));
-    const valueStrategy = previewSaveStrategies[inputKey] || 'FIXED';
-    const source = previewSaveSources[inputKey]?.trim();
-    const sourceReference = ['FIXED', 'MANUAL', 'CONTRACT_DEFAULT'].includes(valueStrategy)
-      ? { type: 'value', value }
-      : ['LINKED_RESPONSE', 'REUSE', 'DATASET', 'ENVIRONMENT'].includes(valueStrategy)
-        ? { type: valueStrategy.toLowerCase(), field: source || item.input?.path }
-        : valueStrategy === 'SECRET'
-          ? { type: 'secret', secretRef: source }
-          : null;
-    const rule = {
-      input: item.input,
-      semanticType: item.input?.semanticType || 'string',
-      required: Boolean(item.required),
-      valueStrategy,
-      changeScope: scope === 'PROJECT' ? 'PROJECT' : 'EACH_EXECUTION',
-      lifecycle: 'REUSABLE',
-      optionalFieldPolicy: item.value === 'OMIT' ? 'OMIT' : 'POPULATE',
-      sourceReference,
-      manualOverridePolicy: 'ALLOW',
-    };
-    try {
-      let savedTestCaseVersionId = previewTestCaseVersionId.trim();
-      if (scope === 'TEST_CASE') {
-        if (!previewTestCaseVersionId.trim()) { setPreviewSaveStatus('Enter an exact TestCase version ID before saving this override.'); return; }
-        const { data } = await apiAxios.post(`/api/projects/${projectId}/test-case-versions/${previewTestCaseVersionId.trim()}/data-overrides`, { input: item.input, value });
-        savedTestCaseVersionId = data.data.id;
-        setPreviewTestCaseVersionId(savedTestCaseVersionId);
-      } else if (scope === 'OPERATION') {
-        await apiAxios.post(`/api/projects/${projectId}/operations/${selectedApiEndpoint.backendOperationId}/field-data-rule`, rule);
-      } else {
-        await apiAxios.post(`/api/projects/${projectId}/project-data-defaults`, rule);
-      }
-      const nextOverrides = { ...previewOverrides }; delete nextOverrides[inputKey];
-      setPreviewOverrides(nextOverrides);
-      setPreviewSaveStatus(`Saved as ${scope === 'TEST_CASE' ? 'a new review-required TestCase version' : scope === 'OPERATION' ? 'an operation rule' : 'a project fallback'}.`);
-      await openDataPreview(nextOverrides, savedTestCaseVersionId);
-    } catch (error) {
-      setPreviewSaveStatus(error instanceof Error ? error.message : 'The override could not be saved.');
-    }
-  };
-
-  function runTestsOnResponse(currentDraft: RequestDraft, responseState: ResponseState): TestResult[] {
-    const results: TestResult[] = [];
-    const testContext = {
-      request: currentDraft,
-      response: responseState,
-      assert(condition: unknown, name: string) {
-        results.push({
-          name,
-          passed: Boolean(condition),
-          message: Boolean(condition) ? 'Passed' : 'Assertion failed',
-        });
-      },
-      test(name: string, fn: () => void) {
-        try {
-          fn();
-          results.push({ name, passed: true, message: 'Passed' });
-        } catch (error) {
-          results.push({ name, passed: false, message: error instanceof Error ? error.message : 'Test failed' });
-        }
-      },
-      console: { log: () => undefined },
-    };
-    const result = runUserScript(currentDraft.testScript, testContext);
+  async function runTestsOnResponse(currentDraft: RequestDraft, responseState: ResponseState, variables: Record<string, string>): Promise<TestResult[]> {
+    const result = await runSandboxedScript({
+      phase: 'test',
+      script: currentDraft.testScript,
+      request: { method: currentDraft.method, url: currentDraft.url, headers: requestHeadersToRecord(currentDraft.headers), body: payloadFromDraft(currentDraft) },
+      response: { status: responseState.status, statusText: responseState.statusText, headers: Object.fromEntries(responseState.headers), body: responseState.body },
+      variables,
+    });
+    setLastScriptOutput(result.logs);
+    const results: TestResult[] = result.assertions;
     if (!result.ok) {
       results.push({ name: 'Test script', passed: false, message: result.error || 'Test script failed' });
     }
@@ -3511,7 +3246,7 @@ export const ApiExecutionPage: React.FC = () => {
                       <Save className='mr-2 h-4 w-4' />
                       Save
                     </Button>
-                    <Button type='button' onClick={() => void openDataPreview()} loading={loading || dataPreviewLoading}>
+                    <Button type='button' onClick={() => void executeRequest()} loading={loading}>
                       <Send className='mr-2 h-4 w-4' />
                       Send
                     </Button>
@@ -3772,6 +3507,7 @@ export const ApiExecutionPage: React.FC = () => {
                     <div className='rounded-2xl border border-border bg-background/40 p-3 text-sm text-text-secondary'>
                       <div className='mb-2 font-medium text-text'>Script output</div>
                       {lastScriptOutput.length > 0 ? lastScriptOutput.map((line, index) => <div key={index}>{line}</div>) : <p>No output yet.</p>}
+                      <p className='mt-2 text-xs'>Sandbox {SCRIPT_SANDBOX_VERSION}: use variables.get/set and helpers.setHeader/setQueryParam/setPathParam/setUrl/setBody. DOM, storage, network, and arbitrary JavaScript are blocked.</p>
                     </div>
                   </section>
                 )}
@@ -4257,6 +3993,8 @@ export const ApiExecutionPage: React.FC = () => {
           if (!endpointDeleteBusy) setEndpointDeleteTarget(null);
         }}
       />
+      {/* Individual API sends execute directly. Keep the preview implementation
+          out of the rendered workflow until a less disruptive UX is designed.
       <EntityDialog
         open={dataPreviewOpen}
         title='Data Preview'
@@ -4285,7 +4023,7 @@ export const ApiExecutionPage: React.FC = () => {
           {previewSaveStatus && <p className='text-xs text-text-secondary'>{previewSaveStatus}</p>}
           {dataPreview?.unresolvedRequired > 0 && <p className='text-sm text-error'>Required inputs are unresolved. Configure their Data Rules before sending.</p>}
         </div>
-      </EntityDialog>
+      </EntityDialog> */}
       <EntityDialog
         open={apiImportFiles.length > 0}
         title='Review API import'

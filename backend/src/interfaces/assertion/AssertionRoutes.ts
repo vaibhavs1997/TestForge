@@ -20,6 +20,7 @@ const router = Router();
 
 // Assertion routes
 router.post('/projects/:projectId/assertions', asyncHandler((req, res) => assertionController.createAssertion(req, res)));
+router.post('/projects/:projectId/assertions/preview', asyncHandler((req, res) => assertionController.previewAssertion(req, res)));
 router.put('/projects/:projectId/assertions/:id', asyncHandler((req, res) => assertionController.updateAssertion(req, res)));
 router.delete('/projects/:projectId/assertions/:id', asyncHandler((req, res) => assertionController.deleteAssertion(req, res)));
 router.get('/projects/:projectId/assertions/:id', asyncHandler((req, res) => assertionController.getAssertion(req, res)));

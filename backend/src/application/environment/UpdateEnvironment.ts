@@ -3,11 +3,14 @@ import { EnvironmentRepository } from '../../domain/environment/EnvironmentRepos
 import { EnvironmentEntity, type EnvironmentExecutionPolicy, type EnvironmentTier, normalizeEnvironmentTier } from '../../domain/environment/EnvironmentEntity.js';
 import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 import { EventPublisher } from '../EventPublisher.js';
+import type { SecretStore } from '../../domain/security/SecretStore.js';
+import { persistEnvironmentSecrets } from './EnvironmentSecretPersistence.js';
 
 export class UpdateEnvironment {
   constructor(
     private readonly environmentRepository: EnvironmentRepository,
     private readonly eventPublisher?: EventPublisher,
+    private readonly secretStore?: SecretStore,
   ) {}
 
   async execute(params: {
@@ -49,8 +52,13 @@ export class UpdateEnvironment {
     if (params.name !== undefined) updateData.name = params.name.trim();
     if (params.baseUrl !== undefined) updateData.baseUrl = params.baseUrl.trim();
     if (params.description !== undefined) updateData.description = ValidationHelpers.trimString(params.description);
-    if (params.authentication !== undefined) updateData.authentication = params.authentication;
-    if (params.variables !== undefined) updateData.variables = params.variables;
+    if (params.authentication !== undefined || params.variables !== undefined) {
+      const persistedSecrets = this.secretStore
+        ? await persistEnvironmentSecrets({ projectId: existing.projectId, environmentId: existing.id, authentication: params.authentication, variables: params.variables }, this.secretStore)
+        : { authentication: params.authentication, variables: params.variables };
+      if (params.authentication !== undefined) updateData.authentication = persistedSecrets.authentication;
+      if (params.variables !== undefined) updateData.variables = persistedSecrets.variables;
+    }
     if (params.timeout !== undefined) updateData.timeout = params.timeout;
     if (params.isDefault !== undefined) updateData.isDefault = params.isDefault;
     if (params.tier !== undefined) updateData.tier = normalizeEnvironmentTier(params.tier);

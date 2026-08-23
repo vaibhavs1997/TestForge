@@ -4,11 +4,13 @@ import { ExecutePlan } from '../../application/execution/ExecutePlan.js';
 import { ExecutionRunRepository } from '../../infrastructure/execution/ExecutionRunRepository.js';
 import { ExecutionPlanRepository } from '../../infrastructure/requirements/ExecutionPlanRepository.js';
 import { createSuccessResponse } from "../../shared/ApiResponse.js";
+import type { DurableJobRepository } from '../../domain/jobs/DurableJob.js';
 export class ExecutionController {
     constructor(
         private readonly executePlanUseCase: ExecutePlan,
         private readonly executionRunRepository: ExecutionRunRepository,
         private readonly executionPlanRepository: ExecutionPlanRepository,
+        private readonly durableJobRepository?: DurableJobRepository,
     ) { }
     async startExecution(req: Request, res: Response): Promise<void> {
         const { executionPlanId } = req.params;
@@ -51,8 +53,21 @@ export class ExecutionController {
         res.status(200).json(createSuccessResponse(plans));
     }
     async cancelExecution(req: Request, res: Response): Promise<void> {
-        const { runId } = req.params;
-        throw new Error('Cancel execution not yet implemented');
+        const { projectId, runId } = req.params;
+        const run = await this.executionRunRepository.findById(runId);
+        if (!run || run.projectId !== projectId) throw new Error('Execution run not found');
+        const cancelled = await this.executePlanUseCase.cancel(runId);
+        if (!cancelled) throw new Error('Execution run not found');
+        // The worker persists executionRunId before its first step.  Cancelling
+        // the paired job prevents a lease expiry/reclaim from running it later.
+        const jobs = this.durableJobRepository
+          ? await this.durableJobRepository.list({ projectId })
+          : [];
+        const linked = jobs.find(job => job.payload.executionRunId === runId);
+        if (linked && linked.status !== 'CANCELLED' && linked.status !== 'SUCCEEDED') {
+            await this.durableJobRepository!.cancel(linked.jobId);
+        }
+        res.status(200).json(createSuccessResponse(cancelled));
     }
 }
 export default ExecutionController;

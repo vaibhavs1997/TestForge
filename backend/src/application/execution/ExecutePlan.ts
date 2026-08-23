@@ -4,7 +4,6 @@
 // Resolve Runtime Variables → Apply Request Overrides → Execute HTTP Request →
 // Validate Assertions → Capture Runtime Variables → Store Step Result → Continue.
 import { randomUUID } from 'node:crypto';
-import axios from 'axios';
 import { ExecutionRunEntity, ExecutionContext, ExecutionStepResult, ExecutionSummary, FailureMode, RunStatus, StepStatus, ExecutionProfileMetadata } from '../../domain/execution/ExecutionRunEntity.js';
 import { ExecutionRunRepository } from '../../domain/execution/ExecutionRunRepository.js';
 import { ExecutionPlanRepository } from '../../domain/requirements/ExecutionPlanRepository.js';
@@ -34,10 +33,12 @@ import { sensitiveDataRedactor } from '../../infrastructure/security/SensitiveDa
 import type { SecretStore } from '../../domain/security/SecretStore.js';
 import { SecretResolutionService } from '../security/SecretResolutionService.js';
 import type { FieldDataRuleRepository } from '../../domain/test-data/FieldDataRuleRepository.js';
+import { secureHttpExecutor, type SecureHttpExecutor } from '../../infrastructure/http/SecureHttpExecutor.js';
 
 export class ExecutePlan {
   private loadedProfile: ExecutionProfileEntity | null = null;
   private readonly inFlightPlanIds = new Set<string>();
+  private readonly activeRuns = new Map<string, AbortController>();
 
   constructor(
     private readonly executionRunRepository: ExecutionRunRepository,
@@ -58,6 +59,7 @@ export class ExecutePlan {
     private readonly executionSafetyService = new ExecutionSafetyService(),
     private readonly secretStore?: SecretStore,
     private readonly fieldDataRuleRepository?: FieldDataRuleRepository,
+    private readonly httpExecutor: SecureHttpExecutor = secureHttpExecutor,
   ) {
     // Initialize resolution service
     this.testDataResolutionService = new TestDataResolutionService(
@@ -74,7 +76,15 @@ export class ExecutePlan {
 
   private readonly testDataResolutionService: TestDataResolutionService;
 
-  async execute(executionPlanId: string, failureMode: FailureMode = 'StopOnFailure', executionProfileId?: string, environmentOverrideId?: string): Promise<ExecutionRunEntity> {
+  async cancel(runId: string): Promise<ExecutionRunEntity | null> {
+    const run = await this.executionRunRepository.findById(runId);
+    if (!run) return null;
+    if (run.status === 'Cancelled' || run.status === 'Completed' || run.status === 'Failed') return run;
+    this.activeRuns.get(runId)?.abort();
+    return this.executionRunRepository.update(runId, { status: 'Cancelled', completedAt: Date.now() });
+  }
+
+  async execute(executionPlanId: string, failureMode: FailureMode = 'StopOnFailure', executionProfileId?: string, environmentOverrideId?: string, onRunCreated?: (run: ExecutionRunEntity) => Promise<void> | void, existingRunId?: string): Promise<ExecutionRunEntity> {
     if (this.inFlightPlanIds.has(executionPlanId)) {
       throw new Error('An execution is already in progress for this step. Wait for it to finish.');
     }
@@ -97,7 +107,7 @@ export class ExecutePlan {
     if (!plan) {
       throw new Error(`Execution Plan with id ${executionPlanId} not found`);
     }
-    return await this.executePlan(plan, failureMode, undefined, undefined, undefined, environmentOverrideId);
+    return await this.executePlan(plan, failureMode, undefined, undefined, undefined, environmentOverrideId, onRunCreated, existingRunId);
     } finally {
       this.inFlightPlanIds.delete(executionPlanId);
       this.loadedProfile = null;
@@ -121,7 +131,7 @@ export class ExecutePlan {
     };
   }
 
-  async executeCombined(planIds: string[], failureMode: FailureMode = 'StopOnFailure', executionProfileId?: string, suiteId?: string, suiteSnapshot?: Record<string, unknown>, environmentOverrideId?: string): Promise<ExecutionRunEntity> {
+  async executeCombined(planIds: string[], failureMode: FailureMode = 'StopOnFailure', executionProfileId?: string, suiteId?: string, suiteSnapshot?: Record<string, unknown>, environmentOverrideId?: string, onRunCreated?: (run: ExecutionRunEntity) => Promise<void> | void, existingRunId?: string): Promise<ExecutionRunEntity> {
     if (planIds.length === 0) throw new Error('No execution plans supplied');
     const lockId = `suite:${suiteId || planIds.join(',')}`;
     if (this.inFlightPlanIds.has(lockId)) throw new Error('An execution is already in progress for this suite.');
@@ -140,14 +150,14 @@ export class ExecutePlan {
         if (!this.loadedProfile) throw new Error(`Execution Profile with id ${executionProfileId} not found`);
         failureMode = this.loadedProfile.failureMode as FailureMode;
       }
-      return await this.executePlan(firstPlan, failureMode, planIds, suiteId, suiteSnapshot, environmentOverrideId);
+      return await this.executePlan(firstPlan, failureMode, planIds, suiteId, suiteSnapshot, environmentOverrideId, onRunCreated, existingRunId);
     } finally {
       this.inFlightPlanIds.delete(lockId);
       this.loadedProfile = null;
     }
   }
 
-  private async executePlan(plan: any, failureMode: FailureMode, explicitPlanIds?: string[], suiteId?: string, suiteSnapshot?: Record<string, unknown>, environmentOverrideId?: string): Promise<ExecutionRunEntity> {
+  private async executePlan(plan: any, failureMode: FailureMode, explicitPlanIds?: string[], suiteId?: string, suiteSnapshot?: Record<string, unknown>, environmentOverrideId?: string, onRunCreated?: (run: ExecutionRunEntity) => Promise<void> | void, existingRunId?: string): Promise<ExecutionRunEntity> {
     // Legacy execution plans may predate requirementId persistence. Recover it
     // from the referenced design so they remain executable without rewriting data.
     const referencedDesign = !plan.requirementId && plan.testDesignId
@@ -356,13 +366,23 @@ export class ExecutePlan {
       { totalSteps: 0, passed: 0, failed: 0, skipped: 0, blocked: 0, duration: 0, validationPassed: 0, validationFailed: 0, validationWarnings: 0 },
       now, now, null, profileId, profileMetadata, suiteId || null, explicitPlanIds || [plan.id], [], resolvedSuiteSnapshot,
     );
-    const persistedRun = await this.executionRunRepository.create(sensitiveDataRedactor.redactKnownValues(sensitiveDataRedactor.redact(run), secretValues));
+    const existingRun = existingRunId ? await this.executionRunRepository.findById(existingRunId) : null;
+    if (existingRunId && !existingRun) throw new Error(`Execution run ${existingRunId} was not found for durable reclaim`);
+    if (existingRun && existingRun.status !== 'Running' && existingRun.status !== 'Pending') return existingRun;
+    const persistedRun = existingRun || await this.executionRunRepository.create(sensitiveDataRedactor.redactKnownValues(sensitiveDataRedactor.redact(run), secretValues));
+    const cancellation = new AbortController();
+    this.activeRuns.set(persistedRun.id, cancellation);
+    // A durable worker records this link before the first suite step starts.
+    // This makes an active run cancellable even though executeCombined awaits
+    // the final result for backwards-compatible callers.
+    if (!existingRun) await onRunCreated?.(persistedRun);
 
     // Execute each step
     const stepResults: ExecutionStepResult[] = [];
     const failedStepIds: Set<string> = new Set();
 
     for (const currentPlan of sortedPlans) {
+      if (cancellation.signal.aborted) break;
       const unresolvedPrerequisites = unresolvedPrerequisiteIds.get(currentPlan.id) || [];
       if (unresolvedPrerequisites.length > 0) {
         const blockedResult: ExecutionStepResult = {
@@ -422,9 +442,16 @@ export class ExecutePlan {
         continue;
       }
 
-      const stepOperation = currentPlan.operationId
-        ? await this.apiOperationRepository.findById(currentPlan.operationId)
-        : null;
+      // An executable plan is protocol-neutral, but it must always carry a
+      // resolvable contract operation identity. Do not let malformed legacy
+      // rows reach Test Data resolution as an undefined JavaScript value.
+      if (typeof currentPlan.operationId !== 'string' || !currentPlan.operationId.trim()) {
+        throw new Error(`EXECUTION_PLAN_OPERATION_REFERENCE_INVALID: plan ${currentPlan.id} has no operationId`);
+      }
+      const stepOperation = await this.apiOperationRepository.findById(currentPlan.operationId);
+      // Legacy plan fixtures may execute against a direct request URL without a
+      // stored operation row. Their non-empty canonical operation ID remains
+      // valid; only absent identities are rejected before Test Data resolution.
       const stepServiceId = stepOperation?.serviceId ?? '';
 
       // Resolve test data for this step
@@ -479,7 +506,26 @@ export class ExecutePlan {
         failedStepIds.add(currentPlan.id);
         continue;
       }
-      const stepResult = await this.executeStep(dependencyResolution.plan, context, resolvedValues);
+      const stepResult = await this.executeStep(
+        {
+          ...dependencyResolution.plan,
+          assertions: [
+            ...(dependencyResolution.plan.assertions || []),
+            ...reusableAssertions.map((assertion) => ({
+              type: assertion.type === 'Custom Assertion' ? 'custom' : assertion.type,
+              operator: (assertion.expectedValue as any)?.operator || 'equals',
+              path: assertion.expression,
+              expected: assertion.expectedValue,
+              reusableAssertionId: assertion.id,
+            })),
+          ],
+        },
+        context,
+        resolvedValues,
+        executionEnvironment.executionPolicy?.outboundEgressPolicy,
+        executionEnvironment.tier,
+        cancellation.signal,
+      );
       
       // Store resolved test data in step result
       (stepResult as any).resolvedTestData = {
@@ -517,7 +563,13 @@ export class ExecutePlan {
     };
 
     // Determine final status
-    const finalStatus: RunStatus = summary.failed > 0
+    // A cancellation may have been persisted by a controller/worker outside
+    // this in-process controller map. Re-read before finalizing so late work
+    // can never overwrite the terminal cancellation state.
+    const storedRun = typeof (this.executionRunRepository as any).findById === 'function'
+      ? await this.executionRunRepository.findById(persistedRun.id)
+      : null;
+    const finalStatus: RunStatus = cancellation.signal.aborted || storedRun?.status === 'Cancelled' ? 'Cancelled' : summary.failed > 0
       ? (failureMode === 'StopOnFailure' ? 'Failed' : 'Completed')
       : 'Completed';
 
@@ -545,6 +597,7 @@ export class ExecutePlan {
     );
 
     const result = await this.executionRunRepository.update(persistedRun.id, sensitiveDataRedactor.redactKnownValues(sensitiveDataRedactor.redact(updatedRun), secretValues));
+    this.activeRuns.delete(persistedRun.id);
 
     // Publish through central EventPublisher — triggers audit, notification,
     // cache invalidation, recommendation refresh, and pipeline refresh.
@@ -555,7 +608,14 @@ export class ExecutePlan {
     return result;
   }
 
-  private async executeStep(plan: any, context: ExecutionContext, resolvedValues: Record<string, ResolvedValue> = {}): Promise<ExecutionStepResult> {
+  private async executeStep(
+    plan: any,
+    context: ExecutionContext,
+    resolvedValues: Record<string, ResolvedValue> = {},
+    egressPolicy?: Record<string, unknown>,
+    environmentTier?: string,
+    cancellationSignal?: AbortSignal,
+  ): Promise<ExecutionStepResult> {
     const startedAt = Date.now();
     const stepResult: ExecutionStepResult = {
       stepId: plan.id,
@@ -613,131 +673,85 @@ export class ExecutePlan {
 
     stepResult.request = { method, url, headers, body };
 
-    // Execute HTTP request
-    const requestStart = Date.now();
-    const timeout = this.loadedProfile?.timeout || DEFAULT_TIMEOUT_MS;
-
-    try {
-      const response = await axios({
-        method: method.toLowerCase(),
-        url,
-        headers,
-        data: body,
-        timeout,
-        validateStatus: () => true, // Don't throw on any status code
-      });
-      const duration = Date.now() - requestStart;
-
-      // Store response
-      stepResult.response = {
-        status: response.status,
-        statusText: response.statusText,
-        headers: this.normalizeHeaders(response.headers),
-        body: response.data,
-        duration,
-      };
-
-      // Store response in context for future steps
-      context.responses[plan.id] = response.data;
-
-      // Validate assertions
-      const assertionResults = (plan.assertions || []).map((assertion: any) => {
-        const actual = this.extractValue(response, assertion.path, assertion.type);
-        const passed = this.validateAssertion(assertion, actual);
-        return {
-          type: assertion.type,
-          operator: assertion.operator,
-          path: assertion.path,
-          expected: assertion.expected,
-          actual,
-          passed,
-        };
-      });
-      stepResult.assertions = assertionResults;
-
-      // Run validation engine
-      const validationRules: ValidationRule[] = (plan.assertions || []).map((assertion: any, index: number) => ({
-        id: `validation-${index}`,
-        executionPlanId: plan.id,
-        name: `Validation ${index + 1}`,
-        type: this.mapAssertionType(assertion.type),
-        config: {
-          path: assertion.path,
-          expected: assertion.expected,
-          operator: assertion.operator,
-        },
-      }));
-
-      const validationContext = {
-        response: response,
-        runtimeVariables: context.runtimeVariables,
-      };
-
-      const validationStepResult: StepValidationResult = ValidationEngine.validateStep(validationRules, validationContext);
-      stepResult.validations = validationStepResult.validations;
-
-      // Capture runtime variables
-      const capturedVariables: Record<string, any> = {};
-      for (const binding of (plan.runtimeBindings || [])) {
-        if (binding.source === 'response') {
-          const value = this.extractValue(response, binding.path, 'body');
-          capturedVariables[binding.variable] = value;
-          context.runtimeVariables[binding.variable] = value;
-        }
+    // Resolved values and the request are built once per test execution, so
+    // retry attempts retain Test Data scope and never consume/regenerate rows.
+    const maxRetries = this.loadedProfile?.retryPolicy.enabled ? this.loadedProfile.retryPolicy.maxRetries : 0;
+    const retryDelay = this.loadedProfile?.retryPolicy.retryDelay ?? 0;
+    const attempts: NonNullable<ExecutionStepResult['attempts']> = [];
+    for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+      if (cancellationSignal?.aborted) break;
+      if (attempt > 0 && retryDelay > 0) await this.waitForRetry(retryDelay, cancellationSignal);
+      if (cancellationSignal?.aborted) break;
+      const outcome = await this.executeAttempt(plan, context, { method, url, headers, body }, egressPolicy, environmentTier, attempt + 1, cancellationSignal);
+      attempts.push(outcome.metadata);
+      stepResult.response = outcome.response;
+      stepResult.assertions = outcome.assertions;
+      stepResult.validations = outcome.validations;
+      stepResult.status = outcome.accepted ? 'Passed' : 'Failed';
+      stepResult.error = outcome.error;
+      if (outcome.accepted) {
+        context.responses[plan.id] = outcome.rawResponse.data;
+        stepResult.capturedVariables = this.captureRuntimeVariables(plan, outcome.rawResponse, context);
+        break;
       }
-      stepResult.capturedVariables = capturedVariables;
-
-      // Determine step status
-      const allPassed = assertionResults.every((a: any) => a.passed);
-      stepResult.status = allPassed ? 'Passed' : 'Failed';
-      stepResult.completedAt = Date.now();
-
-    } catch (error: any) {
-      // Apply retry policy from profile
-      if (this.loadedProfile?.retryPolicy.enabled && this.loadedProfile.retryPolicy.maxRetries > 0) {
-        let retryCount = 0;
-        const maxRetries = this.loadedProfile.retryPolicy.maxRetries;
-        const retryDelay = this.loadedProfile.retryPolicy.retryDelay;
-
-        while (retryCount < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, retryDelay));
-          retryCount++;
-          try {
-            const retryResponse = await axios({
-              method: method.toLowerCase(),
-              url,
-              headers,
-              data: body,
-              timeout: this.loadedProfile.timeout,
-              validateStatus: () => true,
-            });
-            stepResult.response = {
-              status: retryResponse.status,
-              statusText: retryResponse.statusText,
-              headers: this.normalizeHeaders(retryResponse.headers),
-              body: retryResponse.data,
-              duration: Date.now() - requestStart,
-            };
-            stepResult.status = 'Passed';
-            stepResult.error = null;
-            stepResult.completedAt = Date.now();
-            break;
-          } catch (retryError: any) {
-            if (retryCount >= maxRetries) {
-              stepResult.status = 'Failed';
-              stepResult.error = `Failed after ${maxRetries} retries: ${retryError.message || 'Unknown error'}`;
-              stepResult.completedAt = Date.now();
-            }
-          }
-        }
-      } else {
-        stepResult.status = 'Failed';
-        stepResult.error = error.message || 'Unknown error';
-        stepResult.completedAt = Date.now();
-      }
+      if (this.isCancellationError(outcome.error)) break;
     }
+    stepResult.attempts = attempts;
+    stepResult.completedAt = Date.now();
 
     return stepResult;
+  }
+
+  private async executeAttempt(
+    plan: any, context: ExecutionContext, request: { method: string; url: string; headers: Record<string, string>; body: any }, egressPolicy: Record<string, unknown> | undefined, environmentTier: string | undefined, attempt: number, cancellationSignal?: AbortSignal,
+  ): Promise<{ accepted: boolean; response: ExecutionStepResult['response']; rawResponse?: any; assertions: ExecutionStepResult['assertions']; validations: ExecutionStepResult['validations']; error: string | null; metadata: NonNullable<ExecutionStepResult['attempts']>[number] }> {
+    const startedAt = Date.now();
+    try {
+      const response = await this.httpExecutor.execute({ method: request.method.toLowerCase(), url: request.url, headers: request.headers, data: request.body, timeout: this.loadedProfile?.timeout || DEFAULT_TIMEOUT_MS, validateStatus: () => true, egressPolicy, environmentTier, signal: cancellationSignal });
+      if (cancellationSignal?.aborted) throw new Error('Execution cancelled');
+      const responseResult = { status: response.status, statusText: response.statusText, headers: this.normalizeHeaders(response.headers), body: response.data, duration: Date.now() - startedAt };
+      const assertions = (plan.assertions || []).map((assertion: any) => {
+        const actual = this.extractValue(response, assertion.path, assertion.type);
+        return { type: assertion.type, operator: assertion.operator, path: assertion.path, expected: assertion.expected, actual, passed: this.validateAssertion(assertion, actual) };
+      });
+      const rules: ValidationRule[] = (plan.assertions || []).map((assertion: any, index: number) => ({ id: `validation-${index}`, executionPlanId: plan.id, name: `Validation ${index + 1}`, type: this.mapAssertionType(assertion.type), config: { path: assertion.path, expected: assertion.expected, operator: assertion.operator } }));
+      const validations = ValidationEngine.validateStep(rules, { response, runtimeVariables: context.runtimeVariables }).validations;
+      assertions.forEach((item: any, index: number) => {
+        if (this.mapAssertionType(item.type) === 'Custom Assertion') item.passed = validations[index]?.status === 'Passed';
+      });
+      const accepted = response.status >= 200 && response.status < 300 && assertions.every((item: any) => item.passed) && validations.every((item) => item.status !== 'Failed');
+      const error = accepted ? null : response.status < 200 || response.status >= 300 ? `HTTP ${response.status}` : assertions.some((item: any) => !item.passed) ? 'Assertion failed' : 'Validation failed';
+      return { accepted, response: responseResult, rawResponse: response, assertions, validations, error, metadata: { attempt, outcome: accepted ? 'Passed' : 'Failed', statusCode: response.status, error: error || undefined, startedAt, completedAt: Date.now() } };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Request failed';
+      return { accepted: false, response: null, assertions: [], validations: [], error: message, metadata: { attempt, outcome: 'Failed', error: message.slice(0, 300), startedAt, completedAt: Date.now() } };
+    }
+  }
+
+  private captureRuntimeVariables(plan: any, response: any, context: ExecutionContext): Record<string, any> {
+    const captured: Record<string, any> = {};
+    for (const binding of (plan.runtimeBindings || [])) {
+      if (binding.source !== 'response') continue;
+      const value = this.extractValue(response, binding.path, 'body');
+      captured[binding.variable] = value;
+      context.runtimeVariables[binding.variable] = value;
+    }
+    return captured;
+  }
+
+  private isCancellationError(error: string | null): boolean {
+    return Boolean(error && /(cancelled|canceled|abort)/i.test(error));
+  }
+
+  private async waitForRetry(delay: number, signal?: AbortSignal): Promise<void> {
+    if (!signal) return new Promise((resolve) => setTimeout(resolve, delay));
+    const abortSignal = signal;
+    await new Promise<void>((resolve) => {
+      let timer: NodeJS.Timeout;
+      function done() { clearTimeout(timer); abortSignal.removeEventListener('abort', done); resolve(); }
+      timer = setTimeout(done, delay);
+      abortSignal.addEventListener('abort', done, { once: true });
+    });
   }
 
   private applyDependencyValues(plan: any, context: ExecutionContext, plans: any[]): { plan: any; error?: string } {

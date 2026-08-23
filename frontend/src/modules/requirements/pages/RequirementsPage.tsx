@@ -667,6 +667,16 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = ({ section = 'r
     }
   };
 
+  const handleUpdateDesignRequestBody = async (design: TestDesign, body: unknown) => {
+    await artifacts.updateDesign({
+      designId: design.id,
+      // Only the body is patched. The backend merges this with the existing
+      // request overrides so mapping, headers, query values, and assertions
+      // are not changed by preview autosave.
+      requestOverrides: { body },
+    });
+  };
+
   const togglePlanIncluded = async (plan: ExecutionPlan) => {
     const nextStatus = plan.status === 'Disabled' ? 'Ready' : 'Disabled';
     try {
@@ -1398,6 +1408,8 @@ export const RequirementsPage: React.FC<RequirementsPageProps> = ({ section = 'r
               getPriorityBadgeClassName={getPriorityBadgeVariant}
               operations={projectOperations}
               onChangeOperation={handleUpdateDesignOperation}
+              onChangeRequestBody={handleUpdateDesignRequestBody}
+              allowRequestBodyEdit={requirement.approvalStatus === 'Suggested' || requirement.approvalStatus === 'Approved'}
               isUpdatingMapping={artifacts.isUpdatingMapping}
               allowMappingEdit={requirement.approvalStatus !== 'Approved' && requirement.approvalStatus !== 'Archived'}
             />

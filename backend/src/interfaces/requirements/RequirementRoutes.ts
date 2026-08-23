@@ -105,6 +105,7 @@ const updateTestDesign = new UpdateTestDesign(
   testDesignRepository,
   apiOperationRepository,
   testStrategyRepository,
+  executionPlanRepository,
 );
 
 const getRequirementMappingContext = new GetRequirementMappingContext(

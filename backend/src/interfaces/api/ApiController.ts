@@ -164,6 +164,13 @@ export class ApiController {
         });
         res.status(200).json(createSuccessResponse(summary));
     }
+    async previewImportContract(req: Request, res: Response): Promise<void> {
+        const { projectId } = req.params;
+        const file = req.file;
+        if (!file) throw new Error('No file uploaded');
+        const summary = await this.importApiContract.execute({ projectId, fileName: file.originalname, content: file.buffer.toString('utf-8'), preview: true });
+        res.status(200).json(createSuccessResponse(summary));
+    }
     async importContractFromUrl(req: Request, res: Response): Promise<void> {
         const { projectId } = req.params;
         const url = typeof req.body?.url === 'string' ? req.body.url.trim() : '';
@@ -176,6 +183,14 @@ export class ApiController {
             fileName,
             content,
         });
+        res.status(200).json(createSuccessResponse(summary));
+    }
+    async previewImportContractFromUrl(req: Request, res: Response): Promise<void> {
+        const { projectId } = req.params;
+        const url = typeof req.body?.url === 'string' ? req.body.url.trim() : '';
+        if (!url) throw new Error('URL is required');
+        const { content, fileName } = await fetchContractFromUrl(url);
+        const summary = await this.importApiContract.execute({ projectId, fileName, content, preview: true });
         res.status(200).json(createSuccessResponse(summary));
     }
 }

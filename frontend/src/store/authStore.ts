@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { getStoredJwt, setStoredJwt } from '../services/authSession';
 import { authApi, type AuthUser } from '../services/authApi';
 import { projectStore } from './projectStore';
+import { clearSensitiveBrowserState } from '../utils/sensitiveBrowserState';
 
 interface AuthState {
   loginRequired: boolean | null;
@@ -78,6 +79,8 @@ export const authStore = create<AuthState>((set) => ({
 
   logout: () => {
     setStoredJwt(null);
+    clearSensitiveBrowserState();
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('testforge:clear-sensitive-state'));
     projectStore.getState().setSelectedProjectId(null);
     set({ user: null, manualLogoutUntil: Date.now() + 3000 });
   },

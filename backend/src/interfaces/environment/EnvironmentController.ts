@@ -7,6 +7,7 @@ import { GetEnvironment } from '../../application/environment/GetEnvironment.js'
 import { ListEnvironments } from '../../application/environment/ListEnvironments.js';
 import { UpsertEnvironments } from '../../application/environment/UpsertEnvironments.js';
 import { createSuccessResponse } from '../../shared/ApiResponse.js';
+import { maskEnvironmentSecrets } from '../../application/environment/EnvironmentSecretPersistence.js';
 
 export class EnvironmentController {
   constructor(
@@ -21,7 +22,7 @@ export class EnvironmentController {
   async listEnvironments(req: Request, res: Response): Promise<void> {
     const projectId = req.params.projectId;
     const environments = await this.listEnvironmentsUseCase.execute({ projectId });
-    res.status(200).json(createSuccessResponse(environments));
+    res.status(200).json(createSuccessResponse(environments.map(maskEnvironmentSecrets)));
   }
 
   async createEnvironment(req: Request, res: Response): Promise<void> {
@@ -40,7 +41,7 @@ export class EnvironmentController {
       executionPolicy,
     });
 
-    res.status(201).json(createSuccessResponse(environment));
+    res.status(201).json(createSuccessResponse(maskEnvironmentSecrets(environment)));
   }
 
   async upsertEnvironments(req: Request, res: Response): Promise<void> {
@@ -62,13 +63,13 @@ export class EnvironmentController {
       }[],
     });
 
-    res.status(200).json(createSuccessResponse(result));
+    res.status(200).json(createSuccessResponse({ ...result, environments: result.environments.map(maskEnvironmentSecrets) }));
   }
 
   async getEnvironment(req: Request, res: Response): Promise<void> {
     const { environmentId } = req.params;
     const environment = await this.getEnvironmentUseCase.execute(environmentId);
-    res.status(200).json(createSuccessResponse(environment));
+    res.status(200).json(createSuccessResponse(maskEnvironmentSecrets(environment)));
   }
 
   async updateEnvironment(req: Request, res: Response): Promise<void> {
@@ -88,7 +89,7 @@ export class EnvironmentController {
       executionPolicy,
     });
 
-    res.status(200).json(createSuccessResponse(environment));
+    res.status(200).json(createSuccessResponse(maskEnvironmentSecrets(environment)));
   }
 
   async deleteEnvironment(req: Request, res: Response): Promise<void> {

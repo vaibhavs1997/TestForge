@@ -202,19 +202,12 @@ export const KnowledgePage: React.FC = () => {
   React.useEffect(() => {
     if (!projectId) return;
     let cancelled = false;
-    const importsKey = `testforge:api-workspace:imports:project:${projectId}`;
     const loadWorkspaceStats = async () => {
-      let importedApis = 0;
-      try {
-        const raw = localStorage.getItem(importsKey);
-        const artifacts = raw ? JSON.parse(raw) as Array<{ kind: string; endpoints?: unknown[] }> : [];
-        importedApis = artifacts.filter((artifact) => artifact.kind === 'api').reduce((count, artifact) => count + (artifact.endpoints?.length || 0), 0);
-      } catch { importedApis = 0; }
       try {
         const datasets = await datasetService.listDatasets(projectId);
-        if (!cancelled) setWorkspaceStats({ importedApis, datasets: datasets.length });
+        if (!cancelled) setWorkspaceStats({ importedApis: 0, datasets: datasets.length });
       } catch {
-        if (!cancelled) setWorkspaceStats({ importedApis, datasets: 0 });
+        if (!cancelled) setWorkspaceStats({ importedApis: 0, datasets: 0 });
       }
     };
     void loadWorkspaceStats();

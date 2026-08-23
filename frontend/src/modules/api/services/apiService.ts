@@ -147,6 +147,17 @@ class ApiService extends ApiClient<ApiServiceDto> {
     const path = `/projects/${projectId}/import/url`;
     return this.post(path, { url });
   }
+
+  /** Safe review endpoint; it never writes services, operations, or rules. */
+  async previewImportContract(projectId: string, file: File): Promise<ImportSummary> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.post(`/projects/${projectId}/import/preview`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+  }
+
+  async previewImportContractFromUrl(projectId: string, url: string): Promise<ImportSummary> {
+    return this.post(`/projects/${projectId}/import/url/preview`, { url });
+  }
 }
 
 export const apiService = new ApiService();

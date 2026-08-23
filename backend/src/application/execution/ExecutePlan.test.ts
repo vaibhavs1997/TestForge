@@ -3,6 +3,7 @@ import axios from 'axios';
 import { ExecutePlan } from './ExecutePlan.js';
 import { EnvironmentEntity } from '../../domain/environment/EnvironmentEntity.js';
 import { ExecutionRunEntity } from '../../domain/execution/ExecutionRunEntity.js';
+import { secureHttpExecutor } from '../../infrastructure/http/SecureHttpExecutor.js';
 
 vi.mock('axios', () => ({
   default: vi.fn(),
@@ -54,6 +55,7 @@ describe('ExecutePlan', () => {
       headers: {},
       data: { ok: true },
     } as any);
+    vi.spyOn(secureHttpExecutor, 'execute').mockImplementation((config: any) => mockedAxios(config) as any);
 
     executionRunRepository = {
       create: vi.fn(async (run: ExecutionRunEntity) => run),
@@ -87,6 +89,35 @@ describe('ExecutePlan', () => {
     expect(result.status).toBe('Completed');
     expect(executionRunRepository.create).toHaveBeenCalled();
     expect(executionRunRepository.update).toHaveBeenCalled();
+  });
+
+  it('executes enabled reusable custom assertions as part of the normal attempt', async () => {
+    const executePlan = new ExecutePlan(
+      executionRunRepository as any,
+      { findByProject: vi.fn().mockResolvedValue([]), findById: vi.fn().mockResolvedValue(plan), findByRequirement: vi.fn().mockResolvedValue([plan]) } as any,
+      { findById: vi.fn().mockResolvedValue({ id: 'req-1' }) } as any,
+      { findByProject: vi.fn().mockResolvedValue([environment]) } as any,
+      { findById: vi.fn() } as any,
+      { findById: vi.fn().mockResolvedValue({ id: 'op-1', serviceId: 'svc-1', method: 'GET', path: '/get' }) } as any,
+      { findByProjectAndOperation: vi.fn().mockResolvedValue([]) } as any,
+      {} as any, { findByDataset: vi.fn().mockResolvedValue([]) } as any, { findByProject: vi.fn().mockResolvedValue([]) } as any,
+      { findById: vi.fn().mockResolvedValue({ assertionIds: [{ assertionId: 'custom-1', enabled: true }] }) } as any,
+      { findById: vi.fn().mockResolvedValue({ id: 'custom-1', enabled: true, type: 'Custom Assertion', expression: '$.ok', expectedValue: { operator: 'equals', expected: false } }) } as any,
+    );
+    const result = await executePlan.execute('plan-1');
+    expect(result.stepResults[0].status).toBe('Failed');
+    expect(result.stepResults[0].validations[0].status).toBe('Failed');
+  });
+
+  it('cancels an active run idempotently without changing terminal runs', async () => {
+    const running: any = { id: 'run-cancel', projectId: 'p1', status: 'Running' };
+    const repository: any = { ...executionRunRepository, findById: vi.fn().mockResolvedValue(running) };
+    repository.update.mockImplementation(async (_id: string, patch: any) => ({ ...running, ...patch }));
+    const runner = new ExecutePlan(repository, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
+    await expect(runner.cancel('run-cancel')).resolves.toMatchObject({ status: 'Cancelled' });
+    running.status = 'Cancelled';
+    await expect(runner.cancel('run-cancel')).resolves.toBe(running);
+    expect(repository.update).toHaveBeenCalledTimes(1);
   });
 
   it('uses a resolved secret in the outbound request but never persists that value in the run', async () => {

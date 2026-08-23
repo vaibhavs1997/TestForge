@@ -20,6 +20,16 @@ export interface ExecutionDependencyRecord {
   prerequisitePlanIds: string[];
 }
 
+/** Sanitized attempt trace; response evidence remains governed separately. */
+export interface ExecutionAttemptMetadata {
+  attempt: number;
+  outcome: 'Passed' | 'Failed';
+  statusCode?: number;
+  error?: string;
+  startedAt: number;
+  completedAt: number;
+}
+
 export interface ExecutionStepResult {
   stepId: string;
   executionOrder: number;
@@ -62,6 +72,7 @@ export interface ExecutionStepResult {
     duration: number;
     error: string | null;
   }[];
+  attempts?: ExecutionAttemptMetadata[];
   resolvedTestData?: {
     resolvedValues: Record<string, any>;
     datasetId?: string;

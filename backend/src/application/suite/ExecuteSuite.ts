@@ -1,6 +1,7 @@
 import { ExecutePlan } from '../execution/ExecutePlan.js';
 import { TestSuiteRepository } from '../../infrastructure/suite/TestSuiteRepository.js';
 import { ExecutionPlanRepository } from '../../infrastructure/requirements/ExecutionPlanRepository.js';
+import type { ExecutionRunEntity } from '../../domain/execution/ExecutionRunEntity.js';
 
 /** Executes every ordered execution plan attached to an active suite. */
 export class ExecuteSuite {
@@ -15,6 +16,8 @@ export class ExecuteSuite {
     failureMode?: 'ContinueOnFailure' | 'StopOnFailure',
     executionProfileId?: string,
     environmentOverrideId?: string,
+    onRunCreated?: (run: ExecutionRunEntity) => Promise<void> | void,
+    existingRunId?: string,
   ) {
     const suite = await this.suiteRepository.findById(suiteId);
     if (!suite) throw new Error('Test suite not found');
@@ -39,10 +42,14 @@ export class ExecuteSuite {
         },
         plans,
       }));
-      return this.executePlan.executeCombined(selectedPlanIds, mode, executionProfileId, suite.id, snapshot, environmentOverrideId);
+      return onRunCreated || existingRunId
+        ? this.executePlan.executeCombined(selectedPlanIds, mode, executionProfileId, suite.id, snapshot, environmentOverrideId, onRunCreated, existingRunId)
+        : this.executePlan.executeCombined(selectedPlanIds, mode, executionProfileId, suite.id, snapshot, environmentOverrideId);
     }
     // Compatibility fallback for callers that have not supplied the repository.
-    return this.executePlan.execute(selectedPlanIds[0], mode, executionProfileId);
+    return onRunCreated || environmentOverrideId || existingRunId
+      ? this.executePlan.execute(selectedPlanIds[0], mode, executionProfileId, environmentOverrideId, onRunCreated, existingRunId)
+      : this.executePlan.execute(selectedPlanIds[0], mode, executionProfileId);
   }
 }
 

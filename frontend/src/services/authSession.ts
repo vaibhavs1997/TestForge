@@ -3,8 +3,8 @@
  * API isolation is enforced by the backend (JWT / API key).
  */
 
-const JWT_STORAGE_KEY = 'testforge_auth_jwt';
 const ANON_ID_KEY = 'testforge_anon_id';
+let inMemoryJwt: string | null = null;
 
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
@@ -18,20 +18,13 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
 }
 
 export function getStoredJwt(): string | null {
-  if (typeof window === 'undefined') return null;
-  const fromStorage = localStorage.getItem(JWT_STORAGE_KEY)?.trim();
-  if (fromStorage) return fromStorage;
-  const fromEnv = import.meta.env.VITE_AUTH_JWT?.trim();
-  return fromEnv || null;
+  return inMemoryJwt;
 }
 
 export function setStoredJwt(token: string | null): void {
-  if (typeof window === 'undefined') return;
-  if (token) {
-    localStorage.setItem(JWT_STORAGE_KEY, token);
-  } else {
-    localStorage.removeItem(JWT_STORAGE_KEY);
-  }
+  // Kept only for the lifetime of this document.  JWTs and VITE_* credentials
+  // are intentionally never read from or written to browser persistence.
+  inMemoryJwt = token?.trim() || null;
 }
 
 /** Stable subject for namespacing browser storage per user. */
@@ -62,8 +55,6 @@ export function getScopedStorageKey(base: string): string {
 export function getAuthAuthorizationHeader(): string | undefined {
   const jwt = getStoredJwt();
   if (jwt) return `Bearer ${jwt}`;
-  const apiKey = import.meta.env.VITE_API_KEY?.trim();
-  if (apiKey) return `Bearer ${apiKey}`;
   return undefined;
 }
 

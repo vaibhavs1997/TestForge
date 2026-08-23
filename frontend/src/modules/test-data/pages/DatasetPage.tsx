@@ -1987,10 +1987,11 @@ const ApiDataReadiness: React.FC<{ projectId: string }> = ({ projectId }) => {
   const [recommendations, setRecommendations] = React.useState<ApiDataRecommendation[]>([]);
 
   React.useEffect(() => {
-    try {
-      const raw = localStorage.getItem(`testforge:api-workspace:imports:project:${projectId}`);
-      const artifacts = raw ? JSON.parse(raw) as Array<{ kind: string; name: string; endpoints?: Array<any> }> : [];
-      const rows: ApiDataRecommendation[] = [];
+    // Request templates remain in memory; canonical API operations are the
+    // source for persisted test-data configuration.
+    setRecommendations([]);
+  }, [projectId]);
+/*
       artifacts.filter((artifact) => artifact.kind === 'api').forEach((collection) => {
         (collection.endpoints || []).forEach((endpoint) => {
           const draft = endpoint.requestTemplate || {};
@@ -2035,10 +2036,7 @@ const ApiDataReadiness: React.FC<{ projectId: string }> = ({ projectId }) => {
         });
       });
       setRecommendations(rows);
-    } catch {
-      setRecommendations([]);
-    }
-  }, [projectId]);
+*/
 
   if (recommendations.length === 0) return null;
   const managedFields = recommendations.filter((item) => item.category !== 'Static input');
@@ -2059,17 +2057,9 @@ const ApiDataReadiness: React.FC<{ projectId: string }> = ({ projectId }) => {
 };
 
 const DataFlowSection: React.FC<{ section: 'scenarios' | 'bindings' | 'reservations'; projectId: string; datasets: Dataset[] }> = ({ section, projectId, datasets }) => {
-  const scenarioKey = `testforge:test-data:scenarios:${projectId}`;
   const [scenarios, setScenarios] = React.useState<DataScenario[]>([]);
   const [scenarioName, setScenarioName] = React.useState('');
   const [reservedRows, setReservedRows] = React.useState<Array<{ dataset: string; rowId: string; reservedAt?: number }>>([]);
-
-  React.useEffect(() => {
-    try {
-      const stored = localStorage.getItem(scenarioKey);
-      setScenarios(stored ? JSON.parse(stored) as DataScenario[] : []);
-    } catch { setScenarios([]); }
-  }, [scenarioKey]);
 
   React.useEffect(() => {
     if (section !== 'reservations' || !projectId) return;
@@ -2086,15 +2076,13 @@ const DataFlowSection: React.FC<{ section: 'scenarios' | 'bindings' | 'reservati
     if (!name) return;
     const next = [...scenarios, { id: `${Date.now()}`, name, description: 'Reusable data context for API execution', createdAt: Date.now() }];
     setScenarios(next);
-    localStorage.setItem(scenarioKey, JSON.stringify(next));
     setScenarioName('');
   };
 
   if (section === 'scenarios') return <Card><CardHeader><CardTitle>Data Scenarios</CardTitle><p className='text-sm text-text-secondary'>Reusable data contexts for registration, login, admin, and other API workflows.</p></CardHeader><CardContent className='space-y-4'><div className='flex gap-2'><input value={scenarioName} onChange={(event) => setScenarioName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') addScenario(); }} placeholder='Scenario name, e.g. Existing Login User' className='h-10 flex-1 rounded-lg border border-border bg-background px-3 text-sm text-text outline-none' /><Button onClick={addScenario}><Plus className='mr-2 h-4 w-4' />Create scenario</Button></div>{scenarios.length === 0 ? <EmptyState title='No scenarios yet' description='Create a scenario to group reusable dataset values for API workflows.' /> : <div className='grid gap-3 md:grid-cols-2'>{scenarios.map((scenario) => <div key={scenario.id} className='rounded-lg border border-border p-4'><div className='flex items-center justify-between'><span className='font-medium text-text'>{scenario.name}</span><Badge variant='outline'>Reusable</Badge></div><p className='mt-2 text-sm text-text-secondary'>{scenario.description}</p></div>)}</div>}</CardContent></Card>;
 
   if (section === 'bindings') {
-    let bindings: Array<{ field: string; strategy: string }> = [];
-    try { const runtime = JSON.parse(localStorage.getItem(`testforge:api-workspace:runtime-data:project:${projectId}`) || '{}') as Record<string, Array<{ field: string; strategy: string }>>; bindings = Object.values(runtime).flat(); } catch { bindings = []; }
+    const bindings: Array<{ field: string; strategy: string }> = [];
     return <Card><CardHeader><CardTitle>API Bindings</CardTitle><p className='text-sm text-text-secondary'>Runtime mappings that feed test data into API requests.</p></CardHeader><CardContent>{bindings.length === 0 ? <EmptyState title='No API bindings yet' description='Configure Runtime test data from an API endpoint Settings tab.' /> : <div className='space-y-2'>{bindings.map((binding, index) => <div key={`${binding.field}-${index}`} className='flex items-center justify-between rounded-lg border border-border p-3'><span className='font-medium text-text'>{binding.field}</span><Badge variant='secondary'>{binding.strategy}</Badge></div>)}</div>}</CardContent></Card>;
   }
 

@@ -1,8 +1,8 @@
 // CreateDataSourceMapping - Application Use Case
 import { randomUUID } from 'node:crypto';
-import { DataSourceMappingRepository } from '../../domain/test-data/DataSourceMappingRepository';
-import { DataSourceMappingEntity } from '../../domain/test-data/DataSourceMappingEntity';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { DataSourceMappingRepository } from '../../domain/test-data/DataSourceMappingRepository.js';
+import { DataSourceMappingEntity } from '../../domain/test-data/DataSourceMappingEntity.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export class CreateDataSourceMapping {
   constructor(private readonly mappingRepository: DataSourceMappingRepository) {}

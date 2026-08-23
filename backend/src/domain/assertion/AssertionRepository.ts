@@ -1,6 +1,6 @@
 // AssertionRepository - Repository interface for Assertion Library
 
-import { AssertionEntity } from './AssertionEntity';
+import { AssertionEntity } from './AssertionEntity.js';
 
 export interface IAssertionRepository {
   create(assertion: Omit<AssertionEntity, 'id' | 'createdAt' | 'updatedAt'>): Promise<AssertionEntity>;

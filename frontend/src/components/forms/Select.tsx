@@ -13,6 +13,7 @@ import React, { forwardRef } from 'react';
 
 // Styles
 import { cn } from '../../utils/cn';
+import { fieldControlBaseClass, fieldErrorClass, fieldHelperClass, fieldLabelClass } from './fieldStyles';
 
 export interface SelectOption {
   value: string;
@@ -36,7 +37,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     return (
       <div className="w-full">
         {label && (
-          <label htmlFor={selectId} className="mb-1.5 block text-sm font-medium text-text">
+          <label htmlFor={selectId} className={fieldLabelClass}>
             {label}
             {required && <span className="ml-1 text-error" aria-hidden="true">*</span>}
           </label>
@@ -47,7 +48,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           name={name}
           required={required}
           className={cn(
-            'flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50',
+            fieldControlBaseClass,
             error && 'border-error focus:ring-error',
             className
           )}
@@ -64,10 +65,10 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           ))}
         </select>
         {error && (
-          <p id={`${selectId}-error`} className="mt-1 text-sm text-error" role="alert">{error}</p>
+          <p id={`${selectId}-error`} className={fieldErrorClass} role="alert">{error}</p>
         )}
         {helperText && !error && (
-          <p id={`${selectId}-helper`} className="mt-1 text-sm text-text-secondary">{helperText}</p>
+          <p id={`${selectId}-helper`} className={fieldHelperClass}>{helperText}</p>
         )}
       </div>
     );

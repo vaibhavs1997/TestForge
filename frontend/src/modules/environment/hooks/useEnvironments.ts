@@ -2,7 +2,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useCRUD } from '../../../hooks/useCRUD';
 import { environmentService } from '../services/environmentService';
-import type { EnvironmentDto } from '../services/environmentService';
+import type { EnvironmentDto } from '../../../types/apiModels';
 import { queryKeys } from '../../../constants';
 
 // ─── Environments ──────────────────────────────────────────────
@@ -11,7 +11,7 @@ export const useEnvironments = (projectId?: string) => {
   const queryClient = useQueryClient();
   const queryKey = queryKeys.environments(projectId || '');
 
-  const { data, isLoading, isError, error, create, update, remove, isCreating, isUpdating, isDeleting } = useCRUD({
+  const { data, isLoading, isError, error, refetch, create, update, remove, isCreating, isUpdating, isDeleting } = useCRUD({
     queryKey,
     service: {
       list: () => (projectId ? environmentService.listEnvironments(projectId) : Promise.resolve([])),
@@ -59,6 +59,7 @@ export const useEnvironments = (projectId?: string) => {
     isLoading,
     isError,
     error,
+    refetch,
     create,
     createAsync: create,
     isCreating,

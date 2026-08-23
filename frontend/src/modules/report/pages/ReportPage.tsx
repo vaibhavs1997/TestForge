@@ -1,8 +1,9 @@
 // External libraries
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Card, CardContent } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
+import { SelectField } from '../../../components/ui/SelectField';
 import { Badge } from '../../../components/ui/Badge';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
@@ -11,7 +12,10 @@ import { FileText, Download, Plus, CheckCircle, XCircle, AlertTriangle, Eye, Tra
 
 // Hooks
 import { useReports } from '../hooks';
-import { projectStore } from '../../../store/projectStore';
+import { useRequirements } from '../../requirements/hooks';
+import { useExecution } from '../../execution/hooks';
+import { downloadJsonFile, downloadTextFile } from '../../../utils/downloadFile';
+import { Toast } from '../../../components/shared/Toast';
 
 // Types
 import type { Report, ReportStatus } from '../types';
@@ -43,9 +47,20 @@ const getStatusIcon = (status: ReportStatus) => {
 
 export const ReportPage: React.FC<ReportPageProps> = () => {
   const navigate = useNavigate();
-  const selectedProjectId = projectStore((state) => state.selectedProjectId);
-  const projectId = selectedProjectId || '1';
-  const { reports, isLoading, isError, error, generateReport, deleteReport, isGenerating, isDeleting } = useReports(projectId);
+  const { projectId: routeProjectId } = useParams<{ projectId: string }>();
+  const projectId = routeProjectId || '1';
+  const { reports: queriedReports, isLoading, isError, error, generateReportAsync, deleteReport, isGenerating, isDeleting } = useReports(projectId);
+  const { runs: queriedRuns } = useExecution(projectId);
+  const { requirements: queriedRequirements } = useRequirements(projectId);
+  const reports = React.useMemo(() => Array.isArray(queriedReports) ? queriedReports : [], [queriedReports]);
+  const runs = React.useMemo(() => Array.isArray(queriedRuns) ? queriedRuns : [], [queriedRuns]);
+  const requirements = React.useMemo(() => Array.isArray(queriedRequirements) ? queriedRequirements : [], [queriedRequirements]);
+
+  const requirementTitleById = React.useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of requirements) m.set(r.id, r.title);
+    return m;
+  }, [requirements]);
 
   const [search, setSearch] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState<string>('all');
@@ -55,21 +70,31 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
   const [executionRunId, setExecutionRunId] = React.useState('');
   const [deleteReportItem, setDeleteReportItem] = React.useState<Report | undefined>(undefined);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [toastOpen, setToastOpen] = React.useState(false);
+  const [toastMessage, setToastMessage] = React.useState('');
+  const [toastType, setToastType] = React.useState<'success' | 'error'>('success');
 
   const filteredReports = React.useMemo(() => {
     const term = search.trim().toLowerCase();
     return reports.filter((report) => {
+      const reqTitle = report.requirementIds?.[0]
+        ? (requirementTitleById.get(report.requirementIds[0])?.toLowerCase() ?? '')
+        : '';
+      const overviewTitle = report.sections?.overview?.title?.toLowerCase() ?? '';
+      const environmentName = report.environment?.name?.toLowerCase() ?? '';
       const matchesSearch =
         !term ||
         report.id.toLowerCase().includes(term) ||
-        report.executionRunId.toLowerCase().includes(term) ||
-        report.environment.name.toLowerCase().includes(term);
+        (report.executionRunId?.toLowerCase() ?? '').includes(term) ||
+        environmentName.includes(term) ||
+        reqTitle.includes(term) ||
+        overviewTitle.includes(term);
       const matchesStatus = statusFilter === 'all' || report.overallStatus === statusFilter;
       const matchesSuite = suiteFilter === 'all' || (report.suiteId === suiteFilter);
       const matchesDate = !dateFilter || new Date(report.generatedAt).toLocaleDateString().includes(dateFilter);
       return matchesSearch && matchesStatus && matchesSuite && matchesDate;
     });
-  }, [search, statusFilter, suiteFilter, dateFilter, reports]);
+  }, [search, statusFilter, suiteFilter, dateFilter, reports, requirementTitleById]);
 
   const uniqueSuites = React.useMemo(() => {
     const suites = reports.filter(r => r.suiteId).map(r => ({ id: r.suiteId!, name: r.suiteId! }));
@@ -80,11 +105,45 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
   const totalFailed = reports.filter(r => r.overallStatus === 'Failed').length;
   const totalPartial = reports.filter(r => r.overallStatus === 'Partial').length;
 
-  const handleGenerateReport = () => {
+  const completedRuns = React.useMemo(
+    () => runs.filter((r) => r.status === 'Completed' || r.status === 'Failed'),
+    [runs],
+  );
+
+  const handleGenerateReport = async () => {
     if (!executionRunId.trim()) return;
-    generateReport({ projectId, executionRunId });
-    setExecutionRunId('');
-    setGenerateOpen(false);
+    try {
+      const report = await generateReportAsync({ projectId, executionRunId: executionRunId.trim() });
+      setExecutionRunId('');
+      setGenerateOpen(false);
+      setToastMessage('Report generated');
+      setToastType('success');
+      setToastOpen(true);
+      navigate(`/projects/${projectId}/reports/${report.id}`);
+    } catch (err) {
+      setToastMessage(err instanceof Error ? err.message : 'Failed to generate report');
+      setToastType('error');
+      setToastOpen(true);
+    }
+  };
+
+  const handleExportAll = () => {
+    if (reports.length === 0) {
+      setToastMessage('No reports to export');
+      setToastType('error');
+      setToastOpen(true);
+      return;
+    }
+    downloadJsonFile(`reports-${projectId}.json`, reports);
+    setToastMessage('Reports exported');
+    setToastType('success');
+    setToastOpen(true);
+  };
+
+  const handleExportReportHtml = (report: Report) => {
+    const title = report.sections?.overview?.title || report.id;
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${title}</title></head><body><h1>${title}</h1><pre>${JSON.stringify(report, null, 2)}</pre></body></html>`;
+    downloadTextFile(`report-${report.id.slice(0, 8)}.html`, html, 'text/html');
   };
 
   const handleDeleteReport = () => {
@@ -95,7 +154,7 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
   };
 
   const handleViewReport = (report: Report) => {
-    navigate(`/reports/${report.id}?projectId=${projectId}`);
+    navigate(`/projects/${projectId}/reports/${report.id}`);
   };
 
   const formatDuration = (ms: number) => {
@@ -108,15 +167,17 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
   };
 
   return (
-    <div className='mx-auto max-w-7xl px-4 py-8'>
+    <div className='w-full max-w-none px-4 py-8'>
       {/* Page Header */}
       <div className='mb-6 flex items-center justify-between'>
         <div>
-          <h1 className='text-2xl font-bold text-text'>Reports</h1>
-          <p className='mt-1 text-sm text-text-secondary'>View detailed test execution reports and insights.</p>
+          <h1 className='text-2xl font-bold text-text'>Test reports</h1>
+          <p className='mt-1 text-sm text-text-secondary'>
+            Outcomes from test runs — export or post to Jira when a requirement is linked.
+          </p>
         </div>
         <div className='flex items-center gap-3'>
-          <Button variant='outline'>
+          <Button variant='outline' onClick={handleExportAll}>
             <Download className='mr-2 h-4 w-4' />
             Export All
           </Button>
@@ -186,28 +247,25 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
       {/* Search and Filters */}
       <div className='mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
         <div className='flex items-center gap-2 flex-wrap'>
-          <SearchBar value={search} onChange={setSearch} placeholder='Search reports...' className='sm:w-80' />
-          <select
-            className='rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text'
+          <SearchBar value={search} onChange={setSearch} placeholder='Search by requirement or environment...' className='sm:w-80' />
+          <SelectField
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value='all'>All Status</option>
-            <option value='Passed'>Passed</option>
-            <option value='Failed'>Failed</option>
-            <option value='Partial'>Partial</option>
-            <option value='Completed'>Completed</option>
-          </select>
-          <select
-            className='rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text'
+            onChange={setStatusFilter}
+            hideSelectedOption
+            options={[
+              { value: 'all', label: 'All Status' },
+              { value: 'Passed', label: 'Passed' },
+              { value: 'Failed', label: 'Failed' },
+              { value: 'Partial', label: 'Partial' },
+              { value: 'Completed', label: 'Completed' },
+            ]}
+          />
+          <SelectField
             value={suiteFilter}
-            onChange={(e) => setSuiteFilter(e.target.value)}
-          >
-            <option value='all'>All Suites</option>
-            {uniqueSuites.map((suite) => (
-              <option key={suite.id} value={suite.id}>{suite.name}</option>
-            ))}
-          </select>
+            onChange={setSuiteFilter}
+            hideSelectedOption
+            options={[{ value: 'all', label: 'All Suites' }, ...uniqueSuites.map((suite) => ({ value: suite.id, label: suite.name }))]}
+          />
           <input
             type='text'
             placeholder='Date filter'
@@ -237,11 +295,10 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
               <table className='w-full'>
                 <thead className='border-b border-border'>
                   <tr className='text-left text-xs text-text-secondary'>
-                    <th className='px-4 py-3 font-medium'>Report ID</th>
+                    <th className='px-4 py-3 font-medium'>Requirement</th>
                     <th className='px-4 py-3 font-medium'>Environment</th>
-                    <th className='px-4 py-3 font-medium'>Suite</th>
                     <th className='px-4 py-3 font-medium'>Status</th>
-                    <th className='px-4 py-3 font-medium'>Steps</th>
+                    <th className='px-4 py-3 font-medium'>Test cases</th>
                     <th className='px-4 py-3 font-medium'>Passed</th>
                     <th className='px-4 py-3 font-medium'>Failed</th>
                     <th className='px-4 py-3 font-medium'>Duration</th>
@@ -257,16 +314,18 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
                       onClick={() => handleViewReport(report)}
                     >
                       <td className='px-4 py-3'>
-                        <div className='flex items-center gap-2'>
+                        <div className='flex items-center gap-2 max-w-xs'>
                           {getStatusIcon(report.overallStatus)}
-                          <span className='text-xs font-mono text-text'>{report.id.slice(0, 8)}</span>
+                          <span className='text-sm font-medium text-text truncate' title={report.requirementIds?.[0] ? requirementTitleById.get(report.requirementIds[0]) : undefined}>
+                            {report.requirementIds?.[0]
+                              ? requirementTitleById.get(report.requirementIds[0]) ?? report.sections?.overview?.title
+                              : report.sections?.overview?.title ?? 'Test run'}
+                          </span>
                         </div>
+                        <span className='text-xs text-text-secondary font-mono'>{report.id.slice(0, 8)}</span>
                       </td>
                       <td className='px-4 py-3'>
-                        <Badge variant='outline' className='text-xs'>{report.environment.name}</Badge>
-                      </td>
-                      <td className='px-4 py-3 text-sm text-text-secondary'>
-                        {report.suiteId ? report.suiteId.slice(0, 8) : '—'}
+                        <Badge variant='outline' className='text-xs'>{report.environment?.name ?? 'Unknown'}</Badge>
                       </td>
                       <td className='px-4 py-3'>{getStatusBadge(report.overallStatus)}</td>
                       <td className='px-4 py-3 text-sm text-text'>{report.totalSteps}</td>
@@ -281,7 +340,7 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
                           <Button variant='ghost' size='sm' className='h-8 w-8 p-0' onClick={() => handleViewReport(report)} title='View'>
                             <Eye className='h-4 w-4' />
                           </Button>
-                          <Button variant='ghost' size='sm' className='h-8 w-8 p-0' title='Export HTML'>
+                          <Button variant='ghost' size='sm' className='h-8 w-8 p-0' title='Export HTML' onClick={() => handleExportReportHtml(report)}>
                             <FileDown className='h-4 w-4' />
                           </Button>
                           <Button variant='ghost' size='sm' className='h-8 w-8 p-0' onClick={() => { setDeleteReportItem(report); setDeleteOpen(true); }} title='Delete'>
@@ -308,18 +367,35 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
                 <p className='text-sm text-text-secondary mt-1'>Generate a report from a completed execution run.</p>
               </div>
               <div>
-                <label className='text-sm font-medium text-text'>Execution Run ID *</label>
-                <input
-                  value={executionRunId}
-                  onChange={(e) => setExecutionRunId(e.target.value)}
-                  placeholder='Enter execution run ID'
-                  className='mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text'
-                />
-                <p className='text-xs text-text-secondary mt-1'>The execution run must be completed or failed.</p>
+                <label className='text-sm font-medium text-text'>Execution run *</label>
+                {completedRuns.length > 0 ? (
+                  <SelectField
+                    value={executionRunId}
+                    onChange={setExecutionRunId}
+                    className='mt-1 w-full'
+                    placeholder='Select a completed run…'
+                    options={completedRuns.map((run) => ({
+                      value: run.id,
+                      label: `${run.id.slice(0, 8)} — ${run.status} — ${new Date(run.createdAt).toLocaleString()}`,
+                    }))}
+                  />
+                ) : (
+                  <>
+                    <input
+                      value={executionRunId}
+                      onChange={(e) => setExecutionRunId(e.target.value)}
+                      placeholder='Enter execution run ID'
+                      className='mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text'
+                    />
+                    <p className='text-xs text-text-secondary mt-1'>
+                      No completed runs yet. Run tests from Execution or paste a run ID.
+                    </p>
+                  </>
+                )}
               </div>
               <div className='flex justify-end gap-2 pt-2'>
                 <Button variant='outline' onClick={() => setGenerateOpen(false)}>Cancel</Button>
-                <Button onClick={handleGenerateReport} disabled={!executionRunId.trim() || isGenerating}>
+                <Button onClick={() => void handleGenerateReport()} disabled={!executionRunId.trim() || isGenerating}>
                   {isGenerating ? 'Generating...' : 'Generate Report'}
                 </Button>
               </div>
@@ -338,6 +414,8 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
         onConfirm={handleDeleteReport}
         onCancel={() => { setDeleteOpen(false); setDeleteReportItem(undefined); }}
       />
+
+      <Toast message={toastMessage} open={toastOpen} onClose={() => setToastOpen(false)} type={toastType} />
     </div>
   );
 };

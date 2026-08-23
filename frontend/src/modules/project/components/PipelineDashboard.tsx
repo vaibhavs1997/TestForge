@@ -3,34 +3,24 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
-import { useServices } from '../../api/hooks';
+import { useServices, useApiOperations } from '../../api/hooks';
 import { useEnvironments } from '../../environment/hooks/useEnvironments';
-import { useDatasets } from '../../test-data/hooks/useDatasets';
-import { useKnowledgeFlows } from '../../knowledge/hooks';
-import { useAnalysis } from '../../analysis/hooks';
 import { useRequirements } from '../../requirements/hooks';
-import { useSuites } from '../../suite/hooks';
 import { useExecution } from '../../execution/hooks';
 import { useReports } from '../../report/hooks';
+import { projectModulePath } from '../../../routes/paths';
 import {
   FolderOpen,
   Globe,
-  Database,
-  BookOpen,
-  Sparkles,
   ListChecks,
-  ShieldCheck,
-  Target,
-  FlaskConical,
-  GitBranch,
-  Layers,
   Play,
   BarChart3,
-  AlertTriangle,
-  Clock,
   ArrowRight,
-  TrendingUp,
-  Activity,
+  CheckCircle2,
+  Circle,
+  ChevronDown,
+  ChevronUp,
+  Workflow,
 } from 'lucide-react';
 
 interface PipelineDashboardProps {
@@ -38,559 +28,262 @@ interface PipelineDashboardProps {
   projectName?: string;
 }
 
-type PipelineStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'READY' | 'WARNING' | 'COMPLETE' | 'BLOCKED';
+type StepKey = 'apis' | 'environment' | 'requirements' | 'execution' | 'reports';
 
-interface PipelineStageInfo {
-  key: string;
+interface GoldenStep {
+  key: StepKey;
   label: string;
+  description: string;
   icon: React.ComponentType<{ className?: string }>;
-  status: PipelineStatus;
-  count: number;
-  countLabel: string;
-  lastUpdated: number | null;
+  done: boolean;
+  detail: string;
+  path: string;
   actionLabel: string;
-  actionPath: string;
-  reason?: string;
-  disabled?: boolean;
-  disabledReason?: string;
 }
 
-const STATUS_STYLES: Record<PipelineStatus, { badge: string; dot: string; bar: string }> = {
-  NOT_STARTED: {
-    badge: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
-    dot: 'bg-gray-400',
-    bar: 'bg-gray-300',
-  },
-  IN_PROGRESS: {
-    badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
-    dot: 'bg-blue-500',
-    bar: 'bg-blue-500',
-  },
-  READY: {
-    badge: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
-    dot: 'bg-green-500',
-    bar: 'bg-green-500',
-  },
-  WARNING: {
-    badge: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300',
-    dot: 'bg-yellow-500',
-    bar: 'bg-yellow-500',
-  },
-  COMPLETE: {
-    badge: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
-    dot: 'bg-green-600',
-    bar: 'bg-green-600',
-  },
-  BLOCKED: {
-    badge: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
-    dot: 'bg-red-500',
-    bar: 'bg-red-500',
-  },
-};
-
-const formatLastUpdated = (timestamp: number | null): string => {
-  if (!timestamp) return 'Never';
+const formatAgo = (timestamp: number | null | undefined): string => {
+  if (!timestamp) return '—';
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
   if (seconds < 60) return 'Just now';
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return `${Math.floor(hours / 24)}d ago`;
 };
-
-/** Progress bar segment color — grey until the stage has real progress. */
-const getStageBarClass = (stage: PipelineStageInfo): string => {
-  const grey = 'bg-gray-300 dark:bg-gray-700';
-  const { status, count } = stage;
-
-  if (status === 'NOT_STARTED' || status === 'BLOCKED') {
-    return grey;
-  }
-  if (status === 'IN_PROGRESS') {
-    return count > 0 ? 'bg-blue-500' : grey;
-  }
-  if (status === 'WARNING') {
-    return count > 0 ? 'bg-yellow-500' : grey;
-  }
-  if (status === 'COMPLETE' || status === 'READY') {
-    return count > 0 ? 'bg-green-500' : grey;
-  }
-  return grey;
-};
-
-const isStageProgressComplete = (stage: PipelineStageInfo): boolean =>
-  (stage.status === 'COMPLETE' || stage.status === 'READY') && stage.count > 0;
 
 export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId, projectName }) => {
   const navigate = useNavigate();
+  const [showFullPipeline, setShowFullPipeline] = React.useState(false);
+  const [localImportedOperationCount, setLocalImportedOperationCount] = React.useState(0);
 
-  // Fetch data from existing hooks
   const { services } = useServices(projectId);
+  const serviceIds = React.useMemo(() => services.map((s) => s.id), [services]);
+  const { operations } = useApiOperations(projectId, serviceIds);
   const { environments } = useEnvironments(projectId);
-  const { datasets } = useDatasets(projectId);
-  const { flows } = useKnowledgeFlows(projectId);
-  const { analysisCards } = useAnalysis(projectId);
   const { requirements, suggested, approved } = useRequirements(projectId);
-  const { suites } = useSuites(projectId);
   const { runs } = useExecution(projectId);
   const { reports } = useReports(projectId);
 
-  // Calculate pipeline stages
-  const stages: PipelineStageInfo[] = React.useMemo(() => {
-    const apiCount = services.length;
-    const envCount = environments.length;
-    const datasetCount = datasets.length;
-    const flowCount = flows.length;
-    const analysisCount = analysisCards.length;
-    const reqCount = requirements.length;
-    const suggestedCount = suggested.length;
-    const approvedCount = approved.length;
-    const suiteCount = suites.length;
-    const executionCount = runs.length;
-    const reportCount = reports.length;
+  // Older API-workspace imports may still be waiting for their one-time
+  // migration into the shared API repository. Reflect that state here rather
+  // than incorrectly telling the user that no contract was imported.
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`testforge:api-workspace:imports:project:${projectId}`);
+      const artifacts = raw ? JSON.parse(raw) as Array<{ kind?: unknown; endpoints?: unknown }> : [];
+      const count = artifacts.reduce((total, artifact) =>
+        total + (artifact.kind === 'api' && Array.isArray(artifact.endpoints) ? artifact.endpoints.length : 0), 0);
+      setLocalImportedOperationCount(count);
+    } catch {
+      setLocalImportedOperationCount(0);
+    }
+  }, [projectId]);
 
-    // Last updated timestamps
-    const apiUpdated = services.length > 0 ? Math.max(...services.map(s => s.updatedAt || 0)) : null;
-    const envUpdated = environments.length > 0 ? Math.max(...environments.map(e => e.updatedAt || 0)) : null;
-    const datasetUpdated = datasets.length > 0 ? Math.max(...datasets.map(d => d.updatedAt || 0)) : null;
-    const flowUpdated = flows.length > 0 ? Math.max(...flows.map(f => f.updatedAt || 0)) : null;
-    const analysisUpdated = analysisCards.length > 0 ? Math.max(...analysisCards.map(a => a.updatedAt || 0)) : null;
-    const reqUpdated = requirements.length > 0 ? Math.max(...requirements.map(r => r.updatedAt || 0)) : null;
-    const suiteUpdated = suites.length > 0 ? Math.max(...suites.map(s => s.updatedAt || 0)) : null;
-    const executionUpdated = runs.length > 0 ? Math.max(...runs.map(r => r.updatedAt || 0)) : null;
-    const reportUpdated = reports.length > 0 ? Math.max(...reports.map(r => r.generatedAt || 0)) : null;
+  const opCount = operations?.length ?? 0;
+  const sharedOperationCount = opCount;
+  const displayedOperationCount = sharedOperationCount || localImportedOperationCount;
+  const hasApis = displayedOperationCount > 0;
+  const apiImportIsSyncing = sharedOperationCount === 0 && localImportedOperationCount > 0;
+  const hasEnv = environments.length > 0;
+  const hasRequirements = requirements.length > 0;
+  const hasRuns = runs.length > 0;
+  const hasReports = reports.length > 0;
 
-    // Dependency flags for guided actions
-    const hasApis = apiCount > 0;
-    const hasAnalysis = analysisCount > 0;
-    const hasApprovedReqs = approvedCount > 0;
-    const hasSuites = suiteCount > 0;
+  const latestRun = runs.length > 0 ? [...runs].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] : null;
+  const latestReport = reports.length > 0 ? [...reports].sort((a, b) => (b.generatedAt || 0) - (a.generatedAt || 0))[0] : null;
 
-    return [
+  const steps: GoldenStep[] = React.useMemo(
+    () => [
       {
         key: 'apis',
-        label: 'APIs',
+        label: 'Import API contract',
+        description: 'OpenAPI, Postman, or Swagger — we map tests to your endpoints.',
         icon: FolderOpen,
-        status: apiCount === 0 ? 'NOT_STARTED' : 'COMPLETE',
-        count: apiCount,
-        countLabel: apiCount === 0 ? 'No services' : `${apiCount} Service${apiCount > 1 ? 's' : ''}`,
-        lastUpdated: apiUpdated,
-        actionLabel: apiCount === 0 ? 'Import APIs' : 'Import More',
-        actionPath: `/projects/${projectId}/apis`,
-        disabled: false,
+        done: hasApis,
+        detail: hasApis
+          ? apiImportIsSyncing
+            ? `${displayedOperationCount} operation(s) imported locally — syncing to the project workspace`
+            : `${services.length} service(s), ${displayedOperationCount} operation(s)`
+          : 'No API imported yet',
+        path: projectModulePath(projectId, 'apis'),
+        actionLabel: hasApis ? 'Manage APIs' : 'Import APIs',
       },
       {
         key: 'environment',
-        label: 'Environment',
+        label: 'Set target environment',
+        description: 'Base URL and variables used when you run tests.',
         icon: Globe,
-        status: envCount === 0 ? 'NOT_STARTED' : 'COMPLETE',
-        count: envCount,
-        countLabel: envCount === 0 ? 'No environments' : `${envCount} Environment${envCount > 1 ? 's' : ''}`,
-        lastUpdated: envUpdated,
-        actionLabel: envCount === 0 ? 'Manage Environment' : 'Manage',
-        actionPath: `/projects/${projectId}/environment`,
-        disabled: false,
-      },
-      {
-        key: 'testdata',
-        label: 'Test Data',
-        icon: Database,
-        status: datasetCount === 0 ? 'NOT_STARTED' : 'READY',
-        count: datasetCount,
-        countLabel: datasetCount === 0 ? 'No datasets' : `${datasetCount} Dataset${datasetCount > 1 ? 's' : ''}`,
-        lastUpdated: datasetUpdated,
-        actionLabel: datasetCount === 0 ? 'Create Dataset' : 'Manage',
-        actionPath: `/projects/${projectId}/testdata`,
-        disabled: false,
-      },
-      {
-        key: 'knowledge',
-        label: 'Knowledge',
-        icon: BookOpen,
-        status: flowCount === 0 ? 'NOT_STARTED' : 'COMPLETE',
-        count: flowCount,
-        countLabel: flowCount === 0 ? 'No flows' : `${flowCount} Flow${flowCount > 1 ? 's' : ''}`,
-        lastUpdated: flowUpdated,
-        actionLabel: flowCount === 0 ? 'Add Knowledge' : 'Open',
-        actionPath: `/projects/${projectId}/knowledge`,
-        disabled: false,
-      },
-      {
-        key: 'analysis',
-        label: 'Analysis',
-        icon: Sparkles,
-        status: analysisCount === 0 ? 'NOT_STARTED' : 'COMPLETE',
-        count: analysisCount,
-        countLabel: analysisCount === 0 ? 'Not analyzed' : `${analysisCount} Analysis Card${analysisCount > 1 ? 's' : ''}`,
-        lastUpdated: analysisUpdated,
-        actionLabel: analysisCount === 0 ? 'Run Analysis' : 'View Analysis',
-        actionPath: `/projects/${projectId}/requirements`,
-        disabled: !hasApis,
-        disabledReason: !hasApis ? 'Import APIs first.' : undefined,
+        done: hasEnv,
+        detail: hasEnv ? `${environments.length} environment(s)` : 'No environment configured',
+        path: projectModulePath(projectId, 'apis'),
+        actionLabel: hasEnv ? 'Manage in API workspace' : 'Add in API workspace',
       },
       {
         key: 'requirements',
-        label: 'Requirements',
+        label: 'Capture requirements & test cases',
+        description: 'Paste acceptance criteria, import from Jira, generate and curate cases.',
         icon: ListChecks,
-        status: reqCount === 0 ? 'NOT_STARTED' : suggestedCount > 0 && approvedCount === 0 ? 'WARNING' : 'READY',
-        count: reqCount,
-        countLabel: reqCount === 0 ? 'No requirements' : `${suggestedCount} Suggested / ${approvedCount} Approved`,
-        lastUpdated: reqUpdated,
-        actionLabel: suggestedCount > 0 && approvedCount === 0 ? 'Approve Requirements' : reqCount === 0 ? 'Generate Requirements' : 'Open',
-        actionPath: `/projects/${projectId}/requirements`,
-        disabled: reqCount === 0 && !hasAnalysis,
-        disabledReason: reqCount === 0 && !hasAnalysis ? 'Run Project Analysis first.' : undefined,
-        reason: suggestedCount > 0 && approvedCount === 0 ? 'Nothing approved yet' : undefined,
-      },
-      {
-        key: 'readiness',
-        label: 'Readiness Validation',
-        icon: ShieldCheck,
-        status: approvedCount === 0 ? 'BLOCKED' : 'READY',
-        count: approvedCount,
-        countLabel: approvedCount === 0 ? 'No approved requirements' : `${approvedCount} Approved`,
-        lastUpdated: reqUpdated,
-        actionLabel: approvedCount === 0 ? 'Validate Readiness' : 'Validate',
-        actionPath: `/projects/${projectId}/requirements`,
-        disabled: !hasApprovedReqs,
-        disabledReason: !hasApprovedReqs ? 'Approve at least one requirement.' : undefined,
-        reason: approvedCount === 0 ? 'No approved requirements to validate' : undefined,
-      },
-      {
-        key: 'strategy',
-        label: 'Test Strategy',
-        icon: Target,
-        status: approvedCount === 0 ? 'BLOCKED' : 'NOT_STARTED',
-        count: approvedCount,
-        countLabel: approvedCount === 0 ? 'Waiting for approval' : `${approvedCount} Ready to plan`,
-        lastUpdated: reqUpdated,
-        actionLabel: approvedCount === 0 ? 'Generate Strategy' : 'Generate Strategy',
-        actionPath: `/projects/${projectId}/requirements`,
-        disabled: !hasApprovedReqs,
-        disabledReason: !hasApprovedReqs ? 'Approve at least one requirement.' : undefined,
-        reason: approvedCount === 0 ? 'Requires approved requirements' : undefined,
-      },
-      {
-        key: 'design',
-        label: 'Test Design',
-        icon: FlaskConical,
-        status: approvedCount === 0 ? 'BLOCKED' : 'NOT_STARTED',
-        count: approvedCount,
-        countLabel: approvedCount === 0 ? 'Waiting for strategy' : `${approvedCount} Ready`,
-        lastUpdated: reqUpdated,
-        actionLabel: approvedCount === 0 ? 'Generate Designs' : 'Generate Designs',
-        actionPath: `/projects/${projectId}/requirements`,
-        disabled: !hasApprovedReqs,
-        disabledReason: !hasApprovedReqs ? 'Approve at least one requirement first.' : undefined,
-        reason: approvedCount === 0 ? 'Requires test strategy' : undefined,
-      },
-      {
-        key: 'executionplan',
-        label: 'Execution Plan',
-        icon: GitBranch,
-        status: approvedCount === 0 ? 'BLOCKED' : 'NOT_STARTED',
-        count: approvedCount,
-        countLabel: approvedCount === 0 ? 'Waiting for test design' : `${approvedCount} Ready`,
-        lastUpdated: reqUpdated,
-        actionLabel: approvedCount === 0 ? 'Generate Plan' : 'Generate Plan',
-        actionPath: `/projects/${projectId}/requirements`,
-        disabled: !hasApprovedReqs,
-        disabledReason: !hasApprovedReqs ? 'Test designs not generated.' : undefined,
-        reason: approvedCount === 0 ? 'Test designs not generated' : undefined,
-      },
-      {
-        key: 'suites',
-        label: 'Test Suites',
-        icon: Layers,
-        status: suiteCount === 0 ? 'NOT_STARTED' : 'READY',
-        count: suiteCount,
-        countLabel: suiteCount === 0 ? 'No suites' : `${suiteCount} Suite${suiteCount > 1 ? 's' : ''}`,
-        lastUpdated: suiteUpdated,
-        actionLabel: suiteCount === 0 ? 'Create Suite' : 'Open',
-        actionPath: `/projects/${projectId}/execution/suites`,
-        disabled: false,
+        done: hasRequirements,
+        detail: hasRequirements
+          ? `${requirements.length} requirement(s) · ${suggested.length} suggested`
+          : 'No requirements yet',
+        path: projectModulePath(projectId, 'requirements'),
+        actionLabel: hasRequirements ? 'Open requirements' : 'Add requirement',
       },
       {
         key: 'execution',
-        label: 'Execution',
+        label: 'Run tests',
+        description: 'Execute ready plans from your requirements.',
         icon: Play,
-        status: executionCount === 0 ? 'NOT_STARTED' : 'COMPLETE',
-        count: executionCount,
-        countLabel: executionCount === 0 ? 'No runs' : `${executionCount} Run${executionCount > 1 ? 's' : ''}`,
-        lastUpdated: executionUpdated,
-        actionLabel: executionCount === 0 ? 'Run Suite' : 'View Runs',
-        actionPath: `/projects/${projectId}/execution`,
-        disabled: !hasSuites,
-        disabledReason: !hasSuites ? 'Create a Test Suite.' : undefined,
+        done: hasRuns,
+        detail: latestRun
+          ? `Last run ${latestRun.status} · ${formatAgo(latestRun.updatedAt)}`
+          : 'No runs yet',
+        path: projectModulePath(projectId, 'execution'),
+        actionLabel: hasRuns ? 'View runs' : 'Run tests',
       },
       {
         key: 'reports',
-        label: 'Reports',
+        label: 'Review report',
+        description: 'Share results — export or post to Jira when linked.',
         icon: BarChart3,
-        status: reportCount === 0 ? 'NOT_STARTED' : 'COMPLETE',
-        count: reportCount,
-        countLabel: reportCount === 0 ? 'No reports' : `${reportCount} Report${reportCount > 1 ? 's' : ''}`,
-        lastUpdated: reportUpdated,
-        actionLabel: reportCount === 0 ? 'Generate Report' : 'View Reports',
-        actionPath: `/projects/${projectId}/reports`,
-        disabled: executionCount === 0,
-        disabledReason: executionCount === 0 ? 'Run an execution first.' : undefined,
+        done: hasReports,
+        detail: latestReport
+          ? `${latestReport.overallStatus} · ${formatAgo(latestReport.generatedAt)}`
+          : 'No reports yet',
+        path: latestReport
+          ? projectModulePath(projectId, 'reports', latestReport.id)
+          : projectModulePath(projectId, 'reports'),
+        actionLabel: hasReports ? 'Open latest report' : 'View reports',
       },
-    ];
-  }, [services, environments, datasets, flows, analysisCards, requirements, suggested, approved, suites, runs, reports, projectId]);
+    ],
+    [
+      projectId,
+      hasApis,
+      services.length,
+      opCount,
+      displayedOperationCount,
+      apiImportIsSyncing,
+      hasEnv,
+      environments.length,
+      hasRequirements,
+      requirements.length,
+      suggested.length,
+      hasRuns,
+      hasReports,
+      latestRun,
+      latestReport,
+    ],
+  );
 
-  // Calculate pipeline progress
-  const completedStages = stages.filter(isStageProgressComplete).length;
-  const progressPercent = Math.round((completedStages / stages.length) * 100);
-
-  const handleAction = (stage: PipelineStageInfo) => {
-    navigate(stage.actionPath);
-  };
-
-  // Determine next recommended action
-  const nextStep = React.useMemo(() => {
-    const apiCount = services.length;
-    const suggestedCount = suggested.length;
-    const approvedCount = approved.length;
-    const analysisCount = analysisCards.length;
-    const executionCount = runs.length;
-    const reportCount = reports.length;
-
-    const blockedStage = stages.find(s => s.status === 'BLOCKED');
-    if (blockedStage) {
-      return {
-        message: `${blockedStage.label} is blocked. ${blockedStage.disabledReason || blockedStage.reason || 'Take action to unblock.'}`,
-        actionLabel: blockedStage.actionLabel,
-        actionPath: blockedStage.actionPath,
-      };
-    }
-
-    const needsAction = stages.find(s => s.status === 'NOT_STARTED' || s.status === 'WARNING');
-    if (needsAction) {
-      return {
-        message: `Project is ready for ${needsAction.label}.`,
-        actionLabel: needsAction.actionLabel,
-        actionPath: needsAction.actionPath,
-      };
-    }
-
-    if (suggestedCount > 0 && approvedCount === 0) {
-      return {
-        message: 'Project is ready for Requirement Approval.',
-        actionLabel: 'Open Requirements',
-        actionPath: `/projects/${projectId}/requirements`,
-      };
-    }
-
-    if (apiCount > 0 && analysisCount === 0) {
-      return {
-        message: 'Run Project Analysis to generate requirements.',
-        actionLabel: 'Run Analysis',
-        actionPath: `/projects/${projectId}/requirements`,
-      };
-    }
-
-    if (executionCount > 0 && reportCount === 0) {
-      return {
-        message: 'Execution is complete. Generate a report.',
-        actionLabel: 'Generate Report',
-        actionPath: `/projects/${projectId}/reports`,
-      };
-    }
-
-    return {
-      message: 'All pipeline stages are complete.',
-      actionLabel: 'View Reports',
-      actionPath: `/projects/${projectId}/reports`,
-    };
-  }, [stages, services.length, suggested.length, approved.length, analysisCards.length, runs.length, reports.length, projectId]);
-
-  // Project health stats
-  const healthStats = React.useMemo(() => {
-    const reqCount = requirements.length;
-    const approvedCount = approved.length;
-    const approvedPercent = reqCount > 0 ? Math.round((approvedCount / reqCount) * 100) : 0;
-
-    const completedStagesCount = stages.filter(isStageProgressComplete).length;
-    const pipelinePercent = Math.round((completedStagesCount / stages.length) * 100);
-
-    const latestRun = runs.length > 0 ? [...runs].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] : null;
-    const latestReport = reports.length > 0 ? [...reports].sort((a, b) => (b.generatedAt || 0) - (a.generatedAt || 0))[0] : null;
-
-    return {
-      completionPercent: pipelinePercent,
-      requirementsApproved: approvedPercent,
-      executionCoverage: approvedCount > 0 ? Math.min(100, Math.round((runs.length / Math.max(approvedCount, 1)) * 100)) : 0,
-      latestExecution: latestRun ? formatLastUpdated(latestRun.updatedAt) : 'Never',
-      latestReport: latestReport ? formatLastUpdated(latestReport.generatedAt) : 'Never',
-    };
-  }, [stages, requirements, approved, runs, reports]);
-
-  const handleNextStep = () => {
-    navigate(nextStep.actionPath);
-  };
+  const nextStep = React.useMemo(() => steps.find((s) => !s.done) ?? steps[steps.length - 1], [steps]);
+  const completedCount = steps.filter((s) => s.done).length;
+  const progressPercent = Math.round((completedCount / steps.length) * 100);
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h2 className="text-xl font-bold mb-1">{projectName || 'Project'} - Pipeline Dashboard</h2>
-        <p className="text-sm text-text-secondary">Track and guide the validation pipeline for this project.</p>
+    <div className="w-full px-4 py-8 lg:px-8">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-text">{projectName || 'Project'}</h1>
+        <p className="mt-1 text-sm text-text-secondary">
+          Follow the steps below to go from API contract to test report.
+        </p>
       </div>
 
-      {/* Next Recommended Action Panel */}
-      <Card className="mb-6 border-primary/30 bg-primary/5">
-        <CardContent className="flex items-center justify-between gap-4 pt-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-white">
-              <TrendingUp className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-text-secondary">Next Recommended Action</p>
-              <p className="text-sm font-semibold text-text">{nextStep.message}</p>
-            </div>
+      <Card className="mb-8 border-primary/30 bg-primary/5">
+        <CardContent className="flex flex-col gap-4 pt-6 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-text-secondary">Suggested next step</p>
+            <p className="mt-1 text-lg font-semibold text-text">{nextStep.label}</p>
+            <p className="text-sm text-text-secondary">{nextStep.description}</p>
           </div>
-          <Button onClick={handleNextStep}>
+          <Button onClick={() => navigate(nextStep.path)} className="shrink-0">
             {nextStep.actionLabel}
-            <ArrowRight className="ml-1 h-4 w-4" />
+            <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </CardContent>
       </Card>
 
-      {/* Project Health Summary */}
-      <Card className="mb-6">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Activity className="h-4 w-4" />
-            Project Health
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-            <div>
-              <p className="text-xs text-text-secondary">Pipeline Completion</p>
-              <p className="text-lg font-bold text-text">{healthStats.completionPercent}%</p>
-            </div>
-            <div>
-              <p className="text-xs text-text-secondary">Requirements Approved</p>
-              <p className="text-lg font-bold text-text">{healthStats.requirementsApproved}%</p>
-            </div>
-            <div>
-              <p className="text-xs text-text-secondary">Execution Coverage</p>
-              <p className="text-lg font-bold text-text">{healthStats.executionCoverage}%</p>
-            </div>
-            <div>
-              <p className="text-xs text-text-secondary">Latest Execution</p>
-              <p className="text-sm font-semibold text-text">{healthStats.latestExecution}</p>
-            </div>
-            <div>
-              <p className="text-xs text-text-secondary">Latest Report</p>
-              <p className="text-sm font-semibold text-text">{healthStats.latestReport}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="mb-4 flex items-center justify-between">
+        <span className="text-sm font-medium text-text">Progress</span>
+        <span className="text-sm text-text-secondary">
+          {completedCount} of {steps.length} · {progressPercent}%
+        </span>
+      </div>
+      <div className="mb-8 h-2 w-full overflow-hidden rounded-full bg-border">
+        <div
+          className="h-full rounded-full bg-primary transition-all"
+          style={{ width: `${progressPercent}%` }}
+        />
+      </div>
 
-      {/* Pipeline Progress */}
-      <Card className="mb-6">
-        <CardContent className="pt-6">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm font-medium text-text">Pipeline Progress</span>
-            <span className="text-sm font-semibold text-text">{progressPercent}%</span>
-          </div>
-          <div
-            className="grid gap-1"
-            style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(0, 1fr))` }}
-          >
-            {stages.map((stage) => (
-              <div key={stage.key} className="flex min-w-0 flex-col items-stretch gap-1.5">
-                <div
-                  className={`h-2 w-full rounded-full ${getStageBarClass(stage)}`}
-                  title={`${stage.label}: ${stage.status}`}
-                />
-                <span
-                  className="block w-full text-center text-[10px] leading-tight text-text-secondary sm:text-xs"
-                  title={stage.label}
-                >
-                  {stage.label}
-                </span>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Stage Cards */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {stages.map((stage) => {
-          const Icon = stage.icon;
-          const style = STATUS_STYLES[stage.status];
-          const isDisabled = stage.disabled || false;
+      <div className="space-y-3">
+        {steps.map((step, index) => {
+          const Icon = step.icon;
           return (
-            <Card key={stage.key} className="flex flex-col">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-surface">
-                      <Icon className="h-5 w-5 text-text-secondary" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-base">{stage.label}</CardTitle>
-                      <p className="text-xs text-text-secondary">{stage.countLabel}</p>
-                    </div>
+            <Card
+              key={step.key}
+              className={`transition-colors ${step.key === nextStep.key && !step.done ? 'border-primary/40' : ''}`}
+            >
+              <CardContent className="flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface">
+                    {step.done ? (
+                      <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    ) : (
+                      <Circle className="h-5 w-5 text-text-secondary" />
+                    )}
                   </div>
-                  <Badge className={style.badge} variant="outline">
-                    {stage.status}
-                  </Badge>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-text-secondary">Step {index + 1}</span>
+                      <Icon className="h-4 w-4 text-text-secondary" />
+                    </div>
+                    <p className="font-semibold text-text">{step.label}</p>
+                    <p className="text-sm text-text-secondary">{step.detail}</p>
+                  </div>
                 </div>
-              </CardHeader>
-              <CardContent className="flex-1">
-                <div className="mb-3 flex items-center gap-2 text-xs text-text-secondary">
-                  <Clock className="h-3 w-3" />
-                  <span>Last updated: {formatLastUpdated(stage.lastUpdated)}</span>
-                </div>
-
-                {isDisabled && stage.disabledReason && (
-                  <div className="mb-3 rounded-lg bg-yellow-50 p-2 text-xs text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300">
-                    <div className="flex items-center gap-1.5">
-                      <AlertTriangle className="h-3 w-3" />
-                      <span className="font-medium">Disabled</span>
-                    </div>
-                    <p className="mt-1">{stage.disabledReason}</p>
-                  </div>
-                )}
-
-                {!isDisabled && stage.reason && (
-                  <div className="mb-3 rounded-lg bg-yellow-50 p-2 text-xs text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300">
-                    <div className="flex items-center gap-1.5">
-                      <AlertTriangle className="h-3 w-3" />
-                      <span className="font-medium">Reason</span>
-                    </div>
-                    <p className="mt-1">{stage.reason}</p>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className={`h-2 w-2 rounded-full ${style.dot}`} />
-                    <span className="text-xs font-medium text-text-secondary">{stage.status}</span>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleAction(stage)}
-                    disabled={isDisabled}
-                  >
-                    {stage.actionLabel}
-                    <ArrowRight className="ml-1 h-3 w-3" />
-                  </Button>
-                </div>
+                <Button variant="outline" size="sm" onClick={() => navigate(step.path)}>
+                  {step.actionLabel}
+                </Button>
               </CardContent>
             </Card>
           );
         })}
       </div>
+
+      <Card className="mt-8">
+        <CardHeader className="pb-2">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between text-left"
+            onClick={() => setShowFullPipeline((v) => !v)}
+          >
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Workflow className="h-4 w-4" />
+              Full pipeline &amp; administration
+            </CardTitle>
+            {showFullPipeline ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+        </CardHeader>
+        {showFullPipeline && (
+          <CardContent className="space-y-3 text-sm text-text-secondary">
+            <p>
+              Analysis, knowledge flows, suites, readiness, and strategy tools live in the sidebar under{' '}
+              <strong className="text-text">Administration</strong> and inside{' '}
+              <strong className="text-text">Requirements → More</strong> when you need them.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline">{approved.length} approved requirements</Badge>
+              <Badge variant="outline">{runs.length} execution runs</Badge>
+              <Badge variant="outline">{reports.length} reports</Badge>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => navigate(projectModulePath(projectId, 'pipeline'))}>
+              Open pipeline view
+            </Button>
+          </CardContent>
+        )}
+      </Card>
     </div>
   );
 };

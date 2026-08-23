@@ -2,8 +2,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'node:crypto';
-import { EnvironmentEntity } from '../../domain/environment/EnvironmentEntity';
-import { readJsonArray, writeJsonArray, updateJsonArray } from '../persistence/JsonFileStore';
+import { EnvironmentEntity, normalizeEnvironmentTier, type EnvironmentExecutionPolicy, type EnvironmentTier } from '../../domain/environment/EnvironmentEntity.js';
+import { readJsonArray, writeJsonArray, updateJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'environments');
@@ -89,6 +89,11 @@ export class EnvironmentRepository {
       timeout: typeof raw.timeout === 'number' ? raw.timeout : 30000,
       createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : Date.now(),
       updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : Date.now(),
+      isDefault: raw.isDefault === true,
+      tier: normalizeEnvironmentTier(raw.tier),
+      executionPolicy: raw.executionPolicy && typeof raw.executionPolicy === 'object' && !Array.isArray(raw.executionPolicy)
+        ? raw.executionPolicy as Partial<EnvironmentExecutionPolicy>
+        : null,
     } as EnvironmentEntity;
   }
 
@@ -101,6 +106,8 @@ export class EnvironmentRepository {
       authentication?: unknown;
       variables?: Record<string, string>;
       timeout?: number;
+      tier?: EnvironmentTier;
+      executionPolicy?: Partial<EnvironmentExecutionPolicy>;
     }>,
   ): Promise<{ created: number; updated: number; environments: EnvironmentEntity[] }> {
     if (items.length === 0) {
@@ -134,6 +141,9 @@ export class EnvironmentRepository {
             authentication: item.authentication ?? null,
             variables: item.variables ?? {},
             timeout: item.timeout ?? 30000,
+            tier: normalizeEnvironmentTier(item.tier),
+            executionPolicy: item.executionPolicy ?? null,
+            isDefault: false,
             createdAt: now,
             updatedAt: now,
           });
@@ -147,6 +157,8 @@ export class EnvironmentRepository {
             authentication: item.authentication ?? existing.authentication ?? null,
             variables: item.variables ?? existing.variables ?? {},
             timeout: item.timeout ?? existing.timeout ?? 30000,
+            tier: item.tier === undefined ? existing.tier ?? 'DEVELOPMENT' : normalizeEnvironmentTier(item.tier),
+            executionPolicy: item.executionPolicy === undefined ? existing.executionPolicy ?? null : item.executionPolicy,
             updatedAt: now,
           };
           updated += 1;

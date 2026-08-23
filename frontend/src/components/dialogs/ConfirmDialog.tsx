@@ -1,6 +1,5 @@
 import React from 'react';
-import { Button } from '../ui/Button';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../ui/Card';
+import { ConfirmDialog as SharedConfirmDialog } from '../shared/ConfirmDialog';
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -14,6 +13,12 @@ export interface ConfirmDialogProps {
   onCancel: () => void;
 }
 
+/**
+ * Backwards-compatible wrapper around the shared confirmation dialog.
+ *
+ * Keep this file so any older imports continue to work while the shared
+ * implementation remains the single source of truth.
+ */
 export function ConfirmDialog({
   open,
   title,
@@ -25,44 +30,19 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
-  if (!open) return null;
-
-  const handleConfirm = async () => {
-    await onConfirm();
-  };
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={onCancel}
-    >
-      <Card
-        className="mx-4 w-full max-w-md"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <CardHeader>
-          <CardTitle>{title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-gray-600">{message}</p>
-        </CardContent>
-        <CardFooter className="justify-end gap-2">
-          <Button
-            variant="outline"
-            onClick={onCancel}
-            disabled={isLoading}
-          >
-            {cancelLabel}
-          </Button>
-          <Button
-            onClick={handleConfirm}
-            disabled={isLoading}
-            variant={isDangerous ? 'destructive' : 'default'}
-          >
-            {isLoading ? 'Loading...' : confirmLabel}
-          </Button>
-        </CardFooter>
-      </Card>
-    </div>
+    <SharedConfirmDialog
+      open={open}
+      title={title}
+      message={message}
+      confirmLabel={confirmLabel}
+      cancelLabel={cancelLabel}
+      variant={isDangerous ? 'destructive' : 'default'}
+      isLoading={isLoading}
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    />
   );
 }
+
+export default ConfirmDialog;

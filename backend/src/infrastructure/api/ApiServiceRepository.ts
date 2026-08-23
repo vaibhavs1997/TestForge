@@ -1,8 +1,8 @@
 // ApiServiceRepository - File-based repository implementation
 import * as fs from 'fs';
 import * as path from 'path';
-import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'apis');
@@ -77,6 +77,14 @@ export class ApiServiceRepository {
     const sanitized = filtered.filter(isServiceRecord);
     await writeJsonArray(filePath, sanitized);
     return true;
+  }
+
+  async deleteByProject(projectId: string): Promise<number> {
+    const filePath = this.getServicesFilePath(projectId);
+    const raw = await readJsonArray<unknown>(filePath);
+    const count = raw.filter(isServiceRecord).length;
+    await writeJsonArray(filePath, []);
+    return count;
   }
 
   async findById(id: string): Promise<ApiServiceEntity | null> {

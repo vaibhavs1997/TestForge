@@ -1,5 +1,5 @@
 // DocumentationRepository - Domain Repository Interface for Documentation
-import { Documentation } from './DocumentationEntity';
+import { Documentation } from './DocumentationEntity.js';
 
 export interface DocumentationRepository {
   create(doc: Documentation): Promise<Documentation>;

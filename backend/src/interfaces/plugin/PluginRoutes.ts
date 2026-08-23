@@ -1,8 +1,8 @@
 // PluginRoutes - Express routes for Plugin Module
 import { Router } from 'express';
-import { PluginController } from './PluginController';
-import { container } from '../../application/ApplicationContainer';
-import { asyncHandler } from '../middleware/AsyncHandler';
+import { PluginController } from './PluginController.js';
+import { container } from '../../application/ApplicationContainer.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 // Reuse shared services from the ApplicationContainer
 const {

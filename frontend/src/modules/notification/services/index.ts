@@ -1,40 +1,35 @@
 // Notification service functions
-import axios from 'axios';
 import type { Notification, NotificationFormData, Provider } from '../types';
 import { API_BASE_URL } from '../../../constants/api';
+import { apiRequest } from '../../../services/apiRequest';
 
 export const notificationService = {
   listNotifications: async (projectId: string): Promise<Notification[]> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/notifications`);
-    return data.data;
+    return apiRequest.get<Notification[]>(`${API_BASE_URL}/projects/${projectId}/notifications`);
   },
 
   getNotification: async (notificationId: string): Promise<Notification> => {
-    const { data } = await axios.get(`${API_BASE_URL}/notifications/${notificationId}`);
-    return data.data;
+    return apiRequest.get<Notification>(`${API_BASE_URL}/notifications/${notificationId}`);
   },
 
   createNotification: async (projectId: string, payload: NotificationFormData): Promise<Notification> => {
-    const { data } = await axios.post(`${API_BASE_URL}/projects/${projectId}/notifications`, payload);
-    return data.data;
+    return apiRequest.post<Notification>(`${API_BASE_URL}/projects/${projectId}/notifications`, payload);
   },
 
   updateNotification: async (notificationId: string, payload: Partial<NotificationFormData>): Promise<Notification> => {
-    const { data } = await axios.put(`${API_BASE_URL}/notifications/${notificationId}`, payload);
-    return data.data;
+    return apiRequest.put<Notification>(`${API_BASE_URL}/notifications/${notificationId}`, payload);
   },
 
   deleteNotification: async (notificationId: string): Promise<void> => {
-    await axios.delete(`${API_BASE_URL}/notifications/${notificationId}`);
+    await apiRequest.delete(`${API_BASE_URL}/notifications/${notificationId}`);
   },
 
   testNotification: async (notificationId: string): Promise<void> => {
-    await axios.post(`${API_BASE_URL}/notifications/${notificationId}/test`);
+    await apiRequest.post(`${API_BASE_URL}/notifications/${notificationId}/test`);
   },
 
   listProviders: async (projectId: string): Promise<Provider[]> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/providers`);
-    return data.data;
+    return apiRequest.get<Provider[]>(`${API_BASE_URL}/projects/${projectId}/providers`);
   },
 };
 

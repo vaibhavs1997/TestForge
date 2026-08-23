@@ -6,185 +6,137 @@ AI-powered API validation platform for creating, managing, and testing API endpo
 
 This monorepo contains the frontend and backend for TestForge.
 
-```
+```text
 TestForge/
-├── frontend/         # React + TypeScript + Vite + Tailwind CSS
-│   └── src/
-│       ├── modules/              # Feature modules
-│       │   ├── api/              # API services, endpoints, import/sync
-│       │   ├── environment/      # Environment configurations
-│       │   ├── knowledge/        # Knowledge base articles
-│       │   ├── project/          # Project management
-│       │   ├── requirements/     # Acceptance criteria & AI test generation
-│       │   ├── settings/         # Application settings
-│       │   ├── suite/            # Test suites
-│       │   └── testcase/         # Test cases
-│       ├── components/           # Shared UI components
-│       ├── layouts/              # Layout components
-│       ├── store/                # State management
-│       └── utils/                # Utilities
-├── backend/          # Express + TypeScript
-└── package.json      # Root workspace configuration
+|-- frontend/         # React + TypeScript + Vite + Tailwind CSS
+|   `-- src/
+|       |-- modules/              # Feature modules
+|       |   |-- api-execution/    # Standalone API explorer and request runner
+|       |   |-- knowledge/        # Documentation and project context
+|       |   |-- test-data/        # Datasets, mappings, and runtime test data
+|       |   |-- project/          # Project management
+|       |   |-- requirements/     # Acceptance criteria and AI test generation
+|       |   |-- settings/         # Application settings
+|       |   |-- suite/            # Test suites
+|       |   `-- testcase/         # Test cases
+|       |-- components/           # Shared UI components
+|       |-- layouts/              # Layout components
+|       |-- store/                # State management
+|       `-- utils/                # Utilities
+|-- backend/          # Express + TypeScript
+`-- package.json      # Root workspace configuration
 ```
 
 ## Key Features
 
-- **Project Management**: Create and manage testing projects
-- **API Services**: Organize APIs by service with CRUD operations, import from OpenAPI/Swagger/Postman/GraphQL
-- **Environments**: Manage execution environments (Development, Testing, Staging, Production) with variables and secrets
-- **Requirements**: Import acceptance criteria from Jira/files and generate comprehensive test cases using AI
-- **Test Suites**: Group test cases into suites with configurable types (Positive, Negative, Boundary, Security, Performance)
-- **Knowledge Base**: Create and manage documentation articles with categories and tags
-- **Dark/Light Theme**: Full theme support with system preference detection
+- Project management for testing workspaces
+- Standalone API workspace for importing, editing, and executing requests
+- OpenAPI, Swagger, Postman, environment, and GraphQL import workflows
+- Environment selection with variable substitution and base-URL resolution
+- OAuth/Bearer token reuse across authenticated API requests
+- Persistent request configuration, endpoint responses, headers, cookies, and history
+- Postman-style API explorer with expandable folders and endpoint names
+- Test Data synchronization with API payload fields, mappings, reservations, and runtime generators
+- Knowledge documentation import with tagging and API/Test Data project summaries
+- Requirements import from Jira/files with AI test generation
+- Test suites for positive, negative, boundary, security, and performance coverage
+- Knowledge documents with categories, tags, and replace/remove workflows
+- Dark and light theme support
 
 ## Tech Stack
 
 ### Frontend
 - React 18 + TypeScript
-- Vite (build tool)
-- Tailwind CSS (styling)
-- React Router (routing)
-- TanStack Query (data fetching/caching)
-- Lucide React (icons)
-- Zustand (state management)
+- Vite
+- Tailwind CSS
+- React Router
+- TanStack Query
+- Lucide React
+- Zustand
 
 ### Backend
 - Express.js + TypeScript
-- Clean Architecture (Domain → Application → Infrastructure → Interfaces)
-- File-based JSON persistence with per-file locking (`proper-lockfile`)
+- Clean Architecture (Domain -> Application -> Infrastructure -> Interfaces)
+- Mixed persistence depending on module:
+  - File-based JSON persistence with per-file locking
+  - SQLite-backed repositories for selected data stores
+  - In-memory repositories for ephemeral services
 - Optional API key / JWT authentication on `/api` routes
 
 ## Engineering Standards
 
 ### Frontend
-- **Architecture**: Feature/module-based architecture with barrel exports
-- **Module Independence**: Modules are independent and self-contained
-- **Composition over Inheritance**: Prefer composition patterns
-- **Separation of Concerns**: UI, business logic, and data access are separated
-- **Single Responsibility**: Every file has a single responsibility
-- **Barrel Exports**: Every folder exports through `index.ts`
-- **Import Order**: External → Constants → Types → Hooks → Services → Components → Styles
+- Feature/module-based architecture with barrel exports
+- Module independence and self-contained features
+- Composition over inheritance
+- Separation of concerns
+- Single responsibility per file
 
 ### Backend
-- **Clean Architecture**: Domain → Application → Infrastructure → Interfaces
-- **Domain Layer**: Entities and repository interfaces
-- **Application Layer**: Use cases containing business logic
-- **Infrastructure Layer**: Repository implementations (file-based)
-- **Interface Layer**: Controllers and Express routes
-- **Dependency Injection**: Use cases receive repositories via constructor
-- **Single Responsibility**: Each class has one reason to change
-
-## Module Structure
-
-### Frontend Modules
-Each feature module follows a consistent structure:
-
-```
-modules/{feature}/
-├── components/     # Feature-specific UI components
-├── pages/          # Page components
-├── hooks/          # Custom hooks
-├── services/       # Data services/API calls
-├── types/          # TypeScript types
-├── utils/          # Utilities
-├── mock/           # Mock data
-├── constants/      # Constants
-└── index.ts        # Barrel export
-```
-
-### Backend Modules
-Each backend feature follows Clean Architecture:
-
-```
-backend/src/
-├── domain/{feature}/
-│   ├── {Feature}Entity.ts           # Domain entity
-│   ├── {Feature}Repository.ts       # Repository interface
-│   └── index.ts                     # Barrel export
-├── application/{feature}/
-│   ├── Create{Feature}.ts           # Use case
-│   ├── Update{Feature}.ts           # Use case
-│   ├── Delete{Feature}.ts           # Use case
-│   ├── Get{Feature}.ts              # Use case
-│   ├── List{Feature}s.ts            # Use case
-│   └── index.ts                     # Barrel export
-├── infrastructure/{feature}/
-│   ├── {Feature}Repository.ts       # Repository implementation
-│   └── index.ts                     # Barrel export
-└── interfaces/{feature}/
-    ├── {Feature}Controller.ts       # Controller
-    ├── {Feature}Routes.ts           # Express routes
-    └── index.ts                     # Barrel export
-```
-
-## Naming Conventions
-
-### Frontend
-| Category      | Convention  | Example              |
-|---------------|-------------|----------------------|
-| Pages         | PascalCase + Page suffix | `ServiceListPage.tsx` |
-| Components    | PascalCase  | `AddApiModal.tsx`     |
-| Hooks         | camelCase + use prefix | `useService.ts`       |
-| Services      | PascalCase + Service suffix | `ProjectService.ts` |
-| Stores        | camelCase + Store suffix | `projectStore.ts`   |
-| Types         | PascalCase  | `Service.ts`        |
-| Enums         | PascalCase  | `HttpMethod.ts`     |
-| Utilities     | lowercase  | `cn.ts`             |
-
-### Backend
-| Category      | Convention  | Example              |
-|---------------|-------------|----------------------|
-| Entities      | PascalCase + Entity suffix | `ApiServiceEntity.ts` |
-| Repositories  | PascalCase + Repository suffix | `ApiServiceRepository.ts` |
-| Use Cases     | PascalCase + verb prefix | `CreateApiService.ts` |
-| Controllers   | PascalCase + Controller suffix | `ApiController.ts` |
-| Routes        | PascalCase + Routes suffix | `ApiRoutes.ts` |
+- Clean Architecture with clear layer separation
+- Dependency injection for use cases
+- Single responsibility per class
 
 ## Getting Started
 
 ### Prerequisites
 - Node.js 18+
 - npm
+- Docker Desktop (optional, for local PostgreSQL + pgvector)
 
 ### Installation
 
 ```bash
-# Install dependencies
 npm install
-
-# Run frontend dev server
 npm run dev:frontend
-
-# Run backend dev server
 npm run dev:backend
-
-# Build for production
 npm run build
+```
+
+### Local PostgreSQL + pgvector
+
+The application can run its existing JSON/SQLite persistence without PostgreSQL.
+For local pgvector development, start the isolated database service:
+
+```bash
+docker compose -f docker-compose.local.yml up -d
+```
+
+It exposes PostgreSQL on `localhost:5432` by default, stores data in the
+`testforge-postgres-data` Docker volume, and enables the `vector` extension on
+first initialization. Override `POSTGRES_PORT`, `POSTGRES_DB`,
+`POSTGRES_USER`, and `POSTGRES_PASSWORD` in your local `.env` as needed.
+
+To stop it while preserving data:
+
+```bash
+docker compose -f docker-compose.local.yml down
 ```
 
 ## API Endpoints
 
 ### API Management
-- `GET /api/projects/:projectId/services` - List services
-- `POST /api/projects/:projectId/services` - Create service
-- `GET /api/projects/:projectId/services/:serviceId` - Get service
-- `PATCH /api/projects/:projectId/services/:serviceId` - Update service
-- `DELETE /api/projects/:projectId/services/:serviceId` - Delete service
-- `GET /api/projects/:projectId/services/:serviceId/apis` - List operations
-- `POST /api/projects/:projectId/services/:serviceId/apis` - Create operation
-- `GET /api/projects/:projectId/services/:serviceId/apis/:apiId` - Get operation
-- `PATCH /api/projects/:projectId/services/:serviceId/apis/:apiId` - Update operation
-- `DELETE /api/projects/:projectId/services/:serviceId/apis/:apiId` - Delete operation
+- `GET /api/projects/:projectId/services`
+- `POST /api/projects/:projectId/services`
+- `GET /api/projects/:projectId/services/:serviceId`
+- `PATCH /api/projects/:projectId/services/:serviceId`
+- `DELETE /api/projects/:projectId/services/:serviceId`
+- `GET /api/projects/:projectId/services/:serviceId/apis`
+- `POST /api/projects/:projectId/services/:serviceId/apis`
+- `GET /api/projects/:projectId/services/:serviceId/apis/:apiId`
+- `PATCH /api/projects/:projectId/services/:serviceId/apis/:apiId`
+- `DELETE /api/projects/:projectId/services/:serviceId/apis/:apiId`
 
 ### Response Format
+
 ```json
-// Success
 {
   "success": true,
-  "data": { ... }
+  "data": { }
 }
+```
 
-// Failure
+```json
 {
   "success": false,
   "message": "Error message",
@@ -194,92 +146,92 @@ npm run build
 
 ## Design System
 
-- **Colors**: Semantic color tokens (`text-text`, `bg-background`, `border-border`, etc.)
-- **Dark/Light Mode**: Automatic theme switching with CSS class-based approach
-- **Responsive**: Mobile-first responsive design with Tailwind breakpoints
-- **Accessibility**: Semantic HTML, ARIA labels, keyboard navigation support
+- Semantic color tokens
+- Automatic dark/light mode
+- Mobile-first responsive layout
+- Semantic HTML and keyboard-friendly interactions
 
 ## State Management
 
-- **Local State**: React hooks (`useState`, `useMemo`, `useCallback`)
-- **Server State**: TanStack Query for data fetching, caching, and synchronization
-- **Persistence**: `localStorage` for offline data persistence
+- Local state with React hooks
+- Server state with TanStack Query
+- Project selection with Zustand
+- Request, environment, runtime token, and response persistence with `localStorage` where useful
+- Backend persistence for datasets, rows, mappings, reservations, and knowledge documents
+
+## Primary Workflows
+
+### API Workspace
+
+The API workspace is the primary surface for API work. Users can import an API contract and environment files, browse endpoints by their original folder structure, edit request details, select an environment, configure authorization and body formats, execute requests, and inspect response bodies, headers, cookies, and timing information.
+
+### Test Data
+
+Test Data identifies fields used by imported API endpoints and supports reusable datasets, field mappings, runtime value generation, row reservation, and consumption. This allows values such as unique emails or existing login credentials to be supplied without manually editing every request.
+
+### Knowledge
+
+Knowledge is a documentation workspace independent from API contract parsing. Users can import documentation files, organize them with tags, replace or remove documents, and view project-level relationships with imported APIs and Test Data.
+
+The Environment navigation entry now redirects to the API workspace, where environment import and management are available alongside request execution.
 
 ## Scripts
 
 ```bash
-# Install all dependencies
 npm install
-
-# Run frontend dev server
 npm run dev:frontend
-
-# Run backend dev server
 npm run dev:backend
-
-# Build all packages
 npm run build
-
-# Run tests
 npm test
-
-# Lint code
 npm run lint
 ```
 
-## Architecture Deep Dive
+Frontend checks can also be run directly from the frontend workspace:
 
-### Backend Clean Architecture
+```bash
+cd frontend
+npm run lint
+npm run typecheck
+```
 
-The backend follows Clean Architecture with four layers:
+## Maintenance Notes
 
-1. **Domain Layer**: Contains business entities and repository interfaces
-   - No dependencies on other layers
-   - Pure TypeScript classes and interfaces
-   
-2. **Application Layer**: Contains use cases (business logic)
-   - Depends only on Domain layer
-   - Orchestrates business workflows
-   - Validates business rules
-   
-3. **Infrastructure Layer**: Contains repository implementations
-   - Implements Domain repository interfaces
-   - Handles data persistence (file-based JSON)
-   - Independent of Express/framework
-   
-4. **Interface Layer**: Contains controllers and routes
-   - Express controllers and route definitions
-   - Handles HTTP request/response
-   - Calls Application layer use cases
-   - Maps domain errors to HTTP status codes
+- API execution, Test Data, and Knowledge are the active project workspaces.
+- The legacy standalone environment page now redirects to the API workspace.
+- Legacy unused route wrappers, barrels, and dataset hooks have been removed.
+- The Test Data row editor implementation is retained for the dataset data-editing workflow.
+- Keep API, Test Data, and Knowledge changes project-scoped so imported contracts, datasets, and documents remain synchronized within the selected project.
+
+## Backend Architecture
 
 ### Data Flow
-```
-HTTP Request → Route → Controller → Use Case → Repository → File System
+
+```text
+HTTP Request -> Route -> Controller -> Use Case -> Repository -> Storage
 ```
 
 ### Persistence Strategy
-- File-based JSON storage per project
-- Location: `data/apis/{projectId}/services.json` and `operations.json`
-- Similar to existing project persistence pattern
+
+- Most feature data uses file-based JSON storage under `data/` with per-file locking
+- Some repositories use SQLite or in-memory storage depending on the module
+- API data is stored per project in paths such as `data/apis/{projectId}/services.json` and `operations.json`
 
 ## Deployment Workflow
 
-TestForge follows a **dev → prod** branching model with versioned releases:
+TestForge follows a dev -> prod branching model with versioned releases.
 
 | Branch | Purpose | Access |
 |--------|---------|--------|
-| `master` | Development (latest features) | PRs merge here, auto-tested |
-| `main` | Production (stable releases) | Manual promotion only with tags |
+| `master` | Development and active integration | PRs merge here, auto-tested |
+| `main` | Production releases | Manual promotion only with tags |
 
 ### Release Process
 
-1. **Create a feature branch** and submit a PR to `master`
-2. **PR is tested** automatically (lint, typecheck, build)
-3. **PR is merged** to `master` after approval
-4. **When ready to release**, go to **GitHub Actions → Release to Production**
-5. **Enter version** in format `v1.0.0` (e.g., `v1.0.0`, `v1.1.2`)
-6. **Workflow creates a tag** and promotes code to `main` with release notes
-7. **Production deployment** is triggered from `main`
+1. Create a feature branch and submit a PR to `master`
+2. PR is tested automatically
+3. PR is merged to `master` after approval
+4. When ready to release, go to GitHub Actions -> Release to Production
+5. Enter a version like `v1.0.0`
+6. The workflow creates a tag and promotes code to `main`
+7. Production deployment is triggered from `main`
 
-**Protection:** Direct commits and PRs to `main` are blocked. All production code flows through versioned tags.

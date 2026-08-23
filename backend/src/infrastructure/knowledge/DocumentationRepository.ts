@@ -1,8 +1,8 @@
 // DocumentationRepository - File-based repository implementation for Documentation
 import * as fs from 'fs';
 import * as path from 'path';
-import { Documentation } from '../../domain/knowledge/DocumentationEntity';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { Documentation } from '../../domain/knowledge/DocumentationEntity.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'knowledge');
@@ -104,7 +104,8 @@ export class DocumentationRepository {
   }
 
   private async readItems(filePath: string): Promise<Documentation[]> {
-    return readJsonArray(filePath);
+    const documentation = await readJsonArray<Documentation>(filePath);
+    return documentation.filter((doc) => doc && typeof doc.title === 'string' && doc.title.trim().length > 0);
   }
 }
 

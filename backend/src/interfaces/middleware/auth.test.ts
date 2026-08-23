@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import jwt from 'jsonwebtoken';
-import { authenticate, authorizeProject } from './auth';
-import { AppError } from './ErrorHandler';
+import { authenticate, authorizeProject, authorizeResource, assertGlobalAccess } from './auth.js';
+import { AppError } from '../../shared/errors.js';
 
 describe('auth middleware', () => {
   const originalEnv = { ...process.env };
@@ -45,5 +45,26 @@ describe('auth middleware', () => {
     const next = vi.fn();
     await authorizeProject(req, {} as any, next);
     expect(next).toHaveBeenCalledWith(expect.any(AppError));
+  });
+
+  it('standardizes missing, unauthenticated, and cross-project ID-resource access', async () => {
+    process.env.TESTFORGE_API_KEY = 'test-secret-key';
+    const load = vi.fn(async (id: string) => id === 'missing' ? null : { projectId: 'project-a' });
+    const guard = authorizeResource('resourceId', load);
+    const run = async (resourceId: string, auth: any) => {
+      const next = vi.fn();
+      await guard({ params: { resourceId }, auth } as any, {} as any, next);
+      return next.mock.calls[0][0];
+    };
+
+    expect((await run('missing', { subject: 'u', projectIds: ['project-a'] }))?.statusCode).toBe(404);
+    expect((await run('exists', undefined))?.statusCode).toBe(401);
+    expect((await run('exists', { subject: 'u', projectIds: ['project-b'] }))?.statusCode).toBe(403);
+    expect(await run('exists', { subject: 'u', projectIds: ['project-a'] })).toBeUndefined();
+  });
+
+  it('denies member-role global operations even with global project scope', () => {
+    process.env.TESTFORGE_API_KEY = 'test-secret-key';
+    expect(() => assertGlobalAccess({ subject: 'member', role: 'member', projectIds: '*' })).toThrow(/Administrator role/);
   });
 });

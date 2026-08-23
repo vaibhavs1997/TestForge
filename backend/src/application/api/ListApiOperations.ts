@@ -1,6 +1,6 @@
 // ListApiOperations - Application Use Case
-import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
-import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
+import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository.js';
+import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity.js';
 
 export class ListApiOperations {
   constructor(private readonly apiOperationRepository: ApiOperationRepository) {}

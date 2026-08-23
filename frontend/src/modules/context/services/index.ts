@@ -1,12 +1,11 @@
 // Project Context service functions
-import axios from 'axios';
 import type { ProjectContext } from '../types';
 import { API_BASE_URL } from '../../../constants/api';
+import { apiRequest } from '../../../services/apiRequest';
 
 export const projectContextService = {
   getProjectContext: async (projectId: string): Promise<ProjectContext> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/context`);
-    return data.data;
+    return apiRequest.get<ProjectContext>(`${API_BASE_URL}/projects/${projectId}/context`);
   },
 };
 

@@ -1,3 +1,3 @@
-export * from './ProjectDomainService';
-export * from './ProjectEntity';
-export * from './ProjectValidator';
+export * from './ProjectDomainService.js';
+export * from './ProjectEntity.js';
+export * from './ProjectValidator.js';

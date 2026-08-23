@@ -3,23 +3,29 @@
 // Reuses existing services and repositories. No new AI framework.
 
 import { randomUUID } from 'node:crypto';
-import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
-import { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository';
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
+import { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository.js';
 import {
   TestDesignEntity,
   RequestOverride,
   RuntimeBinding,
   Assertion,
   CleanupStep,
-} from '../../domain/requirements/TestDesignEntity';
-import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository';
-import { TestStrategyEntity } from '../../domain/requirements/TestStrategyEntity';
-import { ProjectContextService } from '../context/ProjectContextService';
-import { PromptBuilderService } from '../prompt/PromptBuilderService';
-import { ManageAIProviders } from '../ai-provider/ManageAIProviders';
-import { VersionService } from '../versioning/VersionService';
-import { EventPublisher } from '../EventPublisher';
-import type { AIProviderMessage } from '../../domain/ai-provider';
+} from '../../domain/requirements/TestDesignEntity.js';
+import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository.js';
+import { TestStrategyEntity } from '../../domain/requirements/TestStrategyEntity.js';
+import { ProjectContextService } from '../context/ProjectContextService.js';
+import { PromptBuilderService } from '../prompt/PromptBuilderService.js';
+import { ManageAIProviders } from '../ai-provider/ManageAIProviders.js';
+import { VersionService } from '../versioning/VersionService.js';
+import { EventPublisher } from '../EventPublisher.js';
+import type { AIProviderMessage } from '../../domain/ai-provider/index.js';
+import {
+  getAcceptanceCriteriaFocusText,
+  toRequirementPromptPayload,
+} from './requirementAcceptanceFocus.js';
+import { pickOperationForCategory } from './RequirementOperationMatcher.js';
+import { requirementEndpointMappingService } from './RequirementEndpointMappingService.js';
 
 export interface GenerateTestDesignWithAIRequest {
   projectId: string;
@@ -52,6 +58,9 @@ export interface TestDesignGenerationResult {
 
 interface ParsedTestDesignInput {
   strategyItemId?: string;
+  acceptanceCriterionId?: string;
+  scenarioId?: string;
+  title?: string;
   operationId?: string;
   environmentId?: string;
   datasetId?: string;
@@ -98,6 +107,58 @@ export class GenerateTestDesignWithAI {
       warnings.push(`Project context could not be built: ${err.message}`);
     }
     if (!context) warnings.push('No project context was available for test design generation.');
+    const projectOperations = (context?.apiOperations || []) as any[];
+    const existingDesigns = await this.testDesignRepository.findByRequirement(request.requirementId);
+    const existingUserOperationIds = existingDesigns
+      .filter((design) => design.mappingProvenance === 'user' && design.operationId)
+      .map((design) => design.operationId);
+    const candidateOperations = requirementEndpointMappingService.rankCandidates(requirement, projectOperations, 8, existingUserOperationIds);
+    const candidateIds = new Set(candidateOperations.map((operation) => operation.id));
+    const strategyScenarioCandidates = new Map<string, Set<string>>();
+    const criterionCandidates = new Map<string, Set<string>>();
+    for (const section of strategy?.sections || []) {
+      for (const item of section.items) {
+        const candidates = requirementEndpointMappingService.rankCandidatesForScenario(
+          requirement,
+          projectOperations,
+          item.acceptanceCriterionId,
+          `${item.title} ${item.reason}`,
+          8,
+          existingUserOperationIds,
+        );
+        const ids = new Set(candidates.map((operation) => operation.id));
+        if (item.scenarioId) strategyScenarioCandidates.set(item.scenarioId, ids);
+        if (item.acceptanceCriterionId) criterionCandidates.set(item.acceptanceCriterionId, ids);
+      }
+    }
+    const requirementPrompt = {
+      ...toRequirementPromptPayload(requirement),
+      title: requirement.title,
+      description: requirement.description,
+      relatedFlows: requirement.relatedFlows || [],
+      strategyScenarios: (strategy?.sections || []).flatMap((section: any) => section.items.map((item: any) => ({
+        scenarioId: item.scenarioId,
+        strategyItemId: item.id,
+        acceptanceCriterionId: item.acceptanceCriterionId,
+        title: item.title,
+        candidateOperations: (item.scenarioId && strategyScenarioCandidates.get(item.scenarioId)
+          ? projectOperations.filter((operation) => strategyScenarioCandidates.get(item.scenarioId)!.has(operation.id))
+          : item.acceptanceCriterionId && criterionCandidates.get(item.acceptanceCriterionId)
+            ? projectOperations.filter((operation) => criterionCandidates.get(item.acceptanceCriterionId)!.has(operation.id))
+            : candidateOperations),
+      }))),
+      candidateOperations: candidateOperations.map((operation) => ({
+        id: operation.id,
+        serviceId: operation.serviceId,
+        name: operation.name,
+        method: operation.method,
+        path: operation.path,
+        description: operation.description,
+        authenticationType: operation.authenticationType,
+        tags: operation.tags,
+        score: operation.score,
+      })),
+    };
 
     let providerEntity;
     try {
@@ -115,7 +176,7 @@ export class GenerateTestDesignWithAI {
       const preview = await this.promptBuilderService.previewPrompt({
         templateId: TEST_DESIGN_TEMPLATE_ID,
         projectId,
-        variableOverrides: { requirements: [requirement as any] },
+        variableOverrides: { requirements: [requirementPrompt], apiOperations: candidateOperations },
       });
       builtPrompt = {
         systemPrompt: preview.systemPrompt,
@@ -131,7 +192,7 @@ export class GenerateTestDesignWithAI {
       warnings.push('No Test Design prompt template was found. Using fallback prompt.');
       builtPrompt = {
         systemPrompt: 'You are a test design specialist.',
-        userPrompt: `Create test designs for the requirement: ${requirement.title}.`,
+        userPrompt: `Create test designs for the following acceptance criteria:\n\n${getAcceptanceCriteriaFocusText(requirement) || '(no acceptance criteria provided)'}`,
         tokenEstimate: 0,
         validationWarnings: ['Fallback prompt used - template not found.'],
       };
@@ -141,7 +202,10 @@ export class GenerateTestDesignWithAI {
       { role: 'system', content: builtPrompt.systemPrompt },
       { role: 'user', content: builtPrompt.userPrompt },
     ];
-    const generateResult = await this.manageAIProviders.generate(request.providerId, messages);
+    const generateResult = await this.manageAIProviders.generate(request.providerId, messages, {
+      maxTokens: 1024,
+      temperature: 0.3,
+    });
 
     if (request.previewOnly) {
       return {
@@ -165,16 +229,47 @@ export class GenerateTestDesignWithAI {
     const designInputs = parsed.designInputs.length > 0
       ? parsed.designInputs
       : this.deriveDesignsFromStrategy(context, requirement, strategy);
+    const invalidOperationCount = designInputs.filter((input) => {
+      if (!input.operationId) return false;
+      const allowed = (input.scenarioId && strategyScenarioCandidates.get(input.scenarioId))
+        || (input.acceptanceCriterionId && criterionCandidates.get(input.acceptanceCriterionId))
+        || candidateIds;
+      return !allowed.has(input.operationId);
+    }).length;
+    if (invalidOperationCount > 0) {
+      warnings.push(`${invalidOperationCount} AI test design operation mapping(s) were outside the supplied candidate set and require review.`);
+    }
+    const criterionIds = new Set((requirement.acceptanceCriteria || []).map((criterion: any) => criterion.id));
+    const invalidCriterionCount = designInputs.filter((input) => input.acceptanceCriterionId && !criterionIds.has(input.acceptanceCriterionId)).length;
+    if (invalidCriterionCount > 0) warnings.push(`${invalidCriterionCount} AI test design acceptance-criterion mapping(s) were invalid and require fallback identity.`);
+    const strategyScenarioIds = new Set((strategy?.sections || []).flatMap((section: any) => section.items.map((item: any) => item.scenarioId).filter(Boolean)));
+    const invalidScenarioCount = designInputs.filter((input) => input.scenarioId && strategyScenarioIds.size > 0 && !strategyScenarioIds.has(input.scenarioId)).length;
+    if (invalidScenarioCount > 0) warnings.push(`${invalidScenarioCount} AI scenario identity value(s) were invalid and require fallback identity.`);
 
     const persistedDesigns: TestDesignEntity[] = [];
     for (const input of designInputs) {
       const now = Date.now();
+      const strategyItemId = input.strategyItemId || (strategy?.sections[0]?.items[0]?.id) || '';
+      const title =
+        input.title?.trim() ||
+        this.resolveDesignTitle(requirement, strategy, strategyItemId, input);
+
+      const strategyMeta = this.findStrategyItemMeta(strategy, strategyItemId);
+      const acceptanceCriterionId = input.acceptanceCriterionId && criterionIds.has(input.acceptanceCriterionId)
+        ? input.acceptanceCriterionId
+        : strategyMeta?.acceptanceCriterionId;
+      const scenarioConfidence = requirementEndpointMappingService.confidenceForScenario(requirement, projectOperations, acceptanceCriterionId, title);
+      const allowedOperationIds = (input.scenarioId && strategyScenarioCandidates.get(input.scenarioId))
+        || (acceptanceCriterionId && criterionCandidates.get(acceptanceCriterionId))
+        || candidateIds;
+
       const design = new TestDesignEntity(
         randomUUID(),
         projectId,
         request.requirementId,
-        input.strategyItemId || (strategy?.sections[0]?.items[0]?.id) || '',
-        input.operationId || '',
+        strategyItemId,
+        title,
+        allowedOperationIds.has(input.operationId || '') ? input.operationId || '' : '',
         input.environmentId || (context?.environments && context.environments[0]?.id) || '',
         input.datasetId || (context?.datasets && context.datasets[0]?.id) || '',
         input.datasetRowReference || '',
@@ -182,10 +277,20 @@ export class GenerateTestDesignWithAI {
         input.runtimeBindings || [],
         input.assertions || [],
         input.cleanup || [],
-        input.priority || 'Medium',
+        input.priority || strategyMeta?.priority || 'Medium',
         'Ready',
         now,
-        now
+        now,
+        [],
+        strategyMeta?.testCaseType,
+        strategyMeta?.expectedHttpStatus,
+        ((input.scenarioId && strategyScenarioCandidates.get(input.scenarioId)) || (input.acceptanceCriterionId && criterionCandidates.get(input.acceptanceCriterionId)) || candidateIds).has(input.operationId || '') ? 'ai' : 'matcher',
+        allowedOperationIds.has(input.operationId || '') && scenarioConfidence >= 70 ? 'confirmed' : 'review',
+        scenarioConfidence,
+        acceptanceCriterionId,
+        (input.scenarioId && (strategyScenarioIds.size === 0 || strategyScenarioIds.has(input.scenarioId)))
+          ? input.scenarioId
+          : strategyMeta?.scenarioId || `${acceptanceCriterionId || 'legacy'}:scenario:${strategyItemId}`
       );
 
       const saved = await this.testDesignRepository.create(design);
@@ -245,6 +350,9 @@ export class GenerateTestDesignWithAI {
 
           designInputs.push({
             strategyItemId: raw.strategyItemId ? String(raw.strategyItemId) : undefined,
+            acceptanceCriterionId: raw.acceptanceCriterionId ? String(raw.acceptanceCriterionId) : undefined,
+            scenarioId: raw.scenarioId ? String(raw.scenarioId) : undefined,
+            title: raw.title ? String(raw.title) : raw.name ? String(raw.name) : undefined,
             operationId: raw.operationId ? String(raw.operationId) : undefined,
             environmentId: raw.environmentId ? String(raw.environmentId) : undefined,
             datasetId: raw.datasetId ? String(raw.datasetId) : undefined,
@@ -270,6 +378,7 @@ export class GenerateTestDesignWithAI {
     if (str.includes('low')) return 'Low';
     return 'Medium';
   }
+
 
   private normalizeRuntimeBindings(value: any): RuntimeBinding[] {
     if (!Array.isArray(value)) return [];
@@ -324,9 +433,15 @@ export class GenerateTestDesignWithAI {
     if (!strategy) {
       const categories = ['Positive', 'Negative', 'Boundary', 'Security', 'Validation'];
       for (const category of categories) {
+        const scenarioIndex = categories.indexOf(category);
         inputs.push({
           strategyItemId: `cat-${category.toLowerCase()}`,
-          operationId: requirement?.relatedOperations?.[0] || apiOperations[0]?.id || '',
+          acceptanceCriterionId: requirement.acceptanceCriteria?.[0]?.id,
+          scenarioId: `${requirement.acceptanceCriteria?.[0]?.id || 'legacy'}:scenario:${scenarioIndex}`,
+          title: this.categoryTitle(requirement.title, category),
+          operationId: apiOperations.length > 0
+            ? pickOperationForCategory(requirement, apiOperations, category as any)
+            : '',
           environmentId: environment?.id || '',
           datasetId: dataset?.id || '',
           datasetRowReference: dataset ? `row-${Date.now()}` : '',
@@ -344,7 +459,12 @@ export class GenerateTestDesignWithAI {
           const category = section.category;
           inputs.push({
             strategyItemId: item.id,
-            operationId: item.relatedApis?.[0] || requirement?.relatedOperations?.[0] || apiOperations[0]?.id || '',
+            acceptanceCriterionId: item.acceptanceCriterionId,
+            scenarioId: item.scenarioId || item.id,
+            title: item.title,
+            operationId: apiOperations.length > 0
+              ? pickOperationForCategory(requirement, apiOperations, category as any)
+              : '',
             environmentId: environment?.id || '',
             datasetId: dataset?.id || '',
             datasetRowReference: dataset ? `row-${Date.now()}` : '',
@@ -411,6 +531,64 @@ export class GenerateTestDesignWithAI {
   private defaultCleanup(category: string): CleanupStep[] {
     if (category === 'Integration' || category === 'Regression') return [{ type: 'dataset', action: 'cleanup', target: 'test-data' }];
     return [];
+  }
+
+  private findStrategyItemMeta(
+    strategy: TestStrategyEntity | null,
+    strategyItemId: string,
+  ): { testCaseType?: 'Positive' | 'Negative' | 'Security'; expectedHttpStatus?: number; priority?: 'High' | 'Medium' | 'Low'; acceptanceCriterionId?: string; scenarioId?: string } | null {
+    if (!strategy) return null;
+    for (const section of strategy.sections) {
+      const item = section.items.find((i) => i.id === strategyItemId);
+      if (item) {
+        return {
+          testCaseType: item.testCaseType,
+          expectedHttpStatus: item.expectedHttpStatus,
+          priority: item.priority,
+          acceptanceCriterionId: item.acceptanceCriterionId,
+          scenarioId: item.scenarioId,
+        };
+      }
+    }
+    return null;
+  }
+
+  private categoryTitle(acFocus: string, category: string): string {
+    const templates: Record<string, string> = {
+      Positive: 'Successfully complete when {action}',
+      Negative: 'Reject the request when inputs are invalid for: {action}',
+      Boundary: 'Exercise boundary values for: {action}',
+      Security: 'Reject unauthenticated or unauthorized access for: {action}',
+      Validation: 'Return validation errors for invalid fields when: {action}',
+    };
+    const template = templates[category] || 'Validate scenario for: {action}';
+    return template.replace('{action}', acFocus).replace('{category}', category);
+  }
+
+  private resolveDesignTitle(
+    requirement: { title: string; acceptanceCriteria?: { text: string }[]; description?: string },
+    strategy: TestStrategyEntity | null,
+    strategyItemId: string,
+    input: ParsedTestDesignInput,
+  ): string {
+    if (strategy) {
+      for (const section of strategy.sections) {
+        const item = section.items.find((i) => i.id === strategyItemId);
+        if (item?.title) return item.title;
+      }
+    }
+    const acFocus = getAcceptanceCriteriaFocusText(requirement as any);
+    const catMatch = strategyItemId.match(/^cat-(\w+)$/i);
+    if (catMatch) {
+      const category =
+        catMatch[1].charAt(0).toUpperCase() + catMatch[1].slice(1).toLowerCase();
+      return this.categoryTitle(acFocus || requirement.title, category);
+    }
+    const statusAssertion = input.assertions?.find((a) => a.type === 'status');
+    if (statusAssertion && acFocus) {
+      return `${acFocus} (expect HTTP ${statusAssertion.expected})`;
+    }
+    return acFocus || requirement.title;
   }
 
   private buildContextSummary(context: any, requirement: any, strategy: TestStrategyEntity | null): Record<string, any> {

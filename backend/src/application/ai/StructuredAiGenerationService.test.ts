@@ -1,0 +1,8 @@
+import { describe, expect, it } from 'vitest';
+import { StructuredAiGenerationService } from './StructuredAiGenerationService.js';
+import { FakeChatModelProvider } from '../../infrastructure/ai/FakeChatModelProvider.js';
+const schema = { validate: (value: unknown) => typeof (value as any)?.title === 'string' ? { valid: true as const, value } : { valid: false as const, errors: ['title required'] } };
+describe('provider-neutral AI capability contracts', () => {
+  it('resolves a capability and validates structured output', async () => { const provider = new FakeChatModelProvider({ title: 'valid' }); const service = new StructuredAiGenerationService({ resolve: () => provider }, { decide: () => ({ allowed: true, redact: false }) }); await expect(service.generate({ capability: 'STRUCTURED_GENERATION', input: {} }, schema)).resolves.toMatchObject({ output: { title: 'valid' }, provider: 'test-provider' }); });
+  it('rejects malformed output and governance-blocked invocations', async () => { const p = new FakeChatModelProvider({ invalid: true }); const allowed = new StructuredAiGenerationService({ resolve: () => p }, { decide: () => ({ allowed: true, redact: false }) }); await expect(allowed.generate({ capability: 'STRUCTURED_GENERATION', input: {} }, schema)).rejects.toMatchObject({ category: 'INVALID_STRUCTURED_OUTPUT' }); const blocked = new StructuredAiGenerationService({ resolve: () => p }, { decide: () => ({ allowed: false, redact: true, reason: 'GOVERNANCE_BLOCKED' }) }); await expect(blocked.generate({ capability: 'GENERAL_REASONING', input: {} }, schema)).rejects.toMatchObject({ category: 'GOVERNANCE_BLOCKED' }); });
+});

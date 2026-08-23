@@ -1,2 +1,2 @@
-export * from './ProjectController';
-export * from './ProjectRoutes';
+export * from './ProjectController.js';
+export * from './ProjectRoutes.js';

@@ -1,6 +1,6 @@
 // Knowledge Hub — unified list, type filters, and document import
 import React from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRightLeft,
@@ -12,9 +12,10 @@ import {
   Edit,
   Trash2,
   BookOpen,
-  Sparkles,
   Upload,
   ChevronDown,
+  Database,
+  Globe,
 } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
@@ -31,6 +32,8 @@ import { DependencyDialog } from '../components/DependencyDialog';
 import { ImportKnowledgeModal } from '../components/ImportKnowledgeModal';
 import { useKnowledgeFlows, useBusinessRules, useRuntimeVariables, useDependencies, useDocumentation } from '../hooks';
 import { knowledgeService } from '../services';
+import { datasetService } from '../../test-data/services/datasetService';
+import { projectStore } from '../../../store/projectStore';
 import { toUnifiedItems, type KnowledgeTypeFilter, type UnifiedKnowledgeItem } from '../utils/unifiedKnowledge';
 import type {
   KnowledgeSection,
@@ -132,7 +135,14 @@ function renderItemMeta(item: UnifiedKnowledgeItem) {
         </>
       );
     case 'documentation':
-      return <Badge variant='outline'>{String(raw.category || 'General')}</Badge>;
+      return (
+        <>
+          <Badge variant='outline'>{String(raw.category || 'General')}</Badge>
+          {Array.isArray(raw.linkedApiOperationIds) && raw.linkedApiOperationIds.length > 0 ? (
+            <Badge variant='secondary'>{raw.linkedApiOperationIds.length} API link{raw.linkedApiOperationIds.length === 1 ? '' : 's'}</Badge>
+          ) : null}
+        </>
+      );
     default:
       return null;
   }
@@ -140,9 +150,10 @@ function renderItemMeta(item: UnifiedKnowledgeItem) {
 
 export const KnowledgePage: React.FC = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
-  const projectId = routeProjectId ?? '';
-  const navigate = useNavigate();
+  const selectedProjectId = projectStore((state) => state.selectedProjectId);
+  const projectId = routeProjectId ?? selectedProjectId ?? '';
   const queryClient = useQueryClient();
+  const [workspaceStats, setWorkspaceStats] = React.useState({ importedApis: 0, datasets: 0 });
 
   const flowHooks = useKnowledgeFlows(projectId);
   const ruleHooks = useBusinessRules(projectId);
@@ -181,10 +192,34 @@ export const KnowledgePage: React.FC = () => {
 
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [itemToDelete, setItemToDelete] = React.useState<UnifiedKnowledgeItem | undefined>();
+  const [deleteAllOpen, setDeleteAllOpen] = React.useState(false);
+  const [isDeletingAll, setIsDeletingAll] = React.useState(false);
   const [toastOpen, setToastOpen] = React.useState(false);
   const [toastMessage, setToastMessage] = React.useState('');
   const [toastType, setToastType] = React.useState<'success' | 'error'>('success');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    const importsKey = `testforge:api-workspace:imports:project:${projectId}`;
+    const loadWorkspaceStats = async () => {
+      let importedApis = 0;
+      try {
+        const raw = localStorage.getItem(importsKey);
+        const artifacts = raw ? JSON.parse(raw) as Array<{ kind: string; endpoints?: unknown[] }> : [];
+        importedApis = artifacts.filter((artifact) => artifact.kind === 'api').reduce((count, artifact) => count + (artifact.endpoints?.length || 0), 0);
+      } catch { importedApis = 0; }
+      try {
+        const datasets = await datasetService.listDatasets(projectId);
+        if (!cancelled) setWorkspaceStats({ importedApis, datasets: datasets.length });
+      } catch {
+        if (!cancelled) setWorkspaceStats({ importedApis, datasets: 0 });
+      }
+    };
+    void loadWorkspaceStats();
+    return () => { cancelled = true; };
+  }, [projectId]);
 
   React.useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -416,13 +451,41 @@ export const KnowledgePage: React.FC = () => {
     }
   };
 
+  const handleDeleteAll = async () => {
+    if (allItems.length === 0) {
+      setDeleteAllOpen(false);
+      return;
+    }
+
+    setIsDeletingAll(true);
+    try {
+      // Delete sequentially so concurrent repository writes cannot overwrite one another.
+      for (const item of flows) await flowHooks.removeAsync(item.id);
+      for (const item of rules) await ruleHooks.removeAsync(item.id);
+      for (const item of variables) await variableHooks.removeAsync(item.id);
+      for (const item of dependencies) await dependencyHooks.removeAsync(item.id);
+      for (const item of docs) await docHooks.removeAsync(item.id);
+
+      invalidateKnowledge();
+      setTypeFilter('all');
+      setSearch('');
+      showToast('All knowledge deleted', 'success');
+    } catch (err: any) {
+      invalidateKnowledge();
+      showToast(err?.response?.data?.message || err?.message || 'Failed to delete all knowledge', 'error');
+    } finally {
+      setIsDeletingAll(false);
+      setDeleteAllOpen(false);
+    }
+  };
+
   const primaryCreateSection: KnowledgeSection | null =
     typeFilter !== 'all' ? typeFilter : null;
 
   if (!projectId) {
     return (
       <div className="mx-auto max-w-7xl px-6 py-16 text-center text-text-secondary">
-        Open a project to use the Knowledge Hub.
+        Open a project to manage project knowledge.
       </div>
     );
   }
@@ -432,16 +495,12 @@ export const KnowledgePage: React.FC = () => {
       <div className='mx-auto max-w-7xl px-6 py-8'>
         <div className='mb-6 flex flex-wrap items-start justify-between gap-4'>
           <div>
-            <h1 className='text-2xl font-bold text-text'>Knowledge Hub</h1>
+            <h1 className='text-2xl font-bold text-text'>Knowledge</h1>
             <p className='mt-1 max-w-2xl text-sm text-text-secondary'>
-              One place for flows, rules, dependencies, variables, and documentation. Import multiple documents (PDF, Word, Markdown, JSON packs, and more) or add items manually.
+              Upload documentation, tag it, and connect it to the API and Test Data workspace.
             </p>
           </div>
           <div className='flex flex-wrap items-center gap-2'>
-            <Button variant='outline' onClick={() => navigate(`/projects/${projectId}/requirements/analysis`)}>
-              <Sparkles className='mr-2 h-4 w-4' />
-              Analyze project
-            </Button>
             <Button variant='outline' onClick={() => setImportOpen(true)}>
               <Upload className='mr-2 h-4 w-4' />
               Import
@@ -477,6 +536,12 @@ export const KnowledgePage: React.FC = () => {
           </div>
         </div>
 
+        <div className='mb-6 grid gap-3 sm:grid-cols-3'>
+          <div className='rounded-lg border border-border bg-surface p-4'><div className='flex items-center gap-2 text-xs font-medium text-text-secondary'><Globe className='h-4 w-4' /> API endpoints</div><p className='mt-2 text-2xl font-semibold text-text'>{workspaceStats.importedApis}</p><p className='mt-1 text-xs text-text-secondary'>Imported in the API workspace</p></div>
+          <div className='rounded-lg border border-border bg-surface p-4'><div className='flex items-center gap-2 text-xs font-medium text-text-secondary'><Database className='h-4 w-4' /> Test data datasets</div><p className='mt-2 text-2xl font-semibold text-text'>{workspaceStats.datasets}</p><p className='mt-1 text-xs text-text-secondary'>Available for endpoint workflows</p></div>
+          <div className='rounded-lg border border-border bg-surface p-4'><div className='flex items-center gap-2 text-xs font-medium text-text-secondary'><BookOpen className='h-4 w-4' /> Knowledge items</div><p className='mt-2 text-2xl font-semibold text-text'>{allItems.length}</p><p className='mt-1 text-xs text-text-secondary'>Persisted project context</p></div>
+        </div>
+
         <div className='mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6'>
           {TYPE_CHIPS.map((chip) => {
             const Icon = chip.icon;
@@ -501,13 +566,22 @@ export const KnowledgePage: React.FC = () => {
           })}
         </div>
 
-        <div className='mb-6'>
+        <div className='mb-6 flex flex-wrap items-center justify-between gap-3'>
           <SearchBar
             value={search}
             onChange={setSearch}
             placeholder='Search all knowledge…'
             className='sm:max-w-md'
           />
+          <Button
+            type='button'
+            variant='destructive'
+            onClick={() => setDeleteAllOpen(true)}
+            disabled={allItems.length === 0 || isDeletingAll}
+          >
+            <Trash2 className='mr-2 h-4 w-4' />
+            Delete all
+          </Button>
         </div>
 
         {isLoading ? (
@@ -525,7 +599,7 @@ export const KnowledgePage: React.FC = () => {
             description={
               search
                 ? 'Try a different search or clear the type filter.'
-                : 'Import project docs (Markdown or JSON) or add flows, rules, and other items manually.'
+                : 'Optional: document flows and business rules for richer AI test ideas. Not required for the main import → requirement → run path.'
             }
             action={
               search
@@ -713,6 +787,20 @@ export const KnowledgePage: React.FC = () => {
         onCancel={() => {
           setDeleteOpen(false);
           setItemToDelete(undefined);
+        }}
+      />
+
+      <ConfirmDialog
+        open={deleteAllOpen}
+        title='Delete all knowledge?'
+        message={`This will permanently delete all ${allItems.length} knowledge item${allItems.length === 1 ? '' : 's'} from this project.`}
+        confirmLabel='Delete all'
+        cancelLabel='Keep knowledge'
+        variant='destructive'
+        isLoading={isDeletingAll}
+        onConfirm={handleDeleteAll}
+        onCancel={() => {
+          if (!isDeletingAll) setDeleteAllOpen(false);
         }}
       />
 

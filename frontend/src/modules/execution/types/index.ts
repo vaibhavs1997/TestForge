@@ -1,6 +1,6 @@
 // Execution module types
 export type ExecutionRunStatus = 'Pending' | 'Running' | 'Completed' | 'Failed' | 'Cancelled';
-export type StepStatus = 'Pending' | 'Running' | 'Passed' | 'Failed' | 'Skipped';
+export type StepStatus = 'Pending' | 'Running' | 'Passed' | 'Failed' | 'Skipped' | 'Blocked';
 export type FailureMode = 'ContinueOnFailure' | 'StopOnFailure';
 
 export interface RequestTemplate {
@@ -87,6 +87,7 @@ export interface ExecutionSummary {
   passed: number;
   failed: number;
   skipped: number;
+  blocked: number;
   duration: number;
   validationPassed: number;
   validationFailed: number;
@@ -131,10 +132,31 @@ export interface ExecutionRun {
   updatedAt: number;
   completedAt: number | null;
   executionProfile?: ExecutionProfileMetadata;
+  suiteId?: string | null;
+  executionPlanIds?: string[];
+  dependencyGraph?: Array<{ executionPlanId: string; prerequisitePlanIds: string[] }>;
+  suiteSnapshot?: Record<string, unknown> | null;
 }
 
 export interface ExecutionRunCreatePayload {
   executionPlanId: string;
   failureMode?: FailureMode;
   executionProfileId?: string;
+}
+
+export interface RunnableSuite {
+  id: string;
+  suiteType: 'suite' | 'requirement';
+  requirementId?: string;
+  name: string;
+  description: string;
+  tags: Array<{ id: string; name: string }>;
+  testCount: number;
+  executionPolicy: 'Sequential' | 'FailFast' | 'ContinueOnError';
+  defaultEnvironmentId: string;
+  version: number;
+  approvedAt: number | null;
+  defaultProfileId: string | null;
+  isRunnable: boolean;
+  blocker: string | null;
 }

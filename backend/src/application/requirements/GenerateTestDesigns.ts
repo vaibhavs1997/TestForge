@@ -3,17 +3,21 @@
 // Does NOT execute tests or generate reports.
 // Reuses Requirement, Strategy, API Contract, Datasets, Environment, and Knowledge.
 import { randomUUID } from 'node:crypto';
-import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
-import { RequirementEntity } from '../../domain/requirements/RequirementEntity';
-import { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository';
-import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository';
-import { AnalysisRepository } from '../../infrastructure/analysis/AnalysisRepository';
-import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository';
-import { DatasetRepository } from '../../infrastructure/test-data/DatasetRepository';
-import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository';
-import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
-import { TestDesignEntity, DesignPriority, DesignStatus, RequestOverride, RuntimeBinding, Assertion, CleanupStep } from '../../domain/requirements/TestDesignEntity';
-import { TestStrategyEntity, StrategyItem } from '../../domain/requirements/TestStrategyEntity';
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
+import { RequirementEntity } from '../../domain/requirements/RequirementEntity.js';
+import { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository.js';
+import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository.js';
+import { AnalysisRepository } from '../../infrastructure/analysis/AnalysisRepository.js';
+import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository.js';
+import { DatasetRepository } from '../../infrastructure/test-data/DatasetRepository.js';
+import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository.js';
+import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository.js';
+import { TestDesignEntity, DesignPriority, DesignStatus, RequestOverride, RuntimeBinding, Assertion, CleanupStep } from '../../domain/requirements/TestDesignEntity.js';
+import { TestStrategyEntity, StrategyItem, StrategyCategory } from '../../domain/requirements/TestStrategyEntity.js';
+import {
+  buildPayloadForScenario,
+} from './RequirementOperationMatcher.js';
+import { requirementEndpointMappingService } from './RequirementEndpointMappingService.js';
 
 export class GenerateTestDesigns {
   constructor(
@@ -45,24 +49,41 @@ export class GenerateTestDesigns {
       ? await this.analysisRepository.findById(requirement.projectAnalysisId)
       : null;
 
-    // Get environment (prefer QA, fallback to first available)
+    // Use the environment selected in the API workspace as the shared default.
+    // Keep QA/first as backwards-compatible fallbacks for older projects.
     const environments = await this.environmentRepository.findByProject(requirement.projectId);
-    const environment = environments.find(e => e.name.toLowerCase().includes('qa')) || environments[0];
+    const environment = environments.find(e => e.isDefault)
+      || environments.find(e => e.name.toLowerCase().includes('qa'))
+      || environments[0];
 
     // Get dataset (prefer test data, fallback to analysis datasets)
     const datasets = await this.datasetRepository.findByProject(requirement.projectId);
     const dataset = datasets[0] || (analysis ? await this.datasetRepository.findById(analysis.relatedDatasets[0]) : null);
+
+    const operations = await this.apiOperationRepository.findByProject(requirement.projectId);
 
     // Process each enabled strategy item
     for (const section of strategy.sections) {
       for (const item of section.items) {
         if (item.status !== 'Enabled') continue;
 
-        // Find related API operation
-        const operationId = this.findRelatedOperationId(item, requirement);
-        
-        // Generate request overrides based on strategy category
-        const requestOverrides = this.generateRequestOverrides(section.category, item);
+        const operationId = this.findRelatedOperationId(
+          item,
+          requirement,
+          section.category,
+          operations,
+        );
+
+        const operation = operations.find((o) => o.id === operationId);
+        const requestOverrides: RequestOverride = {
+          body: buildPayloadForScenario(section.category, operation, {
+            focusFieldId: item.focusFieldId,
+            scenarioKind: item.scenarioKind,
+          }),
+        };
+        if (section.category === 'Security') {
+          requestOverrides.headers = { Authorization: 'Bearer invalid-token' };
+        }
         
         // Generate runtime bindings
         const runtimeBindings = this.generateRuntimeBindings(section.category);
@@ -78,6 +99,7 @@ export class GenerateTestDesigns {
                   requirement.projectId,
                   requirementId,
                   item.id,
+                  item.title,
                   operationId,
                   environment?.id || '',
                   dataset?.id || '',
@@ -89,7 +111,15 @@ export class GenerateTestDesigns {
                   item.priority,
                   'Ready',
                   Date.now(),
-                  Date.now()
+                  Date.now(),
+                  [],
+                  item.testCaseType,
+                  item.expectedHttpStatus,
+                  'matcher',
+                  requirementEndpointMappingService.resolveFallback(requirement, operations, section.category, item.acceptanceCriterionId, `${item.title} ${item.reason}`).state,
+                  requirementEndpointMappingService.resolveFallback(requirement, operations, section.category, item.acceptanceCriterionId, `${item.title} ${item.reason}`).confidence,
+                  item.acceptanceCriterionId,
+                  item.scenarioId || item.id
                 );
 
         designs.push(design);
@@ -106,37 +136,15 @@ export class GenerateTestDesigns {
     return persistedDesigns;
   }
 
-  private findRelatedOperationId(item: StrategyItem, requirement: RequirementEntity): string {
-    // Use the first related API from the strategy item, or from the requirement
-    if (item.relatedApis.length > 0) {
-      return item.relatedApis[0];
-    }
-    if (requirement.relatedOperations.length > 0) {
-      return requirement.relatedOperations[0];
-    }
-    return '';
+  private findRelatedOperationId(
+    item: StrategyItem,
+    requirement: RequirementEntity,
+    category: StrategyCategory,
+    operations: Awaited<ReturnType<ApiOperationRepository['findByProject']>>,
+  ): string {
+    return requirementEndpointMappingService.resolveFallback(requirement, operations, category, item.acceptanceCriterionId, `${item.title} ${item.reason}`).operationId;
   }
 
-  private generateRequestOverrides(category: string, item: StrategyItem): RequestOverride {
-    const overrides: RequestOverride = {};
-
-    switch (category) {
-      case 'Negative':
-      case 'Validation':
-        overrides.body = { invalid: true };
-        break;
-      case 'Security':
-        overrides.headers = { Authorization: 'Bearer invalid-token' };
-        break;
-      case 'Boundary':
-        overrides.body = { boundary: true };
-        break;
-      default:
-        overrides.body = {};
-    }
-
-    return overrides;
-  }
 
   private generateRuntimeBindings(category: string): RuntimeBinding[] {
     const bindings: RuntimeBinding[] = [];
@@ -161,41 +169,20 @@ export class GenerateTestDesigns {
   }
 
   private generateAssertions(category: string, item: StrategyItem): Assertion[] {
-    const assertions: Assertion[] = [];
+    const expectedStatus =
+      item.expectedHttpStatus ??
+      (category === 'Security' ? 401 : category === 'Negative' || category === 'Validation' ? 400 : 200);
 
-    switch (category) {
-      case 'Positive':
-        assertions.push(
-          { type: 'status', operator: 'equals', path: '$.status', expected: 200 },
-          { type: 'body', operator: 'exists', path: '$.data', expected: true }
-        );
-        break;
-      case 'Negative':
-      case 'Validation':
-        assertions.push(
-          { type: 'status', operator: 'equals', path: '$.status', expected: 400 }
-        );
-        break;
-      case 'Security':
-        assertions.push(
-          { type: 'status', operator: 'equals', path: '$.status', expected: 401 }
-        );
-        break;
-      case 'Error Handling':
-        assertions.push(
-          { type: 'status', operator: 'equals', path: '$.status', expected: 500 },
-          { type: 'body', operator: 'exists', path: '$.error', expected: true }
-        );
-        break;
-      case 'Boundary':
-        assertions.push(
-          { type: 'status', operator: 'equals', path: '$.status', expected: 200 }
-        );
-        break;
-      default:
-        assertions.push(
-          { type: 'status', operator: 'equals', path: '$.status', expected: 200 }
-        );
+    const assertions: Assertion[] = [
+      { type: 'status', operator: 'equals', path: '$.status', expected: expectedStatus },
+    ];
+
+    if (expectedStatus >= 200 && expectedStatus < 300 && category === 'Positive') {
+      assertions.push({ type: 'body', operator: 'exists', path: '$.data', expected: true });
+    }
+
+    if (expectedStatus >= 400) {
+      assertions.push({ type: 'body', operator: 'exists', path: '$.message', expected: true });
     }
 
     return assertions;

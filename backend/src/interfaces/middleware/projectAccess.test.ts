@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import type { ProjectRecord } from '../../domain/project/ProjectRecord';
-import { filterProjectsForAuth } from './projectAccess';
+import type { ProjectRecord } from '../../domain/project/ProjectRecord.js';
+import { filterProjectsForAuth } from './projectAccess.js';
 
 const sample = (id: string, ownerId?: string): ProjectRecord => ({
   id,

@@ -1,7 +1,7 @@
 // ProjectContextController - Controller for Project Context endpoint
 import { Request, Response } from 'express';
-import { ProjectContextService } from '../../application/context/ProjectContextService';
-import { createSuccessResponse } from "../../shared/ApiResponse";
+import { ProjectContextService } from '../../application/context/ProjectContextService.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
 export class ProjectContextController {
     constructor(private readonly projectContextService: ProjectContextService) { }
     async getProjectContext(req: Request, res: Response): Promise<void> {

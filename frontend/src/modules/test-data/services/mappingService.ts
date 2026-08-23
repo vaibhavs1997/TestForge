@@ -1,22 +1,7 @@
 // Mapping service for Data Source Intelligence
 import { ApiClient } from '../../../services/ApiClient';
-
-export interface DataSourceMappingDto {
-  id: string;
-  projectId: string;
-  serviceId: string;
-  operationId: string;
-  fieldPath: string;
-  sourceType: string;
-  datasetId?: string;
-  datasetColumn?: string;
-  environmentVariable?: string;
-  runtimeOperationId?: string;
-  runtimeField?: string;
-  notes: string;
-  createdAt: number;
-  updatedAt: number;
-}
+import type { DataSourceMappingDto } from '../../../types/moduleContracts';
+import { normalizeDataSourceMapping } from '../../../utils/moduleAdapters';
 
 class MappingService extends ApiClient<DataSourceMappingDto> {
   constructor() {
@@ -25,11 +10,11 @@ class MappingService extends ApiClient<DataSourceMappingDto> {
 
   async listMappings(projectId: string, operationId?: string): Promise<DataSourceMappingDto[]> {
     const params = operationId ? { operationId } : {};
-    return this.list(projectId, params);
+    return (await this.list(projectId, params)).map(normalizeDataSourceMapping);
   }
 
   async getMapping(projectId: string, mappingId: string): Promise<DataSourceMappingDto> {
-    return this.get(projectId, mappingId);
+    return normalizeDataSourceMapping(await this.get(projectId, mappingId));
   }
 
   async createMapping(
@@ -47,7 +32,7 @@ class MappingService extends ApiClient<DataSourceMappingDto> {
       notes?: string;
     }
   ): Promise<DataSourceMappingDto> {
-    return this.create(projectId, payload);
+    return normalizeDataSourceMapping(await this.create(projectId, payload));
   }
 
   async updateMapping(
@@ -64,7 +49,7 @@ class MappingService extends ApiClient<DataSourceMappingDto> {
       notes?: string;
     }
   ): Promise<DataSourceMappingDto> {
-    return this.patch(projectId, mappingId, payload);
+    return normalizeDataSourceMapping(await this.patch(projectId, mappingId, payload));
   }
 
   async deleteMapping(projectId: string, mappingId: string): Promise<void> {

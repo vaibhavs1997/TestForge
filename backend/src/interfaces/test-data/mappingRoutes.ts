@@ -1,18 +1,18 @@
 // DataSourceMappingRoutes - Route definitions for Data Source Mappings
 import { Router } from 'express';
-import { DataSourceMappingController } from './DataSourceMappingController';
-import { container } from '../../application/ApplicationContainer';
+import { DataSourceMappingController } from './DataSourceMappingController.js';
+import { container } from '../../application/ApplicationContainer.js';
 
 // Reuse shared repository from the ApplicationContainer
 const { dataSourceMappingRepository: mappingRepository } = container;
 
 // Initialize use cases
-import { CreateDataSourceMapping } from '../../application/test-data/CreateDataSourceMapping';
-import { UpdateDataSourceMapping } from '../../application/test-data/UpdateDataSourceMapping';
-import { DeleteDataSourceMapping } from '../../application/test-data/DeleteDataSourceMapping';
-import { GetDataSourceMapping } from '../../application/test-data/GetDataSourceMapping';
-import { ListDataSourceMappings } from '../../application/test-data/ListDataSourceMappings';
-import { asyncHandler } from '../middleware/AsyncHandler';
+import { CreateDataSourceMapping } from '../../application/test-data/CreateDataSourceMapping.js';
+import { UpdateDataSourceMapping } from '../../application/test-data/UpdateDataSourceMapping.js';
+import { DeleteDataSourceMapping } from '../../application/test-data/DeleteDataSourceMapping.js';
+import { GetDataSourceMapping } from '../../application/test-data/GetDataSourceMapping.js';
+import { ListDataSourceMappings } from '../../application/test-data/ListDataSourceMappings.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 const createMapping = new CreateDataSourceMapping(mappingRepository);
 const updateMapping = new UpdateDataSourceMapping(mappingRepository);

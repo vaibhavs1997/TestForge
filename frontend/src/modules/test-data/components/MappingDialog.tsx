@@ -164,10 +164,10 @@ export const MappingDialog = ({ open, onClose, onSubmit, mapping, isSubmitting }
               label="Generator"
               value=""
               disabled
-              placeholder="Generator selection coming soon"
+              placeholder="Generator selection is not exposed in this UI"
             />
             <p className="text-xs text-text-secondary">
-              Generator configuration will be available in a future update.
+              Generator configuration is not exposed in this UI yet.
             </p>
           </div>
         )}

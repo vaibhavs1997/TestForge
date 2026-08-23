@@ -1,13 +1,10 @@
 // PipelineRefreshSubscriber - Refreshes pipeline state when project dependencies change
-// Subscribes to INVALIDATED events and triggers pipeline re-evaluation
-// through the existing OrchestratePipeline and RunAIPipeline services.
-import { EventBus, DomainEvent } from '../../domain/events/EventBus';
-import { OrchestratePipeline } from '../pipeline/OrchestratePipeline';
+// Subscribes to INVALIDATED events without triggering generation side effects.
+import { EventBus, DomainEvent } from '../../domain/events/EventBus.js';
 
 export class PipelineRefreshSubscriber {
   constructor(
-    private readonly eventBus: EventBus,
-    private readonly orchestratePipeline: OrchestratePipeline
+    private readonly eventBus: EventBus
   ) {
     this.setupSubscriptions();
   }
@@ -19,9 +16,9 @@ export class PipelineRefreshSubscriber {
 
   private async refreshPipeline(event: DomainEvent): Promise<void> {
     try {
-      // Re-run the deterministic pipeline orchestration for the affected project.
-      // This keeps pipeline state in sync with the latest entity changes.
-      await this.orchestratePipeline.execute(event.projectId);
+      // Refresh events must not run the full pipeline. Requirement generation
+      // is an explicit user action and must not recreate deleted records.
+      void event;
     } catch (error) {
       // Pipeline refresh is best-effort — a failed refresh should not break
       // the originating operation. The pipeline can still be triggered manually.

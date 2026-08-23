@@ -1,29 +1,33 @@
 // Report service functions
-import axios from 'axios';
 import type { Report, ReportGeneratePayload } from '../types';
 import { API_BASE_URL } from '../../../constants/api';
+import { apiRequest } from '../../../services/apiRequest';
 
 export const reportService = {
   listReports: async (projectId: string): Promise<Report[]> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/reports`);
-    return data.data;
+    return apiRequest.get<Report[]>(`${API_BASE_URL}/projects/${projectId}/reports`);
   },
 
   getReport: async (projectId: string, reportId: string): Promise<Report> => {
-    const { data } = await axios.get(`${API_BASE_URL}/projects/${projectId}/reports/${reportId}`);
-    return data.data;
+    return apiRequest.get<Report>(`${API_BASE_URL}/projects/${projectId}/reports/${reportId}`);
   },
 
   generateReport: async (projectId: string, payload: ReportGeneratePayload): Promise<Report> => {
-    const { data } = await axios.post(
+    return apiRequest.post<Report>(
       `${API_BASE_URL}/projects/${projectId}/reports/generate/${payload.executionRunId}`,
-      { suiteId: payload.suiteId }
+      { suiteId: payload.suiteId },
     );
-    return data.data;
+  },
+
+  publishToJira: async (projectId: string, reportId: string, issueKey?: string): Promise<{ issueKey: string }> => {
+    return apiRequest.post<{ issueKey: string }>(
+      `${API_BASE_URL}/projects/${projectId}/reports/${reportId}/publish-jira`,
+      issueKey ? { issueKey } : {},
+    );
   },
 
   deleteReport: async (projectId: string, reportId: string): Promise<void> => {
-    await axios.delete(`${API_BASE_URL}/projects/${projectId}/reports/${reportId}`);
+    await apiRequest.delete(`${API_BASE_URL}/projects/${projectId}/reports/${reportId}`);
   },
 };
 

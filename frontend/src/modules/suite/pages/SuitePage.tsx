@@ -1,5 +1,6 @@
 // External libraries
 import React from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { PageHeader } from '../../../components/layout/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
@@ -9,17 +10,20 @@ import { EmptyState } from '../../../components/ui/EmptyState';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
 import { useSuites } from '../hooks';
 import { projectStore } from '../../../store/projectStore';
+import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
 import type { TestSuite, TestSuiteFormData, SuiteExecutionPolicy, SuiteStatus } from '../types';
-import { FlaskConical, Plus, Copy, Archive, Trash2, GripVertical, ChevronUp, ChevronDown, Clock, Layers } from 'lucide-react';
+import { FlaskConical, Plus, Copy, Archive, Trash2, GripVertical, ChevronUp, ChevronDown, Clock, Layers, Play } from 'lucide-react';
 
 // Styles
 
 export interface SuitePageProps {}
 
 export const SuitePage: React.FC<SuitePageProps> = () => {
+  const navigate = useNavigate();
+  const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const selectedProjectId = projectStore((state) => state.selectedProjectId);
-  const projectId = selectedProjectId || '1';
-  const { suites, isLoading, create, update, remove, addExecutionPlan, removeExecutionPlan, reorderExecutionPlans } = useSuites(projectId);
+  const projectId = routeProjectId ?? selectedProjectId ?? '1';
+  const { suites, isLoading, create, update, remove, addExecutionPlan, removeExecutionPlan, reorderExecutionPlans, executeAsync, isExecuting } = useSuites(projectId);
 
   const [search, setSearch] = React.useState('');
   const [selectedSuite, setSelectedSuite] = React.useState<TestSuite | null>(null);
@@ -141,6 +145,16 @@ export const SuitePage: React.FC<SuitePageProps> = () => {
     reorderExecutionPlans({ projectId, suiteId: suite.id, orderedPlanIds });
   };
 
+  const handleExecuteSuite = async () => {
+    if (!selectedSuite || selectedSuite.status !== 'Active' || selectedSuite.executionPlans.length === 0) return;
+    try {
+      await executeAsync({ suiteId: selectedSuite.id });
+      navigate(`/projects/${projectId}/execution`);
+    } catch {
+      // The execution page displays the server error state; keep the suite editor mounted.
+    }
+  };
+
   const formatDuration = (seconds: number) => {
     if (!seconds) return 'Not estimated';
     if (seconds < 60) return `${seconds}s`;
@@ -152,11 +166,22 @@ export const SuitePage: React.FC<SuitePageProps> = () => {
 
   return (
     <div className='mx-auto max-w-7xl px-4 py-8'>
+      <WorkflowOptionalBanner
+        projectId={projectId}
+        description="Suites group execution plans for batch or scheduled runs. Running from Requirements → Run tests does not require a suite."
+        primaryLink={{
+          label: 'Run tests',
+          path: `/projects/${projectId}/execution`,
+        }}
+      />
+
       {/* Page Header */}
       <div className='mb-6 flex items-center justify-between'>
         <div>
-          <h1 className='text-2xl font-bold text-text'>Test Suites</h1>
-          <p className='mt-1 text-sm text-text-secondary'>Reusable collections of execution plans for API validation.</p>
+          <h1 className='text-2xl font-bold text-text'>Test suites</h1>
+          <p className='mt-1 text-sm text-text-secondary'>
+            Optional: bundle execution plans for CI or the scheduler.
+          </p>
         </div>
         <div className='flex items-center gap-3'>
           <SearchBar value={search} onChange={setSearch} placeholder='Search test suites...' className='sm:w-80' />
@@ -178,8 +203,16 @@ export const SuitePage: React.FC<SuitePageProps> = () => {
               <EmptyState
                 icon={<FlaskConical className='h-12 w-12' />}
                 title={search ? 'No matching suites' : 'No test suites yet'}
-                description={search ? 'Try adjusting your search criteria.' : 'Create your first test suite to get started.'}
-                action={search ? undefined : { label: 'Create Suite', onClick: () => setCreateOpen(true) }}
+                description={search ? 'Try adjusting your search criteria.' : 'Create a suite when you need to run many plans together or on a schedule.'}
+                action={search ? undefined : { label: 'Create suite', onClick: () => setCreateOpen(true) }}
+                secondaryAction={
+                  search
+                    ? undefined
+                    : {
+                        label: 'Go to requirements',
+                        onClick: () => navigate(`/projects/${projectId}/requirements`),
+                      }
+                }
               />
             ) : (
               <div className='overflow-x-auto'>
@@ -261,6 +294,10 @@ export const SuitePage: React.FC<SuitePageProps> = () => {
               <div>
                 <h3 className='text-lg font-semibold text-text'>{selectedSuite.name}</h3>
                 <p className='text-sm text-text-secondary mt-1'>{selectedSuite.description || 'No description'}</p>
+                <Button className='mt-3' size='sm' onClick={() => void handleExecuteSuite()} disabled={isExecuting || selectedSuite.status !== 'Active' || selectedSuite.executionPlans.length === 0}>
+                  <Play className='mr-2 h-4 w-4' />
+                  {isExecuting ? 'Running suite...' : 'Run entire suite'}
+                </Button>
               </div>
 
               {/* Key Information */}

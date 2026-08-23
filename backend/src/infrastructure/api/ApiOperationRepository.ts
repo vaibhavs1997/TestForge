@@ -1,8 +1,8 @@
 // ApiOperationRepository - File-based repository implementation
 import * as fs from 'fs';
 import * as path from 'path';
-import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'apis');
@@ -72,6 +72,10 @@ export class ApiOperationRepository {
     return null;
   }
 
+  async findByProject(projectId: string): Promise<ApiOperationEntity[]> {
+    return this.readOperations(projectId);
+  }
+
   async findByProjectAndService(projectId: string, serviceId: string): Promise<ApiOperationEntity[]> {
     const operations = await this.readOperations(projectId);
     return operations.filter(
@@ -86,6 +90,14 @@ export class ApiOperationRepository {
     if (filtered.length !== operations.length) {
       await writeJsonArray(filePath, filtered);
     }
+  }
+
+  async deleteByProject(projectId: string): Promise<number> {
+    const filePath = this.getOperationsFilePath(projectId);
+    const operations = await this.readOperations(projectId);
+    const count = operations.length;
+    await writeJsonArray(filePath, []);
+    return count;
   }
 
   async findByService(serviceId: string): Promise<ApiOperationEntity[]> {

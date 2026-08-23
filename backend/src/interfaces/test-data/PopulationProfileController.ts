@@ -1,11 +1,11 @@
 // PopulationProfileController - Controller for Population Profile endpoints
 import { Request, Response } from 'express';
-import { CreatePopulationProfile } from '../../application/test-data/CreatePopulationProfile';
-import { UpdatePopulationProfile } from '../../application/test-data/UpdatePopulationProfile';
-import { DeletePopulationProfile } from '../../application/test-data/DeletePopulationProfile';
-import { GetPopulationProfile } from '../../application/test-data/GetPopulationProfile';
-import { ListPopulationProfiles } from '../../application/test-data/ListPopulationProfiles';
-import { createSuccessResponse } from "../../shared/ApiResponse";
+import { CreatePopulationProfile } from '../../application/test-data/CreatePopulationProfile.js';
+import { UpdatePopulationProfile } from '../../application/test-data/UpdatePopulationProfile.js';
+import { DeletePopulationProfile } from '../../application/test-data/DeletePopulationProfile.js';
+import { GetPopulationProfile } from '../../application/test-data/GetPopulationProfile.js';
+import { ListPopulationProfiles } from '../../application/test-data/ListPopulationProfiles.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
 export class PopulationProfileController {
     constructor(private readonly createProfileUseCase: CreatePopulationProfile, private readonly updateProfileUseCase: UpdatePopulationProfile, private readonly deleteProfileUseCase: DeletePopulationProfile, private readonly getProfileUseCase: GetPopulationProfile, private readonly listProfilesUseCase: ListPopulationProfiles) { }
     async listProfiles(req: Request, res: Response): Promise<void> {

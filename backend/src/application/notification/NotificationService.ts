@@ -2,13 +2,13 @@
 // Subscribes to Scheduler, Execution, and Report events and sends notifications.
 
 import { randomUUID } from 'node:crypto';
-import { EventBus, EventType, ModuleName } from '../../domain/events/EventBus';
-import { NotificationEntity } from '../../domain/notification/NotificationEntity';
-import type { NotificationEventType } from '../../domain/notification/NotificationEntity';
-import type { NotificationRepository } from '../../domain/notification/NotificationRepository';
-import { ProviderResolutionService } from '../../infrastructure/providers/ProviderResolutionService';
-import { ProviderEntity } from '../../domain/providers/ProviderEntity';
-import { PluginRegistry } from '../plugin/PluginRegistry';
+import { EventBus, EventType, ModuleName } from '../../domain/events/EventBus.js';
+import { NotificationEntity } from '../../domain/notification/NotificationEntity.js';
+import type { NotificationEventType } from '../../domain/notification/NotificationEntity.js';
+import type { NotificationRepository } from '../../domain/notification/NotificationRepository.js';
+import { ProviderResolutionService } from '../../infrastructure/providers/ProviderResolutionService.js';
+import { ProviderEntity } from '../../domain/providers/ProviderEntity.js';
+import { PluginRegistry } from '../plugin/PluginRegistry.js';
 
 export interface CreateNotificationInput {
   projectId: string;

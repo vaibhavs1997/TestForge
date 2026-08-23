@@ -1,17 +1,8 @@
 // External libraries
 import { httpClient } from './HttpClient';
+import type { ProjectDto } from '../types/apiModels';
 
 // Shared types
-export interface Project {
-  id: string;
-  name: string;
-  projectKey: string;
-  description?: string;
-  status?: 'active' | 'archived';
-  createdAt: number;
-  updatedAt: number;
-}
-
 export interface DashboardData {
   summaryCards: {
     title: string;
@@ -29,23 +20,32 @@ export interface DashboardData {
   }[];
 }
 
+export interface ProjectActivityDto {
+  id: string;
+  projectId: string;
+  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'RESTORE' | 'OPEN';
+  performedBy: string;
+  timestamp: number;
+  newValue: { name?: string } | null;
+}
+
 // Services
 
 export class ProjectService {
-  async listProjects(): Promise<Project[]> {
-    return httpClient.get<Project[]>('/projects');
+  async listProjects(): Promise<ProjectDto[]> {
+    return httpClient.get<ProjectDto[]>('/projects');
   }
 
-  async getProject(projectId: string): Promise<Project> {
-    return httpClient.get<Project>(`/projects/${projectId}`);
+  async getProject(projectId: string): Promise<ProjectDto> {
+    return httpClient.get<ProjectDto>(`/projects/${projectId}`);
   }
 
-  async createProject(data: Partial<Project>): Promise<Project> {
-    return httpClient.post<Project>('/projects', data);
+  async createProject(data: Partial<ProjectDto>): Promise<ProjectDto> {
+    return httpClient.post<ProjectDto>('/projects', data);
   }
 
-  async updateProject(projectId: string, data: Partial<Project>): Promise<Project> {
-    return httpClient.patch<Project>(`/projects/${projectId}`, data);
+  async updateProject(projectId: string, data: Partial<ProjectDto>): Promise<ProjectDto> {
+    return httpClient.patch<ProjectDto>(`/projects/${projectId}`, data);
   }
 
   async deleteProject(projectId: string): Promise<void> {
@@ -54,6 +54,14 @@ export class ProjectService {
 
   async getDashboardData(projectId: string): Promise<DashboardData> {
     return httpClient.get<DashboardData>(`/projects/${projectId}/dashboard`);
+  }
+
+  async recordProjectOpen(projectId: string): Promise<ProjectDto> {
+    return httpClient.post<ProjectDto>(`/projects/${projectId}/open`, {});
+  }
+
+  async getRecentActivity(): Promise<ProjectActivityDto[]> {
+    return httpClient.get<ProjectActivityDto[]>('/projects-activity');
   }
 }
 

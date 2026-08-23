@@ -1,7 +1,7 @@
 // VersionRepository - Domain Repository for Versioning Framework
 // Handles persistence operations for VersionEntity.
 
-import { VersionEntity } from './VersionEntity';
+import { VersionEntity } from './VersionEntity.js';
 
 export interface VersionRepository {
   create(version: VersionEntity): Promise<VersionEntity>;

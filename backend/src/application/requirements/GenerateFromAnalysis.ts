@@ -2,9 +2,9 @@
 // Consumes Project Analysis cards and generates Requirement cards with deterministic acceptance criteria.
 // This is NOT AI — it is a deterministic generator based on category patterns.
 import { randomUUID } from 'node:crypto';
-import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
-import { RequirementEntity, RequirementSource, AcceptanceCriterion } from '../../domain/requirements/RequirementEntity';
-import { AnalysisRepository } from '../../infrastructure/analysis/AnalysisRepository';
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
+import { RequirementEntity, RequirementSource, AcceptanceCriterion } from '../../domain/requirements/RequirementEntity.js';
+import { AnalysisRepository } from '../../infrastructure/analysis/AnalysisRepository.js';
 
 interface CategoryCriteriaPattern {
   category: string;

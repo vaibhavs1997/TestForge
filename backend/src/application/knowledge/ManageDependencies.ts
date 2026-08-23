@@ -1,27 +1,20 @@
 // ManageDependencies - Application Use Case for Dependencies in Knowledge Hub
 import { randomUUID } from 'node:crypto';
-import { Dependency } from '../../domain/knowledge/DependencyEntity';
-import { DependencyRepository } from '../../domain/knowledge/DependencyRepository';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { deleteById, requireById, validateUniqueProjectName } from '../shared/crudHelpers.js';
+import { Dependency } from '../../domain/knowledge/DependencyEntity.js';
+import { DependencyRepository } from '../../domain/knowledge/DependencyRepository.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export class ManageDependencies {
   constructor(private readonly dependencyRepository: DependencyRepository) {}
 
   async create(input: Omit<Dependency, 'id' | 'createdAt' | 'updatedAt'>): Promise<Dependency> {
-    const name = ValidationHelpers.validateRequired(input.name, 'Dependency name');
-
-    try {
-      await ValidationHelpers.validateUniqueName(
-        this.dependencyRepository,
-        input.name,
-        input.projectId
-      );
-    } catch (error) {
-      if (error instanceof Error && error.message === `Resource with name "${input.name}" already exists in this project`) {
-        throw new Error(`Dependency with name "${input.name}" already exists in this project`);
-      }
-      throw error;
-    }
+    const name = await validateUniqueProjectName(
+      this.dependencyRepository,
+      input.name,
+      input.projectId,
+      'Dependency'
+    );
 
     const now = Date.now();
     const dependency: Dependency = {
@@ -38,10 +31,7 @@ export class ManageDependencies {
   }
 
   async update(id: string, data: Partial<Omit<Dependency, 'id' | 'createdAt'>>): Promise<Dependency> {
-    const existing = await this.dependencyRepository.findById(id);
-    if (!existing) {
-      throw new Error(`Dependency with id ${id} not found`);
-    }
+    const existing = await requireById(this.dependencyRepository, id, 'Dependency');
 
     if (data.name !== undefined) {
       ValidationHelpers.validateNotEmpty(data.name, 'Dependency name');
@@ -57,19 +47,11 @@ export class ManageDependencies {
   }
 
   async delete(id: string): Promise<void> {
-    const existing = await this.dependencyRepository.findById(id);
-    if (!existing) {
-      throw new Error(`Dependency with id ${id} not found`);
-    }
-    await this.dependencyRepository.delete(id);
+    await deleteById(this.dependencyRepository, id, 'Dependency');
   }
 
   async get(id: string): Promise<Dependency> {
-    const dependency = await this.dependencyRepository.findById(id);
-    if (!dependency) {
-      throw new Error(`Dependency with id ${id} not found`);
-    }
-    return dependency;
+    return requireById(this.dependencyRepository, id, 'Dependency');
   }
 
   async list(projectId: string): Promise<Dependency[]> {

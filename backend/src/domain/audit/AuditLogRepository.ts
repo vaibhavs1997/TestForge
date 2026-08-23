@@ -1,7 +1,7 @@
 // AuditLogRepository - Domain Repository for Audit Log Framework
 // Handles persistence operations for AuditLogEntity.
 
-import { AuditLogEntity } from './AuditLogEntity';
+import { AuditLogEntity } from './AuditLogEntity.js';
 
 export interface AuditLogRepository {
   create(log: AuditLogEntity): Promise<AuditLogEntity>;

@@ -1,9 +1,9 @@
 // KnowledgeFlowRepository - File-based repository implementation
 import * as fs from 'fs';
 import * as path from 'path';
-import { KnowledgeFlowEntity } from '../../domain/knowledge/KnowledgeFlowEntity';
-import { VersionService } from '../../application/versioning/VersionService';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { KnowledgeFlowEntity } from '../../domain/knowledge/KnowledgeFlowEntity.js';
+import { VersionService } from '../../application/versioning/VersionService.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'knowledge');
@@ -103,7 +103,8 @@ export class KnowledgeFlowRepository {
 
   private async readFlows(projectId: string): Promise<KnowledgeFlowEntity[]> {
     const filePath = this.getFlowsFilePath(projectId);
-    return readJsonArray(filePath);
+    const flows = await readJsonArray<KnowledgeFlowEntity>(filePath);
+    return flows.filter((flow) => flow && typeof flow.name === 'string' && flow.name.trim().length > 0);
   }
 }
 

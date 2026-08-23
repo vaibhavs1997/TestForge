@@ -1,3 +1,3 @@
 // Barrel export file for Provider domain module
-export * from './ProviderEntity';
-export * from './ProviderRepository';
+export * from './ProviderEntity.js';
+export * from './ProviderRepository.js';

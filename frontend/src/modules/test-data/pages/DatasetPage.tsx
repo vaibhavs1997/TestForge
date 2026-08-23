@@ -1,5 +1,5 @@
 // Test Data Library - Production Quality UI
-import React, { Suspense, useMemo } from 'react';
+import React, { Suspense, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
@@ -27,6 +27,7 @@ import {
   Keyboard,
   FileUp,
   Wand2,
+  Clock3,
 } from 'lucide-react';
 import { DataTabContent } from '../components/DataTabContent';
 import { ProvidersSection } from '../components/ProvidersSection';
@@ -48,9 +49,15 @@ import { Check, X as XIcon, ArrowUp, ArrowDown, Plus as PlusIcon, Upload, FileSp
 import { logger } from '../../../utils/logger';
 import { useParams, useLocation } from 'react-router-dom';
 import { datasetService } from '../services/datasetService';
+import { projectStore } from '../../../store/projectStore';
 import { MappingPage } from './MappingPage';
 import { useMappings } from '../hooks/useMappings';
+import { useColumns, useColumnSuggestions } from '../hooks/useColumns';
+import { useProfiles } from '../hooks/useProfiles';
 import { providerService } from '../services/providerService';
+import { ExecutionDataWorkspace } from '../components/ExecutionDataWorkspace';
+import { apiAxios } from '../../../services/apiAxios';
+import type { ColumnDto, PopulationProfileDto } from '../../../types/moduleContracts';
 
 // Memoized category badge to avoid re-renders
 const CategoryBadge = React.memo<{ category: string }>(({ category }) => {
@@ -117,6 +124,40 @@ const DatasetCard = React.memo<{ dataset: any; onView: (d: any) => void; onEdit:
 ));
 DatasetCard.displayName = 'DatasetCard';
 
+function columnToProfileData(
+  column: ColumnDto,
+  profile?: PopulationProfileDto,
+): ColumnProfileData {
+  return {
+    id: column.id,
+    datasetId: column.datasetId,
+    name: column.name,
+    displayName: column.displayName,
+    dataType: column.dataType,
+    description: column.description ?? '',
+    strategyType: profile?.strategyType ?? 'Manual',
+    strategyConfig: profile?.configuration ?? {},
+    required: column.required,
+    nullable: column.nullable,
+    unique: column.unique,
+  };
+}
+
+function suggestionToProfileData(suggestion: ColumnSuggestion, datasetId: string): ColumnProfileData {
+  return {
+    datasetId,
+    name: suggestion.name,
+    displayName: suggestion.displayName,
+    dataType: suggestion.dataType,
+    description: suggestion.description,
+    strategyType: 'Manual',
+    strategyConfig: {},
+    required: suggestion.required,
+    nullable: suggestion.nullable,
+    unique: suggestion.unique,
+  };
+}
+
 // Types
 interface Dataset {
   id: string;
@@ -138,7 +179,7 @@ interface Dataset {
 }
 
 type ViewMode = 'card' | 'table';
-type TestDataSection = 'datasets' | 'mappings' | 'relationships' | 'providers' | 'datasources' | 'generators';
+type TestDataSection = 'primary' | 'datasets' | 'scenarios' | 'bindings' | 'reservations' | 'mappings' | 'relationships' | 'providers' | 'datasources' | 'generators';
 
 const CATEGORY_OPTIONS = ['General', 'Customer', 'Product', 'Order', 'Payment', 'User', 'Custom'];
 
@@ -149,6 +190,9 @@ const SECTION_CHIPS: {
   comingSoon?: boolean;
 }[] = [
   { id: 'datasets', label: 'Datasets', icon: Database },
+  { id: 'scenarios', label: 'Scenarios', icon: FlaskConical },
+  { id: 'bindings', label: 'API Bindings', icon: Link2 },
+  { id: 'reservations', label: 'Reservations', icon: Clock3 },
   { id: 'mappings', label: 'Mappings', icon: Link2 },
   { id: 'relationships', label: 'Relationships', icon: Network },
   { id: 'providers', label: 'Providers', icon: Sparkles },
@@ -156,14 +200,19 @@ const SECTION_CHIPS: {
   { id: 'generators', label: 'Generators', icon: Zap, comingSoon: true },
 ];
 
-export const TestDataLibraryPage = () => {
-  const { projectId } = useParams<{ projectId: string }>();
+interface TestDataLibraryPageProps {
+  projectId?: string;
+}
+
+export const TestDataLibraryPage: React.FC<TestDataLibraryPageProps> = ({ projectId: propProjectId }) => {
+  const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const location = useLocation();
-  const resolvedProjectId = projectId ?? '';
+  const storeProjectId = projectStore((s) => s.selectedProjectId);
+  const resolvedProjectId = propProjectId ?? routeProjectId ?? storeProjectId ?? '';
   const [search, setSearch] = React.useState('');
   const [categoryFilter, setCategoryFilter] = React.useState<string>('All');
   const [viewMode, setViewMode] = React.useState<ViewMode>('card');
-  const [activeSection, setActiveSection] = React.useState<TestDataSection>('datasets');
+  const [activeSection, setActiveSection] = React.useState<TestDataSection>('primary');
   const [editOpen, setEditOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [selectedDataset, setSelectedDataset] = React.useState<Dataset | null>(null);
@@ -206,6 +255,9 @@ export const TestDataLibraryPage = () => {
   const { mappings } = useMappings(resolvedProjectId);
   const [providerCount, setProviderCount] = React.useState(0);
   const [relationshipCount, setRelationshipCount] = React.useState(0);
+  const [reanalyzeBusy, setReanalyzeBusy] = React.useState(false);
+  const [reanalyzeMessage, setReanalyzeMessage] = React.useState('');
+  const [analysisRefresh, setAnalysisRefresh] = React.useState(0);
 
   React.useEffect(() => {
     if (!resolvedProjectId) return;
@@ -216,6 +268,9 @@ export const TestDataLibraryPage = () => {
   const sectionCounts = React.useMemo(
     () => ({
       datasets: datasets.length,
+      scenarios: 0,
+      bindings: 0,
+      reservations: 0,
       mappings: (mappings ?? []).length,
       relationships: relationshipCount,
       providers: providerCount,
@@ -226,7 +281,7 @@ export const TestDataLibraryPage = () => {
   );
   React.useEffect(() => {
     const loadDatasets = async () => {
-      if (!projectId) {
+      if (!resolvedProjectId) {
         setDatasets([]);
         setIsLoadingDatasets(false);
         return;
@@ -234,12 +289,12 @@ export const TestDataLibraryPage = () => {
       try {
         setIsLoadingDatasets(true);
         setDatasetsError(null);
-        const data = await datasetService.listDatasets(projectId);
+        const data = await datasetService.listDatasets(resolvedProjectId);
         setDatasets(
           data.map((d) => ({
             id: d.id,
             projectId: d.projectId,
-            name: d.name,
+            name: typeof d.name === 'string' && d.name.trim() ? d.name : 'Untitled dataset',
             description: d.description || '',
             category: d.category || 'General',
             rows: d.rowCount ?? 0,
@@ -259,7 +314,7 @@ export const TestDataLibraryPage = () => {
     };
 
     void loadDatasets();
-  }, [projectId]);
+  }, [resolvedProjectId]);
 
   React.useEffect(() => {
     const afterTestData = location.pathname.split('/testdata')[1] ?? '';
@@ -324,7 +379,7 @@ export const TestDataLibraryPage = () => {
     setToastOpen(true);
   };
 
-  const handleDuplicate = (dataset: Dataset) => {
+  const handleDuplicate = useCallback((dataset: Dataset) => {
     const duplicate: Dataset = {
       ...dataset,
       id: Date.now().toString(),
@@ -333,19 +388,19 @@ export const TestDataLibraryPage = () => {
       lastUpdated: 'Just now',
       usedBy: { requirements: 0, suites: 0, apis: 0, knowledge: 0 },
     };
-    setDatasets([...datasets, duplicate]);
+    setDatasets((current) => [...current, duplicate]);
     setToastMessage('Dataset duplicated successfully');
     setToastOpen(true);
-  };
+  }, []);
 
-  const openDatasetDetails = (dataset: Dataset) => {
+  const openDatasetDetails = useCallback((dataset: Dataset) => {
     setSelectedDataset(dataset);
     setDetailsOpen(true);
     setActiveTab('Overview');
     setShowSuggestions(false);
     setRejectedSuggestions(new Set());
     setSelectedSuggestionIds(new Set());
-  };
+  }, []);
 
   const getCategoryBadge = (category: string) => {
     const variants: Record<string, 'default' | 'secondary' | 'outline' | 'destructive'> = {
@@ -501,14 +556,14 @@ export const TestDataLibraryPage = () => {
   };
 
   const reloadDatasets = React.useCallback(async () => {
-    if (!projectId) return;
+    if (!resolvedProjectId) return;
     try {
-      const data = await datasetService.listDatasets(projectId);
+      const data = await datasetService.listDatasets(resolvedProjectId);
       setDatasets(
         data.map((d) => ({
           id: d.id,
           projectId: d.projectId,
-          name: d.name,
+      name: typeof d.name === 'string' && d.name.trim() ? d.name : 'Untitled dataset',
           description: d.description || '',
           category: d.category || 'General',
           rows: d.rowCount ?? 0,
@@ -522,7 +577,7 @@ export const TestDataLibraryPage = () => {
     } catch (err) {
       logger.error('Failed to reload datasets', err);
     }
-  }, [projectId]);
+  }, [resolvedProjectId]);
 
   const handleNextStep = async () => {
     if (importStep < 5) {
@@ -608,7 +663,7 @@ export const TestDataLibraryPage = () => {
     onDelete: (dataset: Dataset) => { setSelectedDataset(dataset); setDeleteOpen(true); },
   }), [openDatasetDetails, handleDuplicate]);
 
-  if (!projectId) {
+  if (!resolvedProjectId) {
     return (
       <div className="mx-auto max-w-7xl px-6 py-16 text-center text-text-secondary">
         Open a project from the Projects page to manage test data.
@@ -621,11 +676,13 @@ export const TestDataLibraryPage = () => {
       <div className='mx-auto max-w-7xl px-6 py-8'>
         <div className='mb-6 flex flex-wrap items-start justify-between gap-4'>
           <div>
-            <h1 className='text-2xl font-bold text-text'>Test Data Library</h1>
+            <h1 className='text-2xl font-bold text-text'>Test data</h1>
             <p className='mt-1 max-w-2xl text-sm text-text-secondary'>
-              Datasets, mappings, relationships, and providers in one place. Open a dataset to edit rows and columns.
+              Control how TestForge supplies request data automatically when your APIs run.
             </p>
           </div>
+          <div className='flex flex-wrap items-center gap-2'>
+            <Button variant='outline' loading={reanalyzeBusy} onClick={async () => { setReanalyzeBusy(true); try { const response = await apiAxios.post(`/api/projects/${resolvedProjectId}/field-data-analysis/reanalyze`); const result = response.data.data || {}; setReanalyzeMessage(`${result.newInputs || 0} new inputs and ${result.reviewRequiredChanges || 0} changes need attention.`); setAnalysisRefresh((current) => current + 1); } catch { setReanalyzeMessage('Contract analysis could not be completed.'); } finally { setReanalyzeBusy(false); } }}>Re-analyze</Button>
           {activeSection === 'datasets' && (
             <div className='flex flex-wrap items-center gap-2'>
               <Button
@@ -646,43 +703,17 @@ export const TestDataLibraryPage = () => {
               </Button>
             </div>
           )}
+          </div>
         </div>
-
-        <div className='mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6'>
-          {SECTION_CHIPS.map((chip) => {
-            const Icon = chip.icon;
-            const active = activeSection === chip.id;
-            const count = sectionCounts[chip.id];
-            return (
-              <button
-                key={chip.id}
-                type='button'
-                onClick={() => setActiveSection(chip.id)}
-                className={`rounded-lg border p-3 text-left transition-colors ${
-                  chip.comingSoon
-                    ? 'border-border bg-surface/50 opacity-90'
-                    : active
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border bg-surface hover:border-primary/50'
-                }`}
-              >
-                <div className='flex items-center justify-between gap-1'>
-                  <div className='flex items-center gap-2 text-xs font-medium text-text-secondary'>
-                    <Icon className='h-3.5 w-3.5' />
-                    {chip.label}
-                  </div>
-                  {chip.comingSoon ? (
-                    <Badge variant='secondary' className='text-[10px]'>
-                      Soon
-                    </Badge>
-                  ) : null}
-                </div>
-                <p className='mt-1 text-xl font-semibold text-text'>{chip.comingSoon ? '—' : count}</p>
-              </button>
-            );
-          })}
+        {reanalyzeMessage && <p role='status' className='mb-4 text-sm text-text-secondary'>{reanalyzeMessage}</p>}
+        <div className='mb-6'>
+          <ExecutionDataWorkspace
+            projectId={resolvedProjectId}
+            onDatasets={() => setActiveSection('datasets')}
+            onViewChange={(view) => setActiveSection(view)}
+            refreshToken={analysisRefresh}
+          />
         </div>
-
           {activeSection === 'relationships' && (
             <RelationshipsSection
               datasets={datasets}
@@ -698,6 +729,10 @@ export const TestDataLibraryPage = () => {
               setToastMessage={setToastMessage}
               setToastOpen={setToastOpen}
             />
+          )}
+
+          {(activeSection === 'scenarios' || activeSection === 'bindings' || activeSection === 'reservations') && (
+            <DataFlowSection section={activeSection} projectId={resolvedProjectId} datasets={datasets} />
           )}
 
           {activeSection === 'mappings' && <MappingPage embedded />}
@@ -760,9 +795,9 @@ export const TestDataLibraryPage = () => {
               {filteredDatasets.length === 0 && (
                 <EmptyState
                   icon={<Database className='h-12 w-12' />}
-                  title='No datasets available'
-                  description='Create your first reusable dataset to get started.'
-                  action={{ label: 'Create Dataset', onClick: () => setEditOpen(true) }}
+                  title='No datasets yet'
+                  description='Most API tests use generated payloads from your contract. Add a dataset when you need reusable rows (e.g. login users).'
+                  action={{ label: 'Create dataset', onClick: () => setEditOpen(true) }}
                 />
               )}
 
@@ -1354,23 +1389,6 @@ export const TestDataLibraryPage = () => {
                 </div>
               )}
 
-              {/* Unified Column + Population Editor */}
-              {editorOpen && (
-                <Suspense fallback={<div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'><div className='text-sm text-text-secondary'>Loading editor...</div></div>}>
-                  <ColumnProfileDialog
-                    open={editorOpen}
-                    onClose={() => setEditorOpen(false)}
-                    onSubmit={(data) => {
-                      setEditorOpen(false);
-                      setToastMessage(selectedColumn ? 'Column updated successfully' : 'Column added successfully');
-                      setToastOpen(true);
-                    }}
-                    column={selectedColumn}
-                    isSubmitting={false}
-                  />
-                </Suspense>
-              )}
-
               {editOpen && (
                 <Suspense fallback={<div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'><div className='text-sm text-text-secondary'>Loading...</div></div>}>
                   <DatasetDialog
@@ -1480,33 +1498,34 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
   setToastMessage,
   setToastOpen,
 }) => {
+  const {
+    columns: columnDtos = [],
+    createAsync: createColumnAsync,
+    updateAsync: updateColumnAsync,
+    removeAsync: removeColumnAsync,
+    isLoading: isLoadingColumns,
+    error: columnsError,
+  } = useColumns(dataset.projectId, dataset.id);
+  const {
+    profiles: profileDtos = [],
+    createAsync: createProfileAsync,
+    updateAsync: updateProfileAsync,
+    removeAsync: removeProfileAsync,
+  } = useProfiles(dataset.projectId, dataset.id);
+  const {
+    suggestions: suggestionDtos = [],
+    isLoading: isLoadingSuggestions,
+  } = useColumnSuggestions(dataset.projectId, dataset.name);
+
   const [columns, setColumns] = React.useState<ColumnProfileData[]>([]);
-  const [isLoadingColumns, setIsLoadingColumns] = React.useState(false);
-  const [columnsError, setColumnsError] = React.useState<string | null>(null);
+  const profileByColumnId = React.useMemo(
+    () => new Map(profileDtos.map((profile) => [profile.columnId, profile] as const)),
+    [profileDtos],
+  );
 
-  // Load columns on mount
   React.useEffect(() => {
-    const loadColumns = async () => {
-      try {
-        setIsLoadingColumns(true);
-        setColumnsError(null);
-        // TODO: Replace with real API call
-        // const data = await columnService.listColumns(dataset.id);
-        // setColumns(data);
-        
-        // For now, show empty state - no mock data
-        setColumns([]);
-      } catch (err) {
-        setColumnsError(err instanceof Error ? err.message : 'Failed to load columns');
-        logger.error('Failed to load columns', err);
-      } finally {
-        setIsLoadingColumns(false);
-      }
-    };
-
-    loadColumns();
-  }, [dataset.id]);
-
+    setColumns(columnDtos.map((column) => columnToProfileData(column, profileByColumnId.get(column.id))));
+  }, [columnDtos, profileByColumnId]);
 
   const filteredColumns = React.useMemo(() => {
     const term = structureSearch.trim().toLowerCase();
@@ -1517,6 +1536,69 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
       col.strategyType.toLowerCase().includes(term)
     );
   }, [structureSearch, columns]);
+
+  const activeSuggestions = React.useMemo(() => {
+    const currentNames = new Set(columns.map((column) => column.name.toLowerCase()));
+    return suggestionDtos.filter(
+      (suggestion) =>
+        !rejectedSuggestions.has(suggestion.name) &&
+        !currentNames.has(suggestion.name.toLowerCase()),
+    );
+  }, [suggestionDtos, rejectedSuggestions, columns]);
+
+  const persistColumn = async (data: ColumnProfileData) => {
+    const profilePayload = {
+      strategyType: data.strategyType,
+      configuration: data.strategyConfig ?? {},
+    };
+
+    if (data.id) {
+      const updatedColumn = await updateColumnAsync(data.id, {
+        name: data.name,
+        displayName: data.displayName,
+        dataType: data.dataType,
+        required: data.required,
+        unique: data.unique,
+        nullable: data.nullable,
+        description: data.description,
+      });
+      const existingProfile = profileByColumnId.get(data.id);
+      if (existingProfile) {
+        await updateProfileAsync(existingProfile.id, profilePayload);
+      } else {
+        await createProfileAsync({
+          projectId: dataset.projectId,
+          datasetId: dataset.id,
+          columnId: updatedColumn.id,
+          ...profilePayload,
+        });
+      }
+      return;
+    }
+
+    const createdColumn = await createColumnAsync({
+      projectId: dataset.projectId,
+      datasetId: dataset.id,
+      name: data.name,
+      displayName: data.displayName,
+      dataType: data.dataType,
+      required: data.required,
+      unique: data.unique,
+      nullable: data.nullable,
+      description: data.description,
+    });
+    await createProfileAsync({
+      projectId: dataset.projectId,
+      datasetId: dataset.id,
+      columnId: createdColumn.id,
+      ...profilePayload,
+    });
+  };
+
+  const acceptSuggestion = async (suggestion: ColumnSuggestion) => {
+    const nextColumn = suggestionToProfileData(suggestion, dataset.id);
+    await persistColumn(nextColumn);
+  };
 
   const handleAddColumn = () => {
     setSelectedColumn(undefined);
@@ -1531,10 +1613,22 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
     setEditorOpen(true);
   };
 
-  const handleDeleteColumn = (col: ColumnProfileData) => {
-    setColumns(columns.filter((c) => c.id !== col.id));
-    setToastMessage('Column deleted successfully');
-    setToastOpen(true);
+  const handleDeleteColumn = async (col: ColumnProfileData) => {
+    try {
+      const existingProfile = col.id ? profileByColumnId.get(col.id) : undefined;
+      if (existingProfile) {
+        await removeProfileAsync(existingProfile.id);
+      }
+      if (col.id) {
+        await removeColumnAsync(col.id);
+      }
+      setToastMessage('Column deleted successfully');
+      setToastOpen(true);
+    } catch (err) {
+      logger.error('Failed to delete column', err);
+      setToastMessage(err instanceof Error ? err.message : 'Failed to delete column');
+      setToastOpen(true);
+    }
   };
 
   const handleMoveColumn = (index: number, direction: 'up' | 'down') => {
@@ -1547,18 +1641,53 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
     setColumns(newColumns);
   };
 
-  const activeSuggestions: ColumnSuggestion[] = [];
+  const handleAcceptAllSuggestions = async () => {
+    if (activeSuggestions.length === 0) {
+      setToastMessage('No suggestions available');
+      setToastOpen(true);
+      return;
+    }
 
-  const handleAcceptAllSuggestions = () => {
-    // TODO: Load suggestions from API
-    setToastMessage('No suggestions available');
-    setToastOpen(true);
+    try {
+      let added = 0;
+      for (const suggestion of activeSuggestions) {
+        await acceptSuggestion(suggestion);
+        added += 1;
+      }
+      setSelectedSuggestionIds(new Set());
+      setShowSuggestions(false);
+      setToastMessage(`Added ${added} suggested column${added === 1 ? '' : 's'}.`);
+      setToastOpen(true);
+    } catch (err) {
+      logger.error('Failed to accept suggested columns', err);
+      setToastMessage(err instanceof Error ? err.message : 'Failed to add suggested columns');
+      setToastOpen(true);
+    }
   };
 
-  const handleAcceptSelectedSuggestions = () => {
-    // TODO: Load suggestions from API
-    setToastMessage('No suggestions available');
-    setToastOpen(true);
+  const handleAcceptSelectedSuggestions = async () => {
+    const selected = activeSuggestions.filter((suggestion) => selectedSuggestionIds.has(suggestion.name));
+    if (selected.length === 0) {
+      setToastMessage('Select at least one suggestion first.');
+      setToastOpen(true);
+      return;
+    }
+
+    try {
+      let added = 0;
+      for (const suggestion of selected) {
+        await acceptSuggestion(suggestion);
+        added += 1;
+      }
+      setSelectedSuggestionIds(new Set());
+      setShowSuggestions(false);
+      setToastMessage(`Added ${added} suggested column${added === 1 ? '' : 's'}.`);
+      setToastOpen(true);
+    } catch (err) {
+      logger.error('Failed to accept selected suggestions', err);
+      setToastMessage(err instanceof Error ? err.message : 'Failed to add selected suggestions');
+      setToastOpen(true);
+    }
   };
 
   const handleSkipSuggestions = () => {
@@ -1582,12 +1711,34 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
     const next = new Set(selectedSuggestionIds);
     next.delete(name);
     setSelectedSuggestionIds(next);
+    setRejectedSuggestions(new Set([...rejectedSuggestions, name]));
   };
 
   return (
     <div className='space-y-4'>
+      {isLoadingColumns && (
+        <Card className='border-dashed border-border bg-surface/50'>
+          <CardContent className='py-4 text-sm text-text-secondary'>
+            Loading columns...
+          </CardContent>
+        </Card>
+      )}
+      {columnsError && (
+        <Card className='border-red-200 bg-red-50'>
+          <CardContent className='py-4 text-sm text-red-700'>
+            {columnsError instanceof Error ? columnsError.message : 'Failed to load columns'}
+          </CardContent>
+        </Card>
+      )}
       {/* AI Recommendations Banner */}
-      {!showSuggestions && activeSuggestions.length > 0 && (
+      {!showSuggestions && isLoadingSuggestions && (
+        <Card className='border-dashed border-border bg-surface/50'>
+          <CardContent className='py-4 text-sm text-text-secondary'>
+            Looking for recommendations...
+          </CardContent>
+        </Card>
+      )}
+      {!showSuggestions && !isLoadingSuggestions && activeSuggestions.length > 0 && (
         <Card className='border-primary/30 bg-primary/5'>
           <CardContent className='flex items-center justify-between py-4'>
             <div className='flex items-center gap-3'>
@@ -1621,11 +1772,11 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
             </div>
             {activeSuggestions.length > 0 && (
               <div className='mt-3 flex items-center gap-2'>
-                <Button size='sm' variant='default' onClick={handleAcceptAllSuggestions}>
+                <Button size='sm' variant='default' onClick={() => void handleAcceptAllSuggestions()}>
                   <Check className='mr-1 h-4 w-4' />
                   Accept All
                 </Button>
-                <Button size='sm' variant='outline' onClick={handleAcceptSelectedSuggestions} disabled={selectedSuggestionIds.size === 0}>
+                <Button size='sm' variant='outline' onClick={() => void handleAcceptSelectedSuggestions()} disabled={selectedSuggestionIds.size === 0}>
                   Accept Selected ({selectedSuggestionIds.size})
                 </Button>
                 <Button size='sm' variant='ghost' onClick={handleSkipSuggestions}>
@@ -1749,7 +1900,7 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
                         <Button variant='ghost' size='sm' onClick={() => handleEditColumn(col)}>
                           <Edit className='h-3 w-3' />
                         </Button>
-                        <Button variant='ghost' size='sm' onClick={() => handleDeleteColumn(col)}>
+                        <Button variant='ghost' size='sm' onClick={() => void handleDeleteColumn(col)}>
                           <Trash2 className='h-3 w-3' />
                         </Button>
                       </div>
@@ -1781,6 +1932,32 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
           </CardContent>
         </Card>
       )}
+
+      {editorOpen && (
+        <Suspense fallback={<div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'><div className='text-sm text-text-secondary'>Loading editor...</div></div>}>
+          <ColumnProfileDialog
+            open={editorOpen}
+            onClose={() => setEditorOpen(false)}
+            onSubmit={(data) => {
+              void (async () => {
+                try {
+                  await persistColumn(data);
+                  setEditorOpen(false);
+                  setSelectedColumn(undefined);
+                  setToastMessage(data.id ? 'Column updated successfully' : 'Column added successfully');
+                  setToastOpen(true);
+                } catch (err) {
+                  logger.error('Failed to save column', err);
+                  setToastMessage(err instanceof Error ? err.message : 'Failed to save column');
+                  setToastOpen(true);
+                }
+              })();
+            }}
+            column={selectedColumn}
+            isSubmitting={false}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };
@@ -1789,6 +1966,141 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
 export { DataTabContent } from '../components/DataTabContent';
 
 // ─── Relationships Section ──────────────────────────────────────────────
+interface DataScenario {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: number;
+}
+
+interface ApiDataRecommendation {
+  collection: string;
+  endpoint: string;
+  method: string;
+  field: string;
+  category: string;
+  recommendation: string;
+  reason: string;
+}
+
+const ApiDataReadiness: React.FC<{ projectId: string }> = ({ projectId }) => {
+  const [recommendations, setRecommendations] = React.useState<ApiDataRecommendation[]>([]);
+
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`testforge:api-workspace:imports:project:${projectId}`);
+      const artifacts = raw ? JSON.parse(raw) as Array<{ kind: string; name: string; endpoints?: Array<any> }> : [];
+      const rows: ApiDataRecommendation[] = [];
+      artifacts.filter((artifact) => artifact.kind === 'api').forEach((collection) => {
+        (collection.endpoints || []).forEach((endpoint) => {
+          const draft = endpoint.requestTemplate || {};
+          const fields = [
+            ...(draft.pathParams || []).map((row: any) => row.key),
+            ...(draft.queryParams || []).map((row: any) => row.key),
+            ...(draft.formDataRows || []).map((row: any) => row.key),
+            ...(draft.urlEncodedRows || []).map((row: any) => row.key),
+          ].filter(Boolean);
+          const parsedBody = typeof draft.rawBody === 'string' ? (() => { try { return JSON.parse(draft.rawBody); } catch { return {}; } })() : {};
+          if (parsedBody && typeof parsedBody === 'object' && !Array.isArray(parsedBody)) fields.push(...Object.keys(parsedBody));
+          Array.from(new Set(fields.map((field: string) => field.trim()))).forEach((field) => {
+            const normalized = field.toLowerCase();
+            const endpointContext = `${endpoint.name || ''} ${endpoint.url || ''}`.toLowerCase();
+            const identityFlow = /login|signin|authenticate|token|session|password\/reset/.test(endpointContext);
+            let category = 'Static input';
+            let recommendation = 'Keep request value';
+            let reason = 'No dynamic strategy is required.';
+            if (/email|e-mail/.test(normalized)) {
+              category = identityFlow ? 'Existing identity' : 'Unique identity';
+              recommendation = identityFlow ? 'Existing dataset email' : 'Unique email or dataset email';
+              reason = identityFlow ? 'Login and authentication flows need an existing account.' : 'Registration-style flows usually need a fresh address.';
+            } else if (/timestamp|epoch|created.?at|updated.?at|time/.test(normalized)) {
+              category = 'Generated value';
+              recommendation = 'Unix timestamp (number)';
+              reason = 'This field looks time-based and can be generated at execution time.';
+            } else if (/uuid|guid/.test(normalized)) {
+              category = 'Generated identity';
+              recommendation = 'UUID or dataset value';
+              reason = 'Use a UUID for new entities or a dataset value for existing entities.';
+            } else if (/id|account|user/.test(normalized)) {
+              category = 'Linked value';
+              recommendation = 'Previous response or dataset';
+              reason = 'This field may depend on an entity created by an earlier request.';
+            } else if (/password|secret|key|token/.test(normalized)) {
+              category = 'Sensitive value';
+              recommendation = 'Environment or existing dataset';
+              reason = 'Sensitive values should not be randomly generated by default.';
+            }
+            rows.push({ collection: collection.name, endpoint: endpoint.name || endpoint.path || 'Unnamed endpoint', method: endpoint.method || 'REQUEST', field, category, recommendation, reason });
+          });
+        });
+      });
+      setRecommendations(rows);
+    } catch {
+      setRecommendations([]);
+    }
+  }, [projectId]);
+
+  if (recommendations.length === 0) return null;
+  const managedFields = recommendations.filter((item) => item.category !== 'Static input');
+  const staticFields = recommendations.filter((item) => item.category === 'Static input');
+  const usage = new Map<string, { field: string; endpoints: Set<string>; category: string; recommendation: string }>();
+  managedFields.forEach((item) => {
+    const existing = usage.get(item.field.toLowerCase());
+    if (existing) existing.endpoints.add(`${item.collection}:${item.endpoint}`);
+    else usage.set(item.field.toLowerCase(), { field: item.field, endpoints: new Set([`${item.collection}:${item.endpoint}`]), category: item.category, recommendation: item.recommendation });
+  });
+  const managedFieldSummary = Array.from(usage.values());
+  const renderEndpointRows = (items: ApiDataRecommendation[]) => <div className='space-y-3'>{items.map((item, index) => <div key={`${item.collection}-${item.endpoint}-${item.field}-${index}`} className='grid gap-3 rounded-lg border border-border bg-background/50 p-3 md:grid-cols-[1.1fr_1fr_1fr_1.5fr] md:items-center'><div><div className='flex items-center gap-2'><Badge variant='secondary'>{item.method}</Badge><span className='font-medium text-text'>{item.endpoint}</span></div><p className='mt-1 text-xs text-text-secondary'>{item.collection}</p></div><div><p className='text-xs text-text-secondary'>Field</p><p className='font-medium text-text'>{item.field}</p></div><div><p className='text-xs text-text-secondary'>Category</p><Badge variant='outline'>{item.category}</Badge></div><div><p className='text-xs text-text-secondary'>Recommendation</p><p className='font-medium text-text'>{item.recommendation}</p><p className='mt-1 text-xs text-text-secondary'>{item.reason}</p></div></div>)}</div>;
+  return <Card className='mb-6 border-primary/30 bg-primary/5'><CardHeader><div className='flex items-start justify-between gap-4'><div><CardTitle>API Data Readiness</CardTitle><p className='mt-1 text-sm text-text-secondary'>Detected request fields and how they should be supplied during API execution.</p></div><Badge variant='outline'>{managedFields.length} managed fields</Badge></div></CardHeader><CardContent className='space-y-6'>
+    <section><div className='mb-3 flex items-center justify-between'><div><h3 className='font-semibold text-text'>Fields requiring test data</h3><p className='text-xs text-text-secondary'>These fields should use generated values, datasets, or previous responses.</p></div><Badge variant='secondary'>{managedFieldSummary.length} unique fields</Badge></div><div className='mb-4 grid gap-2 md:grid-cols-3'>{managedFieldSummary.map((item) => <div key={item.field} className='rounded-lg border border-primary/20 bg-primary/10 p-3'><div className='flex items-center justify-between gap-2'><span className='font-medium text-text'>{item.field}</span><Badge variant='outline'>{item.endpoints.size} API{item.endpoints.size === 1 ? '' : 's'}</Badge></div><p className='mt-1 text-xs text-text-secondary'>{item.category} · {item.recommendation}</p></div>)}</div>{renderEndpointRows(managedFields)}</section>
+    {staticFields.length > 0 && <section className='border-t border-border pt-5'><div className='mb-3 flex items-center justify-between'><div><h3 className='font-semibold text-text'>Fields using existing payload values</h3><p className='text-xs text-text-secondary'>These fields currently do not need managed test data.</p></div><Badge variant='outline'>{staticFields.length} fields</Badge></div>{renderEndpointRows(staticFields)}</section>}
+    <p className='text-xs text-text-secondary'>Configure managed fields from the selected API endpoint under Runtime test data. This page provides the central overview.</p>
+  </CardContent></Card>;
+};
+
+const DataFlowSection: React.FC<{ section: 'scenarios' | 'bindings' | 'reservations'; projectId: string; datasets: Dataset[] }> = ({ section, projectId, datasets }) => {
+  const scenarioKey = `testforge:test-data:scenarios:${projectId}`;
+  const [scenarios, setScenarios] = React.useState<DataScenario[]>([]);
+  const [scenarioName, setScenarioName] = React.useState('');
+  const [reservedRows, setReservedRows] = React.useState<Array<{ dataset: string; rowId: string; reservedAt?: number }>>([]);
+
+  React.useEffect(() => {
+    try {
+      const stored = localStorage.getItem(scenarioKey);
+      setScenarios(stored ? JSON.parse(stored) as DataScenario[] : []);
+    } catch { setScenarios([]); }
+  }, [scenarioKey]);
+
+  React.useEffect(() => {
+    if (section !== 'reservations' || !projectId) return;
+    let cancelled = false;
+    void Promise.all(datasets.map(async (dataset) => {
+      const rows = await rowService.listRows(projectId, dataset.id);
+      return rows.filter((row) => Boolean((row as any).reservedBy)).map((row) => ({ dataset: dataset.name, rowId: row.id, reservedAt: (row as any).reservedAt }));
+    })).then((groups) => { if (!cancelled) setReservedRows(groups.flat()); }).catch(() => { if (!cancelled) setReservedRows([]); });
+    return () => { cancelled = true; };
+  }, [datasets, projectId, section]);
+
+  const addScenario = () => {
+    const name = scenarioName.trim();
+    if (!name) return;
+    const next = [...scenarios, { id: `${Date.now()}`, name, description: 'Reusable data context for API execution', createdAt: Date.now() }];
+    setScenarios(next);
+    localStorage.setItem(scenarioKey, JSON.stringify(next));
+    setScenarioName('');
+  };
+
+  if (section === 'scenarios') return <Card><CardHeader><CardTitle>Data Scenarios</CardTitle><p className='text-sm text-text-secondary'>Reusable data contexts for registration, login, admin, and other API workflows.</p></CardHeader><CardContent className='space-y-4'><div className='flex gap-2'><input value={scenarioName} onChange={(event) => setScenarioName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') addScenario(); }} placeholder='Scenario name, e.g. Existing Login User' className='h-10 flex-1 rounded-lg border border-border bg-background px-3 text-sm text-text outline-none' /><Button onClick={addScenario}><Plus className='mr-2 h-4 w-4' />Create scenario</Button></div>{scenarios.length === 0 ? <EmptyState title='No scenarios yet' description='Create a scenario to group reusable dataset values for API workflows.' /> : <div className='grid gap-3 md:grid-cols-2'>{scenarios.map((scenario) => <div key={scenario.id} className='rounded-lg border border-border p-4'><div className='flex items-center justify-between'><span className='font-medium text-text'>{scenario.name}</span><Badge variant='outline'>Reusable</Badge></div><p className='mt-2 text-sm text-text-secondary'>{scenario.description}</p></div>)}</div>}</CardContent></Card>;
+
+  if (section === 'bindings') {
+    let bindings: Array<{ field: string; strategy: string }> = [];
+    try { const runtime = JSON.parse(localStorage.getItem(`testforge:api-workspace:runtime-data:project:${projectId}`) || '{}') as Record<string, Array<{ field: string; strategy: string }>>; bindings = Object.values(runtime).flat(); } catch { bindings = []; }
+    return <Card><CardHeader><CardTitle>API Bindings</CardTitle><p className='text-sm text-text-secondary'>Runtime mappings that feed test data into API requests.</p></CardHeader><CardContent>{bindings.length === 0 ? <EmptyState title='No API bindings yet' description='Configure Runtime test data from an API endpoint Settings tab.' /> : <div className='space-y-2'>{bindings.map((binding, index) => <div key={`${binding.field}-${index}`} className='flex items-center justify-between rounded-lg border border-border p-3'><span className='font-medium text-text'>{binding.field}</span><Badge variant='secondary'>{binding.strategy}</Badge></div>)}</div>}</CardContent></Card>;
+  }
+
+  return <Card><CardHeader><CardTitle>Reservations</CardTitle><p className='text-sm text-text-secondary'>Rows consumed by API execution are reserved server-side and will not be reused.</p></CardHeader><CardContent>{reservedRows.length === 0 ? <EmptyState title='No reserved rows' description='Reserved rows appear here after a dataset-backed API request runs.' /> : <div className='space-y-2'>{reservedRows.map((row) => <div key={row.rowId} className='flex items-center justify-between rounded-lg border border-border p-3'><div><span className='font-medium text-text'>{row.dataset}</span><span className='ml-3 text-xs text-text-secondary'>{row.rowId}</span></div><Badge variant='outline'>{row.reservedAt ? new Date(row.reservedAt).toLocaleString() : 'Reserved'}</Badge></div>)}</div>}</CardContent></Card>;
+};
+
 interface RelationshipsSectionProps {
   datasets: Dataset[];
   projectId: string;

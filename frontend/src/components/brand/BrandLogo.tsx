@@ -1,7 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import brandLogo from '../../assets/images/brand-logo.png';
 import { cn } from '../../utils/cn';
+import { useTheme } from '../../hooks/useTheme';
+import brandLogoLight from '../../assets/images/logo-light.svg';
+import brandLogoDark from '../../assets/images/logo-dark.svg';
 
 export type BrandLogoVariant = 'sidebar' | 'header' | 'landing' | 'compact';
 
@@ -27,10 +29,13 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
   className,
   linkTo = '/',
 }) => {
+  const { theme } = useTheme();
+  const brandLogo = theme === 'dark' ? brandLogoDark : brandLogoLight;
+
   const content = (
     <span
       className={cn(
-        'inline-flex items-center justify-center rounded-xl bg-white px-2.5 py-1.5 shadow-sm ring-1 ring-black/[0.06] dark:ring-white/10',
+        'inline-flex items-center justify-center rounded-xl bg-surface px-2.5 py-1.5 shadow-sm ring-1 ring-white/10 dark:ring-white/10',
         variant === 'landing' && 'shadow-md ring-white/20',
         className,
       )}

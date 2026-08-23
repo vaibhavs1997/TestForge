@@ -1,8 +1,8 @@
 // CreateDataset - Application Use Case
 import { randomUUID } from 'node:crypto';
-import { DatasetRepository } from '../../domain/test-data/DatasetRepository';
-import { DatasetEntity } from '../../domain/test-data/DatasetEntity';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { DatasetRepository } from '../../domain/test-data/DatasetRepository.js';
+import { DatasetEntity } from '../../domain/test-data/DatasetEntity.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export class CreateDataset {
   constructor(private readonly datasetRepository: DatasetRepository) {}

@@ -1,8 +1,9 @@
 // ManageDocumentation - Application Use Case for Documentation in Knowledge Hub
 import { randomUUID } from 'node:crypto';
-import { Documentation } from '../../domain/knowledge/DocumentationEntity';
-import { DocumentationRepository } from '../../domain/knowledge/DocumentationRepository';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { deleteById, requireById } from '../shared/crudHelpers.js';
+import { Documentation } from '../../domain/knowledge/DocumentationEntity.js';
+import { DocumentationRepository } from '../../domain/knowledge/DocumentationRepository.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export class ManageDocumentation {
   constructor(private readonly documentationRepository: DocumentationRepository) {}
@@ -25,10 +26,7 @@ export class ManageDocumentation {
   }
 
   async update(id: string, data: Partial<Omit<Documentation, 'id' | 'createdAt'>>): Promise<Documentation> {
-    const existing = await this.documentationRepository.findById(id);
-    if (!existing) {
-      throw new Error(`Documentation with id ${id} not found`);
-    }
+    const existing = await requireById(this.documentationRepository, id, 'Documentation');
 
     if (data.title !== undefined) {
       ValidationHelpers.validateNotEmpty(data.title, 'Documentation title');
@@ -44,19 +42,11 @@ export class ManageDocumentation {
   }
 
   async delete(id: string): Promise<void> {
-    const existing = await this.documentationRepository.findById(id);
-    if (!existing) {
-      throw new Error(`Documentation with id ${id} not found`);
-    }
-    await this.documentationRepository.delete(id);
+    await deleteById(this.documentationRepository, id, 'Documentation');
   }
 
   async get(id: string): Promise<Documentation> {
-    const doc = await this.documentationRepository.findById(id);
-    if (!doc) {
-      throw new Error(`Documentation with id ${id} not found`);
-    }
-    return doc;
+    return requireById(this.documentationRepository, id, 'Documentation');
   }
 
   async list(projectId: string): Promise<Documentation[]> {

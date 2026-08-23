@@ -1,9 +1,9 @@
 // ExecutionPlanRepository - File-based repository implementation
 import * as fs from 'fs';
 import * as path from 'path';
-import { ExecutionPlanEntity } from '../../domain/requirements/ExecutionPlanEntity';
-import { EventPublisher } from '../../application/EventPublisher';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { ExecutionPlanEntity } from '../../domain/requirements/ExecutionPlanEntity.js';
+import { EventPublisher } from '../../application/EventPublisher.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'execution-plans');
@@ -30,7 +30,7 @@ export class ExecutionPlanRepository {
   async create(plan: ExecutionPlanEntity): Promise<ExecutionPlanEntity> {
     this.ensureProjectDir(plan.projectId);
     const filePath = this.getPlansFilePath(plan.projectId);
-    const items = await this.readPlans(plan.projectId);
+    const items = await this.readAllRecords(plan.projectId);
     items.push(plan);
     await writeJsonArray(filePath, items);
 
@@ -45,7 +45,7 @@ export class ExecutionPlanRepository {
   async update(id: string, data: Partial<ExecutionPlanEntity>): Promise<ExecutionPlanEntity> {
     const projectIds = this.listProjectIds();
     for (const projectId of projectIds) {
-      const items = await this.readPlans(projectId);
+      const items = await this.readAllRecords(projectId);
       const index = items.findIndex(p => p.id === id);
       if (index !== -1) {
         const oldValue = items[index];
@@ -68,7 +68,7 @@ export class ExecutionPlanRepository {
   async delete(id: string): Promise<void> {
     const projectIds = this.listProjectIds();
     for (const projectId of projectIds) {
-      const items = await this.readPlans(projectId);
+      const items = await this.readAllRecords(projectId);
       const plan = items.find(p => p.id === id);
       if (plan) {
         const filtered = items.filter(p => p.id !== id);
@@ -117,7 +117,8 @@ export class ExecutionPlanRepository {
   }
 
   async findByProject(projectId: string): Promise<ExecutionPlanEntity[]> {
-    return this.readPlans(projectId);
+    const items = await this.readPlans(projectId);
+    return Array.isArray(items) ? items : [];
   }
 
   async list(): Promise<ExecutionPlanEntity[]> {
@@ -139,8 +140,24 @@ export class ExecutionPlanRepository {
   }
 
   private async readPlans(projectId: string): Promise<ExecutionPlanEntity[]> {
+    const records = await this.readAllRecords(projectId);
+    // Older file-based data may contain records from other repositories in the
+    // same project file. Only expose records with the execution-plan shape;
+    // this prevents provider/requirement IDs from appearing as executable plans.
+    return records.filter((record) =>
+      record &&
+      typeof record.id === 'string' &&
+      typeof record.projectId === 'string' &&
+      typeof record.testDesignId === 'string' &&
+      typeof record.operationId === 'string' &&
+      record.requestTemplate &&
+      typeof record.requestTemplate === 'object'
+    ) as ExecutionPlanEntity[];
+  }
+
+  private async readAllRecords(projectId: string): Promise<any[]> {
     const filePath = this.getPlansFilePath(projectId);
-    return readJsonArray(filePath);
+    return readJsonArray<any>(filePath);
   }
 }
 

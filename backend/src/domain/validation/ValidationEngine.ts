@@ -1,6 +1,6 @@
 // ValidationEngine - Orchestrates validation of execution results
-import { ValidationRule, ValidationResult, StepValidationResult } from './ValidationRuleEntity';
-import { Validators } from './Validators';
+import { ValidationRule, ValidationResult, StepValidationResult } from './ValidationRuleEntity.js';
+import { Validators } from './Validators.js';
 
 export interface ValidationContext {
   response: any;

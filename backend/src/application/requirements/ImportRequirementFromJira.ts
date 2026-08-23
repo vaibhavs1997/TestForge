@@ -1,0 +1,43 @@
+import { randomUUID } from 'node:crypto';
+import { JiraClient } from '../../infrastructure/jira/JiraClient.js';
+import { CreateRequirement } from './CreateRequirement.js';
+import type { AcceptanceCriterion, RequirementEntity } from '../../domain/requirements/RequirementEntity.js';
+import { parseAcceptanceCriteriaFromText } from './jiraAcceptanceCriteria.js';
+
+export class ImportRequirementFromJira {
+  constructor(
+    private readonly createRequirement: CreateRequirement,
+    private readonly jiraClient?: JiraClient,
+  ) {}
+
+  async execute(params: { projectId: string; issueKey: string }): Promise<RequirementEntity> {
+    const client = this.jiraClient ?? new JiraClient();
+    const issueKey = params.issueKey.trim().toUpperCase();
+    const issue = await client.getIssue(issueKey);
+
+    const acceptanceCriteria = parseAcceptanceCriteriaFromText(issue.descriptionPlain);
+    const description =
+      issue.descriptionPlain ||
+      (acceptanceCriteria.length > 0 ? acceptanceCriteria.map((c) => c.text).join('\n') : '');
+
+    return this.createRequirement.execute({
+      projectId: params.projectId,
+      title: `${issueKey}: ${issue.summary}`,
+      description,
+      category: 'Jira',
+      confidence: 90,
+      source: 'Jira',
+      reviewStatus: 'Pending',
+      approvalStatus: 'Draft',
+      acceptanceCriteria:
+        acceptanceCriteria.length > 0
+          ? acceptanceCriteria
+          : [{ id: randomUUID(), text: issue.summary }],
+      jiraIssueKey: issueKey,
+      generationPending: true,
+      generationExpiresAt: Date.now() + 30 * 60 * 1000,
+    });
+  }
+}
+
+export default ImportRequirementFromJira;

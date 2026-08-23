@@ -5,18 +5,9 @@
  */
 
 import type { AxiosRequestConfig } from 'axios';
-import axios from 'axios';
 import { API_BASE_URL } from '../constants/api';
 import { apiAxios } from './apiAxios';
-
-/** Axios instance that attaches JWT / API key on every request. */
-const http = apiAxios;
-
-export interface ApiResponse<T> {
-  success: boolean;
-  data?: T;
-  message?: string;
-}
+import { toNormalizedApiError, unwrapApiData } from './apiHelpers';
 
 /**
  * Generic API Client for CRUD operations
@@ -54,8 +45,8 @@ export class ApiClient<T = any> {
   async list<R = T>(projectId: string, params?: Record<string, any>): Promise<R[]> {
     try {
       const url = `${this.baseUrl}${this.resolveEndpoint(this.endpoint, projectId)}`;
-      const { data } = await http.get(url, { params });
-      return data.data || [];
+      const { data } = await apiAxios.get(url, { params });
+      return unwrapApiData(data) || [];
     } catch (error) {
       throw this.handleError(error);
     }
@@ -67,8 +58,8 @@ export class ApiClient<T = any> {
   async get<R = T>(projectId: string, id: string): Promise<R> {
     try {
       const url = `${this.baseUrl}${this.resolveEndpoint(this.endpoint, projectId)}/${id}`;
-      const { data } = await http.get(url);
-      return data.data;
+      const { data } = await apiAxios.get(url);
+      return unwrapApiData(data);
     } catch (error) {
       throw this.handleError(error);
     }
@@ -80,8 +71,8 @@ export class ApiClient<T = any> {
   async create<R = T>(projectId: string, payload: any): Promise<R> {
     try {
       const url = `${this.baseUrl}${this.resolveEndpoint(this.endpoint, projectId)}`;
-      const { data } = await http.post(url, payload);
-      return data.data;
+      const { data } = await apiAxios.post(url, payload);
+      return unwrapApiData(data);
     } catch (error) {
       throw this.handleError(error);
     }
@@ -93,8 +84,8 @@ export class ApiClient<T = any> {
   async update<R = T>(projectId: string, id: string, payload: any): Promise<R> {
     try {
       const url = `${this.baseUrl}${this.resolveEndpoint(this.endpoint, projectId)}/${id}`;
-      const { data } = await http.put(url, payload);
-      return data.data;
+      const { data } = await apiAxios.put(url, payload);
+      return unwrapApiData(data);
     } catch (error) {
       throw this.handleError(error);
     }
@@ -106,8 +97,8 @@ export class ApiClient<T = any> {
   async patch<R = T>(projectId: string, id: string, payload: any): Promise<R> {
     try {
       const url = `${this.baseUrl}${this.resolveEndpoint(this.endpoint, projectId)}/${id}`;
-      const { data } = await http.patch(url, payload);
-      return data.data;
+      const { data } = await apiAxios.patch(url, payload);
+      return unwrapApiData(data);
     } catch (error) {
       throw this.handleError(error);
     }
@@ -119,7 +110,7 @@ export class ApiClient<T = any> {
   async delete(projectId: string, id: string): Promise<void> {
     try {
       const url = `${this.baseUrl}${this.resolveEndpoint(this.endpoint, projectId)}/${id}`;
-      await http.delete(url);
+      await apiAxios.delete(url);
     } catch (error) {
       throw this.handleError(error);
     }
@@ -135,8 +126,8 @@ export class ApiClient<T = any> {
   ): Promise<R> {
     try {
       const url = `${this.baseUrl}${path}`;
-      const { data } = await http.post(url, payload, config);
-      return data.data;
+      const { data } = await apiAxios.post(url, payload, config);
+      return unwrapApiData(data);
     } catch (error) {
       throw this.handleError(error);
     }
@@ -152,8 +143,8 @@ export class ApiClient<T = any> {
   ): Promise<R> {
     try {
       const url = `${this.baseUrl}${path}`;
-      const { data } = await http.get(url, { params, ...config });
-      return data.data;
+      const { data } = await apiAxios.get(url, { params, ...config });
+      return unwrapApiData(data);
     } catch (error) {
       throw this.handleError(error);
     }
@@ -163,19 +154,6 @@ export class ApiClient<T = any> {
    * Handle API errors consistently
    */
   protected handleError(error: any): Error {
-    if (axios.isAxiosError(error)) {
-      const message = error.response?.data?.message ||
-        error.response?.data?.error ||
-        error.message ||
-        'An error occurred';
-      
-      const apiError = new Error(message);
-      (apiError as any).status = error.response?.status;
-      (apiError as any).details = error.response?.data;
-      
-      return apiError;
-    }
-
-    return error instanceof Error ? error : new Error(String(error));
+    return toNormalizedApiError(error);
   }
 }

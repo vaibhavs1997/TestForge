@@ -1,16 +1,7 @@
 // Dataset service for Test Data Library
 import { ApiClient } from '../../../services/ApiClient';
-
-export interface DatasetDto {
-  id: string;
-  projectId: string;
-  name: string;
-  description: string;
-  category: string;
-  rowCount: number;
-  createdAt: number;
-  updatedAt: number;
-}
+import type { DatasetDto } from '../../../types/moduleContracts';
+import { normalizeDataset } from '../../../utils/moduleAdapters';
 
 class DatasetService extends ApiClient<DatasetDto> {
   constructor() {
@@ -18,11 +9,11 @@ class DatasetService extends ApiClient<DatasetDto> {
   }
 
   async listDatasets(projectId: string): Promise<DatasetDto[]> {
-    return this.list(projectId);
+    return (await this.list(projectId)).map(normalizeDataset);
   }
 
   async getDataset(projectId: string, datasetId: string): Promise<DatasetDto> {
-    return this.get(projectId, datasetId);
+    return normalizeDataset(await this.get(projectId, datasetId));
   }
 
   async createDataset(
@@ -33,7 +24,7 @@ class DatasetService extends ApiClient<DatasetDto> {
       category?: string;
     }
   ): Promise<DatasetDto> {
-    return this.create(projectId, payload);
+    return normalizeDataset(await this.create(projectId, payload));
   }
 
   async updateDataset(
@@ -45,7 +36,7 @@ class DatasetService extends ApiClient<DatasetDto> {
       category?: string;
     }
   ): Promise<DatasetDto> {
-    return this.patch(projectId, datasetId, payload);
+    return normalizeDataset(await this.patch(projectId, datasetId, payload));
   }
 
   async deleteDataset(projectId: string, datasetId: string): Promise<void> {

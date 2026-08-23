@@ -25,7 +25,10 @@ const queryClient = new QueryClient({
 export const App: React.FC = () => {
   React.useEffect(() => {
     setUnauthorizedHandler(() => {
-      const loginRequired = authStore.getState().loginRequired;
+      const { isHydrated, user, loginRequired, manualLogoutUntil } = authStore.getState();
+      if (!isHydrated || !user || Date.now() < manualLogoutUntil) {
+        return;
+      }
       authStore.getState().logout();
       if (loginRequired) {
         window.location.assign('/?auth=login&expired=1');

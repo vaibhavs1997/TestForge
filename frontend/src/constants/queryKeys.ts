@@ -72,6 +72,12 @@ export const queryKeys = {
   requirements: (projectId: string) => ['requirements', projectId] as const,
   requirement: (projectId: string, requirementId: string) =>
     ['requirements', projectId, requirementId] as const,
+  testDesigns: (projectId: string, requirementId: string) =>
+    ['test-designs', projectId, requirementId] as const,
+  requirementMappingContext: (projectId: string, requirementId: string) =>
+    ['requirement-mapping', projectId, requirementId] as const,
+  executionPlansForRequirement: (projectId: string, requirementId: string) =>
+    ['execution-plans', projectId, requirementId] as const,
 
   // Analysis
   analysis: (projectId: string) => ['analysis', projectId] as const,

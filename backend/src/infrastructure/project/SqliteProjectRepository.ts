@@ -2,14 +2,14 @@ import Database from 'better-sqlite3';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { ProjectRecord } from '../../domain/project/ProjectRecord';
-import type { ProjectRepository } from '../../domain/project/ProjectRepository';
-import { JsonProjectRepository } from './JsonProjectRepository';
+import type { ProjectRecord } from '../../domain/project/ProjectRecord.js';
+import type { ProjectRepository } from '../../domain/project/ProjectRepository.js';
+import { JsonProjectRepository } from './JsonProjectRepository.js';
 
 import {
   allocateProjectIdentifiers,
   slugifyProjectKey,
-} from '../../domain/project/projectIdentifiers';
+} from '../../domain/project/projectIdentifiers.js';
 
 function rowToRecord(row: Record<string, unknown>): ProjectRecord {
   return {
@@ -18,6 +18,7 @@ function rowToRecord(row: Record<string, unknown>): ProjectRecord {
     projectKey: String(row.project_key),
     description: row.description ? String(row.description) : undefined,
     status: (row.status as ProjectRecord['status']) || 'active',
+    lastOpenedAt: row.last_opened_at ? Number(row.last_opened_at) : undefined,
     createdAt: Number(row.created_at),
     updatedAt: Number(row.updated_at),
   };
@@ -39,10 +40,16 @@ export class SqliteProjectRepository implements ProjectRepository {
         project_key TEXT NOT NULL UNIQUE,
         description TEXT,
         status TEXT NOT NULL DEFAULT 'active',
+        last_opened_at INTEGER,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
     `);
+    try {
+      this.db.exec('ALTER TABLE projects ADD COLUMN last_opened_at INTEGER');
+    } catch {
+      // Existing databases already have the column.
+    }
   }
 
   async syncDiscoveredProjects(): Promise<ProjectRecord[]> {
@@ -64,8 +71,8 @@ export class SqliteProjectRepository implements ProjectRepository {
   private insert(record: ProjectRecord): void {
     this.db
       .prepare(
-        `INSERT INTO projects (id, name, project_key, description, status, created_at, updated_at)
-         VALUES (@id, @name, @projectKey, @description, @status, @createdAt, @updatedAt)`,
+        `INSERT INTO projects (id, name, project_key, description, status, last_opened_at, created_at, updated_at)
+         VALUES (@id, @name, @projectKey, @description, @status, @lastOpenedAt, @createdAt, @updatedAt)`,
       )
       .run({
         id: record.id,
@@ -73,6 +80,7 @@ export class SqliteProjectRepository implements ProjectRepository {
         projectKey: record.projectKey,
         description: record.description ?? null,
         status: record.status ?? 'active',
+        lastOpenedAt: record.lastOpenedAt ?? null,
         createdAt: record.createdAt,
         updatedAt: record.updatedAt,
       });
@@ -89,6 +97,7 @@ export class SqliteProjectRepository implements ProjectRepository {
     description?: string;
     id?: string;
     status?: ProjectRecord['status'];
+    lastOpenedAt?: number;
     ownerId?: string;
     tenantId?: string;
   }): Promise<ProjectRecord> {
@@ -116,6 +125,7 @@ export class SqliteProjectRepository implements ProjectRepository {
       projectKey,
       description: input.description?.trim(),
       status: input.status ?? 'active',
+      lastOpenedAt: input.lastOpenedAt,
       createdAt: now,
       updatedAt: now,
     };
@@ -139,6 +149,7 @@ export class SqliteProjectRepository implements ProjectRepository {
       projectKey?: string;
       description?: string;
       status?: ProjectRecord['status'];
+      lastOpenedAt?: number;
     },
   ): Promise<ProjectRecord> {
     const current = await this.findById(id);
@@ -152,13 +163,14 @@ export class SqliteProjectRepository implements ProjectRepository {
       projectKey: patch.projectKey?.trim().toLowerCase() ?? current.projectKey,
       description: patch.description !== undefined ? patch.description.trim() : current.description,
       status: patch.status ?? current.status ?? 'active',
+      lastOpenedAt: patch.lastOpenedAt ?? current.lastOpenedAt,
       updatedAt: Date.now(),
     };
 
     this.db
       .prepare(
         `UPDATE projects SET name = @name, project_key = @projectKey, description = @description,
-         status = @status, updated_at = @updatedAt WHERE id = @id`,
+         status = @status, last_opened_at = @lastOpenedAt, updated_at = @updatedAt WHERE id = @id`,
       )
       .run({
         id,
@@ -166,6 +178,7 @@ export class SqliteProjectRepository implements ProjectRepository {
         projectKey: updated.projectKey,
         description: updated.description ?? null,
         status: updated.status ?? 'active',
+        lastOpenedAt: updated.lastOpenedAt ?? null,
         updatedAt: updated.updatedAt,
       });
 

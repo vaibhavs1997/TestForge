@@ -2,7 +2,7 @@
 // Represents a prompt built from a template and project context.
 // Persisted for history/auditing. No LLM execution.
 
-import { PromptTemplateEntity } from './PromptTemplateEntity';
+import { PromptTemplateEntity } from './PromptTemplateEntity.js';
 
 export interface PromptVariableValue {
   name: string;

@@ -22,6 +22,18 @@ export interface Service {
   /** Legacy ISO-string timestamps used by older UI code */
   createdDate?: string;
   updatedDate?: string;
+  /** Folder path from imported API contract (e.g., "folder/subfolder") */
+  folderPath?: string;
+  /** Raw source contract snapshot preserved by the backend */
+  sourceContract?: {
+    raw: Record<string, unknown>;
+  } | null;
+  contractRefreshRequired?: boolean;
+  /** Derived service metadata used by TestForge */
+  derived?: {
+    baseUrl: string;
+    importKey: string | null;
+  };
 }
 
 export interface ServiceFormData {
@@ -56,6 +68,7 @@ export interface Operation {
   name?: string;
   method: string;
   path: string;
+  requestUrl?: string | null;
   description: string;
   status: OperationStatus;
   authentication?: string;
@@ -63,6 +76,31 @@ export interface Operation {
   tags?: string[];
   version?: string;
   isCustom?: boolean;
+  /** Example request JSON from OpenAPI / Postman import */
+  sampleRequestBody?: Record<string, unknown> | null;
+  /** OpenAPI request body schema `required` property names (mandatory fields only) */
+  requiredRequestBodyFields?: string[] | null;
+  /** Raw source operation snapshot preserved by the backend */
+  sourceOperation?: {
+    raw: Record<string, unknown>;
+    parameters: unknown[];
+    requestBody: unknown;
+    responses: unknown;
+    security: unknown[];
+    servers: unknown[];
+    tags: string[];
+    requestContentTypes: string[];
+    responseContentTypes: string[];
+  } | null;
+  contractRefreshRequired?: boolean;
+  /** Derived operation data used by TestForge */
+  derived?: {
+    requestUrl: string | null;
+    sampleRequestBody: Record<string, unknown> | null;
+    requiredRequestBodyFields: string[] | null;
+    authenticationType: string;
+    contentTypes: string[];
+  };
   createdAt?: number;
   updatedAt?: number;
 }
@@ -75,6 +113,7 @@ export interface OperationFormData {
   description?: string;
   authenticationType?: string;
   status?: string;
+  sampleRequestBody?: Record<string, unknown> | null;
 }
 
 // ─── Import Contract ─────────────────────────────────────────

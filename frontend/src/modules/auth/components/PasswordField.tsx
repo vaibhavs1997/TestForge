@@ -53,7 +53,7 @@ export const PasswordField: React.FC<PasswordFieldProps> = ({
           aria-label={visible ? 'Hide password' : 'Show password'}
           tabIndex={-1}
         >
-          {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          {visible ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
         </button>
       </div>
       {hint && !error ? (

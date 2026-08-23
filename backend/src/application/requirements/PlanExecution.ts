@@ -3,13 +3,13 @@
 // Does NOT execute APIs. It prepares execution.
 // Reuses Test Design, Knowledge Flows, Runtime Variables, Population Strategies, API Operations.
 import { randomUUID } from 'node:crypto';
-import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
-import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository';
-import { ExecutionPlanRepository } from '../../domain/requirements/ExecutionPlanRepository';
-import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository';
-import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
-import { ExecutionPlanEntity, RequestTemplate, ExecutionPlanStatus } from '../../domain/requirements/ExecutionPlanEntity';
-import { TestDesignEntity } from '../../domain/requirements/TestDesignEntity';
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
+import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository.js';
+import { ExecutionPlanRepository } from '../../domain/requirements/ExecutionPlanRepository.js';
+import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository.js';
+import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository.js';
+import { ExecutionPlanEntity, RequestTemplate, ExecutionPlanStatus } from '../../domain/requirements/ExecutionPlanEntity.js';
+import { TestDesignEntity } from '../../domain/requirements/TestDesignEntity.js';
 
 export class PlanExecution {
   constructor(
@@ -27,9 +27,16 @@ export class PlanExecution {
     }
 
     // Get all test designs for this requirement
-    const designs = await this.testDesignRepository.findByRequirement(requirementId);
+  const designs = (await this.testDesignRepository.findByRequirement(requirementId)).filter(
+      (d) => d.status !== 'Disabled',
+    );
     if (!designs || designs.length === 0) {
       throw new Error('No test designs found for this requirement');
+    }
+
+    const existingPlans = await this.executionPlanRepository.findByRequirement(requirementId);
+    for (const plan of existingPlans) {
+      await this.executionPlanRepository.delete(plan.id);
     }
 
     // Get related knowledge flows to determine execution order
@@ -51,9 +58,10 @@ export class PlanExecution {
 
     // Sort designs by priority (High first, then Medium, then Low)
     const priorityOrder = { 'High': 0, 'Medium': 1, 'Low': 2 };
-    const sortedDesigns = [...designs].sort((a, b) => {
+    const prioritySortedDesigns = [...designs].sort((a, b) => {
       return priorityOrder[a.priority as keyof typeof priorityOrder] - priorityOrder[b.priority as keyof typeof priorityOrder];
     });
+    const sortedDesigns = this.orderByDesignDependencies(prioritySortedDesigns);
 
     // Generate execution plans with resolved dependencies and order
     const plans: ExecutionPlanEntity[] = [];
@@ -115,6 +123,18 @@ export class PlanExecution {
 
   private resolvePrerequisites(design: TestDesignEntity, allDesigns: TestDesignEntity[], currentIndex: number): string[] {
     const prerequisites: string[] = [];
+
+    const byOperation = new Map<string, TestDesignEntity>();
+    for (const candidate of allDesigns) if (candidate.operationId && !byOperation.has(candidate.operationId)) byOperation.set(candidate.operationId, candidate);
+    const collectDependencies = (operationId: string, seen = new Set<string>()) => {
+      if (seen.has(operationId)) return;
+      seen.add(operationId);
+      const producer = byOperation.get(operationId);
+      if (!producer || producer.id === design.id) return;
+      if (!prerequisites.includes(producer.id)) prerequisites.push(producer.id);
+      for (const dependency of producer.dependencies || []) collectDependencies(dependency.sourceOperationId, seen);
+    };
+    for (const dependency of design.dependencies || []) collectDependencies(dependency.sourceOperationId);
     
     // Designs with runtime bindings that source from 'response' need prerequisites
     for (const binding of design.runtimeBindings) {
@@ -166,6 +186,28 @@ export class PlanExecution {
 
     // Fallback to priority-based ordering
     return fallbackIndex + 1;
+  }
+
+  private orderByDesignDependencies(designs: TestDesignEntity[]): TestDesignEntity[] {
+    const byOperation = new Map<string, TestDesignEntity>();
+    for (const design of designs) if (design.operationId && !byOperation.has(design.operationId)) byOperation.set(design.operationId, design);
+    const ordered: TestDesignEntity[] = [];
+    const visiting = new Set<string>();
+    const visited = new Set<string>();
+    const visit = (design: TestDesignEntity) => {
+      if (visited.has(design.id)) return;
+      if (visiting.has(design.id)) return;
+      visiting.add(design.id);
+      for (const dependency of design.dependencies || []) {
+        const producer = byOperation.get(dependency.sourceOperationId);
+        if (producer) visit(producer);
+      }
+      visiting.delete(design.id);
+      visited.add(design.id);
+      ordered.push(design);
+    };
+    for (const design of designs) visit(design);
+    return ordered;
   }
 }
 

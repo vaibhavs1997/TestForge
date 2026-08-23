@@ -1,6 +1,7 @@
 // DeleteEnvironment - Application Use Case
-import { EnvironmentRepository } from '../../domain/environment/EnvironmentRepository';
-import { EventPublisher } from '../EventPublisher';
+import { requireById } from '../shared/crudHelpers.js';
+import { EnvironmentRepository } from '../../domain/environment/EnvironmentRepository.js';
+import { EventPublisher } from '../EventPublisher.js';
 
 export class DeleteEnvironment {
   constructor(
@@ -9,10 +10,7 @@ export class DeleteEnvironment {
   ) {}
 
   async execute(id: string): Promise<void> {
-    const existing = await this.environmentRepository.findById(id);
-    if (!existing) {
-      throw new Error(`Environment with id ${id} not found`);
-    }
+    const existing = await requireById(this.environmentRepository, id, 'Environment');
     await this.environmentRepository.delete(id);
 
     if (this.eventPublisher) {

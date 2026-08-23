@@ -1,2 +1,2 @@
 // Barrel export file for Report infrastructure module
-export * from './ReportRepository';
+export * from './ReportRepository.js';

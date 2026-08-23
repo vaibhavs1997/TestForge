@@ -1,20 +1,10 @@
-export type ProviderCategory = 'Email' | 'SMS' | 'Payment' | 'Storage' | 'Custom';
+import type { ProviderDto } from '../../../types/moduleContracts';
 
-export type ProviderAdapterType = 'Mailtrap' | 'MailHog' | 'TempMail' | 'Twilio' | 'StripeSandbox' | 'Custom';
+export type ProviderCategory = ProviderDto['category'];
 
-export interface Provider {
-  id: string;
-  projectId: string;
-  name: string;
-  category: ProviderCategory;
-  adapter: ProviderAdapterType;
-  configuration: Record<string, any>;
-  credentials: Record<string, any>;
-  enabled: boolean;
-  isDefault: boolean;
-  createdAt: number;
-  updatedAt: number;
-}
+export type ProviderAdapterType = ProviderDto['adapter'];
+
+export type Provider = ProviderDto;
 
 export interface CreateProviderInput {
   name: string;

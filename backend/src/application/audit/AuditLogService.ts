@@ -1,9 +1,10 @@
 // AuditLogService - Application Service for Audit Log Framework
 // Subscribes to EventBus and logs important actions.
 import { randomUUID } from 'node:crypto';
-import { EventBus, EventType, ModuleName, DomainEvent } from '../../domain/events/EventBus';
-import { AuditLogEntity, AuditAction, AuditModule } from '../../domain/audit/AuditLogEntity';
-import { AuditLogRepository } from '../../domain/audit/AuditLogRepository';
+import { EventBus, EventType, ModuleName, DomainEvent } from '../../domain/events/EventBus.js';
+import { AuditLogEntity, AuditAction, AuditModule } from '../../domain/audit/AuditLogEntity.js';
+import { AuditLogRepository } from '../../domain/audit/AuditLogRepository.js';
+import { sensitiveDataRedactor } from '../../infrastructure/security/SensitiveDataRedactionService.js';
 
 export class AuditLogService {
   constructor(
@@ -59,9 +60,9 @@ export class AuditLogService {
       action,
       'System',
       event.timestamp,
-      event.payload?.oldValue || null,
-      event.payload?.newValue || null,
-      event.payload?.metadata || {}
+      event.payload?.oldValue ? sensitiveDataRedactor.redact(event.payload.oldValue) : null,
+      event.payload?.newValue ? sensitiveDataRedactor.redact(event.payload.newValue) : null,
+      event.payload?.metadata ? sensitiveDataRedactor.redact(event.payload.metadata) : {}
     );
 
     await this.auditLogRepository.create(auditLog);
@@ -108,6 +109,7 @@ export class AuditLogService {
     oldValue?: Record<string, any> | null;
     newValue?: Record<string, any> | null;
     metadata?: Record<string, any>;
+    performedBy?: string;
   }): Promise<AuditLogEntity> {
     const log = new AuditLogEntity(
       randomUUID(),
@@ -116,11 +118,11 @@ export class AuditLogService {
       params.entityType,
       params.entityId,
       params.action,
-      'System',
+      params.performedBy || 'System',
       Date.now(),
-      params.oldValue || null,
-      params.newValue || null,
-      params.metadata || {}
+      params.oldValue ? sensitiveDataRedactor.redact(params.oldValue) : null,
+      params.newValue ? sensitiveDataRedactor.redact(params.newValue) : null,
+      params.metadata ? sensitiveDataRedactor.redact(params.metadata) : {}
     );
 
     return this.auditLogRepository.create(log);
@@ -135,6 +137,10 @@ export class AuditLogService {
     endDate?: number;
   }): Promise<AuditLogEntity[]> {
     return this.auditLogRepository.findByProjectAndFilters(projectId, filters);
+  }
+
+  async getRecentLogs(limit = 5): Promise<AuditLogEntity[]> {
+    return (await this.auditLogRepository.list()).slice(0, limit);
   }
 
   async getLogById(id: string): Promise<AuditLogEntity> {

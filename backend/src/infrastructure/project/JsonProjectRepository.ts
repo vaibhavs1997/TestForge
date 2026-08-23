@@ -1,14 +1,14 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { ProjectRecord } from '../../domain/project/ProjectRecord';
-import type { ProjectRepository } from '../../domain/project/ProjectRepository';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import type { ProjectRecord } from '../../domain/project/ProjectRecord.js';
+import type { ProjectRepository } from '../../domain/project/ProjectRepository.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 import {
   deleteProjectDataOnDisk,
   discoverProjectIdsFromData,
   isValidDiscoveredProjectId,
-} from './projectDataPaths';
+} from './projectDataPaths.js';
 
 function registryPath(): string {
   return path.join(process.cwd(), 'data', 'projects', 'projects.json');
@@ -17,7 +17,7 @@ function registryPath(): string {
 import {
   allocateProjectIdentifiers,
   slugifyProjectKey,
-} from '../../domain/project/projectIdentifiers';
+} from '../../domain/project/projectIdentifiers.js';
 
 export class JsonProjectRepository implements ProjectRepository {
   private async readRegistry(): Promise<ProjectRecord[]> {
@@ -78,6 +78,7 @@ export class JsonProjectRepository implements ProjectRepository {
     description?: string;
     id?: string;
     status?: ProjectRecord['status'];
+    lastOpenedAt?: number;
     ownerId?: string;
     tenantId?: string;
   }): Promise<ProjectRecord> {
@@ -107,6 +108,7 @@ export class JsonProjectRepository implements ProjectRepository {
       projectKey,
       description: input.description?.trim(),
       status: input.status ?? 'active',
+      lastOpenedAt: input.lastOpenedAt,
       ownerId: input.ownerId?.trim() || undefined,
       tenantId: input.tenantId?.trim() || undefined,
       createdAt: now,
@@ -124,6 +126,7 @@ export class JsonProjectRepository implements ProjectRepository {
       projectKey?: string;
       description?: string;
       status?: ProjectRecord['status'];
+      lastOpenedAt?: number;
     },
   ): Promise<ProjectRecord> {
     const projects = await this.readRegistry();
@@ -143,6 +146,7 @@ export class JsonProjectRepository implements ProjectRepository {
       projectKey: patch.projectKey?.trim().toLowerCase() ?? current.projectKey,
       description: patch.description !== undefined ? patch.description.trim() : current.description,
       status: patch.status ?? current.status ?? 'active',
+      lastOpenedAt: patch.lastOpenedAt ?? current.lastOpenedAt,
       updatedAt: Date.now(),
     };
     projects[index] = updated;

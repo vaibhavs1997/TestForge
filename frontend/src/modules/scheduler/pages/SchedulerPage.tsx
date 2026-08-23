@@ -15,6 +15,8 @@ import { useSuites } from '../../suite/hooks';
 import { useEnvironments } from '../../environment/hooks/useEnvironments';
 import { profileService } from '../../execution/services/profileService';
 import { projectStore } from '../../../store/projectStore';
+import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useFormValidation } from '../../../hooks/useFormValidation';
 import { validateCron, FormErrors } from '../../../utils/validation';
 import { ErrorAlert } from '../../../components/shared/ErrorAlert';
@@ -54,8 +56,10 @@ const CRON_PRESETS = [
 ];
 
 export const SchedulerPage: React.FC = () => {
+  const navigate = useNavigate();
+  const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const selectedProjectId = projectStore((state) => state.selectedProjectId);
-  const projectId = selectedProjectId || '1';
+  const projectId = routeProjectId ?? selectedProjectId ?? '1';
   const { schedules, isLoading, create, update, remove, runNow, enable, disable } = useSchedules(projectId);
 
   const breadcrumbItems = [
@@ -267,6 +271,15 @@ export const SchedulerPage: React.FC = () => {
 
   return (
     <div className='mx-auto max-w-7xl px-4 py-8'>
+      <WorkflowOptionalBanner
+        projectId={projectId}
+        description="Cron-based suite runs for CI or nightly checks. Manual runs from Requirements or Execution do not need a schedule."
+        primaryLink={{
+          label: 'Manage suites',
+          path: `/projects/${projectId}/execution/suites`,
+        }}
+      />
+
       {/* Page Header */}
       <div className='mb-6'>
         <nav className='flex items-center gap-2 text-sm text-text-secondary'>
@@ -283,8 +296,8 @@ export const SchedulerPage: React.FC = () => {
         </nav>
         <div className='mt-4 flex items-center justify-between'>
           <div>
-            <h1 className='text-2xl font-bold text-text'>Schedules</h1>
-            <p className='mt-1 text-sm text-text-secondary'>Automate execution of test suites on a recurring basis.</p>
+            <h1 className='text-2xl font-bold text-text'>Scheduled runs</h1>
+            <p className='mt-1 text-sm text-text-secondary'>Automate test suites on a cron — optional after you have suites and stable environments.</p>
           </div>
           <div className='flex items-center gap-3'>
             <SearchBar value={search} onChange={setSearch} placeholder='Search schedules...' className='sm:w-80' />
@@ -305,8 +318,16 @@ export const SchedulerPage: React.FC = () => {
             <EmptyState
               icon={<CalendarClock className='h-12 w-12' />}
               title={search ? 'No matching schedules' : 'No schedules yet'}
-              description={search ? 'Try adjusting your search criteria.' : 'Create your first schedule to automate test suite execution.'}
-              action={search ? undefined : { label: 'Create Schedule', onClick: openCreateEditor }}
+              description={search ? 'Try adjusting your search criteria.' : 'Create a schedule when you need recurring suite runs (e.g. nightly staging).'}
+              action={search ? undefined : { label: 'Create schedule', onClick: openCreateEditor }}
+              secondaryAction={
+                search
+                  ? undefined
+                  : {
+                      label: 'Run tests now',
+                      onClick: () => navigate(`/projects/${projectId}/execution`),
+                    }
+              }
             />
           ) : (
             <div className='overflow-x-auto'>

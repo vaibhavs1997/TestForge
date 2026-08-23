@@ -1,3 +1,3 @@
 // Barrel export file for Scheduler interfaces module
-export * from './ScheduleController';
-export * from './ScheduleRoutes';
+export * from './ScheduleController.js';
+export * from './ScheduleRoutes.js';

@@ -1,16 +1,13 @@
 // GetAnalysis - Application Use Case
-import { AnalysisRepository } from '../../domain/analysis/AnalysisRepository';
-import { AnalysisEntity } from '../../domain/analysis/AnalysisEntity';
+import { requireById } from '../shared/crudHelpers.js';
+import { AnalysisRepository } from '../../domain/analysis/AnalysisRepository.js';
+import { AnalysisEntity } from '../../domain/analysis/AnalysisEntity.js';
 
 export class GetAnalysis {
   constructor(private readonly analysisRepository: AnalysisRepository) {}
 
   async execute(id: string): Promise<AnalysisEntity> {
-    const analysis = await this.analysisRepository.findById(id);
-    if (!analysis) {
-      throw new Error(`Analysis with id ${id} not found`);
-    }
-    return analysis;
+    return requireById(this.analysisRepository, id, 'Analysis');
   }
 }
 

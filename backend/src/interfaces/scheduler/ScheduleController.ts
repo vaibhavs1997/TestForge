@@ -1,10 +1,10 @@
 // ScheduleController - Controller for Scheduler Module endpoints
 import { Request, Response } from 'express';
-import { CreateSchedule } from '../../application/scheduler/CreateSchedule';
-import { UpdateSchedule } from '../../application/scheduler/UpdateSchedule';
-import { GetSchedule, ListSchedules, DeleteSchedule } from '../../application/scheduler/ManageSchedules';
-import { SchedulerService } from '../../application/scheduler/SchedulerService';
-import { createSuccessResponse } from "../../shared/ApiResponse";
+import { CreateSchedule } from '../../application/scheduler/CreateSchedule.js';
+import { UpdateSchedule } from '../../application/scheduler/UpdateSchedule.js';
+import { GetSchedule, ListSchedules, DeleteSchedule } from '../../application/scheduler/ManageSchedules.js';
+import { SchedulerService } from '../../application/scheduler/SchedulerService.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
 export class ScheduleController {
     constructor(private readonly createScheduleUseCase: CreateSchedule, private readonly updateScheduleUseCase: UpdateSchedule, private readonly getScheduleUseCase: GetSchedule, private readonly listSchedulesUseCase: ListSchedules, private readonly deleteScheduleUseCase: DeleteSchedule, private readonly schedulerService: SchedulerService) { }
     async createSchedule(req: Request, res: Response): Promise<void> {

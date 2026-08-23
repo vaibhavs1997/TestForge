@@ -1,6 +1,7 @@
 // Requirement service for Requirement Workspace
+import type { AxiosRequestConfig } from 'axios';
 import { ApiClient } from '../../../services/ApiClient';
-import type { Requirement, RequirementFormData, ValidationReport, TestStrategy, TestDesign, ExecutionPlan } from '../types';
+import type { Requirement, RequirementFormData, ValidationReport, TestStrategy, TestDesign, ExecutionPlan, RequirementMappingContext } from '../types';
 
 class RequirementService extends ApiClient<Requirement> {
   constructor() {
@@ -76,6 +77,41 @@ class RequirementService extends ApiClient<Requirement> {
   async planExecution(projectId: string, requirementId: string): Promise<ExecutionPlan[]> {
     const path = `/projects/${projectId}/requirements/${requirementId}/execution-plans`;
     return this.post(path);
+  }
+
+  async importFromJira(projectId: string, issueKey: string): Promise<Requirement> {
+    const path = `/projects/${projectId}/requirements/from-jira`;
+    return this.post(path, { issueKey });
+  }
+
+  async getJiraStatus(): Promise<{ configured: boolean }> {
+    const path = '/integrations/jira/status';
+    return this.getCustom(path);
+  }
+
+  async getMappingContext(projectId: string, requirementId: string): Promise<RequirementMappingContext> {
+    const path = `/projects/${projectId}/requirements/${requirementId}/mapping-context`;
+    return this.getCustom(path);
+  }
+
+  async generateTestCases(
+    projectId: string,
+    requirementId: string,
+    body?: {
+      providerId?: string;
+      useAi?: boolean;
+      buildRunPlan?: boolean;
+      replaceExisting?: boolean;
+    },
+    config?: AxiosRequestConfig,
+  ): Promise<{
+    designs: TestDesign[];
+    executionPlanIds: string[];
+    usedAi: boolean;
+    warnings: string[];
+  }> {
+    const path = `/projects/${projectId}/requirements/${requirementId}/generate-test-cases`;
+    return this.post(path, body ?? {}, config);
   }
 }
 

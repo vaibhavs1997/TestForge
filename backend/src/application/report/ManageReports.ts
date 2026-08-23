@@ -1,8 +1,9 @@
 // ManageReports - Application Use Case for Reporting Module
 // Handles CRUD operations for reports (create, get, list, delete).
 // Report generation is handled by GenerateReport use case.
-import { ReportEntity } from '../../domain/report/ReportEntity';
-import { ReportRepository } from '../../domain/report/ReportRepository';
+import { deleteById, requireById } from '../shared/crudHelpers.js';
+import { ReportEntity } from '../../domain/report/ReportEntity.js';
+import { ReportRepository } from '../../domain/report/ReportRepository.js';
 
 export class ManageReports {
   constructor(private readonly reportRepository: ReportRepository) {}
@@ -12,11 +13,7 @@ export class ManageReports {
   }
 
   async get(id: string): Promise<ReportEntity> {
-    const report = await this.reportRepository.findById(id);
-    if (!report) {
-      throw new Error(`Report with id ${id} not found`);
-    }
-    return report;
+    return requireById(this.reportRepository, id, 'Report');
   }
 
   async listByProject(projectId: string): Promise<ReportEntity[]> {
@@ -32,11 +29,7 @@ export class ManageReports {
   }
 
   async delete(id: string): Promise<void> {
-    const existing = await this.reportRepository.findById(id);
-    if (!existing) {
-      throw new Error(`Report with id ${id} not found`);
-    }
-    await this.reportRepository.delete(id);
+    await deleteById(this.reportRepository, id, 'Report');
   }
 }
 

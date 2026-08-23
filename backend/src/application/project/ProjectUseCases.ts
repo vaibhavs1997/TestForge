@@ -1,5 +1,5 @@
-import type { ProjectRepository } from '../../domain/project/ProjectRepository';
-import type { ProjectRecord } from '../../domain/project/ProjectRecord';
+import type { ProjectRepository } from '../../domain/project/ProjectRepository.js';
+import type { ProjectRecord } from '../../domain/project/ProjectRecord.js';
 export class ListProjects {
   constructor(private readonly projectRepository: ProjectRepository) {}
 
@@ -29,6 +29,7 @@ export class CreateProject {
     description?: string;
     id?: string;
     status?: ProjectRecord['status'];
+    lastOpenedAt?: number;
     ownerId?: string;
     tenantId?: string;
   }): Promise<ProjectRecord> {
@@ -41,7 +42,7 @@ export class UpdateProject {
 
   async execute(
     id: string,
-    patch: { name?: string; projectKey?: string; description?: string; status?: ProjectRecord['status'] },
+    patch: { name?: string; projectKey?: string; description?: string; status?: ProjectRecord['status']; lastOpenedAt?: number },
   ): Promise<ProjectRecord> {
     return this.projectRepository.update(id, patch);
   }

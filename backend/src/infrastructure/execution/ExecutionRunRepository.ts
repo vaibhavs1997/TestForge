@@ -1,8 +1,12 @@
 // ExecutionRunRepository - File-based repository implementation
 import * as fs from 'fs';
 import * as path from 'path';
-import { ExecutionRunEntity } from '../../domain/execution/ExecutionRunEntity';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { ExecutionRunEntity } from '../../domain/execution/ExecutionRunEntity.js';
+import { readJsonArray, updateJsonArray } from '../persistence/JsonFileStore.js';
+
+function cloneForStorage<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'executions');
@@ -27,26 +31,55 @@ export class ExecutionRunRepository {
   async create(run: ExecutionRunEntity): Promise<ExecutionRunEntity> {
     this.ensureProjectDir(run.projectId);
     const filePath = this.getRunsFilePath(run.projectId);
-    const items = await this.readRuns(run.projectId);
-    items.push(run);
-    await writeJsonArray(filePath, items);
-    return run;
+    const stored = cloneForStorage(run);
+    await updateJsonArray<ExecutionRunEntity>(filePath, [], (items) => [...items, stored]);
+    return stored;
   }
 
   async update(id: string, data: Partial<ExecutionRunEntity>): Promise<ExecutionRunEntity> {
     const projectIds = this.listProjectIds();
     for (const projectId of projectIds) {
-      const items = await this.readRuns(projectId);
-      const index = items.findIndex(r => r.id === id);
-      if (index !== -1) {
-        const updated = { ...items[index], ...data, updatedAt: Date.now() };
-        items[index] = updated;
-        const filePath = this.getRunsFilePath(projectId);
-        await writeJsonArray(filePath, items);
+      const filePath = this.getRunsFilePath(projectId);
+      let updated: ExecutionRunEntity | null = null;
+      await updateJsonArray<ExecutionRunEntity>(filePath, [], (items) => {
+        const index = items.findIndex((r) => r.id === id);
+        if (index === -1) {
+          return items;
+        }
+        updated = {
+          ...items[index],
+          ...cloneForStorage(data),
+          updatedAt: Date.now(),
+        };
+        const next = [...items];
+        next[index] = updated;
+        return next;
+      });
+      if (updated) {
         return updated;
       }
     }
     throw new Error(`Execution Run with id ${id} not found`);
+  }
+
+  async delete(id: string): Promise<void> {
+    const projectIds = this.listProjectIds();
+    for (const projectId of projectIds) {
+      const items = await this.readRuns(projectId);
+      const next = items.filter((run) => run.id !== id);
+      if (next.length !== items.length) {
+        await updateJsonArray<ExecutionRunEntity>(this.getRunsFilePath(projectId), [], () => next);
+        return;
+      }
+    }
+    throw new Error(`Execution Run with id ${id} not found`);
+  }
+
+  async deleteByProject(projectId: string): Promise<number> {
+    const items = await this.readRuns(projectId);
+    if (items.length === 0) return 0;
+    await updateJsonArray<ExecutionRunEntity>(this.getRunsFilePath(projectId), [], () => []);
+    return items.length;
   }
 
   async findById(id: string): Promise<ExecutionRunEntity | null> {
@@ -60,7 +93,8 @@ export class ExecutionRunRepository {
   }
 
   async findByProject(projectId: string): Promise<ExecutionRunEntity[]> {
-    return this.readRuns(projectId);
+    const items = await this.readRuns(projectId);
+    return Array.isArray(items) ? items : [];
   }
 
   async findByRequirement(requirementId: string): Promise<ExecutionRunEntity[]> {

@@ -1,7 +1,9 @@
 // Requirement Workspace domain types
-export type RequirementSource = 'ProjectAnalysis' | 'Manual';
+import type { ExecutionPlanDto } from '../../../types/moduleContracts';
+
+export type RequirementSource = 'ProjectAnalysis' | 'Manual' | 'Jira';
 export type ReviewStatus = 'Pending' | 'Reviewed';
-export type ApprovalStatus = 'Suggested' | 'Approved' | 'Rejected' | 'Archived';
+export type ApprovalStatus = 'Draft' | 'Suggested' | 'Approved' | 'Rejected' | 'Archived';
 
 export interface AcceptanceCriterion {
   id: string;
@@ -23,8 +25,11 @@ export interface Requirement {
   relatedFlows: string[];
   relatedDatasets: string[];
   acceptanceCriteria: AcceptanceCriterion[];
+  jiraIssueKey?: string | null;
   createdAt: number;
   updatedAt: number;
+  generationPending?: boolean;
+  generationExpiresAt?: number | null;
 }
 
 export interface RequirementFormData {
@@ -42,6 +47,8 @@ export interface RequirementFormData {
   relatedFlows: string[];
   relatedDatasets: string[];
   acceptanceCriteria: AcceptanceCriterion[];
+  generationPending?: boolean;
+  generationExpiresAt?: number | null;
 }
 
 export type ValidationStatus = 'READY' | 'MISSING' | 'WARNING' | 'INCOMPLETE';
@@ -102,6 +109,7 @@ export interface TestStrategy {
 
 export type DesignPriority = 'High' | 'Medium' | 'Low';
 export type DesignStatus = 'Draft' | 'Ready' | 'Disabled';
+export type TestCaseType = 'Positive' | 'Negative' | 'Security';
 
 export interface RequestOverride {
   headers?: Record<string, string>;
@@ -133,11 +141,28 @@ export interface CleanupStep {
   target: string;
 }
 
+export interface RequirementMappingContext {
+  requirementId: string;
+  lowConfidence: boolean;
+  mappingConfidencePercent: number;
+  primaryOperationId: string | null;
+  rankedOperations: Array<{
+    operationId: string;
+    serviceId: string;
+    name: string;
+    method: string;
+    path: string;
+    score: number;
+  }>;
+  message: string;
+}
+
 export interface TestDesign {
   id: string;
   projectId: string;
   requirementId: string;
   strategyItemId: string;
+  title?: string;
   operationId: string;
   environmentId: string;
   datasetId: string;
@@ -151,6 +176,21 @@ export interface TestDesign {
   createdAt: number;
   updatedAt: number;
   assertionIds: AssertionReference[];
+  testCaseType?: TestCaseType;
+  expectedHttpStatus?: number;
+  mappingProvenance?: 'ai' | 'matcher' | 'user';
+  mappingState?: 'confirmed' | 'review' | 'unmapped';
+  mappingConfidence?: number;
+  acceptanceCriterionId?: string;
+  scenarioId?: string;
+  dependencies?: Array<{
+    sourceOperationId: string;
+    sourceResponsePath?: string;
+    targetOperationId: string;
+    targetRequestPath?: string;
+    transform?: string;
+    evidence: string[];
+  }>;
 }
 
 export type ExecutionPlanStatus = 'Pending' | 'Ready' | 'Disabled';
@@ -163,21 +203,4 @@ export interface RequestTemplate {
   body?: any;
 }
 
-export interface ExecutionPlan {
-  id: string;
-  projectId: string;
-  requirementId: string;
-  testDesignId: string;
-  executionOrder: number;
-  prerequisiteDesignIds: string[];
-  operationId: string;
-  environmentId: string;
-  datasetId: string;
-  runtimeBindings: RuntimeBinding[];
-  requestTemplate: RequestTemplate;
-  assertions: Assertion[];
-  cleanupSteps: CleanupStep[];
-  status: ExecutionPlanStatus;
-  createdAt: number;
-  updatedAt: number;
-}
+export type ExecutionPlan = ExecutionPlanDto;

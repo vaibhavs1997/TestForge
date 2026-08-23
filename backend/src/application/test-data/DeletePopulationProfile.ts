@@ -1,5 +1,5 @@
 // DeletePopulationProfile - Application Use Case
-import { PopulationProfileRepository } from '../../domain/test-data/PopulationProfileRepository';
+import { PopulationProfileRepository } from '../../domain/test-data/PopulationProfileRepository.js';
 
 export class DeletePopulationProfile {
   constructor(private readonly profileRepository: PopulationProfileRepository) {}

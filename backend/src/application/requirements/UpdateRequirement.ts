@@ -1,7 +1,7 @@
 // UpdateRequirement - Application Use Case
-import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
-import { RequirementEntity, RequirementSource, ReviewStatus, ApprovalStatus, AcceptanceCriterion } from '../../domain/requirements/RequirementEntity';
-import { EventPublisher } from '../EventPublisher';
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
+import { RequirementEntity, RequirementSource, ReviewStatus, ApprovalStatus, AcceptanceCriterion } from '../../domain/requirements/RequirementEntity.js';
+import { EventPublisher } from '../EventPublisher.js';
 
 export class UpdateRequirement {
   constructor(
@@ -23,6 +23,7 @@ export class UpdateRequirement {
     relatedFlows?: string[];
     relatedDatasets?: string[];
     acceptanceCriteria?: AcceptanceCriterion[];
+    jiraIssueKey?: string | null;
   }): Promise<RequirementEntity> {
     const existing = await this.requirementRepository.findById(params.id);
     if (!existing) {
@@ -46,6 +47,10 @@ export class UpdateRequirement {
     if (params.relatedFlows !== undefined) updateData.relatedFlows = params.relatedFlows;
     if (params.relatedDatasets !== undefined) updateData.relatedDatasets = params.relatedDatasets;
     if (params.acceptanceCriteria !== undefined) updateData.acceptanceCriteria = params.acceptanceCriteria;
+    if (params.jiraIssueKey !== undefined) {
+      const key = params.jiraIssueKey?.trim();
+      updateData.jiraIssueKey = key ? key.toUpperCase() : null;
+    }
 
     const updated = await this.requirementRepository.update(params.id, updateData);
 

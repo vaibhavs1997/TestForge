@@ -2,8 +2,8 @@
 // These are deterministic, system-provided templates that require no LLM calls
 // to be constructed. They are seeded into the PromptRepository on first access.
 
-import { PromptTemplateEntity, PromptTemplateCategory } from '../../domain/prompt';
-import { PromptRepository } from './PromptRepository';
+import { PromptTemplateEntity, PromptTemplateCategory } from '../../domain/prompt/index.js';
+import { PromptRepository } from './PromptRepository.js';
 
 export interface BuiltinTemplateDef {
   id: string;
@@ -63,7 +63,7 @@ export const BUILTIN_TEMPLATES: BuiltinTemplateDef[] = [
     systemPrompt:
       'You are a test design specialist. Generate detailed test designs with request templates for each API operation.',
     userPrompt:
-      'Create test designs for:\n\nAPI Operations: {{apiOperations}}\nDatasets: {{datasets}}\nDataset Columns: {{datasetColumns}}\nDatasets Relationships: {{datasetRelationships}}\n\nMap each design to requirements {{requirements}} and use runtime variables {{runtimeVariables}}.',
+      'Create test designs for:\n\nCandidate API Operations: {{apiOperations}}\nDatasets: {{datasets}}\nDataset Columns: {{datasetColumns}}\nDatasets Relationships: {{datasetRelationships}}\n\nRequirement context: {{requirements}}\nUse runtime variables {{runtimeVariables}}. You may only use an operationId from Candidate API Operations; never invent or select an operation outside that list. For each design return the matching acceptanceCriterionId and scenarioId from the supplied strategyScenarios when available. Treat titles and categories as descriptive metadata, not identity.',
     variables: [
       { name: 'apiOperations', description: 'API operations', required: true, sourcePath: 'apiOperations' },
       { name: 'datasets', description: 'Test datasets', required: true, sourcePath: 'datasets' },

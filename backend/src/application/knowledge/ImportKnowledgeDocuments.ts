@@ -1,9 +1,9 @@
-import { CreateKnowledgeFlow } from './CreateKnowledgeFlow';
-import { ManageBusinessRules } from './ManageBusinessRules';
-import { ManageRuntimeVariables } from './ManageRuntimeVariables';
-import { ManageDependencies } from './ManageDependencies';
-import { ManageDocumentation } from './ManageDocumentation';
-import { extractDocumentText, isKnowledgePackJson } from './extractDocumentText';
+import { CreateKnowledgeFlow } from './CreateKnowledgeFlow.js';
+import { ManageBusinessRules } from './ManageBusinessRules.js';
+import { ManageRuntimeVariables } from './ManageRuntimeVariables.js';
+import { ManageDependencies } from './ManageDependencies.js';
+import { ManageDocumentation } from './ManageDocumentation.js';
+import { extractDocumentText, isKnowledgePackJson } from './extractDocumentText.js';
 
 export interface KnowledgeImportFile {
   originalname: string;

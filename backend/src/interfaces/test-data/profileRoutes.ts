@@ -1,18 +1,18 @@
 // PopulationProfileRoutes - Route definitions for Population Profiles
 import { Router } from 'express';
-import { PopulationProfileController } from './PopulationProfileController';
-import { container } from '../../application/ApplicationContainer';
+import { PopulationProfileController } from './PopulationProfileController.js';
+import { container } from '../../application/ApplicationContainer.js';
 
 // Reuse shared repository from the ApplicationContainer
 const { populationProfileRepository: profileRepository } = container;
 
 // Initialize use cases
-import { CreatePopulationProfile } from '../../application/test-data/CreatePopulationProfile';
-import { UpdatePopulationProfile } from '../../application/test-data/UpdatePopulationProfile';
-import { DeletePopulationProfile } from '../../application/test-data/DeletePopulationProfile';
-import { GetPopulationProfile } from '../../application/test-data/GetPopulationProfile';
-import { ListPopulationProfiles } from '../../application/test-data/ListPopulationProfiles';
-import { asyncHandler } from '../middleware/AsyncHandler';
+import { CreatePopulationProfile } from '../../application/test-data/CreatePopulationProfile.js';
+import { UpdatePopulationProfile } from '../../application/test-data/UpdatePopulationProfile.js';
+import { DeletePopulationProfile } from '../../application/test-data/DeletePopulationProfile.js';
+import { GetPopulationProfile } from '../../application/test-data/GetPopulationProfile.js';
+import { ListPopulationProfiles } from '../../application/test-data/ListPopulationProfiles.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 const createProfile = new CreatePopulationProfile(profileRepository);
 const updateProfile = new UpdatePopulationProfile(profileRepository);

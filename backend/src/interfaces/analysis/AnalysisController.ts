@@ -1,12 +1,12 @@
 // AnalysisController - Controller for AI Project Analysis endpoints
 import { Request, Response } from 'express';
-import { CreateAnalysis } from '../../application/analysis/CreateAnalysis';
-import { UpdateAnalysis } from '../../application/analysis/UpdateAnalysis';
-import { DeleteAnalysis } from '../../application/analysis/DeleteAnalysis';
-import { GetAnalysis } from '../../application/analysis/GetAnalysis';
-import { ListAnalysis } from '../../application/analysis/ListAnalysis';
-import { AnalyzeProject } from '../../application/analysis/AnalyzeProject';
-import { createSuccessResponse } from "../../shared/ApiResponse";
+import { CreateAnalysis } from '../../application/analysis/CreateAnalysis.js';
+import { UpdateAnalysis } from '../../application/analysis/UpdateAnalysis.js';
+import { DeleteAnalysis } from '../../application/analysis/DeleteAnalysis.js';
+import { GetAnalysis } from '../../application/analysis/GetAnalysis.js';
+import { ListAnalysis } from '../../application/analysis/ListAnalysis.js';
+import { AnalyzeProject } from '../../application/analysis/AnalyzeProject.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
 export class AnalysisController {
     constructor(private readonly createAnalysisUseCase: CreateAnalysis, private readonly updateAnalysisUseCase: UpdateAnalysis, private readonly deleteAnalysisUseCase: DeleteAnalysis, private readonly getAnalysisUseCase: GetAnalysis, private readonly listAnalysisUseCase: ListAnalysis, private readonly analyzeProjectUseCase: AnalyzeProject) { }
     async listAnalysis(req: Request, res: Response): Promise<void> {

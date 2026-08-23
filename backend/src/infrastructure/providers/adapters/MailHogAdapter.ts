@@ -1,6 +1,6 @@
 // MailHogAdapter - Placeholder adapter for local MailHog email testing
 // Do NOT call external services yet. Architecture preparation only.
-import { ProviderAdapter, ProviderTestResult, ProviderOperationResult } from '../ProviderAdapter';
+import { ProviderAdapter, ProviderTestResult, ProviderOperationResult } from '../ProviderAdapter.js';
 
 export class MailHogAdapter implements ProviderAdapter {
   readonly type = 'MailHog';

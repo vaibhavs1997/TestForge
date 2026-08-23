@@ -12,8 +12,8 @@ import type {
   AIProviderStreamChunk,
   AIProviderHealthResult,
   AIProviderType,
-} from '../../../domain/ai-provider';
-import { DEFAULT_TIMEOUT_MS, DEFAULT_MAX_TOKENS } from '../../../constants/defaults';
+} from '../../../domain/ai-provider/index.js';
+import { DEFAULT_TIMEOUT_MS, DEFAULT_MAX_TOKENS } from '../../../constants/defaults.js';
 
 export abstract class BaseAIProviderAdapter implements AIProviderAdapter {
   abstract readonly type: AIProviderType;

@@ -2,10 +2,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCRUD } from '../../../hooks/useCRUD';
 import { apiService } from '../services/apiService';
-import type { ServiceFormData, OperationFormData, Operation, ImportSummary } from '../types';
+import type { ServiceFormData, OperationFormData, ImportSummary } from '../types';
 import type { AxiosProgressEvent } from 'axios';
 import { queryKeys } from '../../../constants';
 import { notificationInboxQueryKey } from '../../notification/hooks';
+import { toApiOperationView, toApiServiceView } from '../../../types/apiModels';
 
 // ─── Services ────────────────────────────────────────────────
 
@@ -26,7 +27,11 @@ export const useServices = (projectId?: string) => {
   } = useCRUD({
     queryKey: queryKeys.services(projectId || ''),
     service: {
-      list: () => (projectId ? apiService.listServices(projectId) : Promise.resolve([])),
+      list: async () => {
+        if (!projectId) return [];
+        const services = await apiService.listServices(projectId);
+        return services.map((service) => toApiServiceView(service));
+      },
       create: (data: ServiceFormData) =>
         apiService.createService(data.projectId, {
           name: data.name,
@@ -71,6 +76,16 @@ export const useServices = (projectId?: string) => {
 
 export const useService = (projectId?: string) => {
   const services = useServices(projectId);
+  const queryClient = useQueryClient();
+  const refreshMutation = useMutation({
+    mutationFn: ({ serviceId }: { serviceId: string }) => apiService.refreshApiContract(projectId || '', serviceId),
+    onSuccess: () => {
+      if (projectId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.services(projectId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.operations(projectId) });
+      }
+    },
+  });
   return {
     services: services.services,
     allServices: services.services,
@@ -83,29 +98,13 @@ export const useService = (projectId?: string) => {
     remove: services.remove,
     removeAsync: services.removeAsync,
     refetchServices: services.refetch,
+    refreshContract: refreshMutation.mutate,
+    refreshContractAsync: refreshMutation.mutateAsync,
+    isRefreshingContract: refreshMutation.isPending,
   };
 };
 
 // ─── Operations ──────────────────────────────────────────────
-
-/** Map a backend ApiOperationDto to the front-end `Operation` interface. */
-const mapOperation = (raw: any, serviceName?: string): Operation => ({
-  id: raw.id,
-  serviceId: raw.serviceId,
-  serviceName,
-  apiName: raw.name,
-  name: raw.name,
-  method: raw.method,
-  path: raw.path,
-  description: raw.description,
-  // Backend stores "Active" / "Inactive"; the front-end grid expects lowercase.
-  status: (raw.status || 'active').toLowerCase() as Operation['status'],
-  authenticationType: raw.authenticationType,
-  authentication: raw.authenticationType,
-  tags: raw.tags || [],
-  createdAt: raw.createdAt,
-  updatedAt: raw.updatedAt,
-});
 
 export const useApiOperations = (projectId?: string, serviceIds?: string[]) => {
   const queryClient = useQueryClient();
@@ -121,7 +120,8 @@ export const useApiOperations = (projectId?: string, serviceIds?: string[]) => {
           serviceIds.map(async (sid) => {
             const service = await apiService.getService(projectId, sid).catch(() => null);
             const ops = await apiService.listOperations(projectId, sid).catch(() => []);
-            return ops.map((op: any) => mapOperation(op, service?.name));
+            const serviceName = service ? toApiServiceView(service).name : undefined;
+            return ops.map((op) => toApiOperationView(op, serviceName));
           }),
         );
         return results.flat();
@@ -161,6 +161,7 @@ export const useApiOperations = (projectId?: string, serviceIds?: string[]) => {
         description: data.description,
         authenticationType: data.authenticationType,
         status: data.status,
+        sampleRequestBody: data.sampleRequestBody,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });

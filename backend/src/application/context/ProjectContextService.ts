@@ -7,34 +7,34 @@ import {
   ProjectContextStatistics,
   ValidationWarning,
   ProjectSummary,
-} from '../../domain/context/ProjectContextEntity';
+} from '../../domain/context/ProjectContextEntity.js';
 
 // Infrastructure repositories (reused - not duplicated)
-import { ApiServiceRepository } from '../../infrastructure/api/ApiServiceRepository';
-import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
-import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository';
-import { DatasetRepository } from '../../infrastructure/test-data/DatasetRepository';
-import { ColumnRepository } from '../../infrastructure/test-data/ColumnRepository';
-import { RelationshipRepository } from '../../infrastructure/test-data/RelationshipRepository';
-import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository';
-import { BusinessRuleRepository } from '../../infrastructure/knowledge/BusinessRuleRepository';
-import { RuntimeVariableRepository } from '../../infrastructure/knowledge/RuntimeVariableRepository';
-import { DependencyRepository } from '../../infrastructure/knowledge/DependencyRepository';
-import { DocumentationRepository } from '../../infrastructure/knowledge/DocumentationRepository';
-import { AnalysisRepository } from '../../infrastructure/analysis/AnalysisRepository';
-import { RequirementRepository } from '../../infrastructure/requirements/RequirementRepository';
-import { ReportRepository } from '../../infrastructure/report/ReportRepository';
-import { TestStrategyRepository } from '../../infrastructure/requirements/TestStrategyRepository';
-import { TestDesignRepository } from '../../infrastructure/requirements/TestDesignRepository';
-import { ExecutionPlanRepository } from '../../infrastructure/requirements/ExecutionPlanRepository';
-import { AssertionRepository } from '../../infrastructure/assertion/AssertionRepository';
-import { TestSuiteRepository } from '../../infrastructure/suite/TestSuiteRepository';
-import { ExecutionProfileRepository } from '../../infrastructure/execution/ExecutionProfileRepository';
-import ProviderRepository from '../../infrastructure/providers/ProviderRepository';
-import VersionRepository from '../../infrastructure/versioning/VersionRepository';
-import type { AuditLogRepository } from '../../domain/audit';
-import PluginRepository from '../../infrastructure/plugin/PluginRepository';
-import { RecommendationEngine } from '../recommendation/RecommendationEngine';
+import { ApiServiceRepository } from '../../infrastructure/api/ApiServiceRepository.js';
+import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository.js';
+import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository.js';
+import { DatasetRepository } from '../../infrastructure/test-data/DatasetRepository.js';
+import { ColumnRepository } from '../../infrastructure/test-data/ColumnRepository.js';
+import { RelationshipRepository } from '../../infrastructure/test-data/RelationshipRepository.js';
+import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository.js';
+import { BusinessRuleRepository } from '../../infrastructure/knowledge/BusinessRuleRepository.js';
+import { RuntimeVariableRepository } from '../../infrastructure/knowledge/RuntimeVariableRepository.js';
+import { DependencyRepository } from '../../infrastructure/knowledge/DependencyRepository.js';
+import { DocumentationRepository } from '../../infrastructure/knowledge/DocumentationRepository.js';
+import { AnalysisRepository } from '../../infrastructure/analysis/AnalysisRepository.js';
+import { RequirementRepository } from '../../infrastructure/requirements/RequirementRepository.js';
+import { ReportRepository } from '../../infrastructure/report/ReportRepository.js';
+import { TestStrategyRepository } from '../../infrastructure/requirements/TestStrategyRepository.js';
+import { TestDesignRepository } from '../../infrastructure/requirements/TestDesignRepository.js';
+import { ExecutionPlanRepository } from '../../infrastructure/requirements/ExecutionPlanRepository.js';
+import { AssertionRepository } from '../../infrastructure/assertion/AssertionRepository.js';
+import { TestSuiteRepository } from '../../infrastructure/suite/TestSuiteRepository.js';
+import { ExecutionProfileRepository } from '../../infrastructure/execution/ExecutionProfileRepository.js';
+import ProviderRepository from '../../infrastructure/providers/ProviderRepository.js';
+import VersionRepository from '../../infrastructure/versioning/VersionRepository.js';
+import type { AuditLogRepository } from '../../domain/audit/index.js';
+import PluginRepository from '../../infrastructure/plugin/PluginRepository.js';
+import { RecommendationEngine } from '../recommendation/RecommendationEngine.js';
 
 export class ProjectContextService {
   constructor(

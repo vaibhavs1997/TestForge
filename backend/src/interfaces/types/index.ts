@@ -3,4 +3,4 @@
  * Exports all unified response types used across the API
  */
 
-export { ApiResponse, ApiErrorResponse, createSuccessResponse, createErrorResponse } from './ApiResponse';
+export { ApiResponse, ApiErrorResponse, createSuccessResponse, createErrorResponse } from './ApiResponse.js';

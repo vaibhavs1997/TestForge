@@ -7,7 +7,9 @@ export class DatasetRowEntity {
     public readonly datasetId: string,
     public values: Record<string, any>,
     public readonly createdAt: number,
-    public updatedAt: number
+    public updatedAt: number,
+    public reservedBy?: string,
+    public reservedAt?: number
   ) {}
 }
 

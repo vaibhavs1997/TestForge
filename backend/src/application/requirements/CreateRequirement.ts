@@ -1,8 +1,8 @@
 // CreateRequirement - Application Use Case
 import { randomUUID } from 'node:crypto';
-import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
-import { RequirementEntity, RequirementSource, ReviewStatus, ApprovalStatus, AcceptanceCriterion } from '../../domain/requirements/RequirementEntity';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
+import { RequirementEntity, RequirementSource, ReviewStatus, ApprovalStatus, AcceptanceCriterion } from '../../domain/requirements/RequirementEntity.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export class CreateRequirement {
   constructor(private readonly requirementRepository: RequirementRepository) {}
@@ -21,6 +21,9 @@ export class CreateRequirement {
     relatedFlows?: string[];
     relatedDatasets?: string[];
     acceptanceCriteria?: AcceptanceCriterion[];
+    jiraIssueKey?: string | null;
+    generationPending?: boolean;
+    generationExpiresAt?: number | null;
   }): Promise<RequirementEntity> {
     const title = ValidationHelpers.validateRequired(params.title, 'Requirement title');
 
@@ -35,14 +38,21 @@ export class CreateRequirement {
       params.source || 'Manual',
       params.projectAnalysisId ?? null,
       params.reviewStatus || 'Pending',
-      params.approvalStatus || 'Suggested',
+      params.approvalStatus || 'Draft',
       ValidationHelpers.trimStringArray(params.relatedOperations),
       ValidationHelpers.trimStringArray(params.relatedFlows),
       ValidationHelpers.trimStringArray(params.relatedDatasets),
       params.acceptanceCriteria || [],
       now,
-      now
+      now,
+      Boolean(params.generationPending),
+      params.generationExpiresAt ?? null,
     );
+
+    const jiraKey = ValidationHelpers.trimString(params.jiraIssueKey ?? '');
+    if (jiraKey) {
+      requirement.jiraIssueKey = jiraKey.toUpperCase();
+    }
 
     return this.requirementRepository.create(requirement);
   }

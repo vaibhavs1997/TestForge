@@ -1,32 +1,16 @@
 // API service for API Management
 import type { AxiosProgressEvent } from 'axios';
 import { ApiClient } from '../../../services/ApiClient';
+import { apiRequest } from '../../../services/apiRequest';
+import type {
+  ApiContractRefreshResultDto,
+  ApiExecutionRequestDto,
+  ApiExecutionResponseDto,
+  ApiOperationDto,
+  ApiServiceDto,
+} from '../../../types/apiModels';
 import type { ImportSummary } from '../types';
-
-export interface ApiServiceDto {
-  id: string;
-  projectId: string;
-  name: string;
-  description: string;
-  version: string;
-  tags: string[];
-  baseUrl?: string;
-  createdAt: number;
-  updatedAt: number;
-}
-
-export interface ApiOperationDto {
-  id: string;
-  serviceId: string;
-  name: string;
-  method: string;
-  path: string;
-  description: string;
-  authenticationType: string;
-  status: string;
-  createdAt: number;
-  updatedAt: number;
-}
+import { API_BASE_URL } from '../../../constants/api';
 
 class ApiService extends ApiClient<ApiServiceDto> {
   constructor() {
@@ -71,6 +55,16 @@ class ApiService extends ApiClient<ApiServiceDto> {
     return this.delete(projectId, serviceId);
   }
 
+  async deleteApiContract(projectId: string): Promise<{ servicesDeleted: number; operationsDeleted: number }> {
+    return apiRequest.delete(`${API_BASE_URL}/projects/${projectId}/api-contract`);
+  }
+
+  async refreshApiContract(projectId: string, serviceId: string): Promise<ApiContractRefreshResultDto> {
+    return apiRequest.post<ApiContractRefreshResultDto>(
+      `${API_BASE_URL}/projects/${projectId}/services/${serviceId}/api-contract/refresh`,
+    );
+  }
+
   // Operations
   async listOperations(projectId: string, serviceId: string): Promise<ApiOperationDto[]> {
     const path = `/projects/${projectId}/services/${serviceId}/apis`;
@@ -92,6 +86,7 @@ class ApiService extends ApiClient<ApiServiceDto> {
       description?: string;
       authenticationType?: string;
       status?: string;
+      sampleRequestBody?: Record<string, unknown> | null;
     }
   ): Promise<ApiOperationDto> {
     const path = `/projects/${projectId}/services/${serviceId}/apis`;
@@ -109,15 +104,27 @@ class ApiService extends ApiClient<ApiServiceDto> {
       description?: string;
       authenticationType?: string;
       status?: string;
+      sampleRequestBody?: Record<string, unknown> | null;
     }
   ): Promise<ApiOperationDto> {
-    const path = `/projects/${projectId}/services/${serviceId}/apis/${apiId}`;
-    return this.post(path, payload, { method: 'PATCH' });
+    return apiRequest.patch<ApiOperationDto>(
+      `${API_BASE_URL}/projects/${projectId}/services/${serviceId}/apis/${apiId}`,
+      payload,
+    );
   }
 
   async deleteOperation(projectId: string, serviceId: string, apiId: string): Promise<void> {
-    const path = `/projects/${projectId}/services/${serviceId}/apis/${apiId}`;
-    return this.delete(projectId, path.split('/').pop()!);
+    await apiRequest.delete(`${API_BASE_URL}/projects/${projectId}/services/${serviceId}/apis/${apiId}`);
+  }
+
+  async executeOperation(
+    projectId: string,
+    payload: ApiExecutionRequestDto,
+  ): Promise<ApiExecutionResponseDto> {
+    return apiRequest.post<ApiExecutionResponseDto>(
+      `${API_BASE_URL}/projects/${projectId}/api-execution`,
+      payload,
+    );
   }
 
   // Import Contract

@@ -4,6 +4,18 @@
 
 export type DesignPriority = 'High' | 'Medium' | 'Low';
 export type DesignStatus = 'Draft' | 'Ready' | 'Disabled';
+export type TestCaseType = 'Positive' | 'Negative' | 'Security';
+export type MappingProvenance = 'ai' | 'matcher' | 'user';
+export type MappingState = 'confirmed' | 'review' | 'unmapped';
+
+export interface OperationDependency {
+  sourceOperationId: string;
+  sourceResponsePath?: string;
+  targetOperationId: string;
+  targetRequestPath?: string;
+  transform?: string;
+  evidence: string[];
+}
 
 export interface RequestOverride {
   headers?: Record<string, string>;
@@ -35,12 +47,22 @@ export interface CleanupStep {
   target: string;
 }
 
+export interface MutationProvenance {
+  strategy: 'baseline-valid' | 'required-field' | 'boundary' | 'type-violation' | 'enum-violation' | 'format-violation' | 'array-boundary' | 'schema-composition';
+  location: 'body' | 'query' | 'path' | 'header' | 'cookie' | 'graphql-variable';
+  fieldPath: string;
+  schemaRule: string;
+  originalValue: unknown;
+  mutatedValue: unknown;
+}
+
 export class TestDesignEntity {
   constructor(
     public readonly id: string,
     public readonly projectId: string,
     public readonly requirementId: string,
     public readonly strategyItemId: string,
+    public readonly title: string,
     public readonly operationId: string,
     public readonly environmentId: string,
     public readonly datasetId: string,
@@ -53,7 +75,16 @@ export class TestDesignEntity {
     public readonly status: DesignStatus,
     public readonly createdAt: number,
     public readonly updatedAt: number,
-    public readonly assertionIds: AssertionReference[] = []
+    public readonly assertionIds: AssertionReference[] = [],
+    public readonly testCaseType?: TestCaseType,
+    public readonly expectedHttpStatus?: number,
+    public readonly mappingProvenance: MappingProvenance = 'matcher',
+    public readonly mappingState: MappingState = 'review',
+    public readonly mappingConfidence: number = 0,
+    public readonly acceptanceCriterionId?: string,
+    public readonly scenarioId?: string,
+    public readonly dependencies: OperationDependency[] = [],
+    public readonly mutationProvenance?: MutationProvenance
   ) {}
 }
 

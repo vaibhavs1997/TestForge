@@ -3,17 +3,17 @@
 // Reuses existing services and repositories. No new AI framework.
 
 import { randomUUID } from 'node:crypto';
-import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
-import { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository';
-import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository';
-import { ExecutionPlanRepository } from '../../domain/requirements/ExecutionPlanRepository';
-import { ExecutionPlanEntity, RequestTemplate } from '../../domain/requirements/ExecutionPlanEntity';
-import { ProjectContextService } from '../context/ProjectContextService';
-import { PromptBuilderService } from '../prompt/PromptBuilderService';
-import { ManageAIProviders } from '../ai-provider/ManageAIProviders';
-import { VersionService } from '../versioning/VersionService';
-import { EventPublisher } from '../EventPublisher';
-import type { AIProviderMessage } from '../../domain/ai-provider';
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
+import { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository.js';
+import { TestDesignRepository } from '../../domain/requirements/TestDesignRepository.js';
+import { ExecutionPlanRepository } from '../../domain/requirements/ExecutionPlanRepository.js';
+import { ExecutionPlanEntity, RequestTemplate } from '../../domain/requirements/ExecutionPlanEntity.js';
+import { ProjectContextService } from '../context/ProjectContextService.js';
+import { PromptBuilderService } from '../prompt/PromptBuilderService.js';
+import { ManageAIProviders } from '../ai-provider/ManageAIProviders.js';
+import { VersionService } from '../versioning/VersionService.js';
+import { EventPublisher } from '../EventPublisher.js';
+import type { AIProviderMessage } from '../../domain/ai-provider/index.js';
 
 export interface GenerateExecutionPlanWithAIRequest {
   projectId: string;

@@ -1,7 +1,7 @@
-import type { PersistenceDriver } from '../../config';
-import type { ProjectRepository } from '../../domain/project/ProjectRepository';
-import { JsonProjectRepository } from '../project/JsonProjectRepository';
-import { SqliteProjectRepository } from '../project/SqliteProjectRepository';
+import type { PersistenceDriver } from '../../config.js';
+import type { ProjectRepository } from '../../domain/project/ProjectRepository.js';
+import { JsonProjectRepository } from '../project/JsonProjectRepository.js';
+import { SqliteProjectRepository } from '../project/SqliteProjectRepository.js';
 
 export function createProjectRepository(
   driver: PersistenceDriver,

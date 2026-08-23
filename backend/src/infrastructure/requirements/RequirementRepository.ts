@@ -1,9 +1,9 @@
 // RequirementRepository - File-based repository implementation
 import * as fs from 'fs';
 import * as path from 'path';
-import { RequirementEntity } from '../../domain/requirements/RequirementEntity';
-import { EventPublisher } from '../../application/EventPublisher';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { RequirementEntity } from '../../domain/requirements/RequirementEntity.js';
+import { EventPublisher } from '../../application/EventPublisher.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'requirements');

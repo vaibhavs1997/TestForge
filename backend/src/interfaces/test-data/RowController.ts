@@ -1,13 +1,13 @@
 // RowController - Controller for Dataset Row endpoints
 import { Request, Response } from 'express';
-import { CreateRow } from '../../application/test-data/CreateRow';
-import { UpdateRow } from '../../application/test-data/UpdateRow';
-import { DeleteRow } from '../../application/test-data/DeleteRow';
-import { GetRow } from '../../application/test-data/GetRow';
-import { ListRows } from '../../application/test-data/ListRows';
-import { createSuccessResponse } from "../../shared/ApiResponse";
+import { CreateRow } from '../../application/test-data/CreateRow.js';
+import { UpdateRow } from '../../application/test-data/UpdateRow.js';
+import { DeleteRow } from '../../application/test-data/DeleteRow.js';
+import { GetRow } from '../../application/test-data/GetRow.js';
+import { ListRows } from '../../application/test-data/ListRows.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
 export class RowController {
-    constructor(private readonly createRow: CreateRow, private readonly updateRow: UpdateRow, private readonly deleteRow: DeleteRow, private readonly getRow: GetRow, private readonly listRows: ListRows) { }
+    constructor(private readonly createRow: CreateRow, private readonly updateRow: UpdateRow, private readonly deleteRow: DeleteRow, private readonly getRow: GetRow, private readonly listRows: ListRows, private readonly datasetRowRepository: import('../../infrastructure/test-data/DatasetRowRepository.js').DatasetRowRepository) { }
     async list(req: Request, res: Response): Promise<void> {
         const datasetId = req.query.datasetId as string | undefined;
         if (!datasetId) {
@@ -37,6 +37,18 @@ export class RowController {
         const { rowId } = req.params;
         await this.deleteRow.execute(rowId);
         res.status(204).send();
+    }
+    async reserve(req: Request, res: Response): Promise<void> {
+        const projectId = req.params.projectId;
+        const datasetId = String(req.body.datasetId || '');
+        const consumerId = String(req.body.consumerId || '');
+        if (!datasetId || !consumerId) throw new Error('datasetId and consumerId are required');
+        const row = await this.datasetRowRepository.reserveFirstAvailable(projectId, datasetId, consumerId);
+        if (!row) {
+            res.status(409).json({ success: false, message: 'No unreserved test data rows remain in this dataset' });
+            return;
+        }
+        res.status(200).json(createSuccessResponse(row));
     }
 }
 export default RowController;

@@ -1,5 +1,5 @@
 // DeleteRow - Application Use Case for deleting a Dataset Row
-import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowRepository';
+import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowRepository.js';
 
 export class DeleteRow {
   constructor(private readonly datasetRowRepository: DatasetRowRepository) {}

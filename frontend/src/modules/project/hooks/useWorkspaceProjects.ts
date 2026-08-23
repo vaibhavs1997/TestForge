@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { projectService, type Project } from '../../../services/ProjectService';
+import { projectService } from '../../../services/ProjectService';
+import type { ProjectDto } from '../../../types/apiModels';
 import { queryKeys } from '../../../constants';
 
 export function useWorkspaceProjects() {
@@ -29,7 +30,7 @@ export function useWorkspaceProjects() {
         name: data.name,
         description: data.description,
         status: data.status,
-      } as Partial<Project> & { status?: 'active' | 'archived' }),
+      } as Partial<ProjectDto> & { status?: 'active' | 'archived' }),
     onSuccess: invalidate,
   });
 
@@ -38,8 +39,20 @@ export function useWorkspaceProjects() {
     onSuccess: invalidate,
   });
 
+  const activityQuery = useQuery({
+    queryKey: [...queryKey, 'activity'],
+    queryFn: () => projectService.getRecentActivity(),
+    staleTime: 30_000,
+  });
+
+  const recordOpenMutation = useMutation({
+    mutationFn: (id: string) => projectService.recordProjectOpen(id),
+    onSuccess: invalidate,
+  });
+
   return {
     projects: query.data ?? [],
+    recentActivity: activityQuery.data ?? [],
     isLoading: query.isLoading,
     isError: query.isError,
     error: query.error,
@@ -47,9 +60,11 @@ export function useWorkspaceProjects() {
     createProjectAsync: createMutation.mutateAsync,
     updateProjectAsync: updateMutation.mutateAsync,
     deleteProjectAsync: deleteMutation.mutateAsync,
+    recordProjectOpenAsync: recordOpenMutation.mutateAsync,
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
+    isRecordingOpen: recordOpenMutation.isPending,
   };
 }
 

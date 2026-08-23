@@ -1,12 +1,12 @@
 // ColumnController - Controller for Dataset Column endpoints
 import { Request, Response } from 'express';
-import { CreateColumn } from '../../application/test-data/CreateColumn';
-import { UpdateColumn } from '../../application/test-data/UpdateColumn';
-import { DeleteColumn } from '../../application/test-data/DeleteColumn';
-import { GetColumn } from '../../application/test-data/GetColumn';
-import { ListColumns } from '../../application/test-data/ListColumns';
-import { SuggestColumns } from '../../application/test-data/SuggestColumns';
-import { createSuccessResponse } from "../../shared/ApiResponse";
+import { CreateColumn } from '../../application/test-data/CreateColumn.js';
+import { UpdateColumn } from '../../application/test-data/UpdateColumn.js';
+import { DeleteColumn } from '../../application/test-data/DeleteColumn.js';
+import { GetColumn } from '../../application/test-data/GetColumn.js';
+import { ListColumns } from '../../application/test-data/ListColumns.js';
+import { SuggestColumns } from '../../application/test-data/SuggestColumns.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
 export class ColumnController {
     constructor(private readonly createColumnUseCase: CreateColumn, private readonly updateColumnUseCase: UpdateColumn, private readonly deleteColumnUseCase: DeleteColumn, private readonly getColumnUseCase: GetColumn, private readonly listColumnsUseCase: ListColumns, private readonly suggestColumnsUseCase: SuggestColumns) { }
     async listColumns(req: Request, res: Response): Promise<void> {

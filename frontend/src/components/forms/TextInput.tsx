@@ -13,6 +13,7 @@ import React, { forwardRef } from 'react';
 
 // Styles
 import { cn } from '../../utils/cn';
+import { fieldControlBaseClass, fieldErrorClass, fieldHelperClass, fieldLabelClass } from './fieldStyles';
 
 export interface TextInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -30,7 +31,7 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
         {label && (
           <label
             htmlFor={inputId}
-            className="mb-1.5 block text-sm font-medium text-text"
+            className={fieldLabelClass}
           >
             {label}
             {required && <span className="ml-1 text-error" aria-hidden="true">*</span>}
@@ -42,7 +43,7 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
           name={name}
           required={required}
           className={cn(
-            'flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50',
+            fieldControlBaseClass,
             error && 'border-error focus:ring-error',
             className
           )}
@@ -52,12 +53,12 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
           {...props}
         />
         {error && (
-          <p id={`${inputId}-error`} className="mt-1 text-sm text-error" role="alert">
+          <p id={`${inputId}-error`} className={fieldErrorClass} role="alert">
             {error}
           </p>
         )}
         {helperText && !error && (
-          <p id={`${inputId}-helper`} className="mt-1 text-sm text-text-secondary">
+          <p id={`${inputId}-helper`} className={fieldHelperClass}>
             {helperText}
           </p>
         )}

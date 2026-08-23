@@ -1,6 +1,6 @@
 // Barrel export file for knowledge infrastructure module
-export * from './KnowledgeFlowRepository';
-export * from './BusinessRuleRepository';
-export * from './RuntimeVariableRepository';
-export * from './DependencyRepository';
-export * from './DocumentationRepository';
+export * from './KnowledgeFlowRepository.js';
+export * from './BusinessRuleRepository.js';
+export * from './RuntimeVariableRepository.js';
+export * from './DependencyRepository.js';
+export * from './DocumentationRepository.js';

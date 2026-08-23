@@ -1,2 +1,2 @@
 // Barrel export file for analysis infrastructure
-export { AnalysisRepository } from './AnalysisRepository';
+export { AnalysisRepository } from './AnalysisRepository.js';

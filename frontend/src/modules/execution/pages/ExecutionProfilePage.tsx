@@ -1,6 +1,7 @@
 // ExecutionProfilePage - Manage Execution Profiles
 
 import React from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
@@ -14,8 +15,14 @@ import { Settings, Plus, Edit, Trash2, Copy, Check, X, Zap } from 'lucide-react'
 import { profileService } from '../services/profileService';
 import type { ExecutionProfile, CreateProfileInput } from '../types/profile';
 import { logger } from '../../../utils/logger';
+import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
+import { projectStore } from '../../../store/projectStore';
 
 export const ExecutionProfilePage: React.FC = () => {
+  const navigate = useNavigate();
+  const { projectId: routeProjectId } = useParams<{ projectId: string }>();
+  const selectedProjectId = projectStore((s) => s.selectedProjectId);
+  const projectId = routeProjectId ?? selectedProjectId ?? '1';
   const [profiles, setProfiles] = React.useState<ExecutionProfile[]>([]);
   const [search, setSearch] = React.useState('');
   const [dialogOpen, setDialogOpen] = React.useState(false);
@@ -27,16 +34,11 @@ export const ExecutionProfilePage: React.FC = () => {
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  // Load profiles on mount
-  React.useEffect(() => {
-    loadProfiles();
-  }, []);
-
-  const loadProfiles = async () => {
+  const loadProfiles = React.useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const data = await profileService.listByProject('1');
+      const data = await profileService.listByProject(projectId);
       setProfiles(data);
     } catch (err) {
       logger.error('Failed to load execution profiles', err);
@@ -45,7 +47,12 @@ export const ExecutionProfilePage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [projectId]);
+
+  // Load profiles on mount
+  React.useEffect(() => {
+    loadProfiles();
+  }, [loadProfiles]);
 
   const filteredProfiles = React.useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -74,7 +81,7 @@ export const ExecutionProfilePage: React.FC = () => {
   const handleDuplicate = async (profile: ExecutionProfile) => {
     try {
       const newName = `${profile.name} Copy`;
-      const duplicated = await profileService.duplicate('1', profile.id, newName);
+      const duplicated = await profileService.duplicate(projectId, profile.id, newName);
       setProfiles([...profiles, duplicated]);
       setToastMessage('Profile duplicated successfully');
       setToastOpen(true);
@@ -87,7 +94,7 @@ export const ExecutionProfilePage: React.FC = () => {
 
   const handleToggleEnabled = async (profile: ExecutionProfile) => {
     try {
-      const updated = await profileService.update('1', profile.id, { enabled: !profile.enabled });
+      const updated = await profileService.update(projectId, profile.id, { enabled: !profile.enabled });
       setProfiles(profiles.map(p => (p.id === profile.id ? updated : p)));
       setToastMessage(`Profile ${!profile.enabled ? 'enabled' : 'disabled'}`);
       setToastOpen(true);
@@ -100,7 +107,7 @@ export const ExecutionProfilePage: React.FC = () => {
 
   const handleSetDefault = async (profile: ExecutionProfile) => {
     try {
-      const updated = await profileService.update('1', profile.id, { isDefault: true });
+      const updated = await profileService.update(projectId, profile.id, { isDefault: true });
       setProfiles(profiles.map(p => (p.id === profile.id ? updated : { ...p, isDefault: false })));
       setToastMessage('Default profile updated');
       setToastOpen(true);
@@ -115,10 +122,10 @@ export const ExecutionProfilePage: React.FC = () => {
     setIsSubmitting(true);
     try {
       if (selectedProfile) {
-        const updated = await profileService.update('1', selectedProfile.id, input);
+        const updated = await profileService.update(projectId, selectedProfile.id, input);
         setProfiles(profiles.map(p => (p.id === selectedProfile.id ? updated : p)));
       } else {
-        const created = await profileService.create('1', input);
+        const created = await profileService.create(projectId, input);
         setProfiles([...profiles, created]);
       }
       setDialogOpen(false);
@@ -136,7 +143,7 @@ export const ExecutionProfilePage: React.FC = () => {
   const handleConfirmDelete = async () => {
     if (!selectedProfile) return;
     try {
-      await profileService.delete('1', selectedProfile.id);
+      await profileService.delete(projectId, selectedProfile.id);
       setProfiles(profiles.filter(p => p.id !== selectedProfile.id));
       setToastMessage('Profile deleted successfully');
       setToastOpen(true);
@@ -177,11 +184,20 @@ export const ExecutionProfilePage: React.FC = () => {
 
   return (
     <div className='mx-auto max-w-7xl px-4 py-8'>
+      <WorkflowOptionalBanner
+        projectId={projectId}
+        description="Profiles control timeouts, retries, and parallelism. Default settings work for most requirement-based runs."
+        primaryLink={{
+          label: 'Back to runs',
+          path: `/projects/${projectId}/execution`,
+        }}
+      />
+
       {/* Header */}
       <div className='mb-6 flex items-center justify-between'>
         <div>
-          <h1 className='text-2xl font-bold text-text'>Execution Profiles</h1>
-          <p className='mt-1 text-sm text-text-secondary'>Create reusable execution configurations for your test runs.</p>
+          <h1 className='text-2xl font-bold text-text'>Execution profiles</h1>
+          <p className='mt-1 text-sm text-text-secondary'>Advanced run settings — optional unless you need custom retry or timeout behavior.</p>
         </div>
         <Button onClick={handleCreate}>
           <Plus className='mr-2 h-4 w-4' />
@@ -199,8 +215,12 @@ export const ExecutionProfilePage: React.FC = () => {
         <EmptyState
           icon={<Settings className='h-12 w-12' />}
           title='No execution profiles'
-          description='Create reusable execution configurations to standardize your test runs.'
-          action={{ label: 'Create Profile', onClick: handleCreate }}
+          description='Profiles use sensible defaults when you run from Requirements. Add one only if you need different timeout or retry rules.'
+          action={{ label: 'Create profile', onClick: handleCreate }}
+          secondaryAction={{
+            label: 'Run tests',
+            onClick: () => navigate(`/projects/${projectId}/execution`),
+          }}
         />
       )}
 

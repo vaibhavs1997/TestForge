@@ -1,7 +1,7 @@
-import type { PersistenceDriver } from '../../config';
-import { InMemoryAuditLogRepository } from '../audit/AuditLogRepository';
-import { FileAuditLogRepository } from '../audit/FileAuditLogRepository';
-import type { AuditLogRepository } from '../../domain/audit';
+import type { PersistenceDriver } from '../../config.js';
+import { InMemoryAuditLogRepository } from '../audit/AuditLogRepository.js';
+import { FileAuditLogRepository } from '../audit/FileAuditLogRepository.js';
+import type { AuditLogRepository } from '../../domain/audit/index.js';
 
 export function createAuditLogRepository(driver: PersistenceDriver = 'json'): AuditLogRepository {
   if (driver === 'memory') {

@@ -2,8 +2,8 @@
 // Persists reports to data/reports/{projectId}/reports.json
 import * as fs from 'fs';
 import * as path from 'path';
-import { ReportEntity } from '../../domain/report/ReportEntity';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { ReportEntity } from '../../domain/report/ReportEntity.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'reports');

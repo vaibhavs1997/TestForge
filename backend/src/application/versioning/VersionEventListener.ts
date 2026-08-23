@@ -2,9 +2,9 @@
 // Subscribes to entity mutation events and creates immutable version snapshots.
 // This centralizes versioning so individual repositories no longer need inline
 // versionService.create() calls — eliminating duplicated versioning logic.
-import { EventBus, EventType, ModuleName, DomainEvent } from '../../domain/events/EventBus';
-import { VersionService } from '../versioning/VersionService';
-import { EntityType } from '../../domain/versioning/VersionEntity';
+import { EventBus, EventType, ModuleName, DomainEvent } from '../../domain/events/EventBus.js';
+import { VersionService } from '../versioning/VersionService.js';
+import { EntityType } from '../../domain/versioning/VersionEntity.js';
 
 export class VersionEventListener {
   constructor(

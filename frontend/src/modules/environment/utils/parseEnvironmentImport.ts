@@ -60,7 +60,7 @@ function firstHttpUrlInValues(variables: Record<string, string>): string {
   return '';
 }
 
-function pickBaseUrl(variables: Record<string, string>, explicit?: string): string {
+export function resolveEnvironmentBaseUrl(variables: Record<string, string>, explicit?: string): string {
   const trimmed = explicit?.trim();
   if (trimmed) {
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
@@ -122,7 +122,7 @@ function normalizeOne(raw: Record<string, unknown>, fallbackName: string): Parse
     );
   }
 
-  let baseUrl = pickBaseUrl(variables, typeof raw.baseUrl === 'string' ? raw.baseUrl : undefined);
+  let baseUrl = resolveEnvironmentBaseUrl(variables, typeof raw.baseUrl === 'string' ? raw.baseUrl : undefined);
   let description = typeof raw.description === 'string' ? raw.description : undefined;
 
   if (!baseUrl && isPostmanEnvironmentExport(raw)) {
@@ -216,7 +216,7 @@ function parseDotEnv(text: string, fallbackName: string): ParsedEnvironmentImpor
     }
     variables[key] = value;
   }
-  const baseUrl = pickBaseUrl(variables);
+  const baseUrl = resolveEnvironmentBaseUrl(variables);
   if (!baseUrl) {
     throw new Error(
       'No base URL found in this .env file. Add BASE_URL, URL, or another variable with an https:// value.',

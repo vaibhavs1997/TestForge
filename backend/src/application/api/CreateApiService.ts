@@ -1,9 +1,9 @@
 // CreateApiService - Application Use Case
 import { randomUUID } from 'node:crypto';
-import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity';
-import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
-import { EventPublisher } from '../EventPublisher';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity.js';
+import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository.js';
+import { EventPublisher } from '../EventPublisher.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export class CreateApiService {
   constructor(

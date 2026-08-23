@@ -1,8 +1,8 @@
 // UpdateApiOperation - Application Use Case
-import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
-import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
-import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity.js';
+import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository.js';
+import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export class UpdateApiOperation {
   constructor(
@@ -18,6 +18,7 @@ export class UpdateApiOperation {
     description?: string;
     authenticationType?: string;
     status?: string;
+    sampleRequestBody?: Record<string, unknown> | null;
   }): Promise<ApiOperationEntity> {
     const existing = await this.apiOperationRepository.findById(params.id);
     if (!existing) {
@@ -64,6 +65,11 @@ export class UpdateApiOperation {
     if (params.description !== undefined) updateData.description = ValidationHelpers.trimString(params.description);
     if (params.authenticationType !== undefined) updateData.authenticationType = ValidationHelpers.trimString(params.authenticationType) || 'None';
     if (params.status !== undefined) updateData.status = ValidationHelpers.trimString(params.status) || 'Active';
+    if (params.sampleRequestBody !== undefined) {
+      updateData.sampleRequestBody = params.sampleRequestBody && typeof params.sampleRequestBody === 'object'
+        ? params.sampleRequestBody
+        : null;
+    }
 
     return this.apiOperationRepository.update(params.id, updateData);
   }

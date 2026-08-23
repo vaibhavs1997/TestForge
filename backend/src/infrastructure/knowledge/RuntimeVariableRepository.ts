@@ -1,8 +1,8 @@
 // RuntimeVariableRepository - File-based repository implementation for Runtime Variables
 import * as fs from 'fs';
 import * as path from 'path';
-import { RuntimeVariable } from '../../domain/knowledge/RuntimeVariableEntity';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { RuntimeVariable } from '../../domain/knowledge/RuntimeVariableEntity.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'knowledge');
@@ -104,7 +104,8 @@ export class RuntimeVariableRepository {
   }
 
   private async readItems(filePath: string): Promise<RuntimeVariable[]> {
-    return readJsonArray(filePath);
+    const variables = await readJsonArray<RuntimeVariable>(filePath);
+    return variables.filter((variable) => variable && typeof variable.name === 'string' && variable.name.trim().length > 0);
   }
 }
 

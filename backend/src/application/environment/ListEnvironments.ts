@@ -1,6 +1,6 @@
 // ListEnvironments - Application Use Case
-import { EnvironmentRepository } from '../../domain/environment/EnvironmentRepository';
-import { EnvironmentEntity } from '../../domain/environment/EnvironmentEntity';
+import { EnvironmentRepository } from '../../domain/environment/EnvironmentRepository.js';
+import { EnvironmentEntity } from '../../domain/environment/EnvironmentEntity.js';
 
 export class ListEnvironments {
   constructor(private readonly environmentRepository: EnvironmentRepository) {}

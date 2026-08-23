@@ -1,8 +1,8 @@
 // RecommendationRoutes - Route definitions for Recommendation Engine
 import { Router } from 'express';
-import { RecommendationController } from './RecommendationController';
-import { container } from '../../application/ApplicationContainer';
-import { asyncHandler } from '../middleware/AsyncHandler';
+import { RecommendationController } from './RecommendationController.js';
+import { container } from '../../application/ApplicationContainer.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 // Reuse shared service from the ApplicationContainer
 const { recommendationEngine } = container;

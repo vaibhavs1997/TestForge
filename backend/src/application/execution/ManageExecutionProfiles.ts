@@ -1,8 +1,14 @@
 // ManageExecutionProfiles - Application Use Case for Execution Profiles
 
-import { IExecutionProfileRepository } from '../../domain/execution/ExecutionProfileRepository';
-import { ExecutionProfileEntity } from '../../domain/execution/ExecutionProfileEntity';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { randomUUID } from 'node:crypto';
+import { IExecutionProfileRepository } from '../../domain/execution/ExecutionProfileRepository.js';
+import { ExecutionProfileEntity } from '../../domain/execution/ExecutionProfileEntity.js';
+import {
+  buildExecutionProfileDuplicate,
+  buildExecutionProfileEntity,
+  normalizeExecutionProfileName,
+} from '../../domain/execution/ExecutionProfilePolicy.js';
+import { validateUniqueProjectName } from '../shared/crudHelpers.js';
 
 export interface CreateProfileInput {
   projectId: string;
@@ -32,35 +38,31 @@ export class ManageExecutionProfiles {
   constructor(private readonly profileRepository: IExecutionProfileRepository) {}
 
   async create(input: CreateProfileInput): Promise<ExecutionProfileEntity> {
-    try {
-      await ValidationHelpers.validateUniqueName(
-        this.profileRepository,
-        input.name,
-        input.projectId
-      );
-    } catch (error) {
-      if (error instanceof Error && error.message === `Resource with name "${input.name}" already exists in this project`) {
-        throw new Error(`Profile with name "${input.name}" already exists`);
-      }
-      throw error;
-    }
+    const name = await validateUniqueProjectName(
+      this.profileRepository,
+      normalizeExecutionProfileName(input.name),
+      input.projectId,
+      'Profile'
+    );
 
-    const profile = await this.profileRepository.create({
-      projectId: input.projectId,
-      name: input.name,
-      description: input.description,
-      defaultEnvironmentId: input.defaultEnvironmentId,
-      failureMode: input.failureMode,
-      retryPolicy: input.retryPolicy,
-      timeout: input.timeout,
-      parallelism: input.parallelism,
-      assertionMode: input.assertionMode,
-      runtimeVariableReset: input.runtimeVariableReset,
-      datasetSelectionStrategy: input.datasetSelectionStrategy,
-      tags: input.tags,
-      enabled: input.enabled ?? true,
-      isDefault: input.isDefault ?? false,
-    });
+    const profile = await this.profileRepository.create(
+      buildExecutionProfileEntity(randomUUID(), Date.now(), {
+        projectId: input.projectId,
+        name,
+        description: input.description,
+        defaultEnvironmentId: input.defaultEnvironmentId,
+        failureMode: input.failureMode,
+        retryPolicy: input.retryPolicy,
+        timeout: input.timeout,
+        parallelism: input.parallelism,
+        assertionMode: input.assertionMode,
+        runtimeVariableReset: input.runtimeVariableReset,
+        datasetSelectionStrategy: input.datasetSelectionStrategy,
+        tags: input.tags,
+        enabled: input.enabled ?? true,
+        isDefault: input.isDefault ?? false,
+      })
+    );
 
     if (input.isDefault) {
       const profiles = await this.profileRepository.listByProject(input.projectId);
@@ -80,22 +82,21 @@ export class ManageExecutionProfiles {
       throw new Error('Execution profile not found');
     }
 
-    if (input.name && input.name !== existing.name) {
-      try {
-        await ValidationHelpers.validateUniqueName(
-          this.profileRepository,
-          input.name,
-          existing.projectId
-        );
-      } catch (error) {
-        if (error instanceof Error && error.message === `Resource with name "${input.name}" already exists in this project`) {
-          throw new Error(`Profile with name "${input.name}" already exists`);
-        }
-        throw error;
-      }
-    }
+    const updateInput =
+      input.name !== undefined
+        ? {
+            ...input,
+            name: await validateUniqueProjectName(
+              this.profileRepository,
+              normalizeExecutionProfileName(input.name),
+              existing.projectId,
+              'Profile',
+              existing.name
+            ),
+          }
+        : input;
 
-    const updated = await this.profileRepository.update(id, input);
+    const updated = await this.profileRepository.update(id, updateInput);
 
     if (input.isDefault) {
       const profiles = await this.profileRepository.listByProject(existing.projectId);
@@ -140,35 +141,12 @@ export class ManageExecutionProfiles {
       throw new Error('Execution profile not found');
     }
 
-    try {
-      await ValidationHelpers.validateUniqueName(
-        this.profileRepository,
-        newName,
-        existing.projectId
-      );
-    } catch (error) {
-      if (error instanceof Error && error.message === `Resource with name "${newName}" already exists in this project`) {
-        throw new Error(`Profile with name "${newName}" already exists`);
-      }
-      throw error;
-    }
+    const name = normalizeExecutionProfileName(newName);
+    await validateUniqueProjectName(this.profileRepository, name, existing.projectId, 'Profile');
 
-    return this.profileRepository.create({
-      projectId: existing.projectId,
-      name: newName,
-      description: existing.description,
-      defaultEnvironmentId: existing.defaultEnvironmentId,
-      failureMode: existing.failureMode,
-      retryPolicy: existing.retryPolicy,
-      timeout: existing.timeout,
-      parallelism: existing.parallelism,
-      assertionMode: existing.assertionMode,
-      runtimeVariableReset: existing.runtimeVariableReset,
-      datasetSelectionStrategy: existing.datasetSelectionStrategy,
-      tags: [...existing.tags, 'duplicate'],
-      enabled: true,
-      isDefault: false,
-    });
+    return this.profileRepository.create(
+      buildExecutionProfileDuplicate(existing, randomUUID(), name, Date.now())
+    );
   }
 }
 

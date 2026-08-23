@@ -1,8 +1,8 @@
 // KnowledgeRoutes - Route definitions for Knowledge Management
 import { Router } from 'express';
 import multer from 'multer';
-import { KnowledgeController } from './KnowledgeController';
-import { container } from '../../application/ApplicationContainer';
+import { KnowledgeController } from './KnowledgeController.js';
+import { container } from '../../application/ApplicationContainer.js';
 
 // Reuse shared repositories from the ApplicationContainer
 const {
@@ -14,18 +14,18 @@ const {
 } = container;
 
 // Initialize use cases
-import { CreateKnowledgeFlow } from '../../application/knowledge/CreateKnowledgeFlow';
-import { UpdateKnowledgeFlow } from '../../application/knowledge/UpdateKnowledgeFlow';
-import { DeleteKnowledgeFlow } from '../../application/knowledge/DeleteKnowledgeFlow';
-import { GetKnowledgeFlow } from '../../application/knowledge/GetKnowledgeFlow';
-import { ListKnowledgeFlows } from '../../application/knowledge/ListKnowledgeFlows';
-import { ManageBusinessRules } from '../../application/knowledge/ManageBusinessRules';
-import { ManageRuntimeVariables } from '../../application/knowledge/ManageRuntimeVariables';
-import { ManageDependencies } from '../../application/knowledge/ManageDependencies';
-import { ManageDocumentation } from '../../application/knowledge/ManageDocumentation';
-import { ImportKnowledgeDocuments } from '../../application/knowledge/ImportKnowledgeDocuments';
-import { asyncHandler } from '../middleware/AsyncHandler';
-import { FILE_UPLOAD_LIMIT_BYTES } from '../../constants/defaults';
+import { CreateKnowledgeFlow } from '../../application/knowledge/CreateKnowledgeFlow.js';
+import { UpdateKnowledgeFlow } from '../../application/knowledge/UpdateKnowledgeFlow.js';
+import { DeleteKnowledgeFlow } from '../../application/knowledge/DeleteKnowledgeFlow.js';
+import { GetKnowledgeFlow } from '../../application/knowledge/GetKnowledgeFlow.js';
+import { ListKnowledgeFlows } from '../../application/knowledge/ListKnowledgeFlows.js';
+import { ManageBusinessRules } from '../../application/knowledge/ManageBusinessRules.js';
+import { ManageRuntimeVariables } from '../../application/knowledge/ManageRuntimeVariables.js';
+import { ManageDependencies } from '../../application/knowledge/ManageDependencies.js';
+import { ManageDocumentation } from '../../application/knowledge/ManageDocumentation.js';
+import { ImportKnowledgeDocuments } from '../../application/knowledge/ImportKnowledgeDocuments.js';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
+import { FILE_UPLOAD_LIMIT_BYTES } from '../../constants/defaults.js';
 
 const knowledgeUpload = multer({
   storage: multer.memoryStorage(),

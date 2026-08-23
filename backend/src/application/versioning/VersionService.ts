@@ -2,8 +2,9 @@
 // Creates and manages version history for entities.
 
 import { randomUUID } from 'node:crypto';
-import { VersionEntity, EntityType } from '../../domain/versioning/VersionEntity';
-import { VersionRepository } from '../../domain/versioning/VersionRepository';
+import { VersionEntity, EntityType } from '../../domain/versioning/VersionEntity.js';
+import { VersionRepository } from '../../domain/versioning/VersionRepository.js';
+import { sensitiveDataRedactor } from '../../infrastructure/security/SensitiveDataRedactionService.js';
 
 export interface CreateVersionInput {
   projectId: string;
@@ -38,7 +39,7 @@ export class VersionService {
       input.entityType,
       input.entityId,
       nextVersionNumber,
-      input.snapshot,
+      sensitiveDataRedactor.redact(input.snapshot),
       input.changeSummary || null,
       input.createdBy || 'System',
       now

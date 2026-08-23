@@ -9,6 +9,7 @@ export interface FormField {
   type?: 'text' | 'email' | 'password' | 'number' | 'textarea' | 'select' | 'checkbox';
   placeholder?: string;
   required?: boolean;
+  helperText?: string;
   options?: Array<{ label: string; value: string }>;
   error?: string;
   value?: string | number | boolean;
@@ -46,7 +47,7 @@ export function EntityForm({
 
         if (field.type === 'checkbox') {
           return (
-            <div key={field.name} className="flex items-center gap-2">
+            <div key={field.name} className="flex items-start gap-2">
               <input
                 type="checkbox"
                 checked={Boolean(value)}
@@ -54,11 +55,19 @@ export function EntityForm({
                 className="h-4 w-4 rounded border-border"
                 id={field.name}
                 disabled={field.disabled}
+                aria-describedby={field.helperText ? `${field.name}-helper` : undefined}
               />
-              <label htmlFor={field.name} className="text-sm text-text">
-                {field.label}
-                {field.required && <span className="ml-1 text-error">*</span>}
-              </label>
+              <div>
+                <label htmlFor={field.name} className="text-sm text-text">
+                  {field.label}
+                  {field.required && <span className="ml-1 text-error" aria-hidden="true">*</span>}
+                </label>
+                {field.helperText ? (
+                  <p id={`${field.name}-helper`} className="text-xs text-text-secondary">
+                    {field.helperText}
+                  </p>
+                ) : null}
+              </div>
             </div>
           );
         }
@@ -67,11 +76,13 @@ export function EntityForm({
           return (
             <div key={field.name}>
               <TextArea
+                id={field.name}
                 label={field.label}
                 value={String(value)}
                 onChange={(e) => handleChange(field.name, e.target.value)}
                 placeholder={field.placeholder}
                 error={error}
+                helperText={field.helperText}
                 required={field.required}
                 disabled={field.disabled}
               />
@@ -83,14 +94,16 @@ export function EntityForm({
           return (
             <div key={field.name}>
               <Select
+                id={field.name}
                 label={field.label}
                 value={String(value)}
                 onChange={(e) => handleChange(field.name, e.target.value)}
                 options={field.options || []}
+                helperText={field.helperText}
+                error={error}
                 required={field.required}
                 disabled={field.disabled}
               />
-              {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
             </div>
           );
         }
@@ -98,12 +111,14 @@ export function EntityForm({
         return (
           <div key={field.name}>
             <TextInput
+              id={field.name}
               label={field.label}
               type={field.type || 'text'}
               value={String(value)}
               onChange={(e) => handleChange(field.name, e.target.value)}
               placeholder={field.placeholder}
               error={error}
+              helperText={field.helperText}
               required={field.required}
               disabled={field.disabled}
             />

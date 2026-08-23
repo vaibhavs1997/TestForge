@@ -1,6 +1,6 @@
 // External libraries
 import React from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 
 // Shared constants
 
@@ -17,12 +17,14 @@ import { Header } from './Header';
 // Styles
 
 export const AppShell: React.FC = () => {
+  const location = useLocation();
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <Header />
-        <main className="flex-1 overflow-y-auto">
+        <main key={location.pathname} className="min-h-0 flex-1 overflow-y-auto">
           <Outlet />
         </main>
       </div>

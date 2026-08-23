@@ -1,11 +1,11 @@
 // ProviderResolutionService - Resolves providers for the Execution Engine
 // Refactored to use Plugin Registry for provider resolution.
 // Does NOT change execution behavior.
-import { ProviderEntity } from '../../domain/providers/ProviderEntity';
-import { ProviderRepository } from '../../domain/providers/ProviderRepository';
-import { ProviderAdapterRegistry } from './adapters/ProviderAdapterRegistry';
-import { ProviderAdapter } from './ProviderAdapter';
-import { PluginRegistry } from '../../application/plugin/PluginRegistry';
+import { ProviderEntity } from '../../domain/providers/ProviderEntity.js';
+import { ProviderRepository } from '../../domain/providers/ProviderRepository.js';
+import { ProviderAdapterRegistry } from './adapters/ProviderAdapterRegistry.js';
+import { ProviderAdapter } from './ProviderAdapter.js';
+import { PluginRegistry } from '../../application/plugin/PluginRegistry.js';
 
 export interface ProviderResolutionResult {
   provider: ProviderEntity | null;

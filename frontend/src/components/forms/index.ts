@@ -4,4 +4,6 @@ export * from './Select';
 export * from './Checkbox';
 export * from './Switch';
 export * from './FormField';
+export * from './HelperText';
 export * from './SearchBar';
+export * from './fieldStyles';

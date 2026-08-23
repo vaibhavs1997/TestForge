@@ -40,13 +40,7 @@ export const ProvidersSection: React.FC<ProvidersSectionProps> = ({ projectId, s
   const [toastVisible, setToastVisible] = React.useState(false);
   const [toastMsg, setToastMsg] = React.useState('');
 
-  // Load providers on mount
-  React.useEffect(() => {
-    loadProviders();
-    providerService.listAdapterTypes().then(setAdapterTypes).catch(() => {});
-  }, [projectId]);
-
-  const loadProviders = async () => {
+  const loadProviders = React.useCallback(async () => {
     try {
       const data = await providerService.listByProject(projectId);
       setProviders(data);
@@ -54,7 +48,13 @@ export const ProvidersSection: React.FC<ProvidersSectionProps> = ({ projectId, s
       setToastMessage('Failed to load providers');
       setToastOpen(true);
     }
-  };
+  }, [projectId, setToastMessage, setToastOpen]);
+
+  // Load providers on mount
+  React.useEffect(() => {
+    loadProviders();
+    providerService.listAdapterTypes().then(setAdapterTypes).catch(() => {});
+  }, [loadProviders]);
 
   const filteredProviders = React.useMemo(() => {
     const term = search.trim().toLowerCase();

@@ -1,2 +1,2 @@
 // Barrel export file for context application module
-export * from './ProjectContextService';
+export * from './ProjectContextService.js';

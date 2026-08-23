@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
-import { ActivityStreamHub } from '../../application/realtime/ActivityStreamHub';
-import { getAuthConfig } from '../../config';
+import { ActivityStreamHub } from '../../application/realtime/ActivityStreamHub.js';
+import { getAuthConfig } from '../../config.js';
 
 export function createActivityStreamRoutes(hub: ActivityStreamHub): Router {
   const router = Router();

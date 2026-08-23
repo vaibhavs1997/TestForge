@@ -59,6 +59,14 @@ export const useSuites = (projectId?: string) => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   });
 
+  const executeMutation = useMutation({
+    mutationFn: ({ suiteId, failureMode, executionProfileId }: { suiteId: string; failureMode?: string; executionProfileId?: string }) =>
+      suiteService.executeSuite(projectId || '', suiteId, failureMode, executionProfileId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['executions', projectId || ''] });
+    },
+  });
+
   return {
     suites,
     isLoading,
@@ -84,6 +92,8 @@ export const useSuites = (projectId?: string) => {
     isReordering: reorderExecutionPlansMutation.isPending,
     generateWithAI: generateWithAIMutation.mutateAsync,
     isGeneratingWithAI: generateWithAIMutation.isPending,
+    executeAsync: executeMutation.mutateAsync,
+    isExecuting: executeMutation.isPending,
   };
 };
 

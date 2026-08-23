@@ -1,6 +1,6 @@
 // ListRequirements - Application Use Case
-import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
-import { RequirementEntity } from '../../domain/requirements/RequirementEntity';
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
+import { RequirementEntity } from '../../domain/requirements/RequirementEntity.js';
 
 export class ListRequirements {
   constructor(private readonly requirementRepository: RequirementRepository) {}
@@ -11,10 +11,19 @@ export class ListRequirements {
   }): Promise<RequirementEntity[]> {
     if (params.projectId) {
       const items = await this.requirementRepository.findByProject(params.projectId);
-      if (params.approvalStatus) {
-        return items.filter(item => item.approvalStatus === params.approvalStatus);
+      const now = Date.now();
+      const activeItems = [];
+      for (const item of items) {
+        if (item.generationPending && item.generationExpiresAt !== null && item.generationExpiresAt <= now) {
+          await this.requirementRepository.delete(item.id);
+          continue;
+        }
+        activeItems.push(item);
       }
-      return items;
+      if (params.approvalStatus) {
+        return activeItems.filter(item => item.approvalStatus === params.approvalStatus);
+      }
+      return activeItems;
     }
     return this.requirementRepository.list();
   }

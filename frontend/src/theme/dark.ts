@@ -18,13 +18,13 @@ import { typography } from './typography';
 
 export const darkTheme = {
   colors: {
-    primary: '#3b82f6',
-    secondary: '#94a3b8',
-    background: '#0f172a',
-    surface: '#1e293b',
-    text: '#f1f5f9',
+    primary: '#60a5fa',
+    secondary: '#cbd5e1',
+    background: '#020617',
+    surface: '#0f172a',
+    text: '#e2e8f0',
     textSecondary: '#94a3b8',
-    border: '#334155',
+    border: '#1e293b',
     success: '#22c55e',
     warning: '#f59e0b',
     error: '#ef4444',

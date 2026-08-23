@@ -2,11 +2,11 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { DeleteApiService } from './DeleteApiService';
-import { CreateApiService } from './CreateApiService';
-import { CreateApiOperation } from './CreateApiOperation';
-import { ApiServiceRepository } from '../../infrastructure/api/ApiServiceRepository';
-import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
+import { DeleteApiService } from './DeleteApiService.js';
+import { CreateApiService } from './CreateApiService.js';
+import { CreateApiOperation } from './CreateApiOperation.js';
+import { ApiServiceRepository } from '../../infrastructure/api/ApiServiceRepository.js';
+import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository.js';
 
 describe('DeleteApiService', () => {
   let previousCwd: string;

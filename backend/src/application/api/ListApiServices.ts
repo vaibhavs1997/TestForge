@@ -1,6 +1,6 @@
 // ListApiServices - Application Use Case
-import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
-import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity';
+import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository.js';
+import { ApiServiceEntity } from '../../domain/api/ApiServiceEntity.js';
 
 export class ListApiServices {
   constructor(private readonly apiServiceRepository: ApiServiceRepository) {}

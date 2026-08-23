@@ -2,14 +2,14 @@
 // Reuses Requirements, Project Analysis, Knowledge, Datasets, Environment, and APIs.
 // Returns a validation report indicating whether enough project information exists
 // to generate executable test cases.
-import { RequirementRepository } from '../../domain/requirements/RequirementRepository';
-import { RequirementEntity, RequirementWithRuntimeVariables } from '../../domain/requirements/RequirementEntity';
-import { AnalysisRepository } from '../../infrastructure/analysis/AnalysisRepository';
-import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository';
-import { DatasetRepository } from '../../infrastructure/test-data/DatasetRepository';
-import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository';
-import { ApiServiceRepository } from '../../infrastructure/api/ApiServiceRepository';
-import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository';
+import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
+import { RequirementEntity, RequirementWithRuntimeVariables } from '../../domain/requirements/RequirementEntity.js';
+import { AnalysisRepository } from '../../infrastructure/analysis/AnalysisRepository.js';
+import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository.js';
+import { DatasetRepository } from '../../infrastructure/test-data/DatasetRepository.js';
+import { EnvironmentRepository } from '../../infrastructure/environment/EnvironmentRepository.js';
+import { ApiServiceRepository } from '../../infrastructure/api/ApiServiceRepository.js';
+import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository.js';
 
 export type ValidationStatus = 'READY' | 'MISSING' | 'WARNING' | 'INCOMPLETE';
 

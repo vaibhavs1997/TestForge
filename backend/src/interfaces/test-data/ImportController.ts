@@ -1,12 +1,12 @@
 // ImportController - REST Controller for Dataset Import
 // Handles multipart/form-data file uploads for importing data into datasets
 import { Request, Response } from 'express';
-import { ImportDatasetData } from '../../application/test-data/ImportDatasetData';
-import { DatasetRepository } from '../../domain/test-data/DatasetRepository';
-import { ColumnRepository } from '../../domain/test-data/ColumnRepository';
-import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowRepository';
-import { ColumnRepository as ColumnRepositoryImpl } from '../../infrastructure/test-data/ColumnRepository';
-import { createSuccessResponse } from "../../shared/ApiResponse";
+import { ImportDatasetData } from '../../application/test-data/ImportDatasetData.js';
+import { DatasetRepository } from '../../domain/test-data/DatasetRepository.js';
+import { ColumnRepository } from '../../domain/test-data/ColumnRepository.js';
+import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowRepository.js';
+import { ColumnRepository as ColumnRepositoryImpl } from '../../infrastructure/test-data/ColumnRepository.js';
+import { createSuccessResponse } from "../../shared/ApiResponse.js";
 export class ImportController {
     constructor(private readonly importDatasetData: ImportDatasetData) { }
     async importData(req: Request, res: Response): Promise<void> {

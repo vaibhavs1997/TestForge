@@ -2,9 +2,9 @@
 // Requirements originate from Project Analysis or Manual entry.
 // Only Approved requirements proceed to future AI Test Generation.
 
-export type RequirementSource = 'ProjectAnalysis' | 'Manual';
+export type RequirementSource = 'ProjectAnalysis' | 'Manual' | 'Jira';
 export type ReviewStatus = 'Pending' | 'Reviewed';
-export type ApprovalStatus = 'Suggested' | 'Approved' | 'Rejected' | 'Archived';
+export type ApprovalStatus = 'Draft' | 'Suggested' | 'Approved' | 'Rejected' | 'Archived';
 
 export interface AcceptanceCriterion {
   id: string;
@@ -12,6 +12,9 @@ export interface AcceptanceCriterion {
 }
 
 export class RequirementEntity {
+  /** Linked Jira issue key when imported from Jira (e.g. PROJ-123). */
+  jiraIssueKey: string | null = null;
+
   constructor(
     public readonly id: string,
     public readonly projectId: string,
@@ -28,7 +31,9 @@ export class RequirementEntity {
     public relatedDatasets: string[],
     public acceptanceCriteria: AcceptanceCriterion[],
     public readonly createdAt: number,
-    public updatedAt: number
+    public updatedAt: number,
+    public generationPending = false,
+    public generationExpiresAt: number | null = null
   ) {}
 }
 

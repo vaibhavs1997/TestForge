@@ -1,6 +1,6 @@
 // MailtrapAdapter - Placeholder adapter for Mailtrap email testing
 // Do NOT call external services yet. Architecture preparation only.
-import { ProviderAdapter, ProviderTestResult, ProviderOperationResult } from '../ProviderAdapter';
+import { ProviderAdapter, ProviderTestResult, ProviderOperationResult } from '../ProviderAdapter.js';
 
 export class MailtrapAdapter implements ProviderAdapter {
   readonly type = 'Mailtrap';

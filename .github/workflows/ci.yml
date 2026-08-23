@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, master]
   pull_request:
-    branches: [main, develop]
+    branches: [main, master]
 
 jobs:
   backend-build:
@@ -17,23 +17,24 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: backend/package-lock.json
 
       - name: Install dependencies
-        working-directory: backend
         run: npm ci
 
       - name: TypeScript build
-        working-directory: backend
-        run: npm run build
+        run: npm run build:backend
 
-      - name: Unit tests
-        working-directory: backend
-        run: npm test
+      - name: Type check
+        run: npm run typecheck --workspace backend
+
+      - name: Backend tests and coverage gate
+        run: npm run test:coverage --workspace backend
+
+      - name: Compiled backend startup smoke
+        run: npm run smoke:compiled --workspace backend
 
       - name: Lint
-        working-directory: backend
-        run: npm run lint || true
+        run: npm run lint --workspace backend
 
       - name: Upload backend dist
         uses: actions/upload-artifact@v4
@@ -52,19 +53,21 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        working-directory: frontend
         run: npm ci
 
       - name: TypeScript build
-        working-directory: frontend
-        run: npm run build
+        run: npm run build:frontend
+
+      - name: Type check
+        run: npm run typecheck --workspace frontend
+
+      - name: Frontend tests and coverage gate
+        run: npm run test:coverage --workspace frontend
 
       - name: Lint
-        working-directory: frontend
-        run: npm run lint || true
+        run: npm run lint --workspace frontend
 
       - name: Upload frontend dist
         uses: actions/upload-artifact@v4
@@ -84,12 +87,10 @@ jobs:
           node-version: 20
 
       - name: Audit backend dependencies
-        working-directory: backend
-        run: npm audit --audit-level=high || true
+        run: npm audit --audit-level=high --omit=dev --workspace backend
 
       - name: Audit frontend dependencies
-        working-directory: frontend
-        run: npm audit --audit-level=high || true
+        run: npm audit --audit-level=high --omit=dev --workspace frontend
 
   docker-build:
     name: Docker Image Validation

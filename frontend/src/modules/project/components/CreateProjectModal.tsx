@@ -23,11 +23,13 @@ export interface CreateProjectModalProps {
   onClose: () => void;
   onSave: (data: CreateProjectModalData) => void;
   existingProjects?: ExistingProjectRef[];
+  isSaving?: boolean;
 }
 
-export const CreateProjectModal = ({ open, onClose, onSave, existingProjects = [] }: CreateProjectModalProps) => {
+export const CreateProjectModal = ({ open, onClose, onSave, existingProjects = [], isSaving = false }: CreateProjectModalProps) => {
   const [projectName, setProjectName] = React.useState('');
   const [description, setDescription] = React.useState('');
+  const previousFocusRef = React.useRef<HTMLElement | null>(null);
 
   const validate = React.useCallback((): FormErrors => {
     const newErrors: FormErrors = {};
@@ -46,10 +48,19 @@ export const CreateProjectModal = ({ open, onClose, onSave, existingProjects = [
 
   React.useEffect(() => {
     if (open) {
+      previousFocusRef.current = document.activeElement as HTMLElement;
       setProjectName('');
       setDescription('');
+      const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.key === 'Escape' && !isSaving) onClose();
+      };
+      document.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.removeEventListener('keydown', handleKeyDown);
+        previousFocusRef.current?.focus();
+      };
     }
-  }, [open]);
+  }, [open, onClose, isSaving]);
 
   if (!open) return null;
 
@@ -110,10 +121,10 @@ export const CreateProjectModal = ({ open, onClose, onSave, existingProjects = [
             />
           </CardContent>
           <CardFooter className='justify-end gap-2'>
-            <Button type='button' variant='outline' onClick={onClose}>
+            <Button type='button' variant='outline' onClick={onClose} disabled={isSaving}>
               Cancel
             </Button>
-            <Button type='submit'>Save</Button>
+            <Button type='submit' loading={isSaving}>Save</Button>
           </CardFooter>
         </form>
       </Card>

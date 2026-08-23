@@ -1,9 +1,9 @@
 // TestDesignRepository - File-based repository implementation
 import * as fs from 'fs';
 import * as path from 'path';
-import { TestDesignEntity } from '../../domain/requirements/TestDesignEntity';
-import { EventPublisher } from '../../application/EventPublisher';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore';
+import { TestDesignEntity } from '../../domain/requirements/TestDesignEntity.js';
+import { EventPublisher } from '../../application/EventPublisher.js';
+import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'test-designs');

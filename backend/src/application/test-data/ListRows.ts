@@ -1,5 +1,5 @@
 // ListRows - Application Use Case for listing Dataset Rows
-import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowRepository';
+import { DatasetRowRepository } from '../../infrastructure/test-data/DatasetRowRepository.js';
 
 export class ListRows {
   constructor(private readonly datasetRowRepository: DatasetRowRepository) {}

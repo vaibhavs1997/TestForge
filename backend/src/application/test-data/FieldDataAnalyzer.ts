@@ -1,0 +1,35 @@
+import type { CanonicalInputReference, FieldDataRuleEntity, OptionalFieldPolicy, ValueChangeScope, ValueStrategy } from '../../domain/test-data/FieldDataRuleEntity.js';
+
+export interface CanonicalContractInput { input: CanonicalInputReference; schema: { type?: string; format?: string; nullable?: boolean; enum?: unknown[]; constraints?: Record<string, unknown>; example?: unknown; default?: unknown; description?: string }; required: boolean; }
+export interface CanonicalResponseProducer { operationId: string; path: string; semanticType?: string; schemaType?: string; }
+export interface FieldDataRuleSuggestion { input: CanonicalInputReference; semanticType: string; strategy: ValueStrategy; scope: ValueChangeScope; lifecycle: string; optionalFieldPolicy: OptionalFieldPolicy; sourceReference?: Record<string, unknown>; confidence: number; rationale: string[]; status: 'AUTO_ACCEPTABLE' | 'REVIEW_REQUIRED' | 'UNRESOLVED'; reusedExistingRule?: boolean; }
+export interface FieldAnalysisSummary { totalInputs: number; ready: number; existingRulesReused: number; generatedSuggestions: number; runtimeLinkSuggestions: number; optionalAutoHandled: number; reviewRequired: number; unresolved: number; }
+export interface FieldAnalysisResult { suggestions: FieldDataRuleSuggestion[]; summary: FieldAnalysisSummary; removedRuleIds: string[]; rulesRequiringReview: string[]; }
+
+function semantic(input: CanonicalContractInput): string { const { type = '', format = '', enum: values } = input.schema; const text = `${format} ${input.schema.description || ''} ${input.input.path}`.toLowerCase(); if (values?.length) return 'enum'; if (format === 'email' || /email/.test(text)) return 'email'; if (format === 'uuid' || /uuid|guid/.test(text)) return 'uuid'; if (format === 'date-time') return 'datetime'; if (format === 'date') return 'date'; if (type === 'boolean') return 'boolean'; if (type === 'integer' || type === 'number') return type; if (type === 'array') return 'array'; if (type === 'object') return 'object'; if (/password|secret|token|credential|api.?key/.test(text)) return 'secret'; return type || 'custom'; }
+const inputKey = (input: CanonicalInputReference) => `${input.operationId}|${input.location}|${input.path}`;
+
+/** Analyzes canonical metadata only; contract/protocol adapters supply that metadata. */
+export class FieldDataAnalyzer {
+  analyze(inputs: CanonicalContractInput[], existing: FieldDataRuleEntity[], producers: CanonicalResponseProducer[] = [], previousInputs: CanonicalContractInput[] = []): FieldAnalysisResult {
+    const current = new Set(inputs.map((item) => inputKey(item.input))); const previous = new Map(previousInputs.map((item) => [inputKey(item.input), item]));
+    const suggestions = inputs.map((item) => this.suggest(item, existing, producers));
+    const removedRuleIds = existing.filter((rule) => !current.has(inputKey(rule.input))).map((rule) => rule.id);
+    const rulesRequiringReview = existing.filter((rule) => { const old = previous.get(inputKey(rule.input)); const now = inputs.find((item) => inputKey(item.input) === inputKey(rule.input)); return Boolean(old && now && JSON.stringify(old.schema) !== JSON.stringify(now.schema)); }).map((rule) => rule.id);
+    const summary: FieldAnalysisSummary = { totalInputs: inputs.length, ready: 0, existingRulesReused: 0, generatedSuggestions: 0, runtimeLinkSuggestions: 0, optionalAutoHandled: 0, reviewRequired: 0, unresolved: 0 };
+    suggestions.forEach((suggestion) => { if (suggestion.status === 'AUTO_ACCEPTABLE') summary.ready++; if (suggestion.reusedExistingRule) summary.existingRulesReused++; if (suggestion.strategy === 'GENERATE') summary.generatedSuggestions++; if (suggestion.strategy === 'LINKED_RESPONSE') summary.runtimeLinkSuggestions++; if (!inputs.find((item) => inputKey(item.input) === inputKey(suggestion.input))?.required) summary.optionalAutoHandled++; if (suggestion.status === 'REVIEW_REQUIRED') summary.reviewRequired++; if (suggestion.status === 'UNRESOLVED') summary.unresolved++; });
+    return { suggestions, summary, removedRuleIds, rulesRequiringReview };
+  }
+  private suggest(item: CanonicalContractInput, existing: FieldDataRuleEntity[], producers: CanonicalResponseProducer[]): FieldDataRuleSuggestion {
+    const rule = existing.find((candidate) => inputKey(candidate.input) === inputKey(item.input) && candidate.status === 'ACCEPTED');
+    if (rule) return { input: item.input, semanticType: rule.semanticType, strategy: rule.valueStrategy, scope: rule.changeScope, lifecycle: rule.lifecycle, optionalFieldPolicy: rule.optionalFieldPolicy, sourceReference: rule.sourceReference || undefined, confidence: 100, rationale: ['Accepted operation-specific rule preserved.'], status: 'AUTO_ACCEPTABLE', reusedExistingRule: true };
+    const type = semantic(item); const optional = item.required ? 'POPULATE' : 'OMIT'; const contractValue = item.schema.default ?? item.schema.example;
+    if (contractValue !== undefined) return { input: item.input, semanticType: type, strategy: 'CONTRACT_DEFAULT', scope: 'UNTIL_CHANGED', lifecycle: 'STATIC', optionalFieldPolicy: optional, sourceReference: { value: contractValue }, confidence: 95, rationale: ['Contract supplies a default or example.'], status: 'AUTO_ACCEPTABLE' };
+    const compatible = producers.filter((producer) => producer.operationId !== item.input.operationId && producer.path === item.input.path && (!producer.schemaType || producer.schemaType === item.schema.type));
+    if (compatible.length === 1) return { input: item.input, semanticType: type, strategy: 'LINKED_RESPONSE', scope: 'EACH_EXECUTION', lifecycle: 'LINKED', optionalFieldPolicy: optional, sourceReference: { field: compatible[0].path, operationId: compatible[0].operationId }, confidence: 80, rationale: ['One schema-compatible response producer exists.'], status: 'AUTO_ACCEPTABLE' };
+    if (compatible.length > 1) return { input: item.input, semanticType: type, strategy: 'LINKED_RESPONSE', scope: 'EACH_EXECUTION', lifecycle: 'LINKED', optionalFieldPolicy: optional, confidence: 45, rationale: ['Multiple compatible response producers exist.'], status: 'REVIEW_REQUIRED' };
+    if (type === 'secret') return { input: item.input, semanticType: type, strategy: 'SECRET', scope: 'ENVIRONMENT', lifecycle: 'STATIC', optionalFieldPolicy: optional, confidence: 70, rationale: ['Sensitive semantic metadata detected.'], status: 'REVIEW_REQUIRED' };
+    if (['email', 'uuid', 'date', 'datetime', 'boolean', 'number', 'integer', 'array', 'object', 'enum'].includes(type)) return { input: item.input, semanticType: type, strategy: 'GENERATE', scope: 'EACH_EXECUTION', lifecycle: 'NEW', optionalFieldPolicy: optional, confidence: 75, rationale: ['Schema type/format supports deterministic generation.'], status: 'AUTO_ACCEPTABLE' };
+    return { input: item.input, semanticType: type, strategy: 'MANUAL', scope: 'UNTIL_CHANGED', lifecycle: 'STATIC', optionalFieldPolicy: optional, confidence: 20, rationale: ['No reliable deterministic source was found.'], status: 'UNRESOLVED' };
+  }
+}

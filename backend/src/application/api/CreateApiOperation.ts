@@ -1,9 +1,9 @@
 // CreateApiOperation - Application Use Case
 import { randomUUID } from 'node:crypto';
-import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity';
-import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository';
-import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { ApiOperationEntity } from '../../domain/api/ApiOperationEntity.js';
+import { ApiOperationRepository } from '../../domain/api/ApiOperationRepository.js';
+import { ApiServiceRepository } from '../../domain/api/ApiServiceRepository.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export class CreateApiOperation {
   constructor(

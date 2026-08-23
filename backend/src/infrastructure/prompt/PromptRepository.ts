@@ -2,14 +2,14 @@
 // Persists PromptEntity and PromptTemplateEntity in memory.
 // Can be swapped for DB/file-based implementation.
 
-import { PromptRepository as IPromptRepository } from '../../domain/prompt';
-import { PromptEntity, PromptVariableValue, PromptStatus } from '../../domain/prompt';
+import { PromptRepository as IPromptRepository } from '../../domain/prompt/index.js';
+import { PromptEntity, PromptVariableValue, PromptStatus } from '../../domain/prompt/index.js';
 import {
   PromptTemplateEntity,
   PromptTemplateCategory,
   PromptTemplateVariable,
-} from '../../domain/prompt';
-import { BUILTIN_TEMPLATES, seedBuiltinTemplates } from './builtinTemplates';
+} from '../../domain/prompt/index.js';
+import { BUILTIN_TEMPLATES, seedBuiltinTemplates } from './builtinTemplates.js';
 
 export class PromptRepository implements IPromptRepository {
   private prompts: Map<string, PromptEntity> = new Map();

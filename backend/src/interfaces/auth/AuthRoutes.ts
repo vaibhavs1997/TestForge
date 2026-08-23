@@ -1,11 +1,11 @@
 import { Router } from 'express';
-import { asyncHandler } from '../middleware/AsyncHandler';
-import { createSuccessResponse } from '../../shared/ApiResponse';
-import { getAuthConfig, getEnterpriseAuthConfig } from '../../config';
-import type { AuthService } from '../../application/auth/AuthService';
-import { AppError } from '../middleware/ErrorHandler';
-import { ERROR_CODES } from '../../shared/ApiResponse';
-import { normalizeEmail } from '../../domain/auth/normalizeEmail';
+import { asyncHandler } from '../middleware/AsyncHandler.js';
+import { createSuccessResponse } from '../../shared/ApiResponse.js';
+import { getAuthConfig, getEnterpriseAuthConfig } from '../../config.js';
+import type { AuthService } from '../../application/auth/AuthService.js';
+import { AppError } from '../middleware/ErrorHandler.js';
+import { ERROR_CODES } from '../../shared/ApiResponse.js';
+import { normalizeEmail } from '../../domain/auth/normalizeEmail.js';
 
 export function createAuthRoutes(authService: AuthService): Router {
   const router = Router();

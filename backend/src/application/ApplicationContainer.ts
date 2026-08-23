@@ -4,87 +4,96 @@
 // This is an architectural refactor only - runtime behavior is unchanged.
 
 // ─── Infrastructure repositories ─────────────────────────
-import { ApiServiceRepository } from '../infrastructure/api/ApiServiceRepository';
-import { ApiOperationRepository } from '../infrastructure/api/ApiOperationRepository';
-import { EnvironmentRepository } from '../infrastructure/environment/EnvironmentRepository';
-import { DatasetRepository } from '../infrastructure/test-data/DatasetRepository';
-import { ColumnRepository } from '../infrastructure/test-data/ColumnRepository';
-import { RelationshipRepository } from '../infrastructure/test-data/RelationshipRepository';
-import { DatasetRowRepository } from '../infrastructure/test-data/DatasetRowRepository';
-import { DataSourceMappingRepository } from '../infrastructure/test-data/DataSourceMappingRepository';
-import { PopulationProfileRepository } from '../infrastructure/test-data/PopulationProfileRepository';
-import { KnowledgeFlowRepository } from '../infrastructure/knowledge/KnowledgeFlowRepository';
-import { BusinessRuleRepository } from '../infrastructure/knowledge/BusinessRuleRepository';
-import { RuntimeVariableRepository } from '../infrastructure/knowledge/RuntimeVariableRepository';
-import { DependencyRepository } from '../infrastructure/knowledge/DependencyRepository';
-import { DocumentationRepository } from '../infrastructure/knowledge/DocumentationRepository';
-import { AnalysisRepository } from '../infrastructure/analysis/AnalysisRepository';
-import { RequirementRepository } from '../infrastructure/requirements/RequirementRepository';
-import { TestStrategyRepository } from '../infrastructure/requirements/TestStrategyRepository';
-import { TestDesignRepository } from '../infrastructure/requirements/TestDesignRepository';
-import { ExecutionPlanRepository } from '../infrastructure/requirements/ExecutionPlanRepository';
-import { ReportRepository } from '../infrastructure/report/ReportRepository';
-import { AssertionRepository } from '../infrastructure/assertion/AssertionRepository';
-import { TestSuiteRepository } from '../infrastructure/suite/TestSuiteRepository';
-import { ExecutionProfileRepository } from '../infrastructure/execution/ExecutionProfileRepository';
-import { ExecutionRunRepository } from '../infrastructure/execution/ExecutionRunRepository';
-import { ScheduleRepository } from '../infrastructure/scheduler/ScheduleRepository';
-import { PipelineRepositoryImpl } from '../infrastructure/pipeline/PipelineRepository';
-import { PromptRepository } from '../infrastructure/prompt/PromptRepository';
-import ProviderRepository from '../infrastructure/providers/ProviderRepository';
-import VersionRepository from '../infrastructure/versioning/VersionRepository';
-import AuditLogRepository from '../infrastructure/audit/AuditLogRepository';
-import PluginRepository from '../infrastructure/plugin/PluginRepository';
-import { InMemoryAIProviderRepository } from '../infrastructure/ai-provider/AIProviderRepository';
-import { InMemoryNotificationRepository } from '../infrastructure/notification/NotificationRepository';
-import { InMemoryVersionRepository } from '../infrastructure/versioning/VersionRepository';
-import { InMemoryAuditLogRepository } from '../infrastructure/audit/AuditLogRepository';
-import { InMemoryPluginRepository } from '../infrastructure/plugin/PluginRepository';
+import { ApiServiceRepository } from '../infrastructure/api/ApiServiceRepository.js';
+import { ApiOperationRepository } from '../infrastructure/api/ApiOperationRepository.js';
+import { EnvironmentRepository } from '../infrastructure/environment/EnvironmentRepository.js';
+import { DatasetRepository } from '../infrastructure/test-data/DatasetRepository.js';
+import { ColumnRepository } from '../infrastructure/test-data/ColumnRepository.js';
+import { RelationshipRepository } from '../infrastructure/test-data/RelationshipRepository.js';
+import { DatasetRowRepository } from '../infrastructure/test-data/DatasetRowRepository.js';
+import { DataSourceMappingRepository } from '../infrastructure/test-data/DataSourceMappingRepository.js';
+import { FieldDataRuleRepository } from '../infrastructure/test-data/FieldDataRuleRepository.js';
+import { ManageFieldDataRules } from './test-data/ManageFieldDataRules.js';
+import { FieldDataAnalyzer } from './test-data/FieldDataAnalyzer.js';
+import { PopulationProfileRepository } from '../infrastructure/test-data/PopulationProfileRepository.js';
+import { KnowledgeFlowRepository } from '../infrastructure/knowledge/KnowledgeFlowRepository.js';
+import { BusinessRuleRepository } from '../infrastructure/knowledge/BusinessRuleRepository.js';
+import { RuntimeVariableRepository } from '../infrastructure/knowledge/RuntimeVariableRepository.js';
+import { DependencyRepository } from '../infrastructure/knowledge/DependencyRepository.js';
+import { DocumentationRepository } from '../infrastructure/knowledge/DocumentationRepository.js';
+import { AnalysisRepository } from '../infrastructure/analysis/AnalysisRepository.js';
+import { RequirementRepository } from '../infrastructure/requirements/RequirementRepository.js';
+import { TestStrategyRepository } from '../infrastructure/requirements/TestStrategyRepository.js';
+import { TestDesignRepository } from '../infrastructure/requirements/TestDesignRepository.js';
+import { ExecutionPlanRepository } from '../infrastructure/requirements/ExecutionPlanRepository.js';
+import { ReportRepository } from '../infrastructure/report/ReportRepository.js';
+import { AssertionRepository } from '../infrastructure/assertion/AssertionRepository.js';
+import { TestSuiteRepository } from '../infrastructure/suite/TestSuiteRepository.js';
+import { ExecutionProfileRepository } from '../infrastructure/execution/ExecutionProfileRepository.js';
+import { ExecutionRunRepository } from '../infrastructure/execution/ExecutionRunRepository.js';
+import { ScheduleRepository } from '../infrastructure/scheduler/ScheduleRepository.js';
+import { PipelineRepositoryImpl } from '../infrastructure/pipeline/PipelineRepository.js';
+import { PromptRepository } from '../infrastructure/prompt/PromptRepository.js';
+import ProviderRepository from '../infrastructure/providers/ProviderRepository.js';
+import VersionRepository from '../infrastructure/versioning/VersionRepository.js';
+import AuditLogRepository from '../infrastructure/audit/AuditLogRepository.js';
+import PluginRepository from '../infrastructure/plugin/PluginRepository.js';
+import { FileAIProviderRepository } from '../infrastructure/ai-provider/AIProviderRepository.js';
+import { InMemoryNotificationRepository } from '../infrastructure/notification/NotificationRepository.js';
+import { InMemoryVersionRepository } from '../infrastructure/versioning/VersionRepository.js';
+import { InMemoryAuditLogRepository } from '../infrastructure/audit/AuditLogRepository.js';
+import { InMemoryPluginRepository } from '../infrastructure/plugin/PluginRepository.js';
+import { LocalSecretStore } from '../infrastructure/security/LocalSecretStore.js';
 
 // ─── Domain ──────────────────────────────────────────────
-import { EventBus } from '../domain/events/EventBus';
+import { EventBus } from '../domain/events/EventBus.js';
 
 // ─── Application services ────────────────────────────────
-import { EventPublisher } from './EventPublisher';
-import { VersionService } from './versioning/VersionService';
-import { AIProviderRegistry } from './ai-provider/AIProviderRegistry';
-import { AIProviderResolutionService } from './ai-provider/AIProviderResolutionService';
-import { ManageAIProviders } from './ai-provider/ManageAIProviders';
-import { RecommendationEngine } from './recommendation/RecommendationEngine';
-import { ProjectContextService } from './context/ProjectContextService';
-import { PromptBuilderService } from './prompt/PromptBuilderService';
-import { PluginRegistry } from './plugin/PluginRegistry';
-import { PluginLoader } from './plugin/PluginLoader';
-import { PluginService } from './plugin/PluginService';
-import { ProviderResolutionService } from '../infrastructure/providers/ProviderResolutionService';
-import { NotificationService } from './notification/NotificationService';
-import { AuditLogService } from './audit/AuditLogService';
-import { ExecutePlan } from './execution/ExecutePlan';
-import { SchedulerService } from './scheduler/SchedulerService';
-import { OrchestratePipeline } from './pipeline/OrchestratePipeline';
-import { RunAIPipeline } from './pipeline/RunAIPipeline';
-import { ApiModule } from './api/ApiModule';
-import { ProjectModule } from './project/ProjectModule';
-import { EnvironmentModule } from './environment/EnvironmentModule';
-import { ActivityStreamHub } from './realtime/ActivityStreamHub';
-import { AuthService } from './auth/AuthService';
-import { createAuditLogRepository } from '../infrastructure/persistence/createAuditLogRepository';
-import { createProjectRepository } from '../infrastructure/persistence/createProjectRepository';
-import type { PersistenceDriver } from '../config';
+import { EventPublisher } from './EventPublisher.js';
+import { VersionService } from './versioning/VersionService.js';
+import { AIProviderRegistry } from './ai-provider/AIProviderRegistry.js';
+import { AIProviderResolutionService } from './ai-provider/AIProviderResolutionService.js';
+import { ManageAIProviders } from './ai-provider/ManageAIProviders.js';
+import { RecommendationEngine } from './recommendation/RecommendationEngine.js';
+import { ProjectContextService } from './context/ProjectContextService.js';
+import { PromptBuilderService } from './prompt/PromptBuilderService.js';
+import { PluginRegistry } from './plugin/PluginRegistry.js';
+import { PluginLoader } from './plugin/PluginLoader.js';
+import { PluginService } from './plugin/PluginService.js';
+import { ProviderResolutionService } from '../infrastructure/providers/ProviderResolutionService.js';
+import { NotificationService } from './notification/NotificationService.js';
+import { AuditLogService } from './audit/AuditLogService.js';
+import { ExecutePlan } from './execution/ExecutePlan.js';
+import { ExecuteSuite } from './suite/ExecuteSuite.js';
+import { SchedulerService } from './scheduler/SchedulerService.js';
+import { JsonDurableJobRepository } from '../infrastructure/jobs/JsonDurableJobRepository.js';
+import { JsonDistributedLeaseRepository } from '../infrastructure/jobs/JsonDistributedLeaseRepository.js';
+import { DurableJobWorker } from './jobs/DurableJobWorker.js';
+import { OrchestratePipeline } from './pipeline/OrchestratePipeline.js';
+import { RunAIPipeline } from './pipeline/RunAIPipeline.js';
+import { ApiModule } from './api/ApiModule.js';
+import { ProjectModule } from './project/ProjectModule.js';
+import { EnvironmentModule } from './environment/EnvironmentModule.js';
+import { ActivityStreamHub } from './realtime/ActivityStreamHub.js';
+import { AuthService } from './auth/AuthService.js';
+import { createAuditLogRepository } from '../infrastructure/persistence/createAuditLogRepository.js';
+import { createProjectRepository } from '../infrastructure/persistence/createProjectRepository.js';
+import type { PersistenceDriver } from '../config.js';
 
 // ─── Cross-cutting subscribers (Sprint 3 integration) ───
-import { CacheInvalidationService } from '../domain/events/CacheInvalidationService';
-import { VersionEventListener } from './versioning/VersionEventListener';
-import { RecommendationRefreshSubscriber } from './recommendation/RecommendationRefreshSubscriber';
-import { PipelineRefreshSubscriber } from './pipeline/PipelineRefreshSubscriber';
+import { CacheInvalidationService } from '../domain/events/CacheInvalidationService.js';
+import { VersionEventListener } from './versioning/VersionEventListener.js';
+import { RecommendationRefreshSubscriber } from './recommendation/RecommendationRefreshSubscriber.js';
+import { PipelineRefreshSubscriber } from './pipeline/PipelineRefreshSubscriber.js';
 
 // ─── AI generation use cases ─────────────────────────────
-import { GenerateRequirementsWithAI } from './requirements/GenerateRequirementsWithAI';
-import { GenerateTestStrategyWithAI } from './requirements/GenerateTestStrategyWithAI';
-import { GenerateTestDesignWithAI } from './requirements/GenerateTestDesignWithAI';
-import { GenerateAssertionsWithAI } from './assertion/GenerateAssertionsWithAI';
-import { GenerateExecutionPlanWithAI } from './requirements/GenerateExecutionPlanWithAI';
-import { GenerateTestSuiteWithAI } from './suite/GenerateTestSuiteWithAI';
+import { GenerateRequirementsWithAI } from './requirements/GenerateRequirementsWithAI.js';
+import { GenerateTestStrategyWithAI } from './requirements/GenerateTestStrategyWithAI.js';
+import { GenerateTestDesignWithAI } from './requirements/GenerateTestDesignWithAI.js';
+import { GenerateAssertionsWithAI } from './assertion/GenerateAssertionsWithAI.js';
+import { GenerateExecutionPlanWithAI } from './requirements/GenerateExecutionPlanWithAI.js';
+import { GenerateTestSuiteWithAI } from './suite/GenerateTestSuiteWithAI.js';
+import { TestCaseVersionService } from './requirements/TestCaseVersionService.js';
 
 /**
  * ApplicationContainer - constructs every repository, service, and shared
@@ -109,6 +118,7 @@ import { GenerateTestSuiteWithAI } from './suite/GenerateTestSuiteWithAI';
  *  16. Pipeline orchestrators (need repositories + AI use cases)
  */
 export class ApplicationContainer {
+  readonly testCaseVersionService = new TestCaseVersionService();
   private readonly persistenceDriver: PersistenceDriver = (() => {
     const raw = (process.env.PERSISTENCE_DRIVER || 'json').toLowerCase();
     if (raw === 'memory' || raw === 'sqlite') return raw;
@@ -132,6 +142,9 @@ export class ApplicationContainer {
   readonly relationshipRepository = new RelationshipRepository();
   readonly datasetRowRepository = new DatasetRowRepository();
   readonly dataSourceMappingRepository = new DataSourceMappingRepository();
+  readonly fieldDataRuleRepository = new FieldDataRuleRepository();
+  readonly manageFieldDataRules = new ManageFieldDataRules(this.fieldDataRuleRepository);
+  readonly fieldDataAnalyzer = new FieldDataAnalyzer();
   readonly populationProfileRepository = new PopulationProfileRepository();
   readonly knowledgeFlowRepository = new KnowledgeFlowRepository();
   readonly businessRuleRepository = new BusinessRuleRepository();
@@ -148,13 +161,16 @@ export class ApplicationContainer {
   readonly executionProfileRepository = new ExecutionProfileRepository();
   readonly executionRunRepository = new ExecutionRunRepository();
   readonly scheduleRepository = new ScheduleRepository();
+  readonly durableJobRepository = new JsonDurableJobRepository();
+  readonly schedulerLeaseRepository = new JsonDistributedLeaseRepository();
+  readonly secretStore = new LocalSecretStore();
   readonly pipelineRepository = new PipelineRepositoryImpl();
   readonly promptRepository = new PromptRepository();
   readonly providerRepository = new ProviderRepository();
   readonly versionRepository = new VersionRepository();
   readonly auditLogRepository = createAuditLogRepository(this.persistenceDriver);
   readonly pluginRepository = new PluginRepository();
-  readonly aiProviderRepository = new InMemoryAIProviderRepository();
+  readonly aiProviderRepository = new FileAIProviderRepository();
   readonly notificationRepository = new InMemoryNotificationRepository();
   readonly inMemoryVersionRepository = new InMemoryVersionRepository();
   readonly inMemoryAuditLogRepository = new InMemoryAuditLogRepository();
@@ -296,10 +312,16 @@ export class ApplicationContainer {
     this.apiOperationRepository,
     this.dataSourceMappingRepository,
     this.datasetRowRepository,
+    this.columnRepository,
+    this.runtimeVariableRepository,
     this.testDesignRepository,
     this.assertionRepository,
     this.executionProfileRepository,
-    this.eventPublisher
+    this.eventPublisher,
+    this.apiServiceRepository,
+    undefined,
+    this.secretStore,
+    this.fieldDataRuleRepository,
   );
 
   // ─── Plugin framework ──────────────────────────────────
@@ -328,12 +350,19 @@ export class ApplicationContainer {
   );
 
   // ─── SchedulerService ──────────────────────────────────
-  readonly schedulerService = new SchedulerService(
-    this.scheduleRepository,
+  readonly executeSuite = new ExecuteSuite(
     this.testSuiteRepository,
     this.executePlan,
+    this.executionPlanRepository,
+  );
+
+  readonly schedulerService = new SchedulerService(
+    this.scheduleRepository,
+    this.durableJobRepository,
+    this.schedulerLeaseRepository,
     this.eventPublisher
   );
+  readonly durableJobWorker = new DurableJobWorker(this.durableJobRepository, this.executeSuite);
 
   // ─── Pipeline orchestrators ────────────────────────────
   readonly orchestratePipeline = new OrchestratePipeline(
@@ -367,7 +396,7 @@ export class ApplicationContainer {
   readonly cacheInvalidationService = new CacheInvalidationService(this.eventBus);
   readonly versionEventListener = new VersionEventListener(this.eventBus, this.versionService);
   readonly recommendationRefreshSubscriber = new RecommendationRefreshSubscriber(this.eventBus, this.recommendationEngine);
-  readonly pipelineRefreshSubscriber = new PipelineRefreshSubscriber(this.eventBus, this.orchestratePipeline);
+  readonly pipelineRefreshSubscriber = new PipelineRefreshSubscriber(this.eventBus);
 
   // ─── HTTP modules (Phase 4 composition) ─────────────────
   readonly apiModule = new ApiModule({
@@ -375,7 +404,7 @@ export class ApplicationContainer {
     apiOperationRepository: this.apiOperationRepository,
     eventPublisher: this.eventPublisher,
   });
-  readonly projectModule = new ProjectModule(this.projectRepository);
+  readonly projectModule = new ProjectModule(this.projectRepository, this.auditLogService);
   readonly environmentModule = new EnvironmentModule({
     environmentRepository: this.environmentRepository,
     eventPublisher: this.eventPublisher,

@@ -1,7 +1,8 @@
 // AuditLogRepository - Infrastructure implementation for Audit Log Framework
 // Uses in-memory storage. Can be swapped for DB implementation.
 
-import { AuditLogEntity, AuditLogRepository } from '../../domain/audit';
+import { AuditLogEntity, AuditLogRepository } from '../../domain/audit/index.js';
+import { filterAuditLogs, sortAuditLogsDescending } from './AuditLogRepositorySupport.js';
 
 export class InMemoryAuditLogRepository implements AuditLogRepository {
   private logs: Map<string, AuditLogEntity> = new Map();
@@ -40,34 +41,11 @@ export class InMemoryAuditLogRepository implements AuditLogRepository {
       endDate?: number;
     }
   ): Promise<AuditLogEntity[]> {
-    let logs = await this.findByProject(projectId);
-    
-    if (filters) {
-      if (filters.module) {
-        logs = logs.filter(log => log.module === filters.module);
-      }
-      if (filters.entityType) {
-        logs = logs.filter(log => log.entityType === filters.entityType);
-      }
-      if (filters.entityId) {
-        logs = logs.filter(log => log.entityId === filters.entityId);
-      }
-      if (filters.action) {
-        logs = logs.filter(log => log.action === filters.action);
-      }
-      if (filters.startDate) {
-        logs = logs.filter(log => log.timestamp >= filters.startDate!);
-      }
-      if (filters.endDate) {
-        logs = logs.filter(log => log.timestamp <= filters.endDate!);
-      }
-    }
-    
-    return logs.sort((a, b) => b.timestamp - a.timestamp);
+    return sortAuditLogsDescending(filterAuditLogs(await this.findByProject(projectId), filters));
   }
 
   async list(): Promise<AuditLogEntity[]> {
-    return Array.from(this.logs.values()).sort((a, b) => b.timestamp - a.timestamp);
+    return sortAuditLogsDescending(Array.from(this.logs.values()));
   }
 }
 

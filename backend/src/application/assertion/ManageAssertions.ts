@@ -1,8 +1,8 @@
 // ManageAssertions - Application service for Assertion Library
 
-import { AssertionRepository } from '../../infrastructure/assertion/AssertionRepository';
-import { AssertionEntity, AssertionCategory, AssertionSeverity, AssertionType } from '../../domain/assertion/AssertionEntity';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { AssertionRepository } from '../../infrastructure/assertion/AssertionRepository.js';
+import { AssertionEntity, AssertionCategory, AssertionSeverity, AssertionType } from '../../domain/assertion/AssertionEntity.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export interface AssertionFormData {
   projectId: string;

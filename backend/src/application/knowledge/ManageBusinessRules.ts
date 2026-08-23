@@ -1,27 +1,20 @@
 // ManageBusinessRules - Application Use Case for Business Rules in Knowledge Hub
 import { randomUUID } from 'node:crypto';
-import { BusinessRule } from '../../domain/knowledge/BusinessRuleEntity';
-import { BusinessRuleRepository } from '../../domain/knowledge/BusinessRuleRepository';
-import { ValidationHelpers } from '../../domain/validation/ValidationHelpers';
+import { deleteById, requireById, validateUniqueProjectName } from '../shared/crudHelpers.js';
+import { BusinessRule } from '../../domain/knowledge/BusinessRuleEntity.js';
+import { BusinessRuleRepository } from '../../domain/knowledge/BusinessRuleRepository.js';
+import { ValidationHelpers } from '../../domain/validation/ValidationHelpers.js';
 
 export class ManageBusinessRules {
   constructor(private readonly businessRuleRepository: BusinessRuleRepository) {}
 
   async create(input: Omit<BusinessRule, 'id' | 'createdAt' | 'updatedAt'>): Promise<BusinessRule> {
-    const name = ValidationHelpers.validateRequired(input.name, 'Business Rule name');
-
-    try {
-      await ValidationHelpers.validateUniqueName(
-        this.businessRuleRepository,
-        input.name,
-        input.projectId
-      );
-    } catch (error) {
-      if (error instanceof Error && error.message === `Resource with name "${input.name}" already exists in this project`) {
-        throw new Error(`Business Rule with name "${input.name}" already exists in this project`);
-      }
-      throw error;
-    }
+    const name = await validateUniqueProjectName(
+      this.businessRuleRepository,
+      input.name,
+      input.projectId,
+      'Business Rule'
+    );
 
     const now = Date.now();
     const rule: BusinessRule = {
@@ -38,10 +31,7 @@ export class ManageBusinessRules {
   }
 
   async update(id: string, data: Partial<Omit<BusinessRule, 'id' | 'createdAt'>>): Promise<BusinessRule> {
-    const existing = await this.businessRuleRepository.findById(id);
-    if (!existing) {
-      throw new Error(`Business Rule with id ${id} not found`);
-    }
+    const existing = await requireById(this.businessRuleRepository, id, 'Business Rule');
 
     if (data.name !== undefined) {
       ValidationHelpers.validateNotEmpty(data.name, 'Business Rule name');
@@ -57,19 +47,11 @@ export class ManageBusinessRules {
   }
 
   async delete(id: string): Promise<void> {
-    const existing = await this.businessRuleRepository.findById(id);
-    if (!existing) {
-      throw new Error(`Business Rule with id ${id} not found`);
-    }
-    await this.businessRuleRepository.delete(id);
+    await deleteById(this.businessRuleRepository, id, 'Business Rule');
   }
 
   async get(id: string): Promise<BusinessRule> {
-    const rule = await this.businessRuleRepository.findById(id);
-    if (!rule) {
-      throw new Error(`Business Rule with id ${id} not found`);
-    }
-    return rule;
+    return requireById(this.businessRuleRepository, id, 'Business Rule');
   }
 
   async list(projectId: string): Promise<BusinessRule[]> {

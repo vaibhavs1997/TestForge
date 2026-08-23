@@ -1,6 +1,6 @@
 // External libraries
 import React, { Suspense, lazy } from 'react';
-import { Route, Routes, useParams } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 
 // Project pages
 import { ProjectsHomePage } from './pages';
@@ -11,10 +11,9 @@ import { ExecutionWorkspace } from './components/ExecutionWorkspace';
 import { TestDataWorkspace } from './components/TestDataWorkspace';
 
 // Existing module pages reused directly inside the workspace
-import { ApiRoutes } from '../api';
-import { EnvironmentPage } from '../environment/pages/EnvironmentPage';
+import { ApiExecutionPage } from '../api-execution';
 import { KnowledgePage } from '../knowledge/pages/KnowledgePage';
-import { ReportPage } from '../report/pages/ReportPage';
+import { ReportRoutes } from '../report/routes';
 
 // Lazy load Administration and Developer Tools modules
 const RecommendationsPage = lazy(() => import('../recommendation/pages/RecommendationsPage').then(m => ({ default: m.RecommendationsPage })));
@@ -26,12 +25,14 @@ const PluginManagementPage = lazy(() => import('../plugin/pages').then(m => ({ d
 const AIProviderManagementPage = lazy(() => import('../ai-provider/pages').then(m => ({ default: m.AIProviderManagementPage })));
 const ProjectContextPage = lazy(() => import('../context/pages').then(m => ({ default: m.ProjectContextPage })));
 const PromptBuilderPage = lazy(() => import('../prompt/pages').then(m => ({ default: m.PromptBuilderPage })));
+const TestReviewPage = lazy(() => import('../review/pages/TestReviewPage'));
 
 // Project store
 import { projectStore } from '../../store/projectStore';
 
 // Project overview dashboard (existing component)
 import { PipelineDashboard } from './components/PipelineDashboard';
+import { projectModules } from '../../routes/paths';
 
 // Simple loading fallback for lazy routes
 const PageLoader = () => (
@@ -48,6 +49,7 @@ const PageLoader = () => (
  */
 const ProjectWorkspace: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
+  const location = useLocation();
   const setSelectedProjectId = projectStore((state) => state.setSelectedProjectId);
 
   React.useEffect(() => {
@@ -59,9 +61,8 @@ const ProjectWorkspace: React.FC = () => {
   if (!projectId) return <ProjectsHomePage />;
 
   // Wrapper components that pass projectId as a prop to pages that use useParams
-  const ProjectEnvironmentPage = () => <EnvironmentPage />;
   const ProjectKnowledgePage = () => <KnowledgePage />;
-  const ProjectReportPage = () => <ReportPage />;
+  const ProjectReportPage = () => <ReportRoutes />;
   const ProjectRecommendationsPage = () => <RecommendationsPage />;
   const ProjectNotificationPage = () => <NotificationPage />;
   const ProjectVersionHistoryPage = () => <VersionHistoryPage />;
@@ -69,29 +70,31 @@ const ProjectWorkspace: React.FC = () => {
   const ProjectPluginManagementPage = () => <PluginManagementPage />;
 
   return (
-    <Routes>
+    <Routes key={location.pathname}>
       {/* Primary workflow */}
-      <Route path='overview' element={<PipelineDashboard projectId={projectId} />} />
-      <Route path='apis' element={<ApiRoutes />} />
-      <Route path='environment' element={<ProjectEnvironmentPage />} />
-      <Route path='testdata/*' element={<TestDataWorkspace projectId={projectId} />} />
-      <Route path='knowledge' element={<ProjectKnowledgePage />} />
-      <Route path='requirements/*' element={<RequirementsWorkspace projectId={projectId} />} />
-      <Route path='execution/*' element={<ExecutionWorkspace projectId={projectId} />} />
-      <Route path='reports/*' element={<ProjectReportPage />} />
+      <Route path={projectModules.overview} element={<PipelineDashboard projectId={projectId} />} />
+      <Route path={projectModules.apis} element={<ApiExecutionPage />} />
+      <Route path={projectModules.apiExecution} element={<ApiExecutionPage />} />
+      <Route path={projectModules.environment} element={<Navigate to={projectModules.apis} replace />} />
+      <Route path={`${projectModules.testData}/*`} element={<TestDataWorkspace projectId={projectId} />} />
+      <Route path={projectModules.knowledge} element={<ProjectKnowledgePage />} />
+      <Route path={`${projectModules.requirements}/*`} element={<RequirementsWorkspace projectId={projectId} />} />
+      <Route path={projectModules.review} element={<Suspense fallback={<PageLoader />}><TestReviewPage /></Suspense>} />
+      <Route path={`${projectModules.execution}/*`} element={<ExecutionWorkspace projectId={projectId} />} />
+      <Route path={`${projectModules.reports}/*`} element={<ProjectReportPage />} />
 
       {/* Administration */}
-      <Route path='recommendations' element={<ProjectRecommendationsPage />} />
-      <Route path='pipeline' element={<PipelinePage projectId={projectId} />} />
-      <Route path='notifications' element={<ProjectNotificationPage />} />
-      <Route path='versions' element={<ProjectVersionHistoryPage />} />
-      <Route path='audit' element={<ProjectAuditLogPage />} />
-      <Route path='plugins' element={<ProjectPluginManagementPage />} />
-      <Route path='ai-providers' element={<AIProviderManagementPage projectId={projectId} />} />
+      <Route path={projectModules.recommendations} element={<Suspense fallback={<PageLoader />}><ProjectRecommendationsPage /></Suspense>} />
+      <Route path={projectModules.pipeline} element={<Suspense fallback={<PageLoader />}><PipelinePage projectId={projectId} /></Suspense>} />
+      <Route path={projectModules.notifications} element={<Suspense fallback={<PageLoader />}><ProjectNotificationPage /></Suspense>} />
+      <Route path={projectModules.versions} element={<Suspense fallback={<PageLoader />}><ProjectVersionHistoryPage /></Suspense>} />
+      <Route path={projectModules.audit} element={<Suspense fallback={<PageLoader />}><ProjectAuditLogPage /></Suspense>} />
+      <Route path={projectModules.plugins} element={<Suspense fallback={<PageLoader />}><ProjectPluginManagementPage /></Suspense>} />
+      <Route path={projectModules.aiProviders} element={<Suspense fallback={<PageLoader />}><AIProviderManagementPage projectId={projectId} /></Suspense>} />
 
       {/* Developer Tools */}
-      <Route path='context' element={<ProjectContextPage projectId={projectId} />} />
-      <Route path='prompts' element={<PromptBuilderPage projectId={projectId} />} />
+      <Route path={projectModules.context} element={<Suspense fallback={<PageLoader />}><ProjectContextPage projectId={projectId} /></Suspense>} />
+      <Route path={projectModules.prompts} element={<Suspense fallback={<PageLoader />}><PromptBuilderPage projectId={projectId} /></Suspense>} />
 
       {/* Default to overview */}
       <Route index element={<PipelineDashboard projectId={projectId} />} />

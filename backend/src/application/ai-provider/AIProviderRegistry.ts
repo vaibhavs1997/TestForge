@@ -2,16 +2,17 @@
 // Registers all supported provider adapters and resolves them by type.
 // Reuses the Plugin Framework pattern for registration/resolution.
 
-import type { AIProviderAdapter, AIProviderType } from '../../domain/ai-provider';
+import type { AIProviderAdapter, AIProviderType } from '../../domain/ai-provider/index.js';
 import {
   OpenAIAdapter,
+  GroqAdapter,
   ClaudeAdapter,
   GeminiAdapter,
   OllamaAdapter,
   AzureOpenAIAdapter,
   AWSBedrockAdapter,
   CustomAdapter,
-} from './adapters';
+} from './adapters/index.js';
 
 export class AIProviderRegistry {
   private adapters: Map<AIProviderType, AIProviderAdapter> = new Map();
@@ -52,6 +53,7 @@ export class AIProviderRegistry {
   /** Register all built-in provider adapters. */
   private registerBuiltInAdapters(): void {
     this.register(new OpenAIAdapter());
+    this.register(new GroqAdapter());
     this.register(new ClaudeAdapter());
     this.register(new GeminiAdapter());
     this.register(new OllamaAdapter());

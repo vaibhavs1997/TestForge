@@ -1,5 +1,6 @@
 // External libraries
 import React from 'react';
+import { useParams } from 'react-router-dom';
 import { PageHeader } from '../../../components/layout/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
@@ -7,6 +8,7 @@ import { Badge } from '../../../components/ui/Badge';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
+import { ProjectContextMissing } from '../../../components/shared/ProjectContextMissing';
 import { useAssertions } from '../hooks/useAssertions';
 import { projectStore } from '../../../store/projectStore';
 import type { Assertion, AssertionCategory, AssertionSeverity, AssertionType } from '../types';
@@ -16,7 +18,13 @@ export interface AssertionLibraryPageProps {}
 
 export const AssertionLibraryPage: React.FC<AssertionLibraryPageProps> = () => {
   const selectedProjectId = projectStore((state) => state.selectedProjectId);
-  const projectId = selectedProjectId || '1';
+  const { projectId: routeProjectId } = useParams<{ projectId: string }>();
+  const projectId = routeProjectId ?? selectedProjectId;
+  if (!projectId) return <ProjectContextMissing />;
+  return <AssertionLibraryPageContent projectId={projectId} />;
+};
+
+const AssertionLibraryPageContent: React.FC<{ projectId: string }> = ({ projectId }) => {
   const { assertions, isLoading, createAssertion, updateAssertion, deleteAssertion, toggleAssertion, duplicateAssertion, refetch } = useAssertions(projectId);
 
   const [searchQuery, setSearchQuery] = React.useState('');

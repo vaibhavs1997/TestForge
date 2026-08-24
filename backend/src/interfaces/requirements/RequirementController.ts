@@ -19,6 +19,7 @@ import { ExecutionPlanRepository } from '../../infrastructure/requirements/Execu
 import { createSuccessResponse } from "../../shared/ApiResponse.js";
 import type { DesignStatus, RequestOverride } from '../../domain/requirements/TestDesignEntity.js';
 import type { ExecutionPlanStatus } from '../../domain/requirements/ExecutionPlanEntity.js';
+import type { TestCaseVersionService } from '../../application/requirements/TestCaseVersionService.js';
 
 export class RequirementController {
     constructor(
@@ -38,6 +39,7 @@ export class RequirementController {
         private readonly getRequirementMappingContextUseCase: GetRequirementMappingContext,
         private readonly testDesignRepository: TestDesignRepository,
         private readonly executionPlanRepository: ExecutionPlanRepository,
+        private readonly testCaseVersionService?: TestCaseVersionService,
     ) { }
     async listRequirements(req: Request, res: Response): Promise<void> {
         const projectId = req.params.projectId;
@@ -117,12 +119,12 @@ export class RequirementController {
     }
     async generateTestDesigns(req: Request, res: Response): Promise<void> {
         const { requirementId } = req.params;
-        const designs = await this.generateTestDesignsUseCase.execute(requirementId);
+        const designs = await this.generateTestDesignsUseCase.execute(requirementId, { budget: req.body?.budget });
         res.status(201).json(createSuccessResponse(designs));
     }
     async generateTestCases(req: Request, res: Response): Promise<void> {
         const { projectId, requirementId } = req.params;
-        const { providerId, useAi, buildRunPlan, replaceExisting } = req.body ?? {};
+        const { providerId, useAi, buildRunPlan, replaceExisting, budget } = req.body ?? {};
         const result = await this.generateRequirementTestCasesUseCase.execute({
             projectId,
             requirementId,
@@ -130,8 +132,18 @@ export class RequirementController {
             useAi: Boolean(useAi),
             buildRunPlan: Boolean(buildRunPlan),
             replaceExisting: replaceExisting !== false,
+            budget,
         });
         res.status(201).json(createSuccessResponse(result));
+    }
+    async coverage(req: Request, res: Response): Promise<void> {
+        if (!this.testCaseVersionService) throw new Error('Coverage service is unavailable');
+        const requirement = await this.getRequirementUseCase.execute(req.params.requirementId);
+        const scope = {
+            acceptanceCriteriaIds: (requirement.acceptanceCriteria || []).map((criterion: any) => criterion.id),
+            operationIds: requirement.relatedOperations?.length ? requirement.relatedOperations : undefined,
+        };
+        res.status(200).json(createSuccessResponse(this.testCaseVersionService.coverage(req.params.projectId, scope)));
     }
     async planExecution(req: Request, res: Response): Promise<void> {
         const { requirementId } = req.params;

@@ -26,12 +26,17 @@ import {
 } from './requirementAcceptanceFocus.js';
 import { pickOperationForCategory } from './RequirementOperationMatcher.js';
 import { requirementEndpointMappingService } from './RequirementEndpointMappingService.js';
+import type { GenerationProvenanceService } from './GenerationProvenanceService.js';
+import { selectByBudget, type GenerationBudget } from './GenerationBudget.js';
 
 export interface GenerateTestDesignWithAIRequest {
   projectId: string;
   requirementId: string;
   providerId: string;
   previewOnly?: boolean;
+  /** Internal orchestration defers capture until mapping enrichment completes. */
+  deferProvenance?: boolean;
+  budget?: GenerationBudget;
 }
 
 export interface TestDesignGenerationResult {
@@ -73,6 +78,7 @@ interface ParsedTestDesignInput {
 }
 
 const TEST_DESIGN_TEMPLATE_ID = 'tmpl-design-001';
+export async function retryStructuredGeneration<T>(generate: () => Promise<{ content: string }>, parse: (content: string) => T[], failureCategory: (error: unknown) => string) { let result: { content: string } | undefined; let parsed: T[] = []; let attempts = 0; let failureCategoryValue = ''; while (attempts < 2) { attempts++; try { result = await generate(); parsed = parse(result.content); if (parsed.length) break; failureCategoryValue = 'MALFORMED_STRUCTURED_OUTPUT'; } catch (error) { failureCategoryValue = failureCategory(error); } } return { result, parsed, attempts, failureCategory: failureCategoryValue }; }
 
 export class GenerateTestDesignWithAI {
   constructor(
@@ -83,7 +89,8 @@ export class GenerateTestDesignWithAI {
     private readonly promptBuilderService: PromptBuilderService,
     private readonly manageAIProviders: ManageAIProviders,
     private readonly versionService: VersionService,
-    private readonly eventPublisher?: EventPublisher
+    private readonly eventPublisher?: EventPublisher,
+    private readonly provenanceService?: GenerationProvenanceService,
   ) {}
 
   async execute(request: GenerateTestDesignWithAIRequest): Promise<TestDesignGenerationResult> {
@@ -202,10 +209,12 @@ export class GenerateTestDesignWithAI {
       { role: 'system', content: builtPrompt.systemPrompt },
       { role: 'user', content: builtPrompt.userPrompt },
     ];
-    const generateResult = await this.manageAIProviders.generate(request.providerId, messages, {
-      maxTokens: 1024,
-      temperature: 0.3,
-    });
+    const retried = await retryStructuredGeneration(() => this.manageAIProviders.generate(request.providerId, messages, { maxTokens: 1024, temperature: 0.3 }), content => this.parseStructuredResponse(content).designInputs, error => this.safeFailureCategory(error));
+    let generateResult = retried.result as Awaited<ReturnType<ManageAIProviders['generate']>> | undefined;
+    const parsed = { designInputs: retried.parsed };
+    const attempts = retried.attempts;
+    const lastFailure = retried.failureCategory;
+    if (!generateResult) generateResult = { content: '', model: providerEntity.model, providerType: providerEntity.provider, usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 }, cost: { inputCost: 0, outputCost: 0, totalCost: 0 }, finished: false };
 
     if (request.previewOnly) {
       return {
@@ -221,9 +230,8 @@ export class GenerateTestDesignWithAI {
       };
     }
 
-    const parsed = this.parseStructuredResponse(generateResult.content);
     if (parsed.designInputs.length === 0) {
-      warnings.push('AI response did not contain valid structured JSON. Falling back to context-derived designs.');
+      warnings.push(`AI response did not contain valid structured JSON after ${attempts} attempt(s). Falling back to context-derived designs.`);
     }
 
     const designInputs = parsed.designInputs.length > 0
@@ -245,6 +253,10 @@ export class GenerateTestDesignWithAI {
     const strategyScenarioIds = new Set((strategy?.sections || []).flatMap((section: any) => section.items.map((item: any) => item.scenarioId).filter(Boolean)));
     const invalidScenarioCount = designInputs.filter((input) => input.scenarioId && strategyScenarioIds.size > 0 && !strategyScenarioIds.has(input.scenarioId)).length;
     if (invalidScenarioCount > 0) warnings.push(`${invalidScenarioCount} AI scenario identity value(s) were invalid and require fallback identity.`);
+
+    if (!this.provenanceService) {
+      throw new Error('Generation provenance service is required for persisted generated designs.');
+    }
 
     const persistedDesigns: TestDesignEntity[] = [];
     for (const input of designInputs) {
@@ -309,8 +321,25 @@ export class GenerateTestDesignWithAI {
       persistedDesigns.push(saved);
     }
 
+    if (request.deferProvenance) {
+      return {
+        designs: persistedDesigns,
+        warnings,
+        providerUsed: { id: providerEntity.id, name: providerEntity.name, provider: providerEntity.provider, model: generateResult.model },
+      };
+    }
+    const selection = selectByBudget(persistedDesigns, request.budget); const ids = new Set(selection.selected.map(x => x.design.id));
+    for (const design of persistedDesigns) if (!ids.has(design.id)) await this.testDesignRepository.delete(design.id);
+    const capturedDesigns = await this.provenanceService.captureGeneratedDesigns({
+      requirement,
+      designs: selection.selected.map(x => x.design),
+      mode: parsed.designInputs.length ? 'AI_GENERATED' : 'FALLBACK',
+      ai: parsed.designInputs.length ? { providerId: providerEntity.id, provider: providerEntity.provider, model: generateResult.model, promptTemplateId: TEST_DESIGN_TEMPLATE_ID, promptVersion: '1', attemptedAt: Date.now(), attempts, validationStatus: 'VALID', outcome: 'SUCCESS' } : undefined,
+      fallbackReason: parsed.designInputs.length ? undefined : lastFailure || 'MALFORMED_STRUCTURED_OUTPUT',
+      budgetDecisions: new Map(selection.selected.map(x => [x.design.id, { ...x.decision, omissions: selection.omitted }])),
+    });
     return {
-      designs: persistedDesigns,
+      designs: capturedDesigns,
       warnings,
       providerUsed: { id: providerEntity.id, name: providerEntity.name, provider: providerEntity.provider, model: generateResult.model },
     };
@@ -371,6 +400,8 @@ export class GenerateTestDesignWithAI {
     }
     return { designInputs };
   }
+
+  private safeFailureCategory(error: unknown): string { const message = error instanceof Error ? error.message : String(error); if (/timeout|timed out/i.test(message)) return 'TIMEOUT'; if (/simulated/i.test(message)) return 'SIMULATED_PROVIDER_BLOCKED'; if (/unauthori[sz]ed|api[_ -]?key|token|secret/i.test(message)) return 'AUTH_OR_CONFIGURATION'; return 'PROVIDER_FAILURE'; }
 
   private normalizePriority(value: any): 'High' | 'Medium' | 'Low' {
     const str = String(value || 'Medium').toLowerCase();

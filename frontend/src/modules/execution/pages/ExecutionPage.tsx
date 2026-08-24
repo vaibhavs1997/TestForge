@@ -7,6 +7,7 @@ import { Button } from '../../../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { ErrorAlert } from '../../../components/shared/ErrorAlert';
+import { ProjectContextMissing } from '../../../components/shared/ProjectContextMissing';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { SelectField } from '../../../components/ui/SelectField';
 import { EntityDialog } from '../../../components/dialogs/EntityDialog';
@@ -34,8 +35,13 @@ const formatDuration = (milliseconds: number) => milliseconds >= 1000
 
 export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
-  const projectId = routeProjectId || '1';
+  const projectId = routeProjectId;
   const navigate = useNavigate();
+  if (!projectId) return <ProjectContextMissing />;
+  return <ExecutionPageContent projectId={projectId} navigate={navigate} />;
+};
+
+const ExecutionPageContent: React.FC<{ projectId: string; navigate: ReturnType<typeof useNavigate> }> = ({ projectId, navigate }) => {
   const { runs, isLoading: runsLoading, isError: runsError, error: runsFailure, refetch } = useExecution(projectId);
   const { generateReportAsync } = useReports(projectId);
   const { environments = [], isLoading: environmentsLoading, refetch: refetchEnvironments, updateAsync: updateEnvironment } = useEnvironments(projectId);
@@ -54,7 +60,7 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
   const suitesQuery = useQuery({
     queryKey: [...queryKeys.suites(projectId), 'runnable'],
     queryFn: () => executionService.listRunnableSuites(projectId),
-    enabled: Boolean(projectId),
+    enabled: true,
   });
 
   const approvedSuites = React.useMemo(

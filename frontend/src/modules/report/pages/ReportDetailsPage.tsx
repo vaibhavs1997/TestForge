@@ -13,6 +13,8 @@ import { reportService } from '../services';
 import { requirementService } from '../../requirements/services/requirementService';
 import { downloadJsonFile, downloadTextFile } from '../../../utils/downloadFile';
 import { ReportExportMenu } from '../../../components/shared/ReportExportMenu';
+import { ProjectContextMissing } from '../../../components/shared/ProjectContextMissing';
+import { createSafeHtmlReport } from '../utils/safeHtmlReport';
 
 // Types
 import type { ReportStatus } from '../types';
@@ -79,7 +81,7 @@ const escapeHtml = (value: unknown): string => String(value ?? '')
 export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
   const { projectId: routeProjectId, reportId } = useParams<{ projectId: string; reportId: string }>();
   const navigate = useNavigate();
-  const projectId = routeProjectId || '1';
+  const projectId = routeProjectId;
 
   const { data: report, isLoading, isError, error } = useReport(projectId, reportId);
   const [activeTab, setActiveTab] = React.useState<
@@ -102,6 +104,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
   }, []);
 
   React.useEffect(() => {
+    if (!projectId) return;
     const reqId = report?.requirementIds?.[0];
     if (!reqId) {
       setJiraIssueKey(null);
@@ -121,10 +124,12 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
   }, [projectId, report?.requirementIds]);
 
   React.useEffect(() => {
+    if (!projectId) return;
     executionService.listExecutionPlans(projectId).then(setExecutionPlans).catch(() => setExecutionPlans([]));
   }, [projectId]);
 
   React.useEffect(() => {
+    if (!projectId) return;
     const requirementId = report?.requirementIds?.[0];
     if (!requirementId) {
       setTestCaseStatements({});
@@ -138,7 +143,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
   }, [projectId, report?.requirementIds]);
 
   const handlePublishToJira = async () => {
-    if (!reportId) return;
+    if (!projectId || !reportId) return;
     setPublishingJira(true);
     setJiraPublishMessage(null);
     try {
@@ -159,6 +164,8 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
     const minutes = Math.floor(seconds / 60);
     return `${minutes}m ${seconds % 60}s`;
   };
+
+  if (!projectId) return <ProjectContextMissing />;
 
   if (isLoading) {
     return (
@@ -227,9 +234,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
         <div className='flex shrink-0 items-center gap-2'>
           <ReportExportMenu
             onExportHtml={() => {
-              const title = report.sections?.overview?.title || report.id;
-              const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${title}</title></head><body><h1>${title}</h1><pre>${JSON.stringify(report, null, 2)}</pre></body></html>`;
-              downloadTextFile(`report-${report.id.slice(0, 8)}.html`, html, 'text/html');
+              downloadTextFile(`report-${report.id.slice(0, 8)}.html`, createSafeHtmlReport(report), 'text/html');
             }}
             onExportJson={() => downloadJsonFile(`report-${report.id.slice(0, 8)}.json`, report)}
             onExportCsv={() => {
@@ -256,7 +261,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
                 <tr><td>${index + 1}</td><td>${escapeHtml(step.request?.method || '')} ${escapeHtml(step.request?.url || '')}</td><td class="${escapeHtml(step.status)}">${escapeHtml(step.status)}</td><td>${escapeHtml(step.response?.status ?? '')}</td><td>${escapeHtml(formatDuration(step.response?.duration || 0))}</td></tr>`).join('');
               const printWindow = window.open('', '_blank', 'noopener,noreferrer');
               if (!printWindow) return;
-              printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)} - TestForge report</title><style>
+              printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; img-src 'none'; connect-src 'none'; script-src 'none'; style-src 'unsafe-inline'"><title>${escapeHtml(title)} - TestForge report</title><style>
                 *{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#172033;margin:32px;font-size:12px}h1{font-size:22px;margin:0 0 6px}h2{font-size:15px;margin:24px 0 8px;border-bottom:1px solid #d5dbe5;padding-bottom:5px}.meta{color:#596579;margin-bottom:18px}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.metric{border:1px solid #d5dbe5;border-radius:6px;padding:10px}.metric strong{display:block;font-size:17px;margin-top:3px}.success{color:#087f42}.failed,.Failed{color:#b42318}.Passed{color:#087f42}table{border-collapse:collapse;width:100%;margin-top:8px}th,td{border:1px solid #d5dbe5;padding:7px;text-align:left;vertical-align:top}th{background:#eef2f7}@media print{body{margin:16px}}
               </style></head><body><h1>${escapeHtml(title)}</h1><div class="meta">Status: ${escapeHtml(report.overallStatus)} · Generated from execution run ${escapeHtml(report.executionRunId || '')}</div><div class="summary"><div class="metric">Total test cases<strong>${report.totalSteps}</strong></div><div class="metric">Passed<strong class="success">${report.passedSteps}</strong></div><div class="metric">Failed<strong class="failed">${report.failedSteps}</strong></div><div class="metric">Duration<strong>${escapeHtml(formatDuration(report.executionDuration))}</strong></div></div><h2>Test-case results</h2><table><thead><tr><th>#</th><th>Request</th><th>Status</th><th>HTTP</th><th>Duration</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
               printWindow.document.close();

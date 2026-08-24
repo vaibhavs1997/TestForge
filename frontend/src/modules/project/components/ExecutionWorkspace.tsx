@@ -7,6 +7,7 @@ import { SuitePage } from '../../suite/pages/SuitePage';
 import { SchedulerPage } from '../../scheduler/pages/SchedulerPage';
 import { projectModulePath } from '../../../routes/paths';
 import { ErrorAlert } from '../../../components/shared/ErrorAlert';
+import { ProjectContextMissing } from '../../../components/shared/ProjectContextMissing';
 
 interface ExecutionRenderBoundaryState {
   error: Error | null;
@@ -54,7 +55,9 @@ const SUB_NAV_ITEMS = [
 export const ExecutionWorkspace: React.FC<ExecutionWorkspaceProps> = ({ projectId }) => {
   const location = useLocation();
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
-  const activeProjectId = projectId || routeProjectId || '1';
+  const activeProjectId = projectId || routeProjectId;
+
+  if (!activeProjectId) return <ProjectContextMissing />;
 
   // Determine active sub-tab from URL
   const subPath = location.pathname.replace(projectModulePath(activeProjectId, 'execution'), '');

@@ -18,6 +18,8 @@ const {
   executionPlanRepository,
   runtimeVariableRepository,
   dependencyRepository,
+  testCaseVersionService,
+  fieldDataRuleRepository,
   generateRequirementsWithAI,
   generateTestStrategyWithAI,
   generateTestDesignWithAI,
@@ -25,6 +27,13 @@ const {
   generateExecutionPlanWithAI,
   eventPublisher,
 } = container;
+
+const generationProvenanceService = new GenerationProvenanceService(
+  apiOperationRepository,
+  fieldDataRuleRepository,
+  testDesignRepository,
+  testCaseVersionService,
+);
 
 // Initialize use cases
 import { CreateRequirement } from '../../application/requirements/CreateRequirement.js';
@@ -41,6 +50,7 @@ import { GenerateRequirementTestCases } from '../../application/requirements/Gen
 import { ImportRequirementFromJira } from '../../application/requirements/ImportRequirementFromJira.js';
 import { UpdateTestDesign } from '../../application/requirements/UpdateTestDesign.js';
 import { GetRequirementMappingContext } from '../../application/requirements/GetRequirementMappingContext.js';
+import { GenerationProvenanceService } from '../../application/requirements/GenerationProvenanceService.js';
 import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 const createRequirement = new CreateRequirement(requirementRepository);
@@ -76,7 +86,8 @@ const generateTestDesigns = new GenerateTestDesigns(
   knowledgeFlowRepository,
   datasetRepository,
   environmentRepository,
-  apiOperationRepository
+  apiOperationRepository,
+  generationProvenanceService
 );
 
 const planExecution = new PlanExecution(
@@ -99,6 +110,9 @@ const generateRequirementTestCases = new GenerateRequirementTestCases(
   knowledgeFlowRepository,
   runtimeVariableRepository,
   dependencyRepository,
+  generationProvenanceService,
+  testCaseVersionService,
+  fieldDataRuleRepository,
 );
 
 const updateTestDesign = new UpdateTestDesign(
@@ -140,6 +154,7 @@ const requirementController = new RequirementController(
   getRequirementMappingContext,
   testDesignRepository,
   executionPlanRepository,
+  testCaseVersionService,
 );
 
 const router = Router();
@@ -159,6 +174,7 @@ router.post('/projects/:projectId/test-designs/:testDesignId/assertions-ai', asy
 router.post('/projects/:projectId/requirements/from-analysis/:analysisId', asyncHandler((req, res) => requirementController.generateFromAnalysis(req, res)));
 router.get('/projects/:projectId/requirements/:requirementId/validate', asyncHandler((req, res) => requirementController.validateReadiness(req, res)));
 router.post('/projects/:projectId/requirements/:requirementId/generate-test-cases', asyncHandler((req, res) => requirementController.generateTestCases(req, res)));
+router.get('/projects/:projectId/requirements/:requirementId/coverage', asyncHandler((req, res) => requirementController.coverage(req, res)));
 router.post('/projects/:projectId/requirements/:requirementId/strategy', asyncHandler((req, res) => requirementController.planTestStrategy(req, res)));
 router.post('/projects/:projectId/requirements/:requirementId/designs', asyncHandler((req, res) => requirementController.generateTestDesigns(req, res)));
 router.get('/projects/:projectId/requirements/:requirementId/mapping-context', asyncHandler((req, res) => requirementController.getMappingContext(req, res)));

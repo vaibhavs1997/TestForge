@@ -37,7 +37,7 @@ export class AIRequirementController {
     }
     async generateDesignWithAI(req: Request, res: Response): Promise<void> {
         const { projectId, requirementId } = req.params;
-        const { providerId, previewOnly } = req.body;
+        const { providerId, previewOnly, budget } = req.body;
         if (!providerId) {
             throw new Error('providerId is required');
         }
@@ -46,6 +46,7 @@ export class AIRequirementController {
             requirementId,
             providerId,
             previewOnly: !!previewOnly,
+            budget,
         });
         res.status(200).json(createSuccessResponse(result));
     }

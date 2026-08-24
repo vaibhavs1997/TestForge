@@ -17,12 +17,18 @@ import type { ExecutionProfile, CreateProfileInput } from '../types/profile';
 import { logger } from '../../../utils/logger';
 import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
 import { projectStore } from '../../../store/projectStore';
+import { ProjectContextMissing } from '../../../components/shared/ProjectContextMissing';
 
 export const ExecutionProfilePage: React.FC = () => {
   const navigate = useNavigate();
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const selectedProjectId = projectStore((s) => s.selectedProjectId);
-  const projectId = routeProjectId ?? selectedProjectId ?? '1';
+  const projectId = routeProjectId ?? selectedProjectId;
+  if (!projectId) return <ProjectContextMissing />;
+  return <ExecutionProfilePageContent navigate={navigate} projectId={projectId} />;
+};
+
+const ExecutionProfilePageContent: React.FC<{ projectId: string; navigate: ReturnType<typeof useNavigate> }> = ({ projectId, navigate }) => {
   const [profiles, setProfiles] = React.useState<ExecutionProfile[]>([]);
   const [search, setSearch] = React.useState('');
   const [dialogOpen, setDialogOpen] = React.useState(false);

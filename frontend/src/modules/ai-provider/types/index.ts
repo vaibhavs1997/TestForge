@@ -27,6 +27,8 @@ export interface AIProvider {
   isDefault: boolean;
   createdAt: number;
   updatedAt: number;
+  capability?: 'LIVE' | 'LOCAL' | 'SIMULATED' | 'UNAVAILABLE';
+  status?: 'CONFIGURED' | 'OPERATIONAL' | 'UNREACHABLE' | 'SIMULATED' | 'UNAVAILABLE' | 'DISABLED';
 }
 
 export interface AIProviderHealth {
@@ -69,6 +71,8 @@ export interface AIProviderGenerateResult {
 export interface AIProviderAdapterInfo {
   type: AIProviderType;
   category: string;
+  capability?: string;
+  productionReady?: boolean;
 }
 
 export interface AIProviderFormData {

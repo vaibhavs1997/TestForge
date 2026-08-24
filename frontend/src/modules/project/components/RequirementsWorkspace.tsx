@@ -5,6 +5,7 @@ import { RequirementsPage } from '../../requirements/pages/RequirementsPage';
 import { AnalysisPage } from '../../analysis/pages/AnalysisPage';
 import { AssertionLibraryPage } from '../../assertion/pages/AssertionLibraryPage';
 import { projectModulePath } from '../../../routes/paths';
+import { ProjectContextMissing } from '../../../components/shared/ProjectContextMissing';
 
 interface RequirementsWorkspaceProps {
   projectId: string;
@@ -22,7 +23,9 @@ const SUB_NAV_ITEMS = [
 export const RequirementsWorkspace: React.FC<RequirementsWorkspaceProps> = ({ projectId }) => {
   const location = useLocation();
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
-  const activeProjectId = projectId || routeProjectId || '1';
+  const activeProjectId = projectId || routeProjectId;
+
+  if (!activeProjectId) return <ProjectContextMissing />;
 
   const subPath = location.pathname.replace(projectModulePath(activeProjectId, 'requirements'), '');
   const activeSub = subPath === '' || subPath === '/' ? '' : subPath;

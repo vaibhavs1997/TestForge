@@ -90,6 +90,7 @@ import { PipelineRefreshSubscriber } from './pipeline/PipelineRefreshSubscriber.
 import { GenerateRequirementsWithAI } from './requirements/GenerateRequirementsWithAI.js';
 import { GenerateTestStrategyWithAI } from './requirements/GenerateTestStrategyWithAI.js';
 import { GenerateTestDesignWithAI } from './requirements/GenerateTestDesignWithAI.js';
+import { GenerationProvenanceService } from './requirements/GenerationProvenanceService.js';
 import { GenerateAssertionsWithAI } from './assertion/GenerateAssertionsWithAI.js';
 import { GenerateExecutionPlanWithAI } from './requirements/GenerateExecutionPlanWithAI.js';
 import { GenerateTestSuiteWithAI } from './suite/GenerateTestSuiteWithAI.js';
@@ -243,6 +244,12 @@ export class ApplicationContainer {
     this.projectContextService,
     this.versionService
   );
+  readonly generationProvenanceService = new GenerationProvenanceService(
+    this.apiOperationRepository,
+    this.fieldDataRuleRepository,
+    this.testDesignRepository,
+    this.testCaseVersionService,
+  );
 
   // ─── AI generation use cases ───────────────────────────
   readonly generateRequirementsWithAI = new GenerateRequirementsWithAI(
@@ -270,7 +277,8 @@ export class ApplicationContainer {
     this.promptBuilderService,
     this.manageAIProviders,
     this.versionService,
-    this.eventPublisher
+    this.eventPublisher,
+    this.generationProvenanceService
   );
   readonly generateAssertionsWithAI = new GenerateAssertionsWithAI(
     this.assertionRepository,
@@ -376,7 +384,8 @@ export class ApplicationContainer {
     this.apiOperationRepository,
     this.testStrategyRepository,
     this.testDesignRepository,
-    this.executionPlanRepository
+    this.executionPlanRepository,
+    this.generationProvenanceService
   );
   readonly runAIPipeline = new RunAIPipeline(
     this.requirementRepository,

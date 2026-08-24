@@ -9,6 +9,7 @@ import { Badge } from '../../../components/ui/Badge';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { Toast } from '../../../components/shared/Toast';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
+import { ProjectContextMissing } from '../../../components/shared/ProjectContextMissing';
 import { useRequirements } from '../hooks';
 import { useRequirementArtifacts } from '../hooks/useRequirementArtifacts';
 import { useAnalysis } from '../../analysis/hooks';
@@ -171,7 +172,12 @@ const getExecutionStatusBadgeVariant = (status: string) => {
 
 export const RequirementsPage: React.FC<RequirementsPageProps> = ({ section = 'requirements' }) => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
-  const projectId = routeProjectId || '1';
+  const projectId = routeProjectId;
+  if (!projectId) return <ProjectContextMissing />;
+  return <RequirementsPageContent projectId={projectId} section={section} />;
+};
+
+const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: string }> = ({ section = 'requirements', projectId }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 

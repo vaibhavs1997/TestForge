@@ -68,4 +68,16 @@ describe('ExecutePlan retry semantics', () => {
     await (runner(execute) as any).executeStep(plan(), context(), { email: { value: 'stable@example.test' } });
     expect(execute.mock.calls.map((call) => call[0].headers.email)).toEqual(['stable@example.test', 'stable@example.test']);
   });
+  it('creates one immutable input snapshot before retries and preserves it when cancelled', async () => {
+    const execute = vi.fn().mockRejectedValue(new Error('temporary'));
+    const instance = runner(execute, 2) as any;
+    const result = await instance.executeStep(plan(), context(), { token: { sourceType: 'SECRET', value: 'hidden', variableName: 'vault:token' } });
+    expect(result.executionSnapshot.baseSnapshotId).toBeTruthy();
+    expect(result.attempts).toHaveLength(3);
+    expect(JSON.stringify(result.executionSnapshot)).not.toContain('hidden');
+    const controller = new AbortController(); controller.abort();
+    const cancelled = await instance.executeStep(plan(), context(), {}, undefined, undefined, controller.signal);
+    expect(cancelled.executionSnapshot.baseSnapshotId).toBeTruthy();
+    expect(cancelled.attempts).toEqual([]);
+  });
 });

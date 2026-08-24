@@ -18,6 +18,8 @@ import {
   buildPayloadForScenario,
 } from './RequirementOperationMatcher.js';
 import { requirementEndpointMappingService } from './RequirementEndpointMappingService.js';
+import type { GenerationProvenanceService } from './GenerationProvenanceService.js';
+import { selectByBudget, type GenerationBudget } from './GenerationBudget.js';
 
 export class GenerateTestDesigns {
   constructor(
@@ -28,10 +30,14 @@ export class GenerateTestDesigns {
     private readonly knowledgeFlowRepository: KnowledgeFlowRepository,
     private readonly datasetRepository: DatasetRepository,
     private readonly environmentRepository: EnvironmentRepository,
-    private readonly apiOperationRepository: ApiOperationRepository
+    private readonly apiOperationRepository: ApiOperationRepository,
+    private readonly provenanceService?: GenerationProvenanceService,
   ) {}
 
-  async execute(requirementId: string): Promise<TestDesignEntity[]> {
+  async execute(requirementId: string, options: { deferProvenance?: boolean; budget?: GenerationBudget } = {}): Promise<TestDesignEntity[]> {
+    if (!options.deferProvenance && !this.provenanceService) {
+      throw new Error('Generation provenance service is required for persisted generated designs.');
+    }
     const requirement = await this.requirementRepository.findById(requirementId);
     if (!requirement) {
       throw new Error(`Requirement with id ${requirementId} not found`);
@@ -133,7 +139,10 @@ export class GenerateTestDesigns {
       persistedDesigns.push(persisted);
     }
 
-    return persistedDesigns;
+    if (options.deferProvenance) return persistedDesigns;
+    const selection = selectByBudget(persistedDesigns, options.budget); const ids = new Set(selection.selected.map(x => x.design.id));
+    for (const design of persistedDesigns) if (!ids.has(design.id)) await this.testDesignRepository.delete(design.id);
+    return this.provenanceService!.captureGeneratedDesigns({ requirement, designs: selection.selected.map(x => x.design), mode: 'DETERMINISTIC', budgetDecisions: new Map(selection.selected.map(x => [x.design.id, { ...x.decision, omissions: selection.omitted }])) });
   }
 
   private findRelatedOperationId(

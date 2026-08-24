@@ -43,6 +43,7 @@ import {
 import { Button } from '../../../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { Badge } from '../../../components/ui/Badge';
+import { ProjectContextMissing } from '../../../components/shared/ProjectContextMissing';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { JsonViewer } from '../../../components/shared/JsonViewer';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
@@ -1471,7 +1472,13 @@ function makeHistoryEntry(draft: RequestDraft, response: ResponseState): History
 export const ApiExecutionPage: React.FC = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const selectedProjectId = projectStore((state) => state.selectedProjectId);
-  const projectId = routeProjectId ?? selectedProjectId ?? '1';
+  const projectId = routeProjectId ?? selectedProjectId;
+
+  if (!projectId) return <ProjectContextMissing />;
+  return <ApiExecutionPageContent projectId={projectId} />;
+};
+
+const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId }) => {
   const queryClient = useQueryClient();
   const { services: sharedApiServices = [] } = useServices(projectId);
   const { operations: sharedApiOperations = [] } = useApiOperations(projectId, sharedApiServices.map((service) => service.id));

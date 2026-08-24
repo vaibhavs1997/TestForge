@@ -11,6 +11,7 @@ import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
 import { useSuites } from '../hooks';
 import { projectStore } from '../../../store/projectStore';
 import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
+import { ProjectContextMissing } from '../../../components/shared/ProjectContextMissing';
 import type { TestSuite, TestSuiteFormData, SuiteExecutionPolicy, SuiteStatus } from '../types';
 import { FlaskConical, Plus, Copy, Archive, Trash2, GripVertical, ChevronUp, ChevronDown, Clock, Layers, Play } from 'lucide-react';
 
@@ -22,7 +23,12 @@ export const SuitePage: React.FC<SuitePageProps> = () => {
   const navigate = useNavigate();
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const selectedProjectId = projectStore((state) => state.selectedProjectId);
-  const projectId = routeProjectId ?? selectedProjectId ?? '1';
+  const projectId = routeProjectId ?? selectedProjectId;
+  if (!projectId) return <ProjectContextMissing />;
+  return <SuitePageContent navigate={navigate} projectId={projectId} />;
+};
+
+const SuitePageContent: React.FC<{ projectId: string; navigate: ReturnType<typeof useNavigate> }> = ({ projectId, navigate }) => {
   const { suites, isLoading, create, update, remove, addExecutionPlan, removeExecutionPlan, reorderExecutionPlans, executeAsync, isExecuting } = useSuites(projectId);
 
   const [search, setSearch] = React.useState('');

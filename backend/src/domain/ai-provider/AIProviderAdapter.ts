@@ -4,6 +4,7 @@
 // For now, generate() returns deterministic placeholder responses with NO external API calls.
 
 import type { AIProviderEntity, AIProviderConfig, AIProviderType } from './AIProviderEntity.js';
+export type AIProviderCapability = 'LIVE' | 'LOCAL' | 'SIMULATED' | 'UNAVAILABLE';
 
 export interface AIProviderMessage {
   role: 'system' | 'user' | 'assistant';
@@ -66,6 +67,8 @@ export interface AIProviderAdapter {
   readonly type: AIProviderType;
   /** Human-readable category label */
   readonly category: string;
+  /** Truthful execution capability; placeholders are never production AI. */
+  readonly capability: AIProviderCapability;
 
   /** Validate the provider configuration; returns array of error strings (empty = valid). */
   validateConfiguration(config: AIProviderConfig): string[];

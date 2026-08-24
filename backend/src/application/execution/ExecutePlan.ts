@@ -3,7 +3,7 @@
 // For every execution step: Resolve Environment → Resolve Dataset Values →
 // Resolve Runtime Variables → Apply Request Overrides → Execute HTTP Request →
 // Validate Assertions → Capture Runtime Variables → Store Step Result → Continue.
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { ExecutionRunEntity, ExecutionContext, ExecutionStepResult, ExecutionSummary, FailureMode, RunStatus, StepStatus, ExecutionProfileMetadata } from '../../domain/execution/ExecutionRunEntity.js';
 import { ExecutionRunRepository } from '../../domain/execution/ExecutionRunRepository.js';
 import { ExecutionPlanRepository } from '../../domain/requirements/ExecutionPlanRepository.js';
@@ -470,6 +470,7 @@ export class ExecutePlan {
 
       // Load Test Design to get attached assertions
       const testDesign = await this.testDesignRepository.findById(currentPlan.testDesignId);
+      const fieldRules = this.fieldDataRuleRepository ? await this.fieldDataRuleRepository.findByOperation(currentPlan.projectId, currentPlan.operationId) : [];
       let assertionRefs: AssertionReference[] = [];
       let reusableAssertions: AssertionEntity[] = [];
       
@@ -509,6 +510,7 @@ export class ExecutePlan {
       const stepResult = await this.executeStep(
         {
           ...dependencyResolution.plan,
+          __snapshotReferences: { requirement: { id: requirement.id, version: requirement.updatedAt }, operation: stepOperation ? { id: stepOperation.id, serviceId: stepOperation.serviceId, version: stepOperation.updatedAt } : undefined, environment: { id: selectedEnvironment.id, version: selectedEnvironment.updatedAt }, dataset: currentPlan.datasetId ? await this.datasetRepository.findById(currentPlan.datasetId) : undefined, fieldRules, testCaseVersionId: currentPlan.testCaseVersionId || undefined, mutation: testDesign?.mutationProvenance },
           assertions: [
             ...(dependencyResolution.plan.assertions || []),
             ...reusableAssertions.map((assertion) => ({
@@ -672,6 +674,7 @@ export class ExecutePlan {
     }
 
     stepResult.request = { method, url, headers, body };
+    stepResult.executionSnapshot = this.buildExecutionSnapshot(plan, context, { method, url, headers, body }, resolvedValues);
 
     // Resolved values and the request are built once per test execution, so
     // retry attempts retain Test Data scope and never consume/regenerate rows.
@@ -700,6 +703,12 @@ export class ExecutePlan {
     stepResult.completedAt = Date.now();
 
     return stepResult;
+  }
+
+  private buildExecutionSnapshot(plan: any, context: ExecutionContext, request: { method: string; url: string; headers: Record<string, string>; body: any }, resolvedValues: Record<string, ResolvedValue>) {
+    const refs = plan.__snapshotReferences || {}; const source = (value: ResolvedValue): any => { const raw = String(value.sourceType || '').toUpperCase(); const category = raw.includes('DATASET') ? 'DATASET' : raw.includes('GENERAT') ? 'GENERATOR' : raw.includes('ENV') ? 'ENVIRONMENT' : raw.includes('SECRET') ? 'SECRET' : raw.includes('DEPEND') ? 'DEPENDENCY_RESPONSE' : raw.includes('RUNTIME') || raw.includes('REUSE') ? 'RUNTIME' : raw.includes('MANUAL') ? 'MANUAL_OVERRIDE' : 'STATIC'; return { source: category, reference: value.datasetId || value.rowId || value.variableName || value.envVariableName || value.columnName, fingerprint: value.value === undefined ? undefined : createHash('sha256').update(String(value.value)).digest('hex').slice(0, 16), reproducibility: category === 'GENERATOR' ? { generatorType: raw, status: 'PARTIAL' } : undefined }; };
+    const sanitized = sensitiveDataRedactor.redact({ method: request.method, url: request.url, headers: request.headers, body: request.body });
+    return { capturedAt: Date.now(), baseSnapshotId: randomUUID(), request: sanitized, testCaseVersionId: refs.testCaseVersionId, requirement: refs.requirement || { id: plan.requirementId || '' }, operation: refs.operation, environment: refs.environment || { id: context.environmentId }, dataset: refs.dataset ? { id: refs.dataset.id, version: refs.dataset.updatedAt, rowReference: plan.datasetRowReference } : { id: plan.datasetId, rowReference: plan.datasetRowReference }, resolvedFields: Object.entries(resolvedValues).map(([field, value]) => ({ field, ...source(value) })), fieldRuleIds: (refs.fieldRules || []).map((rule: any) => ({ id: rule.id, version: rule.updatedAt })), mutation: refs.mutation ? { strategy: refs.mutation.strategy, fieldPath: refs.mutation.fieldPath, location: refs.mutation.location } : undefined, dependencies: (plan.dependencies || []).map((d: any) => ({ sourceOperationId: d.sourceOperationId, sourcePath: d.sourceResponsePath, targetPath: d.targetRequestPath })), executionProfileId: this.loadedProfile?.id } as any;
   }
 
   private async executeAttempt(

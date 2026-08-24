@@ -24,6 +24,7 @@ function resolveOllamaBase(config: AIProviderConfig): string {
 export class OllamaAdapter extends BaseAIProviderAdapter {
   readonly type: AIProviderType = 'Ollama';
   readonly category = 'Ollama';
+  override readonly capability = 'LOCAL' as const;
   protected readonly defaultModel = 'llama3.2';
   protected readonly inputCostPer1K = 0;
   protected readonly outputCostPer1K = 0;

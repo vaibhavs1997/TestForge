@@ -431,6 +431,7 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
                   <span className={`px-2 py-1 text-xs font-medium rounded ${getProviderColor(provider.provider)}`}>
                     {provider.provider}
                   </span>
+                  {provider.capability && <span className={`px-2 py-1 text-xs font-medium rounded ${provider.capability === 'SIMULATED' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>{provider.capability === 'SIMULATED' ? 'Simulated — not production AI' : provider.capability}</span>}
                   {provider.isDefault && (
                     <span className="px-2 py-1 text-xs font-medium rounded bg-yellow-100 text-yellow-800">
                       Default
@@ -449,6 +450,7 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
 
               <h3 className="mt-3 text-lg font-semibold">{provider.name}</h3>
               <p className="text-sm text-text-secondary">Model: {provider.model}</p>
+              {provider.status && <p className={`mt-1 text-xs ${provider.status === 'UNREACHABLE' ? 'text-red-600' : provider.status === 'SIMULATED' ? 'text-amber-700' : 'text-text-secondary'}`}>Status: {provider.status}</p>}
 
               {/* Health indicator */}
               <div className="mt-3">

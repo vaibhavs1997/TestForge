@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui
 import { Badge } from '../../../components/ui/Badge';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { Toast } from '../../../components/shared/Toast';
+import { ProjectContextMissing } from '../../../components/shared/ProjectContextMissing';
 import { useRecommendations } from '../hooks';
 import type { Recommendation } from '../types';
 
@@ -46,8 +47,12 @@ const STATUS_OPTIONS = ['Pending', 'Accepted', 'Dismissed', 'Marked Later'];
 
 export const RecommendationsPage: React.FC<RecommendationsPageProps> = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
-  const projectId = routeProjectId || '1';
+  const projectId = routeProjectId;
+  if (!projectId) return <ProjectContextMissing />;
+  return <RecommendationsPageContent projectId={projectId} />;
+};
 
+const RecommendationsPageContent: React.FC<{ projectId: string }> = ({ projectId }) => {
   const {
     data: recommendations = [],
     isLoading,

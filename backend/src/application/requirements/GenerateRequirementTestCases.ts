@@ -20,6 +20,10 @@ import type { KnowledgeFlowRepository } from '../../domain/knowledge/KnowledgeFl
 import type { RuntimeVariableRepository } from '../../domain/knowledge/RuntimeVariableRepository.js';
 import type { DependencyRepository } from '../../domain/knowledge/DependencyRepository.js';
 import { operationDependencyResolver } from './OperationDependencyResolver.js';
+import { GenerationProvenanceService, type GenerationAiEvidence } from './GenerationProvenanceService.js';
+import type { TestCaseVersionService } from './TestCaseVersionService.js';
+import type { FieldDataRuleRepository } from '../../domain/test-data/FieldDataRuleRepository.js';
+import { selectByBudget, type GenerationBudget } from './GenerationBudget.js';
 
 export interface GenerateRequirementTestCasesRequest {
   projectId: string;
@@ -28,6 +32,7 @@ export interface GenerateRequirementTestCasesRequest {
   useAi?: boolean;
   buildRunPlan?: boolean;
   replaceExisting?: boolean;
+  budget?: GenerationBudget;
 }
 
 export interface GenerateRequirementTestCasesResult {
@@ -68,6 +73,9 @@ export class GenerateRequirementTestCases {
     private readonly knowledgeFlowRepository?: KnowledgeFlowRepository,
     private readonly runtimeVariableRepository?: RuntimeVariableRepository,
     private readonly dependencyRepository?: DependencyRepository,
+    private readonly provenanceService = new GenerationProvenanceService(),
+    private readonly testCaseVersionService?: TestCaseVersionService,
+    private readonly fieldDataRuleRepository?: FieldDataRuleRepository,
   ) {}
 
   async execute(request: GenerateRequirementTestCasesRequest): Promise<GenerateRequirementTestCasesResult> {
@@ -102,6 +110,9 @@ export class GenerateRequirementTestCases {
     await this.planTestStrategy.execute(request.requirementId);
 
     let usedAi = false;
+    let generationMode: 'DETERMINISTIC' | 'AI_GENERATED' | 'FALLBACK' = 'DETERMINISTIC';
+    let aiEvidence: GenerationAiEvidence | undefined;
+    let fallbackReason: string | undefined;
     if (request.useAi && request.providerId) {
       try {
         const aiResult = await this.generateTestDesignWithAI.execute({
@@ -109,29 +120,42 @@ export class GenerateRequirementTestCases {
           requirementId: request.requirementId,
           providerId: request.providerId,
           previewOnly: false,
+          deferProvenance: true,
         });
         warnings.push(...(aiResult.warnings ?? []));
         usedAi = true;
+        aiEvidence = { providerId: aiResult.providerUsed.id, provider: aiResult.providerUsed.provider, model: aiResult.providerUsed.model, promptTemplateId: 'tmpl-design-001', promptVersion: '1' };
         // A provider can return valid text that does not contain the expected
         // design JSON. Keep the workflow useful instead of showing an empty
         // test-case panel after a seemingly successful generation.
         if (!aiResult.designs || aiResult.designs.length === 0) {
           warnings.push('AI returned no usable test cases. Using the built-in generator.');
-          await this.generateTestDesigns.execute(request.requirementId);
+          generationMode = 'FALLBACK';
+          fallbackReason = 'AI provider returned no usable test designs.';
+          await this.generateTestDesigns.execute(request.requirementId, { deferProvenance: true });
+        } else {
+          generationMode = 'AI_GENERATED';
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         warnings.push(`AI generation failed (${msg}). Using built-in generator.`);
-        await this.generateTestDesigns.execute(request.requirementId);
+        generationMode = 'FALLBACK';
+        fallbackReason = msg;
+        await this.generateTestDesigns.execute(request.requirementId, { deferProvenance: true });
       }
     } else {
-      await this.generateTestDesigns.execute(request.requirementId);
+      await this.generateTestDesigns.execute(request.requirementId, { deferProvenance: true });
     }
 
     let designs = await this.enrichDesignMappings(request.requirementId, requirement.projectId, preservedUserMappings);
     const dependencyWarnings = await this.resolveDesignDependencies(requirement.projectId, designs, requirement.relatedFlows || []);
     warnings.push(...dependencyWarnings);
     designs = await this.testDesignRepository.findByRequirement(request.requirementId);
+    const selection = selectByBudget(designs, request.budget);
+    const selectedIds = new Set(selection.selected.map(item => item.design.id));
+    for (const design of designs) if (!selectedIds.has(design.id)) await this.testDesignRepository.delete(design.id);
+    designs = await this.provenanceService.captureGeneratedDesigns({ requirement, designs: selection.selected.map(item => item.design), mode: generationMode, ai: aiEvidence, fallbackReason, budgetDecisions: new Map(selection.selected.map(item => [item.design.id, { ...item.decision, omissions: selection.omitted }])) });
+    if (selection.omitted.length) warnings.push(`${selection.omitted.length} scenario(s) omitted by generation budget.`);
     if (requirement.generationPending && designs.length === 0) {
       await this.requirementRepository.delete(requirement.id);
       throw new Error('No test cases could be generated for this requirement.');
@@ -176,7 +200,7 @@ export class GenerateRequirementTestCases {
       } as Partial<typeof requirement>);
     }
 
-    return { designs, executionPlanIds, usedAi, warnings };
+    return { designs, executionPlanIds, usedAi: generationMode === 'AI_GENERATED', warnings };
   }
 
   private async enrichDesignMappings(

@@ -107,9 +107,9 @@ export class ManageAIProviders {
     return provider;
   }
 
-  async listByProject(projectId: string): Promise<AIProviderEntity[]> {
+  async listByProject(projectId: string): Promise<Array<AIProviderEntity & { capability: string; status: string }>> {
     await this.ensureOllamaFromEnv(projectId);
-    return this.providerRepository.findByProject(projectId);
+    return (await this.providerRepository.findByProject(projectId)).map(provider => this.withStatus(provider));
   }
 
   async listEnabled(projectId: string): Promise<AIProviderEntity[]> {
@@ -231,9 +231,11 @@ export class ManageAIProviders {
   }
 
   /** List all registered adapters with metadata. */
-  listAdapters(): { type: AIProviderType; category: string }[] {
-    return this.registry.listAdapters().map(a => ({ type: a.type, category: a.category }));
+  listAdapters(): { type: AIProviderType; category: string; capability: string; productionReady: boolean }[] {
+    return this.registry.listAdapters().map(a => ({ type: a.type, category: a.category, capability: a.capability, productionReady: a.capability === 'LIVE' || a.capability === 'LOCAL' }));
   }
+
+  private withStatus(provider: AIProviderEntity): AIProviderEntity & { capability: string; status: string } { const capability = this.registry.resolve(provider.provider).capability; return Object.assign(provider, { capability, status: !provider.enabled ? 'DISABLED' : capability === 'SIMULATED' ? 'SIMULATED' : capability === 'UNAVAILABLE' ? 'UNAVAILABLE' : 'CONFIGURED' }); }
 
   /** Clear the default flag on all providers for a project. */
   private async clearDefault(projectId: string): Promise<void> {

@@ -16,6 +16,8 @@ import { useRequirements } from '../../requirements/hooks';
 import { useExecution } from '../../execution/hooks';
 import { downloadJsonFile, downloadTextFile } from '../../../utils/downloadFile';
 import { Toast } from '../../../components/shared/Toast';
+import { ProjectContextMissing } from '../../../components/shared/ProjectContextMissing';
+import { createSafeHtmlReport } from '../utils/safeHtmlReport';
 
 // Types
 import type { Report, ReportStatus } from '../types';
@@ -48,7 +50,7 @@ const getStatusIcon = (status: ReportStatus) => {
 export const ReportPage: React.FC<ReportPageProps> = () => {
   const navigate = useNavigate();
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
-  const projectId = routeProjectId || '1';
+  const projectId = routeProjectId;
   const { reports: queriedReports, isLoading, isError, error, generateReportAsync, deleteReport, isGenerating, isDeleting } = useReports(projectId);
   const { runs: queriedRuns } = useExecution(projectId);
   const { requirements: queriedRequirements } = useRequirements(projectId);
@@ -111,7 +113,7 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
   );
 
   const handleGenerateReport = async () => {
-    if (!executionRunId.trim()) return;
+    if (!projectId || !executionRunId.trim()) return;
     try {
       const report = await generateReportAsync({ projectId, executionRunId: executionRunId.trim() });
       setExecutionRunId('');
@@ -141,10 +143,11 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
   };
 
   const handleExportReportHtml = (report: Report) => {
-    const title = report.sections?.overview?.title || report.id;
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${title}</title></head><body><h1>${title}</h1><pre>${JSON.stringify(report, null, 2)}</pre></body></html>`;
+    const html = createSafeHtmlReport(report);
     downloadTextFile(`report-${report.id.slice(0, 8)}.html`, html, 'text/html');
   };
+
+  if (!projectId) return <ProjectContextMissing />;
 
   const handleDeleteReport = () => {
     if (!deleteReportItem) return;

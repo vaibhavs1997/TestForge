@@ -271,7 +271,7 @@ async function bootstrap(): Promise<void> {
   app.use('/api', createKnowledgeSearchRoutes(retrieval));
   app.use('/api', analysisRoutes);
   app.use('/api', requirementRoutes);
-  app.use('/api', createTestReviewRoutes(container.testCaseVersionService));
+  app.use('/api', createTestReviewRoutes(container.testCaseVersionService, container.executionRunRepository));
   app.use('/api', executionRoutes);
   app.use('/api', executionProfileRoutes);
   app.use('/api', recommendationRoutes);

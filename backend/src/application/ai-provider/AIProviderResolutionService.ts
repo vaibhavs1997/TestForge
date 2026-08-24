@@ -79,6 +79,10 @@ export class AIProviderResolutionService {
     options?: AIProviderGenerateOptions
   ): Promise<AIProviderGenerateResult> {
     const adapter = this.registry.resolve(entity.provider);
+    if (adapter.capability === 'SIMULATED' && process.env.NODE_ENV !== 'test' && process.env.ALLOW_SIMULATED_AI !== 'true') {
+      throw new Error(`Provider ${entity.provider} is simulated and cannot be used for production AI generation.`);
+    }
+    if (adapter.capability === 'UNAVAILABLE') throw new Error(`Provider ${entity.provider} is unsupported/unavailable.`);
     return adapter.generate(this.toConfig(entity), messages, options);
   }
 
@@ -95,8 +99,13 @@ export class AIProviderResolutionService {
   /** Perform a health check on the provider configuration. */
   async health(entity: AIProviderEntity): Promise<AIProviderHealthResult> {
     const adapter = this.registry.resolve(entity.provider);
-    return adapter.health(this.toConfig(entity));
+    if (!entity.enabled) return { healthy: false, message: 'Provider is disabled.', details: { capability: adapter.capability, status: 'DISABLED' } };
+    if (adapter.capability === 'SIMULATED') return { healthy: false, message: 'Simulated provider; not operational for production generation.', details: { capability: 'SIMULATED', status: 'SIMULATED' } };
+    if (adapter.capability === 'UNAVAILABLE') return { healthy: false, message: 'Provider integration is unavailable.', details: { capability: 'UNAVAILABLE', status: 'UNAVAILABLE' } };
+    try { const result = await adapter.health({ ...this.toConfig(entity), timeout: Math.min(entity.timeout || 10000, 10000) }); return { ...result, message: this.sanitize(result.message), details: { ...result.details, capability: adapter.capability, status: result.healthy ? 'OPERATIONAL' : 'UNREACHABLE' } }; }
+    catch (error) { return { healthy: false, message: `Provider health check failed: ${this.sanitize(error instanceof Error ? error.message : String(error))}`, details: { capability: adapter.capability, status: 'UNREACHABLE' } }; }
   }
+  private sanitize(value: string): string { return value.replace(/(api[_ -]?key|token|secret|password|authorization)\s*[:=]\s*[^\s,;]+/gi, '$1=[REDACTED]').slice(0, 300); }
 }
 
 export default AIProviderResolutionService;

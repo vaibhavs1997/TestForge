@@ -22,6 +22,7 @@ import { Badge } from '../../../components/ui/Badge';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { Toast } from '../../../components/shared/Toast';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
+import { ProjectContextMissing } from '../../../components/shared/ProjectContextMissing';
 import { useAnalysis } from '../hooks';
 import type { AnalysisStatus, AnalysisCard } from '../types';
 
@@ -74,7 +75,7 @@ const getConfidenceColor = (confidence: number) => {
 
 export const AnalysisPage: React.FC<AnalysisPageProps> = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
-  const projectId = routeProjectId || '1';
+  const projectId = routeProjectId;
 
   const {
     analysisCards,
@@ -92,6 +93,8 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = () => {
   const [toastType, setToastType] = React.useState<'success' | 'error'>('success');
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [cardToDelete, setCardToDelete] = React.useState<AnalysisCard | undefined>(undefined);
+
+  if (!projectId) return <ProjectContextMissing />;
 
   const handleRunAnalysis = async () => {
     try {

@@ -50,4 +50,11 @@ describe('GenerateReport suite identity', () => {
     expect(report.sections.stepResults[0].request.headers.Authorization).toBe('[REDACTED]');
     expect(report.sections.stepResults[0].response.data.password).toBe('[REDACTED]');
   });
+
+  it('serializes execution snapshots with lineage references but no secrets', async () => {
+    const run = makeRun({ stepResults: [{ status: 'Passed', startedAt: 1, completedAt: 2, executionSnapshot: { baseSnapshotId: 'base', request: { method: 'GET', url: 'x', headers: { Authorization: 'Bearer hidden' }, body: { password: 'hidden' } }, resolvedFields: [{ source: 'SECRET', reference: 'vault:key', fingerprint: 'abc' }] } }] });
+    const { useCase } = createUseCase(run); const report: any = await useCase.generate('run-1');
+    expect(JSON.stringify(report.sections.stepResults)).toContain('vault:key');
+    expect(JSON.stringify(report.sections.stepResults)).not.toContain('hidden');
+  });
 });

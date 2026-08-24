@@ -20,6 +20,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useFormValidation } from '../../../hooks/useFormValidation';
 import { validateCron, FormErrors } from '../../../utils/validation';
 import { ErrorAlert } from '../../../components/shared/ErrorAlert';
+import { ProjectContextMissing } from '../../../components/shared/ProjectContextMissing';
 import type { Schedule, ScheduleFormData, ScheduleStatus } from '../types';
 import type { TestSuite } from '../../suite/types';
 import type { ExecutionProfile } from '../../execution/types/profile';
@@ -59,7 +60,12 @@ export const SchedulerPage: React.FC = () => {
   const navigate = useNavigate();
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const selectedProjectId = projectStore((state) => state.selectedProjectId);
-  const projectId = routeProjectId ?? selectedProjectId ?? '1';
+  const projectId = routeProjectId ?? selectedProjectId;
+  if (!projectId) return <ProjectContextMissing />;
+  return <SchedulerPageContent navigate={navigate} projectId={projectId} />;
+};
+
+const SchedulerPageContent: React.FC<{ projectId: string; navigate: ReturnType<typeof useNavigate> }> = ({ projectId, navigate }) => {
   const { schedules, isLoading, create, update, remove, runNow, enable, disable } = useSchedules(projectId);
 
   const breadcrumbItems = [

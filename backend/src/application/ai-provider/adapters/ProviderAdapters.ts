@@ -11,6 +11,7 @@ export { OllamaAdapter };
 export class OpenAIAdapter extends BaseAIProviderAdapter {
   readonly type: AIProviderType = 'OpenAI';
   readonly category: string = 'OpenAI';
+  override readonly capability = 'LIVE' as const;
   protected readonly defaultModel: string = 'gpt-4o';
   protected readonly defaultEndpoint: string = 'https://api.openai.com/v1';
   protected readonly inputCostPer1K = 0.005;
@@ -97,6 +98,7 @@ export class OpenAIAdapter extends BaseAIProviderAdapter {
 export class GroqAdapter extends OpenAIAdapter {
   override readonly type: AIProviderType = 'Groq';
   override readonly category: string = 'Groq';
+  override readonly capability = 'LIVE' as const;
   protected override readonly defaultModel: string = 'llama-3.3-70b-versatile';
   protected override readonly defaultEndpoint: string = 'https://api.groq.com/openai/v1';
 }
@@ -159,6 +161,7 @@ export class AWSBedrockAdapter extends BaseAIProviderAdapter {
 export class CustomAdapter extends BaseAIProviderAdapter {
   readonly type: AIProviderType = 'Custom';
   readonly category = 'Custom';
+  override readonly capability = 'UNAVAILABLE' as const;
   protected readonly defaultModel = 'custom-model';
   protected readonly inputCostPer1K = 0;
   protected readonly outputCostPer1K = 0;

@@ -56,6 +56,24 @@ export interface MutationProvenance {
   mutatedValue: unknown;
 }
 
+export type GenerationMode = 'DETERMINISTIC' | 'AI_GENERATED' | 'HYBRID' | 'FALLBACK';
+
+/** Immutable, identifier-only snapshot of why a test design was generated. */
+export interface GenerationProvenance {
+  generatedAt: number;
+  mode: GenerationMode;
+  requirement: { id: string; version: number };
+  acceptanceCriteria: Array<{ id: string; version: number }>;
+  operation?: { id: string; serviceId: string; operationVersion: number; serviceVersion?: string };
+  mapping: { confidence: number; state: MappingState; provenance: MappingProvenance };
+  knowledgeSourceIds: string[];
+  testData: { datasetId?: string; fieldRuleIds: string[]; sourceFields: string[] };
+  mutation?: Pick<MutationProvenance, 'strategy' | 'location' | 'fieldPath' | 'schemaRule'>;
+  ai?: { providerId: string; provider: string; model: string; promptTemplateId?: string; promptVersion?: string; attemptedAt?: number; attempts?: number; validationStatus?: 'VALID' | 'INVALID' | 'REPAIRED'; outcome?: 'SUCCESS' | 'FAILED'; failureCategory?: string };
+  fallback?: { from: 'AI_GENERATED'; reason: string };
+  budget?: { maxTotalScenarios: number; maxMutationsPerOperationField: number; allocation: { positive: number; negative: number; edge: number }; riskScore: number; selectionReason: string; omittedScenarioFamilies: Array<{ scenarioId: string; family: string; reason: string }> };
+}
+
 export class TestDesignEntity {
   constructor(
     public readonly id: string,
@@ -84,7 +102,9 @@ export class TestDesignEntity {
     public readonly acceptanceCriterionId?: string,
     public readonly scenarioId?: string,
     public readonly dependencies: OperationDependency[] = [],
-    public readonly mutationProvenance?: MutationProvenance
+    public readonly mutationProvenance?: MutationProvenance,
+    /** Set once at generation; later edits must not rewrite this snapshot. */
+    public readonly generationProvenance?: GenerationProvenance,
   ) {}
 }
 

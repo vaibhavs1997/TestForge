@@ -6,24 +6,25 @@ import { assertionService } from '../services';
 import type { Assertion, AssertionFormData } from '../types';
 import { queryKeys } from '../../../constants';
 
-export function useAssertions(projectId: string) {
+export function useAssertions(projectId?: string) {
   const queryClient = useQueryClient();
-  const queryKey = queryKeys.assertions(projectId);
+  const queryKey = queryKeys.assertions(projectId ?? '');
 
   const { data, isLoading, isError, error, create, update, remove, refetch } = useCRUD({
     queryKey,
     service: {
-      list: () => assertionService.listAssertions(projectId),
-      create: (data: AssertionFormData) => assertionService.createAssertion(projectId, data),
-      update: (id: string, data: Partial<AssertionFormData>) => assertionService.updateAssertion(projectId, id, data),
-      delete: (id: string) => assertionService.deleteAssertion(projectId, id),
+      list: () => projectId ? assertionService.listAssertions(projectId) : Promise.resolve([]),
+      create: (data: AssertionFormData) => projectId ? assertionService.createAssertion(projectId, data) : Promise.reject(new Error('Project context is required')),
+      update: (id: string, data: Partial<AssertionFormData>) => projectId ? assertionService.updateAssertion(projectId, id, data) : Promise.reject(new Error('Project context is required')),
+      delete: (id: string) => projectId ? assertionService.deleteAssertion(projectId, id) : Promise.reject(new Error('Project context is required')),
     },
+    enabled: !!projectId,
   });
 
   // Optimistic toggle (safe, non-destructive)
   const toggleMutation = useMutation({
     mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
-      assertionService.toggleAssertion(projectId, id, enabled),
+      projectId ? assertionService.toggleAssertion(projectId, id, enabled) : Promise.reject(new Error('Project context is required')),
     onMutate: async ({ id, enabled }) => {
       await queryClient.cancelQueries({ queryKey });
       const previous = queryClient.getQueryData<Assertion[]>(queryKey);
@@ -43,7 +44,7 @@ export function useAssertions(projectId: string) {
   });
 
   const duplicateMutation = useMutation({
-    mutationFn: (id: string) => assertionService.duplicateAssertion(projectId, id),
+    mutationFn: (id: string) => projectId ? assertionService.duplicateAssertion(projectId, id) : Promise.reject(new Error('Project context is required')),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
     },

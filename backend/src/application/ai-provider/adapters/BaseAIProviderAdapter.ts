@@ -12,12 +12,14 @@ import type {
   AIProviderStreamChunk,
   AIProviderHealthResult,
   AIProviderType,
+  AIProviderCapability,
 } from '../../../domain/ai-provider/index.js';
 import { DEFAULT_TIMEOUT_MS, DEFAULT_MAX_TOKENS } from '../../../constants/defaults.js';
 
 export abstract class BaseAIProviderAdapter implements AIProviderAdapter {
   abstract readonly type: AIProviderType;
   abstract readonly category: string;
+  readonly capability: AIProviderCapability = 'SIMULATED';
 
   /** Default model name used when config.model is empty. */
   protected abstract readonly defaultModel: string;

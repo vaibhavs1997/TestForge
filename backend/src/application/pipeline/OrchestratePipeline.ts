@@ -22,6 +22,7 @@ import { GenerateFromAnalysis } from '../requirements/GenerateFromAnalysis.js';
 import { ValidateRequirementReadiness } from '../requirements/ValidateRequirementReadiness.js';
 import { PlanTestStrategy } from '../requirements/PlanTestStrategy.js';
 import { GenerateTestDesigns } from '../requirements/GenerateTestDesigns.js';
+import { GenerationProvenanceService } from '../requirements/GenerationProvenanceService.js';
 import { PlanExecution } from '../requirements/PlanExecution.js';
 
 export class OrchestratePipeline {
@@ -36,7 +37,8 @@ export class OrchestratePipeline {
     private readonly apiOperationRepository: ApiOperationRepository,
     private readonly testStrategyRepository: TestStrategyRepository,
     private readonly testDesignRepository: TestDesignRepository,
-    private readonly executionPlanRepository: ExecutionPlanRepository
+    private readonly executionPlanRepository: ExecutionPlanRepository,
+    private readonly generationProvenanceService: GenerationProvenanceService,
   ) {}
 
   async execute(projectId: string): Promise<PipelineEntity> {
@@ -290,7 +292,8 @@ export class OrchestratePipeline {
             this.knowledgeFlowRepository,
             this.datasetRepository,
             this.environmentRepository,
-            this.apiOperationRepository
+            this.apiOperationRepository,
+            this.generationProvenanceService
           );
 
           for (const strategy of testStrategies) {

@@ -29,6 +29,8 @@ export interface ExecutionAttemptMetadata {
   startedAt: number;
   completedAt: number;
 }
+export type ExecutionLineageSource = 'DATASET' | 'GENERATOR' | 'ENVIRONMENT' | 'SECRET' | 'RUNTIME' | 'DEPENDENCY_RESPONSE' | 'MANUAL_OVERRIDE' | 'STATIC';
+export interface ExecutionInputSnapshot { capturedAt: number; baseSnapshotId: string; request: { method: string; url: string; headers: Record<string, string>; body?: unknown }; testCaseVersionId?: string; requirement: { id: string; version?: number }; operation?: { id: string; serviceId?: string; version?: number }; environment: { id: string; version?: number }; dataset?: { id?: string; rowId?: string; rowReference?: string; version?: number }; resolvedFields: Array<{ field: string; source: ExecutionLineageSource; reference?: string; fingerprint?: string; reproducibility?: { generatorType?: string; seed?: string; configVersion?: string; status: 'DETERMINISTIC' | 'PARTIAL' | 'UNSUPPORTED' } }>; fieldRuleIds: Array<{ id: string; version?: number }>; mutation?: { strategy?: string; fieldPath?: string; location?: string }; dependencies: Array<{ sourceOperationId: string; sourcePath?: string; targetPath?: string }>; executionProfileId?: string; }
 
 export interface ExecutionStepResult {
   stepId: string;
@@ -73,6 +75,8 @@ export interface ExecutionStepResult {
     error: string | null;
   }[];
   attempts?: ExecutionAttemptMetadata[];
+  /** Immutable sanitized input lineage, shared by all retry attempts for this step. */
+  executionSnapshot?: ExecutionInputSnapshot;
   resolvedTestData?: {
     resolvedValues: Record<string, any>;
     datasetId?: string;

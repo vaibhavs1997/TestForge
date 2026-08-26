@@ -49,12 +49,16 @@ import { JsonViewer } from '../../../components/shared/JsonViewer';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
 import { EntityDialog } from '../../../components/dialogs/EntityDialog';
 import { datasetService } from '../../test-data/services/datasetService';
+import { columnService } from '../../test-data/services/columnService';
 import { rowService } from '../../test-data/services/rowService';
+import { knowledgeService } from '../../knowledge/services';
 import type { DatasetDto } from '../../../types/moduleContracts';
 import { apiService } from '../../api/services/apiService';
 import { apiAxios } from '../../../services/apiAxios';
+import { getApiErrorMessage } from '../../../services/apiHelpers';
 import { queryKeys } from '../../../constants';
 import { clearLegacyApiWorkspaceState } from '../../../utils/sensitiveBrowserState';
+import { getScopedStorageKey } from '../../../services/authSession';
 import { runSandboxedScript, SCRIPT_SANDBOX_VERSION, type ScriptMutation } from '../utils/scriptSandbox';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
@@ -345,6 +349,20 @@ export function isHydratedForProject(hydratedProjectId: string | null, projectId
   return hydratedProjectId === projectId;
 }
 
+function apiSelectionStorageKey(projectId: string): string {
+  return getScopedStorageKey(`testforge:api-selection:${projectId}`);
+}
+
+function readPersistedApiSelection(projectId: string): SelectionState | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const parsed = JSON.parse(window.sessionStorage.getItem(apiSelectionStorageKey(projectId)) || 'null') as SelectionState | null;
+    return parsed?.kind === 'api-endpoint' && typeof parsed.endpointId === 'string' && typeof parsed.collectionId === 'string' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 function createIdRow(name = '', value = '', description = ''): KeyValueRow {
   return { id: makeId('row'), enabled: true, key: name, value, description };
 }
@@ -542,6 +560,17 @@ function normalizeBearerToken(value: string): string {
   return value.trim().replace(/^Bearer\s+/i, '').trim().replace(/^['"]|['"]$/g, '');
 }
 
+export function extractOAuthTokenResponse(body: string): { accessToken: string; expiresIn: number } | null {
+  const payload = parseJsonSafely(body);
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+  const tokenPayload = payload as Record<string, unknown>;
+  const nestedPayload = tokenPayload.data && typeof tokenPayload.data === 'object' && !Array.isArray(tokenPayload.data)
+    ? tokenPayload.data as Record<string, unknown>
+    : {};
+  const accessToken = normalizeBearerToken(String(tokenPayload.access_token || tokenPayload.accessToken || nestedPayload.access_token || nestedPayload.accessToken || ''));
+  return accessToken ? { accessToken, expiresIn: Number(tokenPayload.expires_in || nestedPayload.expires_in || 0) } : null;
+}
+
 function extractPathParams(url: string): string[] {
   const matches = [
     ...(url.match(/\{([^}]+)\}/g) ?? []),
@@ -586,6 +615,27 @@ export function resolveUrl(url: string, pathParams: Record<string, string>, quer
   const withEnv = replaceTemplateVariables(url, env);
   const withPath = applyPathParameters(withEnv, pathParams);
   return appendQueryString(withPath, queryParams);
+}
+
+/**
+ * Older Postman imports can contain both the discovered service origin and an
+ * unresolved `{{base_url}}` prefix. Keep the concrete service URL and remove
+ * only that duplicate prefix; ordinary request variables remain untouched.
+ */
+export function normalizeDuplicatedBaseUrlTemplate(url: string): string {
+  return url.replace(/^(https?:\/\/[^/?#]+)\/\{\{[^}]+\}\}(?=\/|$)/i, '$1');
+}
+
+/** Prefer Postman's original URL expression over its import-time executable
+ * URL. OpenAPI and older imports continue to use their canonical URL. */
+export function requestEditorUrl(operation: { requestUrl?: string | null; sourceOperation?: { raw?: unknown } | null }, fallback: string): string {
+  const raw = operation.sourceOperation?.raw;
+  const template = raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? (raw as { requestUrlTemplate?: unknown }).requestUrlTemplate
+    : undefined;
+  return normalizeDuplicatedBaseUrlTemplate(
+    typeof template === 'string' && template.trim() ? template : operation.requestUrl || fallback,
+  );
 }
 
 export function rowsToRecord(rows: KeyValueRow[]): Record<string, string> {
@@ -738,6 +788,35 @@ function parseTokenExpiry(value: string): number {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
+/** A freshly pasted token remains available only in the current editor
+ * session. The durable environment copy is still written through the secret
+ * store and is not read back into the browser. */
+export function withPendingEnvironmentToken(variables: Record<string, string>, pendingToken: string): Record<string, string> {
+  const value = pendingToken.trim();
+  return value ? { ...variables, accessToken: value, access_token: value } : variables;
+}
+
+export function isUsableOAuthToken(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const token = normalizeBearerToken(value).trim();
+  return Boolean(token)
+    && !/^\{\{[^}]+\}\}$/.test(token)
+    && !/^\[redacted\]$/i.test(token)
+    && !/^[•*]+$/.test(token);
+}
+
+export function getOAuthTokenState(
+  authType: AuthType,
+  hasResolvedToken: boolean,
+  hasConfiguredReference: boolean,
+  tokenExpiryMs: number,
+  now: number,
+): 'Not required' | 'Missing token' | 'Token reference configured' | 'Expired' | 'Active' {
+  if (authType === 'none') return 'Not required';
+  if (!hasResolvedToken) return hasConfiguredReference ? 'Token reference configured' : 'Missing token';
+  return tokenExpiryMs > 0 && now >= tokenExpiryMs ? 'Expired' : 'Active';
+}
+
 function sanitizeDraftForStorage(draft: RequestDraft): PersistedRequestDraft {
   return {
     ...cloneJson(draft),
@@ -777,6 +856,113 @@ function applyScriptMutations(draft: RequestDraft, mutations: ScriptMutation[]):
     if (mutation.type === 'setBody') draft.rawBody = mutation.value;
     if (mutation.type === 'setAuthType' && ['none', 'bearer', 'basic', 'api-key', 'oauth2'].includes(mutation.value)) draft.auth.type = mutation.value as AuthType;
   });
+}
+
+export function savedEditorTemplate(sourceOperation: { raw?: unknown } | null | undefined): PersistedRequestDraft | null {
+  const raw = sourceOperation?.raw;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const template = (raw as { requestEditor?: unknown }).requestEditor;
+  if (!template || typeof template !== 'object' || Array.isArray(template)) return null;
+  return template as PersistedRequestDraft;
+}
+
+export function sourceOperationWithSavedEditor(sourceOperation: {
+  raw?: unknown;
+  parameters?: unknown;
+  requestBody?: unknown;
+  responses?: unknown;
+  security?: unknown;
+  servers?: unknown;
+  tags?: unknown;
+  requestContentTypes?: unknown;
+  responseContentTypes?: unknown;
+} | null | undefined, draft: PersistedRequestDraft): Record<string, unknown> {
+  const raw = sourceOperation?.raw;
+  const rawOperation = raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? cloneJson(raw as Record<string, unknown>)
+    : {};
+  // API DTOs deliberately split the raw operation from resolved metadata.
+  // Reconstruct the original snapshot before adding the editor template, so
+  // saving request tabs cannot discard schemas, responses, or security data.
+  return {
+    rawOperation,
+    parameters: sourceOperation?.parameters ?? [],
+    requestBody: sourceOperation?.requestBody ?? null,
+    responses: sourceOperation?.responses ?? null,
+    security: sourceOperation?.security ?? [],
+    servers: sourceOperation?.servers ?? [],
+    tags: sourceOperation?.tags ?? [],
+    requestContentTypes: sourceOperation?.requestContentTypes ?? [],
+    responseContentTypes: sourceOperation?.responseContentTypes ?? [],
+    requestEditor: draft,
+  };
+}
+
+/** Restore the exact Postman body editor mode instead of guessing from a
+ * flattened sample payload after an API-workspace refresh. */
+export function applyPostmanBodyTemplate(draft: RequestDraft, source: unknown): boolean {
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return false;
+  const body = (source as { requestBody?: unknown }).requestBody;
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
+  const postmanBody = body as Record<string, unknown>;
+  const mode = String(postmanBody.mode || '').toLowerCase();
+  const rows = (key: 'urlencoded' | 'formdata') => Array.isArray(postmanBody[key])
+    ? postmanBody[key].flatMap((entry) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return [];
+      const row = entry as Record<string, unknown>;
+      const name = String(row.key || '').trim();
+      return name && row.disabled !== true ? [createIdRow(name, String(row.value || ''), String(row.description || ''))] : [];
+    })
+    : [];
+  if (mode === 'urlencoded') {
+    draft.bodyMode = 'x-www-form-urlencoded';
+    draft.urlEncodedRows = rows('urlencoded');
+    return true;
+  }
+  if (mode === 'formdata') {
+    draft.bodyMode = 'form-data';
+    draft.formDataRows = rows('formdata');
+    return true;
+  }
+  if (mode === 'raw' && typeof postmanBody.raw === 'string') {
+    const language = String((postmanBody.options as { raw?: { language?: unknown } } | undefined)?.raw?.language || '').toLowerCase();
+    draft.bodyMode = 'raw';
+    draft.rawBody = postmanBody.raw;
+    draft.rawBodyType = language === 'xml' ? 'xml' : language === 'html' ? 'html' : language === 'javascript' ? 'javascript' : language === 'text' ? 'text' : 'json';
+    return true;
+  }
+  if (mode === 'graphql' && postmanBody.graphql && typeof postmanBody.graphql === 'object' && !Array.isArray(postmanBody.graphql)) {
+    const graphql = postmanBody.graphql as Record<string, unknown>;
+    draft.bodyMode = 'graphql';
+    draft.graphqlQuery = String(graphql.query || '');
+    draft.graphqlVariables = stringifyJson(graphql.variables ?? {});
+    return true;
+  }
+  return false;
+}
+
+export function flattenBodyFields(value: unknown, prefix = '', output: Array<{ path: string; type: string }> = []): Array<{ path: string; type: string }> {
+  if (Array.isArray(value)) {
+    const arrayPath = `${prefix}[]`;
+    if (value.length > 0 && typeof value[0] === 'object') flattenBodyFields(value[0], arrayPath, output);
+    else if (prefix) output.push({ path: arrayPath, type: 'array' });
+    return output;
+  }
+  if (value && typeof value === 'object') {
+    Object.entries(value as Record<string, unknown>).forEach(([key, child]) => {
+      const path = prefix ? `${prefix}.${key}` : key;
+      if (child && typeof child === 'object') flattenBodyFields(child, path, output);
+      else output.push({ path, type: child === null ? 'string' : typeof child });
+    });
+  }
+  return output;
+}
+
+function responsePaths(value: unknown, prefix = '$', output: string[] = []): string[] {
+  if (!value || typeof value !== 'object') return output;
+  if (Array.isArray(value)) { if (value.length) responsePaths(value[0], `${prefix}[0]`, output); return output; }
+  Object.entries(value as Record<string, unknown>).forEach(([key, child]) => { const path = `${prefix}.${key}`; output.push(path); responsePaths(child, path, output); });
+  return output;
 }
 
 function parseEnvFile(text: string): { entries: EnvLine[]; variables: Record<string, string> } {
@@ -1498,10 +1684,14 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
   const syncedApiArtifactIdsRef = React.useRef<Set<string>>(new Set());
   const apiSyncPromisesRef = React.useRef<Set<Promise<unknown>>>(new Set());
   const apiSyncDisabledRef = React.useRef(false);
-  const payloadSyncRef = React.useRef<Record<string, string>>({});
   const autoTokenEnvironmentIdRef = React.useRef<string | null>(null);
+  const savedPendingEnvironmentTokenRef = React.useRef('');
   const sharedEnvironmentSyncRef = React.useRef('');
   const syncedEnvironmentArtifactIdsRef = React.useRef<Set<string>>(new Set());
+  const environmentSyncPromisesRef = React.useRef<Set<Promise<unknown>>>(new Set());
+  const deletedEnvironmentNamesRef = React.useRef<Set<string>>(new Set());
+  const restoredApiSelectionProjectRef = React.useRef<string | null>(null);
+  const initializedEnvironmentSelectionRef = React.useRef(false);
 
   const [importedArtifacts, setImportedArtifacts] = React.useState<ImportedArtifact[]>([]);
   const [manualRequests, setManualRequests] = React.useState<ManualRequestRecord[]>([]);
@@ -1510,6 +1700,8 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
   const savedRequestsRef = React.useRef<SavedRequestRecord[]>(savedRequests);
   const [history, setHistory] = React.useState<HistoryRecord[]>([]);
   const [activeEnvironmentId, setActiveEnvironmentId] = React.useState('');
+  const [pendingEnvironmentToken, setPendingEnvironmentToken] = React.useState('');
+  const [tokenPopoverOpen, setTokenPopoverOpen] = React.useState(false);
   const [testDataDatasets, setTestDataDatasets] = React.useState<DatasetDto[]>([]);
 
   const [selection, setSelection] = React.useState<SelectionState | null>(null);
@@ -1528,6 +1720,7 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
   const [expandedCollections, setExpandedCollections] = React.useState<Record<string, boolean>>({});
   const [expandedFolders, setExpandedFolders] = React.useState<Record<string, boolean>>({});
   const [activeRequestLog, setActiveRequestLog] = React.useState<string>('Ready to send');
+  const [useTestData, setUseTestData] = React.useState(false);
   const [lastScriptOutput, setLastScriptOutput] = React.useState<string[]>([]);
   // Hydration is tied to the route project, not merely to whether this page
   // has hydrated at least once. Without this distinction, a project change
@@ -1551,6 +1744,7 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
   const [apiImportBusy, setApiImportBusy] = React.useState(false);
   const [environmentSearch, setEnvironmentSearch] = React.useState('');
   const [environmentActionBusy, setEnvironmentActionBusy] = React.useState(false);
+  const [environmentActionError, setEnvironmentActionError] = React.useState('');
 
   React.useEffect(() => {
     let cancelled = false;
@@ -1596,6 +1790,7 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
     setSelection(null);
     setDraft(createDraft());
     setActiveEnvironmentId('');
+    initializedEnvironmentSelectionRef.current = false;
     setHydratedProjectId(projectId);
   }, [projectId]);
 
@@ -1620,6 +1815,67 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
       });
     }
   }, [importedArtifacts, lastHydrated, projectId]);
+
+  // Rehydrate API collections from the shared backend repository when this
+  // page is remounted. The overview and other modules read these records from
+  // the backend, so the explorer must not depend on a previous in-memory tab.
+  React.useEffect(() => {
+    if (!lastHydrated || sharedApiServices.length === 0 || sharedApiOperations.length === 0) return;
+    setImportedArtifacts((current) => {
+      if (current.some((artifact) => artifact.kind === 'api')) return current;
+
+      const collections = sharedApiServices.map((service): ImportedApiCollection => {
+        const serviceOperations = sharedApiOperations.filter((operation) => operation.serviceId === service.id);
+        const endpoints: ImportedApiEndpoint[] = serviceOperations.map((operation) => {
+          const savedTemplate = savedEditorTemplate(operation.sourceOperation);
+          const requestTemplate = savedTemplate ? cloneJson(savedTemplate) : createDraft();
+          requestTemplate.name = operation.name || `${operation.method} ${operation.path}`;
+          requestTemplate.method = (operation.method.toUpperCase() as HttpMethod);
+          requestTemplate.url = requestEditorUrl(operation, `${service.baseUrl || ''}${operation.path}`);
+          const importedHeaders = Array.isArray((operation.sourceOperation?.raw as { requestHeaders?: unknown } | undefined)?.requestHeaders)
+            ? ((operation.sourceOperation?.raw as { requestHeaders: unknown[] }).requestHeaders).flatMap((entry) => {
+              if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return [];
+              const header = entry as { name?: unknown; value?: unknown };
+              const name = String(header.name || '').trim();
+              return name ? [createHeaderRow(name, String(header.value || ''))] : [];
+            })
+            : [];
+          if (!savedTemplate) requestTemplate.headers = importedHeaders.length > 0 ? importedHeaders : requestTemplate.headers;
+          const restoredPostmanBody = !savedTemplate && applyPostmanBodyTemplate(requestTemplate, operation.sourceOperation?.raw);
+          requestTemplate.rawBody = !savedTemplate && !restoredPostmanBody && operation.sampleRequestBody
+            ? JSON.stringify(operation.sampleRequestBody, null, 2)
+            : requestTemplate.rawBody;
+          return {
+            id: operation.id,
+            backendOperationId: operation.id,
+            backendServiceId: service.id,
+            groupId: service.id,
+            groupName: service.name,
+            name: operation.name || `${operation.method} ${operation.path}`,
+            method: operation.method.toUpperCase() as HttpMethod,
+            path: operation.path,
+            url: requestTemplate.url,
+            description: operation.description || '',
+            requestTemplate,
+            raw: operation.sourceOperation?.raw || {},
+          };
+        });
+        return {
+          id: service.id,
+          kind: 'api',
+          name: service.name,
+          sourceFormat: 'backend',
+          rawText: '',
+          parsed: null,
+          lineCount: endpoints.length,
+          summary: `${endpoints.length} endpoint${endpoints.length === 1 ? '' : 's'} from shared API contract`,
+          endpoints,
+        };
+      }).filter((collection) => collection.endpoints.length > 0);
+
+      return collections.length > 0 ? [...current, ...collections] : current;
+    });
+  }, [lastHydrated, sharedApiOperations, sharedApiServices]);
 
   React.useEffect(() => {
     if (!lastHydrated) return;
@@ -1648,18 +1904,22 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
       (artifact): artifact is ImportedEnvironment => artifact.kind === 'env'
         && artifact.sourceFormat !== 'auto'
         && !managedNames.has(artifact.name.trim().toLowerCase())
+        && !deletedEnvironmentNamesRef.current.has(artifact.name.trim().toLowerCase())
         && !syncedEnvironmentArtifactIdsRef.current.has(artifact.id),
     );
     if (localOnly.length === 0) return;
     localOnly.forEach((artifact) => syncedEnvironmentArtifactIdsRef.current.add(artifact.id));
-    void environmentService.batchUpsertEnvironments(projectId, localOnly.map((artifact) => ({
+    const syncPromise = environmentService.batchUpsertEnvironments(projectId, localOnly.map((artifact) => ({
       name: artifact.name,
       baseUrl: resolveEnvironmentBaseUrl(artifact.variables),
       variables: artifact.variables,
-    }))).then(() => queryClient.invalidateQueries({ queryKey: queryKeys.environments(projectId) }))
+    }))).then(() => queryClient.invalidateQueries({ queryKey: queryKeys.environments(projectId) }));
+    environmentSyncPromisesRef.current.add(syncPromise);
+    void syncPromise
       .catch(() => {
         localOnly.forEach((artifact) => syncedEnvironmentArtifactIdsRef.current.delete(artifact.id));
-      });
+      })
+      .finally(() => environmentSyncPromisesRef.current.delete(syncPromise));
   }, [importedArtifacts, lastHydrated, managedEnvironments, projectId, queryClient]);
 
   React.useEffect(() => {
@@ -1744,10 +2004,25 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
   }, [activeEnvironmentId, lastHydrated, projectId, queryClient]);
 
   React.useEffect(() => {
-    if (activeEnvironmentId && environments.some((environment) => environment.id === activeEnvironmentId)) return;
-    if (environments.length > 0) setActiveEnvironmentId(environments[0].id);
-    else if (activeEnvironmentId) setActiveEnvironmentId('');
-  }, [activeEnvironmentId, environments]);
+    if (activeEnvironmentId && environments.some((environment) => environment.id === activeEnvironmentId)) {
+      initializedEnvironmentSelectionRef.current = true;
+      return;
+    }
+    if (activeEnvironmentId) {
+      setActiveEnvironmentId('');
+      return;
+    }
+    // Use the first environment only for the initial page load. Once the user
+    // chooses “No environment”, keep that explicit selection.
+    // Restore only the environment the user previously selected. A project
+    // with no saved default remains on "No environment".
+    if (!initializedEnvironmentSelectionRef.current && environments.length > 0) {
+      initializedEnvironmentSelectionRef.current = true;
+      const savedDefault = managedEnvironments.find((environment) => environment.isDefault
+        && environments.some((candidate) => candidate.id === environment.id));
+      if (savedDefault) setActiveEnvironmentId(savedDefault.id);
+    }
+  }, [activeEnvironmentId, environments, managedEnvironments]);
 
   const selectedApiEndpoint = React.useMemo(() => {
     if (selection?.kind !== 'api-endpoint') return null;
@@ -1757,6 +2032,33 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
     }
     return null;
   }, [apiCollections, selection]);
+
+  // Keep only the selected endpoint identity across a refresh. Request drafts,
+  // responses, headers, and credentials remain memory-only.
+  React.useEffect(() => {
+    if (!selection || selection.kind !== 'api-endpoint') return;
+    try {
+      window.sessionStorage.setItem(apiSelectionStorageKey(projectId), JSON.stringify(selection));
+    } catch {
+      // Storage may be unavailable; the current selection still works.
+    }
+  }, [projectId, selection]);
+
+  React.useEffect(() => {
+    if (!lastHydrated || apiCollections.length === 0 || restoredApiSelectionProjectRef.current === projectId) return;
+    restoredApiSelectionProjectRef.current = projectId;
+    const saved = readPersistedApiSelection(projectId);
+    if (!saved) return;
+    const collection = apiCollections.find((candidate) => candidate.id === saved.collectionId);
+    const endpoint = collection?.endpoints.find((candidate) => candidate.id === saved.endpointId);
+    if (!collection || !endpoint) {
+      try { window.sessionStorage.removeItem(apiSelectionStorageKey(projectId)); } catch { /* storage may be unavailable */ }
+      return;
+    }
+    setExpandedCollections((current) => ({ ...current, [collection.id]: true }));
+    setSelection(saved);
+    setDraft(cloneJson(endpoint.requestTemplate));
+  }, [apiCollections, lastHydrated, projectId]);
 
   const visibleApiCollections = React.useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -1813,37 +2115,6 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
       });
     }
   }, [selectedApiEndpoint, selection, draftCache]);
-
-  // Keep the shared operation in sync with edits made in the API workspace.
-  // Requirements and test generation read this persisted sample body.
-  React.useEffect(() => {
-    if (!lastHydrated || selection?.kind !== 'api-endpoint' || !selectedApiEndpoint) return;
-    const payload = payloadFromDraft(draft);
-    const signature = JSON.stringify(payload);
-    const timer = window.setTimeout(() => {
-      void (async () => {
-        const services = await apiService.listServices(projectId);
-        const groups = await Promise.all(services.map(async (service) => ({
-          service,
-          operations: await apiService.listOperations(projectId, service.id),
-        })));
-        const operations = groups.flatMap(({ operations }) => operations.filter((operation) =>
-          operation.method.toUpperCase() === draft.method.toUpperCase()
-          && (comparableApiPath(operation.path) === comparableApiPath(selectedApiEndpoint.path)
-            || operation.name.trim().toLowerCase() === selectedApiEndpoint.name.trim().toLowerCase()),
-        ));
-        const pending = operations.filter((operation) => {
-          const syncKey = `${operation.id}:${signature}`;
-          if (payloadSyncRef.current[operation.id] === syncKey) return false;
-          payloadSyncRef.current[operation.id] = syncKey;
-          return true;
-        });
-        await Promise.all(pending.map((operation) => apiService.updateOperation(projectId, operation.serviceId, operation.id, { sampleRequestBody: payload })));
-        if (pending.length > 0) await queryClient.invalidateQueries({ queryKey: queryKeys.operations(projectId) });
-      })().catch(() => undefined);
-    }, 500);
-    return () => window.clearTimeout(timer);
-  }, [apiCollections, draft, lastHydrated, projectId, queryClient, selectedApiEndpoint, selection, sharedApiOperations]);
 
   React.useEffect(() => {
     manualRequestsRef.current = manualRequests;
@@ -1921,6 +2192,13 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
   };
 
   const saveCurrentRequest = async () => {
+    const tokenToSave = pendingEnvironmentToken.trim();
+    if (tokenToSave && tokenToSave !== savedPendingEnvironmentTokenRef.current) {
+      await updateEnvironmentToken(tokenToSave);
+      // Keep it visible only for this open editor session. A reload receives
+      // the secure masked environment record instead of the secret value.
+      savedPendingEnvironmentTokenRef.current = tokenToSave;
+    }
     const persisted = sanitizeDraftForStorage(draft);
     const now = Date.now();
     const confirmation = `Saved ${draft.name}`;
@@ -1938,46 +2216,32 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
       if (key) {
         setDraftCache((current) => ({ ...current, [key]: persisted }));
       }
-      const selectedCollection = apiCollections.find((collection) => collection.endpoints.some((endpoint) => endpoint.id === selection.endpointId));
-      const candidates = sharedApiOperations.filter((operation) =>
-        operation.method.toUpperCase() === persisted.method.toUpperCase()
-        && comparableApiPath(operation.path) === comparableApiPath(selectedApiEndpoint?.path),
-      );
-      const serviceOperation = candidates.find((operation) =>
-        operation.serviceName?.toLowerCase() === selectedCollection?.name?.toLowerCase(),
-      );
       try {
-        // Always read the authoritative backend list. The cached operation
-        // query can contain the pre-import record or an old duplicate.
+        // An imported request has a durable operation ID. Updating by method
+        // and path is unsafe because Postman permits several named requests
+        // at the same URL (for example dev/uat/prod token requests).
+        const operationId = selectedApiEndpoint?.backendOperationId || selection.endpointId;
         const services = await apiService.listServices(projectId);
         const operationGroups = await Promise.all(services.map(async (service) => ({
           service,
           operations: await apiService.listOperations(projectId, service.id),
         })));
-        const authoritative = operationGroups.flatMap(({ service, operations }) => operations
-          .filter((operation) => operation.method.toUpperCase() === persisted.method.toUpperCase()
-            && (comparableApiPath(operation.path) === comparableApiPath(selectedApiEndpoint?.path)
-              || operation.name.trim().toLowerCase() === (selectedApiEndpoint?.name || persisted.name).trim().toLowerCase()))
-          .map((operation) => ({ ...operation, serviceName: service.name })));
-        const byId = new Map(authoritative.map((operation) => [operation.id, operation]));
-        // Keep every matching backend operation in sync. A project can have
-        // duplicate records after repeated contract imports; Requirements
-        // may map to any of them, so updating only the cached ID can leave a
-        // stale import-time payload behind.
-        let operationsToSync = Array.from(byId.values());
-        if (operationsToSync.length === 0) operationsToSync = serviceOperation ? [serviceOperation] : candidates;
-        if (operationsToSync.length === 0) {
+        const target = operationGroups.flatMap(({ service, operations }) => operations.map((operation) => ({ operation, service })))
+          .find(({ operation }) => operation.id === operationId);
+        if (!target) {
           setActiveRequestLog('Saved locally, but no matching backend API operation was found');
           return;
         }
-        await Promise.all(operationsToSync.map((operation) => apiService.updateOperation(projectId, operation.serviceId, operation.id, {
-          name: persisted.name.trim() || operation.name,
+        await apiService.updateOperation(projectId, target.service.id, target.operation.id, {
+          name: persisted.name.trim() || target.operation.name,
           method: persisted.method,
           path: comparableApiPath(persisted.url),
+          requestUrl: persisted.url,
           authenticationType: persisted.auth.type,
           status: 'active',
           sampleRequestBody: payloadFromDraft(persisted),
-        })));
+          sourceOperation: sourceOperationWithSavedEditor(target.operation.sourceOperation, persisted),
+        });
         await queryClient.invalidateQueries({ queryKey: queryKeys.operations(projectId) });
       } catch {
         setActiveRequestLog('Saved locally, but backend payload sync failed');
@@ -2023,9 +2287,11 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
             name: operationName,
             method: persisted.method,
             path,
+            requestUrl: persisted.url,
             authenticationType: persisted.auth.type,
             status: 'active',
             sampleRequestBody: payloadFromDraft(persisted),
+            sourceOperation: sourceOperationWithSavedEditor(operation.sourceOperation, persisted),
           });
         } else {
           operation = await apiService.createOperation(projectId, service.id, {
@@ -2037,6 +2303,8 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
           });
           operation = await apiService.updateOperation(projectId, service.id, operation.id, {
             sampleRequestBody: payloadFromDraft(persisted),
+            requestUrl: persisted.url,
+            sourceOperation: { requestEditor: persisted },
           });
         }
 
@@ -2255,18 +2523,59 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
       const linkedCollections = collections.map((collection) => ({
         ...collection,
         endpoints: collection.endpoints.map((endpoint) => {
-          const operation = allOperations.find((candidate) =>
-            candidate.method.toUpperCase() === endpoint.method.toUpperCase()
-            && (comparableApiPath(candidate.path) === comparableApiPath(endpoint.path)
-              || candidate.name.trim().toLowerCase() === endpoint.name.trim().toLowerCase()),
-          );
+          const candidates = allOperations.filter((candidate) => candidate.method.toUpperCase() === endpoint.method.toUpperCase());
+          const operation = candidates.find((candidate) => candidate.name.trim().toLowerCase() === endpoint.name.trim().toLowerCase())
+            ?? (() => {
+              const pathMatches = candidates.filter((candidate) => comparableApiPath(candidate.path) === comparableApiPath(endpoint.path));
+              return pathMatches.length === 1 ? pathMatches[0] : undefined;
+            })();
           return operation ? { ...endpoint, backendOperationId: operation.id, backendServiceId: operation.serviceId } : endpoint;
         }),
       }));
 
-      setImportedArtifacts((current) => [...current, ...linkedCollections, ...syncedEnvironments, ...unknowns]);
-      if (syncedEnvironments.length > 0 && !activeEnvironmentId) setActiveEnvironmentId(syncedEnvironments[0].id);
-      const firstCollection = linkedCollections[0];
+      // The backend is the durable contract source. Use its exact normalized
+      // representation immediately after import so the first render and every
+      // later refresh show the same endpoint fields and tab values.
+      const canonicalCollections = linkedCollections.map((collection) => ({
+        ...collection,
+        endpoints: collection.endpoints.map((endpoint) => {
+          const operation = allOperations.find((candidate) => candidate.id === endpoint.backendOperationId);
+          if (!operation) return endpoint;
+          const service = allServices.find((candidate) => candidate.id === operation.serviceId);
+          const requestTemplate = createDraft();
+          requestTemplate.name = operation.name || `${operation.method} ${operation.path}`;
+          requestTemplate.method = operation.method.toUpperCase() as HttpMethod;
+          requestTemplate.url = requestEditorUrl(operation, `${service?.baseUrl || ''}${operation.path}`);
+          const requestHeaders = (operation.sourceOperation?.raw as { requestHeaders?: unknown } | undefined)?.requestHeaders;
+          if (Array.isArray(requestHeaders)) {
+            const headers = requestHeaders.flatMap((entry) => {
+              if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return [];
+              const header = entry as { name?: unknown; value?: unknown };
+              const name = String(header.name || '').trim();
+              return name ? [createHeaderRow(name, String(header.value || ''))] : [];
+            });
+            if (headers.length > 0) requestTemplate.headers = headers;
+          }
+          const restoredPostmanBody = applyPostmanBodyTemplate(requestTemplate, operation.sourceOperation?.raw);
+          if (!restoredPostmanBody && operation.sampleRequestBody) requestTemplate.rawBody = JSON.stringify(operation.sampleRequestBody, null, 2);
+          return {
+            ...endpoint,
+            id: operation.id,
+            backendOperationId: operation.id,
+            backendServiceId: operation.serviceId,
+            name: requestTemplate.name,
+            method: requestTemplate.method,
+            path: operation.path,
+            url: requestTemplate.url,
+            description: operation.description || '',
+            requestTemplate,
+            raw: operation.sourceOperation?.raw || {},
+          };
+        }),
+      }));
+
+      setImportedArtifacts((current) => [...current, ...canonicalCollections, ...syncedEnvironments, ...unknowns]);
+      const firstCollection = canonicalCollections[0];
       const firstEndpoint = firstCollection?.endpoints[0];
       if (firstEndpoint) {
         setExpandedCollections((current) => ({ ...current, [firstCollection.id]: true }));
@@ -2290,19 +2599,13 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
   };
 
   const captureOAuthToken = (responseState: ResponseState) => {
-    if (!responseState.isJson) return;
+    if (!responseState.isJson || !responseState.status || responseState.status < 200 || responseState.status >= 300) return;
     const targetEnvironmentId = activeEnvironmentId || environments[0]?.id || autoTokenEnvironmentIdRef.current || makeId('auto-env');
     autoTokenEnvironmentIdRef.current = targetEnvironmentId;
     if (!activeEnvironmentId) setActiveEnvironmentId(targetEnvironmentId);
-    const payload = parseJsonSafely(responseState.body);
-    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return;
-    const tokenPayload = payload as Record<string, unknown>;
-    const nestedPayload = tokenPayload.data && typeof tokenPayload.data === 'object' && !Array.isArray(tokenPayload.data)
-      ? tokenPayload.data as Record<string, unknown>
-      : {};
-    const accessToken = normalizeBearerToken(String(tokenPayload.access_token || tokenPayload.accessToken || nestedPayload.access_token || nestedPayload.accessToken || ''));
-    if (!accessToken) return;
-    const expiresIn = Number(tokenPayload.expires_in || 0);
+    const capturedToken = extractOAuthTokenResponse(responseState.body);
+    if (!capturedToken) return;
+    const { accessToken, expiresIn } = capturedToken;
     const activeEnvironmentArtifact = importedArtifacts.find((artifact): artifact is ImportedEnvironment => artifact.kind === 'env' && artifact.id === targetEnvironmentId);
     const managedTokenEnvironment = managedEnvironments.find((environment) =>
       environment.id === targetEnvironmentId
@@ -2312,10 +2615,16 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
     const tokenKey = hasSnakeCaseToken ? 'access_token' : 'accessToken';
     const syncedVariables: Record<string, string> = {
       ...(activeEnvironmentArtifact?.variables || {}),
-      [tokenKey]: accessToken,
       accessToken,
+      access_token: accessToken,
       ...(expiresIn > 0 ? { tokenExpiresAt: String(Date.now() + expiresIn * 1000) } : {}),
     };
+
+    // The new token takes precedence immediately for this browser session as
+    // well as in the persisted active environment. No paste or Save action is
+    // required after a successful token-generation response.
+    setPendingEnvironmentToken(accessToken);
+    savedPendingEnvironmentTokenRef.current = accessToken;
 
     setImportedArtifacts((current) => {
       const hasTarget = current.some((artifact) => artifact.kind === 'env' && artifact.id === targetEnvironmentId);
@@ -2450,6 +2759,7 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
   };
 
   const requestDeleteManagedEnvironment = (environment: EnvironmentDto) => {
+    setEnvironmentActionError('');
     setEnvironmentDeleteTarget(environment);
   };
 
@@ -2458,10 +2768,24 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
     const environment = environmentDeleteTarget;
     setEnvironmentActionBusy(true);
     try {
+      const normalizedName = environment.name.trim().toLowerCase();
+      deletedEnvironmentNamesRef.current.add(normalizedName);
+      // Legacy local imports are migrated asynchronously. Remove the matching
+      // artifact before deleting and wait for any migration already in flight;
+      // otherwise it can recreate the environment immediately after a 204.
+      setImportedArtifacts((current) => current.filter((artifact) =>
+        artifact.kind !== 'env'
+        || (artifact.id !== environment.id && artifact.name.trim().toLowerCase() !== normalizedName),
+      ));
+      await Promise.allSettled(Array.from(environmentSyncPromisesRef.current));
       await removeManagedEnvironment(environment.id);
       if (activeEnvironmentId === environment.id) setActiveEnvironmentId('');
       setActiveRequestLog(`Deleted environment ${environment.name}`);
       setEnvironmentDeleteTarget(null);
+    } catch (error) {
+      const message = getApiErrorMessage(error, 'Unable to delete this environment.');
+      setEnvironmentActionError(message);
+      setActiveRequestLog(`Could not delete environment ${environment.name}: ${message}`);
     } finally {
       setEnvironmentActionBusy(false);
     }
@@ -2505,26 +2829,43 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
     if (!activeEnvironment) return {};
     return activeEnvironment.variables;
   }, [activeEnvironment]);
+  const activeManagedEnvironment = React.useMemo(
+    () => managedEnvironments.find((environment) => environment.id === activeEnvironmentId)
+      ?? managedEnvironments.find((environment) => environment.name.trim().toLowerCase() === activeEnvironment?.name.trim().toLowerCase()),
+    [activeEnvironment?.name, activeEnvironmentId, managedEnvironments],
+  );
 
   const urlTemplateVariables = Array.from(draft.url.matchAll(/\{\{([^}]+)\}\}/g), (match) => match[1].trim());
   const missingUrlVariables = urlTemplateVariables.filter(
-    (name) => !Object.prototype.hasOwnProperty.call(currentEnvironmentVariables, name),
+    (name) => !Object.prototype.hasOwnProperty.call(currentEnvironmentVariables, name)
+      || !String(currentEnvironmentVariables[name] ?? '').trim(),
   );
   const hasResolvedUrlVariables = urlTemplateVariables.length > 0 && missingUrlVariables.length === 0;
   const urlVariablePreview = urlTemplateVariables.length > 0
     ? urlTemplateVariables.map((name) => `${name}: ${currentEnvironmentVariables[name] || '(blank)'}`).join('\n')
     : '';
-  const environmentToken = currentEnvironmentVariables.accessToken || currentEnvironmentVariables.access_token || '';
+  const environmentTokenCandidate = pendingEnvironmentToken || currentEnvironmentVariables.accessToken || currentEnvironmentVariables.access_token || '';
+  const environmentToken = isUsableOAuthToken(environmentTokenCandidate) ? environmentTokenCandidate : '';
+  const isMaskedSecret = (value: unknown): boolean => Boolean(value && typeof value === 'object' && ('masked' in value || 'secretRef' in value));
+  const environmentTokenReferenceConfigured = isMaskedSecret((activeManagedEnvironment?.variables as Record<string, unknown> | undefined)?.accessToken)
+    || isMaskedSecret((activeManagedEnvironment?.variables as Record<string, unknown> | undefined)?.access_token);
+  const environmentTokenConfigured = Boolean(environmentToken);
   const rawTokenExpiry = currentEnvironmentVariables.tokenExpiresAt || currentEnvironmentVariables.expires_at || currentEnvironmentVariables.expiresAt || '';
   const tokenExpiryMs = parseTokenExpiry(rawTokenExpiry);
-  const oauthTokenState = !environmentToken ? 'Missing token' : tokenExpiryMs > 0 && tokenNow >= tokenExpiryMs ? 'Expired' : 'Active';
+  const oauthTokenState = getOAuthTokenState(draft.auth.type, environmentTokenConfigured, environmentTokenReferenceConfigured, tokenExpiryMs, tokenNow);
 
-  const updateEnvironmentToken = (value: string) => {
+  const updateEnvironmentToken = async (value: string): Promise<void> => {
     const targetEnvironmentId = activeEnvironmentId || environments[0]?.id || autoTokenEnvironmentIdRef.current || makeId('auto-env');
     autoTokenEnvironmentIdRef.current = targetEnvironmentId;
     if (!activeEnvironmentId) setActiveEnvironmentId(targetEnvironmentId);
     const target = importedArtifacts.find((artifact): artifact is ImportedEnvironment => artifact.kind === 'env' && artifact.id === targetEnvironmentId);
-    const variables: Record<string, string> = { ...(target?.variables || {}), accessToken: value, access_token: value };
+    const managedTokenEnvironment = managedEnvironments.find((environment) =>
+      environment.id === targetEnvironmentId
+      || (target && environment.name.trim().toLowerCase() === target.name.trim().toLowerCase()),
+    );
+    // Preserve existing environment entries (including other masked secret
+    // references) while replacing only the token being pasted.
+    const variables: Record<string, string> = { ...(managedTokenEnvironment?.variables as Record<string, string> || target?.variables || {}), accessToken: value, access_token: value };
     delete variables.tokenExpiresAt;
     delete variables.expires_at;
     delete variables.expiresAt;
@@ -2540,10 +2881,6 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
       if (exists) return updated;
       return [...updated, { id: targetEnvironmentId, kind: 'env' as const, name: 'Default environment', sourceFormat: 'auto', rawText: '', lineCount: 2, summary: 'Environment saved automatically', entries: [{ kind: 'pair' as const, key: 'accessToken', value, raw: `accessToken=${value}` }, { kind: 'pair' as const, key: 'access_token', value, raw: `access_token=${value}` }], variables }];
     });
-    const managedTokenEnvironment = managedEnvironments.find((environment) =>
-      environment.id === targetEnvironmentId
-      || (target && environment.name.trim().toLowerCase() === target.name.trim().toLowerCase()),
-    );
     const persistToken = managedTokenEnvironment
       ? updateManagedEnvironment(managedTokenEnvironment.id, { variables })
       : environmentService.batchUpsertEnvironments(projectId, [{
@@ -2551,7 +2888,8 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
         baseUrl: target ? resolveEnvironmentBaseUrl(target.variables) : '',
         variables,
       }]);
-    void persistToken.then(() => queryClient.invalidateQueries({ queryKey: queryKeys.environments(projectId) }));
+    await persistToken;
+    await queryClient.invalidateQueries({ queryKey: queryKeys.environments(projectId) });
   };
 
 
@@ -2584,9 +2922,14 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
     setActiveRequestLog(`Sending ${draft.method} ${draft.url}`);
 
     let workingDraft = cloneJson(draft);
-    const environmentVariables = { ...currentEnvironmentVariables };
+    const environmentVariables = withPendingEnvironmentToken(currentEnvironmentVariables, pendingEnvironmentToken);
+    // A masked/reference-only token is intentionally not a client-side
+    // credential. Do not substitute it into a manual request as though it
+    // were a usable access token.
+    if (!isUsableOAuthToken(environmentVariables.accessToken)) delete environmentVariables.accessToken;
+    if (!isUsableOAuthToken(environmentVariables.access_token)) delete environmentVariables.access_token;
     const selectedRuntimeKey = runtimeDataKey(selection);
-    const runtimeMappings = selectedRuntimeKey
+    const runtimeMappings = useTestData && selectedRuntimeKey
       ? runtimeData[selectedRuntimeKey] || detectRuntimeFields(workingDraft).map((field) => ({ field, strategy: defaultRuntimeStrategy(field, workingDraft) }))
       : [];
     let datasetValues: Record<string, string> = {};
@@ -2657,6 +3000,61 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
         { ...resolvedQueryParams, ...auth.query },
         environmentVariables,
       );
+
+      // Test Data execution is deliberately server-side: the canonical
+      // resolver can access secrets without persisting or exposing them to
+      // the editor. The cloned draft is only a request template.
+      if (useTestData && selectedApiEndpoint?.backendOperationId) {
+        const testDataUrl = (() => {
+          try {
+            const url = new URL(workingDraft.url);
+            Object.entries(resolvedQueryParams).forEach(([key, value]) => url.searchParams.set(key, String(value)));
+            return url.toString();
+          } catch {
+            return urlWithParams;
+          }
+        })();
+        let executionBody: unknown = undefined;
+        if (workingDraft.bodyMode === 'form-data') {
+          executionBody = Object.fromEntries(workingDraft.formDataRows.filter((row) => row.enabled && row.key.trim()).map((row) => [row.key.trim(), replaceTemplateVariables(row.value, environmentVariables)]));
+        } else if (workingDraft.bodyMode === 'x-www-form-urlencoded') {
+          executionBody = Object.fromEntries(workingDraft.urlEncodedRows.filter((row) => row.enabled && row.key.trim()).map((row) => [row.key.trim(), replaceTemplateVariables(row.value, environmentVariables)]));
+        } else if (workingDraft.bodyMode === 'raw') {
+          const raw = replaceTemplateVariables(workingDraft.rawBody, environmentVariables);
+          executionBody = workingDraft.rawBodyType === 'json' ? (parseJsonSafely(raw) ?? raw) : raw;
+        } else if (workingDraft.bodyMode === 'graphql') {
+          executionBody = { query: replaceTemplateVariables(workingDraft.graphqlQuery, environmentVariables), variables: workingDraft.graphqlVariables.trim() ? (parseJsonSafely(replaceTemplateVariables(workingDraft.graphqlVariables, environmentVariables)) ?? {}) : {} };
+        }
+        const result = await apiService.executeOperation(projectId, {
+          requestUrl: testDataUrl,
+          method: workingDraft.method,
+          headers: Object.fromEntries(headers.entries()),
+          body: executionBody,
+          timeoutMs: workingDraft.settings.timeoutMs,
+          useTestData: true,
+          operationId: selectedApiEndpoint.backendOperationId,
+          serviceId: selectedApiEndpoint.backendServiceId,
+        });
+        const startedAt = Date.now();
+        const responseState: ResponseState = {
+          status: result.response?.status ?? null,
+          statusText: result.response?.statusText || result.error?.message || 'Request failed',
+          durationMs: result.durationMs,
+          sizeBytes: result.response?.rawBody ? new Blob([result.response.rawBody]).size : 0,
+          headers: Object.entries(result.response?.headers || {}),
+          body: typeof result.response?.body === 'string' ? result.response.body : result.response?.body == null ? (result.error?.message ?? '') : JSON.stringify(result.response.body, null, 2),
+          isJson: typeof result.response?.body === 'object',
+          cookies: [], tests: [], startedAt, finishedAt: Date.now(), requestUrl: result.request.url, requestMethod: result.request.method,
+        };
+        const testResults = await runTestsOnResponse(workingDraft, responseState, environmentVariables);
+        setResponse({ ...responseState, tests: testResults });
+        const cachedKey = responseCacheKey(selection);
+        if (cachedKey) setResponseCache((current) => ({ ...current, [cachedKey]: { ...responseState, tests: testResults } }));
+        setHistory((current) => [makeHistoryEntry(workingDraft, responseState), ...current].slice(0, 20));
+        setActiveRequestLog(result.ok ? `${responseState.status} ${responseState.statusText}` : responseState.statusText);
+        setLoading(false);
+        return;
+      }
 
       if (workingDraft.bodyMode === 'form-data') {
         const body = new FormData();
@@ -2819,6 +3217,72 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
       strategy: defaultRuntimeStrategy(field, draft),
     });
   }, [draft, runtimeData, runtimeFields, runtimeSelectionKey]);
+  type ApiFieldSource = 'DYNAMIC' | 'STATIC' | 'DATASET' | 'ENVIRONMENT' | 'SECRET' | 'LINKED' | 'RUNTIME';
+  const [fieldRules, setFieldRules] = React.useState<any[]>([]);
+  const [selectedFieldKey, setSelectedFieldKey] = React.useState('');
+  const [fieldSource, setFieldSource] = React.useState<ApiFieldSource>('DYNAMIC');
+  const [fieldValue, setFieldValue] = React.useState('');
+  const [fieldReference, setFieldReference] = React.useState('');
+  const [fieldColumn, setFieldColumn] = React.useState('');
+  const [fieldSensitive, setFieldSensitive] = React.useState(false);
+  const [fieldScope, setFieldScope] = React.useState('EACH_EXECUTION');
+  const [datasetColumns, setDatasetColumns] = React.useState<any[]>([]);
+  const [runtimeVariables, setRuntimeVariables] = React.useState<any[]>([]);
+  const [fieldSaveMessage, setFieldSaveMessage] = React.useState('');
+  const classifiedFields = React.useMemo(() => {
+    const fields: Array<{ location: string; path: string; type: string }> = [];
+    draft.pathParams.filter((row) => row.key.trim()).forEach((row) => fields.push({ location: 'PATH', path: row.key.trim(), type: 'string' }));
+    draft.queryParams.filter((row) => row.key.trim()).forEach((row) => fields.push({ location: 'QUERY', path: row.key.trim(), type: 'string' }));
+    draft.headers.filter((row) => row.name.trim()).forEach((row) => fields.push({ location: row.name.trim().toLowerCase() === 'cookie' ? 'COOKIE' : 'HEADER', path: row.name.trim().toLowerCase() === 'cookie' ? (row.value.split('=')[0] || 'cookie') : row.name.trim(), type: 'string' }));
+    const body = payloadFromDraft(draft);
+    if (body && typeof body === 'object' && !Array.isArray(body)) flattenBodyFields(body).forEach((field) => fields.push({ location: 'BODY', path: field.path, type: field.type }));
+    return fields.filter((field, index, all) => all.findIndex((candidate) => candidate.location === field.location && candidate.path === field.path) === index);
+  }, [draft]);
+  const fieldRuleFor = (field: { location: string; path: string }) => fieldRules.find((rule) => rule.input?.location === field.location && rule.input?.path === field.path);
+  const selectedField = classifiedFields.find((field) => `${field.location}|${field.path}` === selectedFieldKey);
+  const selectedFieldRule = selectedField ? fieldRuleFor(selectedField) : undefined;
+  const environmentOptions = managedEnvironments.flatMap((environment) => Object.keys(environment.variables || {}).map((name) => ({ value: `${environment.id}|${name}`, label: `${environment.name} · ${name}` })));
+  const secretOptions = managedEnvironments.flatMap((environment) => Object.entries(environment.variables || {}).flatMap(([name, value]) => typeof value === 'object' && value && 'secretRef' in value ? [{ value: String((value as any).secretRef), label: `${environment.name} · ${name}` }] : []));
+  const linkedOptions = sharedApiOperations.filter((operation) => operation.id !== selectedApiEndpoint?.backendOperationId).flatMap((operation) => responsePaths(operation.sourceOperation?.responses || {}).slice(0, 20).map((path) => ({ value: `${operation.id}|${path}`, label: `${operation.method.toUpperCase()} ${operation.path} · ${path}` })));
+  React.useEffect(() => {
+    if (!selectedApiEndpoint?.backendOperationId) { setFieldRules([]); return; }
+    let cancelled = false;
+    void apiAxios.get(`/api/projects/${projectId}/field-data-rules`).then((response) => { if (!cancelled) setFieldRules((response.data.data || []).filter((rule: any) => rule.input?.operationId === selectedApiEndpoint.backendOperationId)); }).catch(() => { if (!cancelled) setFieldRules([]); });
+    return () => { cancelled = true; };
+  }, [projectId, selectedApiEndpoint?.backendOperationId]);
+  React.useEffect(() => {
+    if (!selectedField) return;
+    const rule = fieldRules.find((candidate) => candidate.input?.location === selectedField.location && candidate.input?.path === selectedField.path);
+    const strategy = rule?.valueStrategy;
+    setFieldSource(strategy === 'FIXED' || strategy === 'MANUAL' || strategy === 'CONTRACT_DEFAULT' ? 'STATIC' : strategy === 'DATASET' ? 'DATASET' : strategy === 'ENVIRONMENT' ? 'ENVIRONMENT' : strategy === 'SECRET' ? 'SECRET' : strategy === 'LINKED_RESPONSE' ? 'LINKED' : strategy === 'REUSE' ? 'RUNTIME' : 'DYNAMIC');
+    setFieldValue(rule?.sourceReference?.value == null ? '' : String(rule.sourceReference.value));
+    setFieldReference(rule?.valueStrategy === 'ENVIRONMENT' ? `${rule?.sourceReference?.environmentId || ''}|${rule?.sourceReference?.field || ''}` : rule?.valueStrategy === 'LINKED_RESPONSE' ? `${rule?.sourceReference?.operationId || ''}|${rule?.sourceReference?.field || '$.id'}` : rule?.sourceReference?.field || rule?.sourceReference?.datasetId || rule?.sourceReference?.secretRef || rule?.sourceReference?.variableId || '');
+    setFieldColumn(rule?.sourceReference?.field || '');
+    setFieldSensitive(rule?.valueStrategy === 'SECRET' || /(password|secret|token|api.?key|credential)/i.test(selectedField.path));
+    setFieldScope(rule?.changeScope || 'EACH_EXECUTION');
+  }, [selectedField, fieldRules]);
+  React.useEffect(() => {
+    if (fieldSource !== 'DATASET' || !fieldReference) { setDatasetColumns([]); return; }
+    void columnService.listColumns(projectId, fieldReference).then(setDatasetColumns).catch(() => setDatasetColumns([]));
+  }, [fieldReference, fieldSource, projectId]);
+  React.useEffect(() => {
+    void knowledgeService.listRuntimeVariables(projectId).then(setRuntimeVariables).catch(() => setRuntimeVariables([]));
+  }, [projectId]);
+  const saveFieldClassification = async () => {
+    if (!selectedField || !selectedApiEndpoint?.backendOperationId) return;
+    const strategyMap: Record<ApiFieldSource, string> = { DYNAMIC: 'GENERATE', STATIC: 'FIXED', DATASET: 'DATASET', ENVIRONMENT: 'ENVIRONMENT', SECRET: 'SECRET', LINKED: 'LINKED_RESPONSE', RUNTIME: 'REUSE' };
+    const sourceReference = fieldSource === 'STATIC' ? { type: 'static', value: fieldValue } : fieldSource === 'DATASET' ? { type: 'dataset', datasetId: fieldReference, field: fieldColumn } : fieldSource === 'SECRET' ? { type: 'secret', secretRef: fieldReference } : fieldSource === 'ENVIRONMENT' ? { type: 'environment', environmentId: fieldReference.split('|')[0], field: fieldReference.split('|')[1] || '' } : fieldSource === 'LINKED' ? { type: 'producer', operationId: fieldReference.split('|')[0], field: fieldReference.split('|')[1] || '$.id' } : fieldSource === 'RUNTIME' ? { type: 'runtime', variableId: fieldReference } : { type: 'generator', generator: fieldValue || selectedField.path };
+    const payload = { projectId, input: { operationId: selectedApiEndpoint.backendOperationId, serviceId: selectedApiEndpoint.backendServiceId, protocol: 'REST', location: selectedField.location, path: selectedField.path, operationLabel: `${draft.method} ${selectedApiEndpoint.path}` }, semanticType: fieldValue || selectedField.type, required: selectedFieldRule?.required ?? false, valueStrategy: strategyMap[fieldSource], changeScope: fieldScope, optionalFieldPolicy: 'POPULATE', sourceReference, status: 'ACCEPTED' };
+    try {
+      const sensitiveStatic = fieldSource === 'STATIC' && (fieldSensitive || /(password|secret|token|api.?key|credential)/i.test(selectedField.path));
+      if (sensitiveStatic) await apiAxios.post(`/api/projects/${projectId}/field-data-rules/secure-static`, { ...payload, ruleId: selectedFieldRule?.id, value: fieldValue });
+      else if (selectedFieldRule?.id) await apiAxios.patch(`/api/projects/${projectId}/field-data-rules/${selectedFieldRule.id}`, payload);
+      else await apiAxios.post(`/api/projects/${projectId}/field-data-rules`, payload);
+      const response = await apiAxios.get(`/api/projects/${projectId}/field-data-rules`);
+      setFieldRules((response.data.data || []).filter((rule: any) => rule.input?.operationId === selectedApiEndpoint.backendOperationId));
+      setFieldSaveMessage('Field Data rule saved.');
+    } catch { setFieldSaveMessage('Field Data rule could not be saved.'); }
+  };
   const updateRuntimeMapping = (field: string, patch: Partial<RuntimeDataMapping>) => {
     if (!runtimeSelectionKey) return;
     setRuntimeData((current) => {
@@ -3253,7 +3717,7 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
                       <Save className='mr-2 h-4 w-4' />
                       Save
                     </Button>
-                    <Button type='button' onClick={() => void executeRequest()} loading={loading}>
+                    <Button type='button' onClick={() => void executeRequest()} loading={loading} disabled={missingUrlVariables.length > 0} title={missingUrlVariables.length > 0 ? `Select an environment that provides: ${missingUrlVariables.join(', ')}` : undefined}>
                       <Send className='mr-2 h-4 w-4' />
                       Send
                     </Button>
@@ -3263,8 +3727,8 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
               <CardContent className='space-y-4'>
                 <div className='flex flex-wrap gap-2 rounded-2xl border border-border bg-surface p-2'>
                   {(['params', 'headers', 'authorization', 'body', 'scripts', 'tests', 'settings'] as const).map((tab) => (
+                    <React.Fragment key={tab}>
                     <button
-                      key={tab}
                       type='button'
                       onClick={() => setRequestTab(tab)}
                       className={`rounded-xl px-3 py-2 text-sm transition-colors ${
@@ -3273,11 +3737,35 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
                     >
                       {tab.charAt(0).toUpperCase() + tab.slice(1)}
                     </button>
+                    {tab === 'settings' && (
+                      <label className={`ml-1 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium transition-colors ${useTestData ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border text-text-secondary'}`} title={useTestData ? 'Configured Test Data rules will replace matching request values for this execution.' : 'The request will use the values currently in the editor.'}>
+                        <input type='checkbox' checked={useTestData} onChange={(event) => setUseTestData(event.target.checked)} aria-label='Use Test Data for this request' className='h-4 w-4 accent-primary' />
+                        Use Test Data
+                      </label>
+                    )}
+                    </React.Fragment>
                   ))}
                 </div>
+                <p className='px-1 text-[11px] text-text-secondary'>{useTestData ? 'Configured Test Data rules will replace matching request values for this execution.' : 'The request will use the values currently in the editor.'}</p>
 
                 {requestTab === 'params' && (
                   <div className='space-y-4'>
+                    <section className='rounded-2xl border border-primary/30 bg-primary/5 p-4'>
+                      <div className='flex flex-wrap items-center justify-between gap-2'>
+                        <div><h3 className='font-medium text-text'>Field Data classification</h3><p className='text-xs text-text-secondary'>Configure the normal execution source for this request field. Rules are shared with Test Data.</p></div>
+                        <Badge variant='outline'>{selectedApiEndpoint ? `${draft.method} ${selectedApiEndpoint.path}` : 'Manual request'}</Badge>
+                      </div>
+                      {classifiedFields.length === 0 ? <p className='mt-3 text-sm text-text-secondary'>Add a body, query, path, or header field to classify it.</p> : <div className='mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_minmax(0,1fr)_auto]'>
+                        <select value={selectedFieldKey} onChange={(event) => setSelectedFieldKey(event.target.value)} className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' aria-label='Select request field'>
+                          <option value=''>Select a request field</option>{classifiedFields.map((field) => <option key={`${field.location}|${field.path}`} value={`${field.location}|${field.path}`}>{field.path} · {field.location.toLowerCase()}</option>)}
+                        </select>
+                        {selectedField && <div className='rounded-xl border border-border bg-background/50 px-3 py-2 text-xs text-text-secondary'><span className='font-medium text-text'>{selectedFieldRule?.required ? 'REQUIRED' : 'OPTIONAL'}</span> · {selectedField.type}<br />{draft.method} {selectedApiEndpoint?.path || 'manual request'}</div>}
+                        {selectedField && <select value={fieldSource} onChange={(event) => setFieldSource(event.target.value as ApiFieldSource)} className='h-10 rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' aria-label='Field value source'><option value='DYNAMIC'>Dynamic</option><option value='STATIC'>Static</option><option value='DATASET'>Dataset</option><option value='ENVIRONMENT'>Environment</option><option value='SECRET'>Secret</option><option value='LINKED'>Linked</option><option value='RUNTIME'>Runtime</option></select>}
+                        {selectedField && <Button type='button' size='sm' onClick={() => void saveFieldClassification()}>Save</Button>}
+                      </div>}
+                      {selectedField && <div className='mt-3 flex flex-wrap items-center gap-2'>{fieldSource === 'DYNAMIC' && <><select value={fieldValue} onChange={(event) => setFieldValue(event.target.value)} className='h-9 rounded-lg border border-border bg-background/80 px-3 text-sm text-text outline-none'><option value=''>Choose generator</option><option value='email'>Email</option><option value='uuid'>UUID</option><option value='string'>String</option><option value='number'>Number</option><option value='boolean'>Boolean</option><option value='date'>Date</option><option value='datetime'>Date-time</option></select><select value={selectedFieldRule?.changeScope || 'EACH_EXECUTION'} className='h-9 rounded-lg border border-border bg-background/80 px-3 text-sm text-text outline-none' aria-label='Generation scope'><option value='EACH_REQUEST'>Per request</option><option value='EACH_EXECUTION'>Per execution</option><option value='TEST_CASE'>Per test case</option><option value='SUITE_RUN'>Per suite run</option></select></>}{fieldSource === 'DATASET' && <><select value={fieldReference} onChange={(event) => { setFieldReference(event.target.value); setFieldColumn(''); }} className='h-9 min-w-48 rounded-lg border border-border bg-background/80 px-3 text-sm text-text outline-none'><option value=''>Select dataset</option>{testDataDatasets.map((dataset) => <option key={dataset.id} value={dataset.id}>{dataset.name}</option>)}</select><select value={fieldColumn} onChange={(event) => setFieldColumn(event.target.value)} className='h-9 min-w-48 rounded-lg border border-border bg-background/80 px-3 text-sm text-text outline-none'><option value=''>Select field/column</option>{datasetColumns.map((column) => <option key={column.id || column.name} value={column.name}>{column.name}</option>)}</select></>}{fieldSource === 'ENVIRONMENT' && <select value={fieldReference} onChange={(event) => setFieldReference(event.target.value)} className='h-9 min-w-64 rounded-lg border border-border bg-background/80 px-3 text-sm text-text outline-none'><option value=''>Select environment variable</option>{environmentOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>}{fieldSource === 'SECRET' && <select value={fieldReference} onChange={(event) => setFieldReference(event.target.value)} className='h-9 min-w-64 rounded-lg border border-border bg-background/80 px-3 text-sm text-text outline-none'><option value=''>Select secret reference</option>{secretOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>}{fieldSource === 'LINKED' && <select value={fieldReference} onChange={(event) => setFieldReference(event.target.value)} className='h-9 min-w-64 rounded-lg border border-border bg-background/80 px-3 text-sm text-text outline-none'><option value=''>Select source operation/path</option>{linkedOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>}{fieldSource === 'RUNTIME' && <select value={fieldReference} onChange={(event) => setFieldReference(event.target.value)} className='h-9 min-w-64 rounded-lg border border-border bg-background/80 px-3 text-sm text-text outline-none'><option value=''>Select runtime variable</option>{runtimeVariables.map((variable) => <option key={variable.id} value={variable.id}>{variable.name}</option>)}</select>}{fieldSource === 'STATIC' && <><input value={fieldValue} onChange={(event) => setFieldValue(event.target.value)} className='h-9 min-w-64 rounded-lg border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Fixed value' /><label className='flex items-center gap-2 text-xs text-text-secondary'><input type='checkbox' checked={fieldSensitive} onChange={(event) => setFieldSensitive(event.target.checked)} />Store as sensitive secret</label></>}{fieldSaveMessage && <span role='status' className='text-xs text-text-secondary'>{fieldSaveMessage}</span>}</div>}
+                      {selectedField && fieldSource === 'DYNAMIC' && <label className='mt-2 flex items-center gap-2 text-xs text-text-secondary'>Generation scope<select value={fieldScope} onChange={(event) => setFieldScope(event.target.value)} className='h-8 rounded-lg border border-border bg-background/80 px-2 text-xs text-text outline-none'><option value='EACH_REQUEST'>Per request</option><option value='EACH_EXECUTION'>Per execution</option><option value='TEST_CASE'>Per test case</option><option value='SUITE_RUN'>Per suite run</option></select></label>}
+                    </section>
                     <section className='rounded-2xl border border-border bg-surface p-3'>
                       <div className='mb-3 flex items-center justify-between'>
                         <h3 className='font-medium text-text'>Path Parameters</h3>
@@ -3380,20 +3868,31 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
                     </label>
                     <div className='flex items-center justify-between rounded-xl border border-border bg-background/40 px-3 py-2'>
                       <span className='text-sm text-text-secondary'>OAuth token</span>
-                      <Badge variant={oauthTokenState === 'Active' ? 'success' : oauthTokenState === 'Expired' ? 'destructive' : 'outline'} className={oauthTokenState === 'Missing token' ? 'border-border bg-background/40 text-text-secondary' : ''}>
+                      <Badge variant={oauthTokenState === 'Active' ? 'success' : oauthTokenState === 'Expired' ? 'destructive' : 'outline'} className={oauthTokenState !== 'Active' && oauthTokenState !== 'Expired' ? 'border-border bg-background/40 text-text-secondary' : ''}>
                         {oauthTokenState}
                       </Badge>
                     </div>
                     {draft.auth.type === 'bearer' && (
                       <div className='space-y-2'>
-                        <div className='group relative inline-flex max-w-full'>
+                        <div className='relative inline-flex max-w-full' onMouseEnter={() => setTokenPopoverOpen(true)} onMouseLeave={() => setTokenPopoverOpen(false)}>
+                          <button type='button' className='rounded-lg border border-dashed border-border bg-background/60 px-3 py-2 text-sm text-primary' onClick={() => setTokenPopoverOpen((open) => !open)} aria-expanded={tokenPopoverOpen}>
+                            {draft.auth.bearerToken || '{{accessToken}}'}
+                          </button>
+                          {tokenPopoverOpen && <div className='absolute left-0 top-full z-40 mt-2 w-[min(34rem,calc(100vw-3rem))] rounded-xl border border-border bg-surface p-3 shadow-2xl'>
+                            <label className='block text-xs font-medium text-text-secondary'>Token value</label>
+                            <input aria-label='Access token' value={pendingEnvironmentToken || environmentToken} onChange={(event) => setPendingEnvironmentToken(event.target.value)} className='mt-2 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-text outline-none' placeholder='Paste token value' />
+                            <p className='mt-2 text-xs text-text-secondary'>Paste the token, then click the Save button to use it for all requests in this environment.</p>
+                          </div>}
+                        </div>
+                        <div className='hidden group relative inline-flex max-w-full'>
                           <span className='rounded-lg border border-dashed border-border bg-background/60 px-3 py-2 text-sm text-primary'>{draft.auth.bearerToken || '{{accessToken}}'}</span>
-                          <div className='pointer-events-none absolute left-0 top-full z-30 mt-2 w-[min(32rem,calc(100vw-3rem))] rounded-xl border border-border bg-surface p-3 opacity-0 shadow-2xl transition-opacity group-hover:pointer-events-auto group-hover:opacity-100'>
-                            <input aria-label='Resolved bearer token' value={environmentToken} onChange={(e) => updateEnvironmentToken(e.target.value)} className='h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-text outline-none' placeholder='Add token value' />
-                            <div className='mt-2 flex items-center justify-between text-xs text-text-secondary'><span>{activeEnvironment?.name || 'Environment'}</span><span>{environmentToken ? 'Resolved token' : 'Missing token'}</span></div>
+                          <div className='pointer-events-none absolute left-0 top-full z-30 mt-0 w-[min(32rem,calc(100vw-3rem))] rounded-xl border border-border bg-surface p-3 opacity-0 shadow-2xl transition-opacity group-hover:pointer-events-auto group-hover:opacity-100'>
+                            <input aria-label='Resolved bearer token' value={environmentToken} onChange={(e) => updateEnvironmentToken(e.target.value)} className='h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-text outline-none' placeholder={environmentTokenConfigured ? 'Token configured securely — paste to replace' : 'Add token value'} />
+                            {environmentTokenConfigured && !environmentToken && <p className='mt-2 text-xs font-medium text-emerald-200'>•••••••• Token configured securely</p>}
+                            <div className='mt-2 flex items-center justify-between text-xs text-text-secondary'><span>{activeEnvironment?.name || 'Environment'}</span><span>{environmentTokenConfigured ? (environmentToken ? 'Resolved token' : 'Token configured securely') : 'Missing token'}</span></div>
                           </div>
                         </div>
-                        {environmentToken && <p className='text-xs text-emerald-200'>Using the active environment token automatically.</p>}
+                        {environmentTokenConfigured && <p className='text-xs text-emerald-200'>Using the active environment token automatically.</p>}
                       </div>
                     )}
                     {draft.auth.type === 'basic' && (
@@ -3415,15 +3914,26 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
                     )}
                     {draft.auth.type === 'oauth2' && (
                       <div className='space-y-2'>
-                        <div className='group relative inline-flex max-w-full'>
+                        <div className='relative inline-flex max-w-full' onMouseEnter={() => setTokenPopoverOpen(true)} onMouseLeave={() => setTokenPopoverOpen(false)}>
+                          <button type='button' className='rounded-lg border border-dashed border-border bg-background/60 px-3 py-2 text-sm text-primary' onClick={() => setTokenPopoverOpen((open) => !open)} aria-expanded={tokenPopoverOpen}>
+                            {draft.auth.oauth2Token || '{{accessToken}}'}
+                          </button>
+                          {tokenPopoverOpen && <div className='absolute left-0 top-full z-40 mt-2 w-[min(34rem,calc(100vw-3rem))] rounded-xl border border-border bg-surface p-3 shadow-2xl'>
+                            <label className='block text-xs font-medium text-text-secondary'>Token value</label>
+                            <input aria-label='Access token' value={pendingEnvironmentToken || environmentToken} onChange={(event) => setPendingEnvironmentToken(event.target.value)} className='mt-2 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-text outline-none' placeholder='Paste token value' />
+                            <p className='mt-2 text-xs text-text-secondary'>Paste the token, then click the Save button to use it for all requests in this environment.</p>
+                          </div>}
+                        </div>
+                        <div className='hidden group relative inline-flex max-w-full'>
                           <span className='rounded-lg border border-dashed border-border bg-background/60 px-3 py-2 text-sm text-primary'>{draft.auth.oauth2Token || '{{accessToken}}'}</span>
-                          <div className='pointer-events-none absolute left-0 top-full z-30 mt-2 w-[min(32rem,calc(100vw-3rem))] rounded-xl border border-border bg-surface p-3 opacity-0 shadow-2xl transition-opacity group-hover:pointer-events-auto group-hover:opacity-100'>
-                            <input aria-label='Resolved OAuth token' value={environmentToken} onChange={(e) => updateEnvironmentToken(e.target.value)} className='h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-text outline-none' placeholder='Add token value' />
-                            <div className='mt-2 flex items-center justify-between text-xs text-text-secondary'><span>{activeEnvironment?.name || 'Environment'}</span><span>{environmentToken ? 'Resolved token' : 'Missing token'}</span></div>
+                          <div className='pointer-events-none absolute left-0 top-full z-30 mt-0 w-[min(32rem,calc(100vw-3rem))] rounded-xl border border-border bg-surface p-3 opacity-0 shadow-2xl transition-opacity group-hover:pointer-events-auto group-hover:opacity-100'>
+                            <input aria-label='Resolved OAuth token' value={environmentToken} onChange={(e) => updateEnvironmentToken(e.target.value)} className='h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-text outline-none' placeholder={environmentTokenConfigured ? 'Token configured securely — paste to replace' : 'Add token value'} />
+                            {environmentTokenConfigured && !environmentToken && <p className='mt-2 text-xs font-medium text-emerald-200'>•••••••• Token configured securely</p>}
+                            <div className='mt-2 flex items-center justify-between text-xs text-text-secondary'><span>{activeEnvironment?.name || 'Environment'}</span><span>{environmentTokenConfigured ? (environmentToken ? 'Resolved token' : 'Token configured securely') : 'Missing token'}</span></div>
                           </div>
                         </div>
                         <input value={draft.auth.oauth2Scopes} onChange={(e) => setDraft((current) => ({ ...current, auth: { ...current.auth, oauth2Scopes: e.target.value } }))} className='h-10 w-full rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Scopes, space separated' />
-                        {environmentToken && !draft.auth.oauth2Token && <p className='text-xs text-emerald-200'>Using the active environment token automatically.</p>}
+                        {environmentTokenConfigured && !draft.auth.oauth2Token && <p className='text-xs text-emerald-200'>Using the active environment token automatically.</p>}
                       </div>
                     )}
                   </section>
@@ -3728,7 +4238,7 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
               </Card>}
             </div>
 
-            <Card className='border-border bg-background/40 text-text shadow-2xl backdrop-blur-xl'>
+            {false && (<Card className='border-border bg-background/40 text-text shadow-2xl backdrop-blur-xl'>
               <CardHeader className='pb-3'>
                 <div className='flex flex-wrap items-center justify-between gap-3'>
                   <div>
@@ -3765,7 +4275,7 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
                     <div className='rounded-2xl border border-border bg-surface p-3'>
                       <div className='text-sm font-medium text-text'>Environment</div>
                       <div className='mt-1 text-xs text-text-secondary'>{activeEnvironment?.name || 'None selected'}</div>
-                      <div className='mt-2 text-xs text-text-secondary'>{activeEnvironment ? `${Object.keys(activeEnvironment.variables).length} variables` : 'Import an environment file to enable variable resolution.'}</div>
+                      <div className='mt-2 text-xs text-text-secondary'>{activeEnvironment ? `${Object.keys(activeEnvironment?.variables || {}).length} variables` : 'Import an environment file to enable variable resolution.'}</div>
                     </div>
                     <div className='rounded-2xl border border-border bg-surface p-3'>
                       <div className='text-sm font-medium text-text'>Utility actions</div>
@@ -3818,7 +4328,7 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
                       <div className='text-sm font-medium text-text'>Variables</div>
                       <div className='mt-3'>
                         {activeEnvironment ? (
-                          <JsonViewer data={activeEnvironment.variables} className='border-0 bg-transparent' />
+                          <JsonViewer data={activeEnvironment?.variables || {}} className='border-0 bg-transparent' />
                         ) : (
                           <p className='text-sm text-text-secondary'>No active environment selected.</p>
                         )}
@@ -3843,7 +4353,7 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
                     <div className='rounded-2xl border border-border bg-surface p-3'>
                       <div className='text-sm font-medium text-text'>OpenAPI / Postman source</div>
                       <pre className='mt-3 max-h-64 overflow-auto rounded-xl border border-border/60 bg-background/70 p-3 text-xs text-text whitespace-pre-wrap'>
-                        {selectedApiEndpoint ? stringifyJson(selectedApiEndpoint.raw) : 'Select an imported API endpoint to inspect its raw source.'}
+                        {selectedApiEndpoint ? stringifyJson(selectedApiEndpoint?.raw || {}) : 'Select an imported API endpoint to inspect its raw source.'}
                       </pre>
                     </div>
                   </div>
@@ -3868,7 +4378,7 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
                     <div className='rounded-2xl border border-border bg-surface p-3'>
                       <div className='text-sm font-medium text-text'>Reference viewer</div>
                       <div className='mt-3'>
-                        {selectedApiEndpoint?.raw ? <JsonViewer data={selectedApiEndpoint.raw} className='border-0 bg-transparent' /> : <p className='text-sm text-text-secondary'>Select an endpoint to inspect its documentation metadata.</p>}
+                        {selectedApiEndpoint?.raw ? <JsonViewer data={selectedApiEndpoint?.raw || {}} className='border-0 bg-transparent' /> : <p className='text-sm text-text-secondary'>Select an endpoint to inspect its documentation metadata.</p>}
                       </div>
                     </div>
                   </div>
@@ -3900,7 +4410,7 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
                   </div>
                 )}
               </CardContent>
-            </Card>
+            </Card>)}
           </div>
         </div>
       </div>
@@ -3925,6 +4435,11 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
                 <UploadCloud className='mr-2 h-4 w-4' /> Import
               </Button>
             </div>
+            {environmentActionError && (
+              <p role='alert' className='mt-3 rounded-xl border border-error/30 bg-error/10 px-3 py-2 text-sm text-error'>
+                {environmentActionError}
+              </p>
+            )}
             <div className='mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1'>
               {managedEnvironmentList.length > 0 ? managedEnvironmentList.map((environment) => (
                 <div key={environment.id} className={`rounded-2xl border p-4 ${activeEnvironmentId === environment.id ? 'border-violet-400/50 bg-violet-400/10' : 'border-border bg-background/40'}`}>

@@ -21,12 +21,14 @@ import type { ApiOperationRepository } from '../../domain/api/ApiOperationReposi
 import type { EventPublisher } from '../EventPublisher.js';
 import type { FieldDataRuleRepository } from '../../domain/test-data/FieldDataRuleRepository.js';
 import { asyncHandler } from '../../interfaces/middleware/AsyncHandler.js';
+import type { TestDataResolutionService } from '../test-data/TestDataResolutionService.js';
 
 export interface ApiModuleDeps {
   apiServiceRepository: ApiServiceRepository;
   apiOperationRepository: ApiOperationRepository;
   eventPublisher: EventPublisher;
   fieldDataRuleRepository?: FieldDataRuleRepository;
+  testDataResolutionService?: TestDataResolutionService;
   impactRepositories?: Array<{ findByProject(projectId: string): Promise<any[]>; impactKind?: 'requirementMappings' | 'testCases' | 'testCaseVersions' | 'suites' | 'schedules' | 'runtimeLinks' | 'fieldDataRules' }>;
 }
 
@@ -67,7 +69,7 @@ export class ApiModule {
     );
     const getApiOperation = new GetApiOperation(deps.apiOperationRepository);
     const listApiOperations = new ListApiOperations(deps.apiOperationRepository);
-    const executeApiRequest = new ExecuteApiRequest();
+    const executeApiRequest = new ExecuteApiRequest(undefined, deps.testDataResolutionService);
     const importApiContract = new ImportApiContract(
       deps.apiServiceRepository,
       deps.apiOperationRepository,

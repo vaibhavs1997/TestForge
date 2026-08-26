@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback } from 'react';
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { LandingBackground } from '../components/LandingBackground';
 import { LandingNav } from '../components/LandingNav';
 import { HeroSection } from '../components/HeroSection';
@@ -10,8 +10,8 @@ import { LandingAuthProvider, type LandingAuthMode } from '../context/LandingAut
 import { useLandingAuth } from '../context/LandingAuthContext';
 
 function LandingCtaButton() {
-  const user = authStore((s) => s.user);
-  const cta = getLandingCtaPaths(user);
+  const user = authStore((s) => s.user);
+  const cta = getLandingCtaPaths(user);
   const { openRegister } = useLandingAuth();
 
   if (cta.signedIn) {
@@ -37,9 +37,9 @@ function LandingCtaButton() {
 }
 
 export const LandingPage: React.FC = () => {
-  const user = authStore((s) => s.user);
+  const user = authStore((s) => s.user);
   const [searchParams, setSearchParams] = useSearchParams();
-  const location = useLocation();
+  const location = useLocation();
 
   const authParam = searchParams.get('auth');
   const sessionExpired = searchParams.get('expired') === '1';
@@ -72,11 +72,12 @@ export const LandingPage: React.FC = () => {
     };
   }, []);
 
-  useEffect(() => {
-    if (user && authMode) {
-      setAuthMode(null);
-    }
-  }, [user, authMode, setAuthMode]);
+  useEffect(() => {
+    if (user && authMode) {
+      setAuthMode(null);
+    }
+  }, [user, authMode, setAuthMode]);
+
 
   return (
     <LandingAuthProvider

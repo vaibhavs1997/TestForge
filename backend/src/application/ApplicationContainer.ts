@@ -15,6 +15,7 @@ import { DataSourceMappingRepository } from '../infrastructure/test-data/DataSou
 import { FieldDataRuleRepository } from '../infrastructure/test-data/FieldDataRuleRepository.js';
 import { ManageFieldDataRules } from './test-data/ManageFieldDataRules.js';
 import { FieldDataAnalyzer } from './test-data/FieldDataAnalyzer.js';
+import { TestDataResolutionService } from './test-data/TestDataResolutionService.js';
 import { PopulationProfileRepository } from '../infrastructure/test-data/PopulationProfileRepository.js';
 import { KnowledgeFlowRepository } from '../infrastructure/knowledge/KnowledgeFlowRepository.js';
 import { BusinessRuleRepository } from '../infrastructure/knowledge/BusinessRuleRepository.js';
@@ -165,6 +166,16 @@ export class ApplicationContainer {
   readonly durableJobRepository = new JsonDurableJobRepository();
   readonly schedulerLeaseRepository = new JsonDistributedLeaseRepository();
   readonly secretStore = new LocalSecretStore();
+  readonly testDataResolutionService = new TestDataResolutionService(
+    this.dataSourceMappingRepository,
+    this.datasetRowRepository,
+    this.datasetRepository,
+    this.columnRepository,
+    this.runtimeVariableRepository,
+    this.environmentRepository,
+    this.fieldDataRuleRepository,
+    this.secretStore,
+  );
   readonly pipelineRepository = new PipelineRepositoryImpl();
   readonly promptRepository = new PromptRepository();
   readonly providerRepository = new ProviderRepository();
@@ -413,6 +424,7 @@ export class ApplicationContainer {
     apiOperationRepository: this.apiOperationRepository,
     eventPublisher: this.eventPublisher,
     fieldDataRuleRepository: this.fieldDataRuleRepository,
+    testDataResolutionService: this.testDataResolutionService,
     impactRepositories: [
       { findByProject: (projectId: string) => this.requirementRepository.findByProject(projectId), impactKind: 'requirementMappings' },
       { findByProject: (projectId: string) => this.testDesignRepository.findByProject(projectId), impactKind: 'testCases' },

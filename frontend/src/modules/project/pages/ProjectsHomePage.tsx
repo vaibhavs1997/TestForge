@@ -15,7 +15,7 @@ import { ErrorAlert } from '../../../components/shared/ErrorAlert';
 import { CreateProjectModal, type CreateProjectModalData } from '../components/CreateProjectModal';
 import { RenameProjectModal } from '../components/RenameProjectModal';
 import { ProjectCardMenu } from '../components/ProjectCardMenu';
-import { Plus, LayoutGrid, Clock, FolderPlus, ArrowRight, ListChecks, ChevronDown } from 'lucide-react';
+import { Plus, LayoutGrid, Clock, FolderPlus, ArrowRight, ListChecks } from 'lucide-react';
 import { consumeAuthFlash } from '../../../utils/authFlash';
 import { projectModulePath } from '../../../routes/paths';
 
@@ -25,67 +25,6 @@ const MAX_RECENT_PROJECTS = 4;
 
 type UiProject = ProjectWorkspaceModel & {
   icon: React.ReactNode;
-};
-
-interface ProjectFilterDropdownProps {
-  label: string;
-  value: string;
-  options: Array<{ value: string; label: string }>;
-  onChange: (value: string) => void;
-}
-
-const ProjectFilterDropdown: React.FC<ProjectFilterDropdownProps> = ({ label, value, options, onChange }) => {
-  const [open, setOpen] = React.useState(false);
-  const containerRef = React.useRef<HTMLDivElement>(null);
-  const selectedLabel = options.find((option) => option.value === value)?.label ?? label;
-
-  React.useEffect(() => {
-    if (!open) return;
-    const closeOnOutsideClick = (event: MouseEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', closeOnOutsideClick);
-    return () => document.removeEventListener('mousedown', closeOnOutsideClick);
-  }, [open]);
-
-  return (
-    <div ref={containerRef} className="relative">
-      <button
-        type="button"
-        className="flex h-10 min-w-[142px] items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 text-sm text-text transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label={label}
-        onClick={() => setOpen((current) => !current)}
-      >
-        <span>{selectedLabel}</span>
-        <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div
-          role="listbox"
-          aria-label={label}
-          className="absolute left-0 top-full z-30 mt-2 min-w-full overflow-hidden rounded-xl border border-border bg-background p-1 shadow-xl"
-        >
-          {options.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              role="option"
-              aria-selected={option.value === value}
-              className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-surface ${option.value === value ? 'bg-primary/15 text-primary' : 'text-text'}`}
-              onClick={() => {
-                onChange(option.value);
-                setOpen(false);
-              }}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
 };
 
 function toUiProject(p: ProjectDto): UiProject {
@@ -105,8 +44,6 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
   const [archiveProject, setArchiveProject] = React.useState<UiProject | undefined>(undefined);
   const [archiveOpen, setArchiveOpen] = React.useState(false);
   const [showAllProjects, setShowAllProjects] = React.useState(false);
-  const [statusFilter, setStatusFilter] = React.useState<'all' | 'active' | 'archived'>('all');
-  const [sortBy, setSortBy] = React.useState<'opened' | 'updated' | 'name'>('opened');
 
   const {
     projects: apiProjects,
@@ -155,12 +92,8 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
             (project.description ?? '').toLowerCase().includes(term),
         )
       : projects;
-    const statusFiltered = statusFilter === 'all' ? filtered : filtered.filter((project) => project.status === statusFilter);
-    return [...statusFiltered].sort((a, b) => {
-      if (sortBy === 'name') return a.name.localeCompare(b.name);
-      return sortBy === 'updated' ? b.updatedAt - a.updatedAt : b.lastOpenedAt - a.lastOpenedAt;
-    });
-  }, [projects, search, sortBy, statusFilter]);
+    return [...filtered].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt);
+  }, [projects, search]);
 
   const activeProjects = React.useMemo(
     () => filteredProjects.filter((project) => project.uiStatus === 'active'),
@@ -303,26 +236,6 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
 
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <SearchBar value={search} onChange={setSearch} placeholder="Search projects..." className="sm:w-96" />
-        <ProjectFilterDropdown
-          label="Project status"
-          value={statusFilter}
-          onChange={(value) => setStatusFilter(value as typeof statusFilter)}
-          options={[
-            { value: 'all', label: 'All statuses' },
-            { value: 'active', label: 'Active' },
-            { value: 'archived', label: 'Archived' },
-          ]}
-        />
-        <ProjectFilterDropdown
-          label="Sort projects"
-          value={sortBy}
-          onChange={(value) => setSortBy(value as typeof sortBy)}
-          options={[
-            { value: 'opened', label: 'Recently opened' },
-            { value: 'updated', label: 'Recently updated' },
-            { value: 'name', label: 'Name' },
-          ]}
-        />
       </div>
 
       <section className="mb-8 rounded-2xl border border-border bg-surface/40 p-6">

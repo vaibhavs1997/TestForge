@@ -102,7 +102,10 @@ export class AIProviderResolutionService {
     if (!entity.enabled) return { healthy: false, message: 'Provider is disabled.', details: { capability: adapter.capability, status: 'DISABLED' } };
     if (adapter.capability === 'SIMULATED') return { healthy: false, message: 'Simulated provider; not operational for production generation.', details: { capability: 'SIMULATED', status: 'SIMULATED' } };
     if (adapter.capability === 'UNAVAILABLE') return { healthy: false, message: 'Provider integration is unavailable.', details: { capability: 'UNAVAILABLE', status: 'UNAVAILABLE' } };
-    try { const result = await adapter.health({ ...this.toConfig(entity), timeout: Math.min(entity.timeout || 10000, 10000) }); return { ...result, message: this.sanitize(result.message), details: { ...result.details, capability: adapter.capability, status: result.healthy ? 'OPERATIONAL' : 'UNREACHABLE' } }; }
+    // Health checks must remain responsive even when a live provider endpoint
+    // is unreachable; this also prevents a failed external probe from holding
+    // up the execution/control plane indefinitely.
+    try { const result = await adapter.health({ ...this.toConfig(entity), timeout: Math.min(entity.timeout || 10000, 3000) }); return { ...result, message: this.sanitize(result.message), details: { ...result.details, capability: adapter.capability, status: result.healthy ? 'OPERATIONAL' : 'UNREACHABLE' } }; }
     catch (error) { return { healthy: false, message: `Provider health check failed: ${this.sanitize(error instanceof Error ? error.message : String(error))}`, details: { capability: adapter.capability, status: 'UNREACHABLE' } }; }
   }
   private sanitize(value: string): string { return value.replace(/(api[_ -]?key|token|secret|password|authorization)\s*[:=]\s*[^\s,;]+/gi, '$1=[REDACTED]').slice(0, 300); }

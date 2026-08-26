@@ -1,5 +1,6 @@
 import { AxiosError, type AxiosRequestHeaders } from 'axios';
 import { secureHttpExecutor, type SecureHttpExecutor } from '../../infrastructure/http/SecureHttpExecutor.js';
+import type { TestDataResolutionService } from '../test-data/TestDataResolutionService.js';
 
 export interface ExecuteApiRequestInput {
   requestUrl: string;
@@ -7,6 +8,10 @@ export interface ExecuteApiRequestInput {
   headers?: Record<string, string>;
   body?: unknown;
   timeoutMs?: number;
+  projectId?: string;
+  serviceId?: string;
+  operationId?: string;
+  useTestData?: boolean;
 }
 
 export interface ExecuteApiRequestResult {
@@ -172,29 +177,113 @@ function tryParseBody(rawBody: string, contentType?: string): unknown {
 }
 
 export class ExecuteApiRequest {
-  constructor(private readonly httpExecutor: SecureHttpExecutor = secureHttpExecutor) {}
+  constructor(
+    private readonly httpExecutor: SecureHttpExecutor = secureHttpExecutor,
+    private readonly testDataResolutionService?: TestDataResolutionService,
+  ) {}
+
+  private async applyTestData(input: ExecuteApiRequestInput, headers: Record<string, string>, body: unknown): Promise<{ requestUrl: string; headers: Record<string, string>; body: unknown; sensitiveHeaders: string[]; sensitiveBodyPaths: string[]; sensitiveValues: string[] }> {
+    if (!input.useTestData || !input.projectId || !input.operationId || !this.testDataResolutionService) return { requestUrl: input.requestUrl, headers, body, sensitiveHeaders: [], sensitiveBodyPaths: [], sensitiveValues: [] };
+    const resolved = await this.testDataResolutionService.resolveRequestFields(input.projectId, input.serviceId || '', input.operationId, {
+      runtimeVariables: {}, environmentVariables: {}, sequentialPositions: new Map(), fieldDataCache: new Map(),
+    });
+    let nextBody = body;
+    let nextUrl = input.requestUrl;
+    const nextHeaders = { ...headers };
+    const sensitiveHeaders: string[] = [];
+    const sensitiveBodyPaths: string[] = [];
+    const sensitiveValues: string[] = [];
+    const setPath = (target: any, path: string, value: unknown): void => {
+      const parts = path.split('.').filter(Boolean); if (!parts.length) return;
+      const visit = (cursor: any, index: number): void => {
+        if (!cursor) return;
+        const part = parts[index]; const isArray = part.endsWith('[]'); const name = isArray ? part.slice(0, -2) : part;
+        const last = index === parts.length - 1;
+        if (isArray) {
+          const items = Array.isArray(cursor[name]) ? cursor[name] : [];
+          if (last) { if (value === undefined) delete cursor[name]; else cursor[name] = value; }
+          else items.forEach((item: any) => visit(item, index + 1));
+          return;
+        }
+        if (last) { if (value === undefined) delete cursor[name]; else cursor[name] = value; return; }
+        if (!cursor[name] || typeof cursor[name] !== 'object') cursor[name] = {};
+        visit(cursor[name], index + 1);
+      };
+      visit(target, 0);
+    };
+    for (const [field, result] of Object.entries(resolved)) {
+      const rule = result as { value: unknown; location?: string; path?: string; sensitive?: boolean };
+      const location = String(rule.location || 'BODY').toUpperCase();
+      const path = rule.path || field;
+      if (rule.sensitive && rule.value !== undefined && rule.value !== null) sensitiveValues.push(String(rule.value));
+      if (location === 'BODY') {
+        if (nextBody && typeof nextBody === 'object' && !Array.isArray(nextBody)) { const copy = structuredClone(nextBody as Record<string, unknown>); setPath(copy, path, rule.value); nextBody = copy; }
+        if (rule.sensitive) sensitiveBodyPaths.push(path);
+      } else if (location === 'HEADER' || location === 'COOKIE') {
+        const key = path.toLowerCase(); const existing = Object.keys(nextHeaders).find((candidate) => candidate.toLowerCase() === key);
+        if (location === 'COOKIE') { const cookies = (nextHeaders.Cookie || nextHeaders.cookie || '').split(';').map((part) => part.trim()).filter(Boolean).filter((part) => !part.toLowerCase().startsWith(`${key}=`)); if (rule.value !== undefined) cookies.push(`${path}=${String(rule.value)}`); nextHeaders.Cookie = cookies.join('; '); }
+        else if (rule.value === undefined) { if (existing) delete nextHeaders[existing]; } else nextHeaders[existing || path] = String(rule.value);
+        if (rule.sensitive) sensitiveHeaders.push(existing || path);
+      } else {
+        const url = new URL(nextUrl);
+        if (location === 'QUERY') {
+          if (rule.value === undefined) url.searchParams.delete(path); else url.searchParams.set(path, String(rule.value));
+        } else if (rule.value !== undefined) {
+          url.pathname = decodeURIComponent(url.pathname).replace(`{${path}}`, encodeURIComponent(String(rule.value)));
+        }
+        nextUrl = url.toString();
+      }
+    }
+    return { requestUrl: nextUrl, headers: nextHeaders, body: nextBody, sensitiveHeaders, sensitiveBodyPaths, sensitiveValues };
+  }
 
   async execute(input: ExecuteApiRequestInput): Promise<ExecuteApiRequestResult> {
     const requestedAt = new Date().toISOString();
     const startedAt = Date.now();
     const requestHeaders = normalizeHeaders(input.headers);
     const method = String(input.method || 'GET').toUpperCase();
-    const contentType = normalizeContentType(getHeaderValue(requestHeaders, 'Content-Type'));
-    const preparedBody = prepareRequestBody(input.body, contentType);
+    const resolvedInput = await this.applyTestData(input, requestHeaders, input.body);
+    const effectiveHeaders = resolvedInput.headers;
+    const responseHeaders = Object.fromEntries(Object.entries(effectiveHeaders).map(([key, value]) => [key, resolvedInput.sensitiveHeaders.some((name) => name.toLowerCase() === key.toLowerCase()) ? '[REDACTED]' : value]));
+    const contentType = normalizeContentType(getHeaderValue(effectiveHeaders, 'Content-Type'));
+    const preparedBody = prepareRequestBody(resolvedInput.body, contentType);
+    const safeBody = (): unknown => {
+      if (!resolvedInput.sensitiveBodyPaths.length || !resolvedInput.body || typeof resolvedInput.body !== 'object') return preparedBody.body ?? null;
+      const copy = structuredClone(resolvedInput.body as Record<string, unknown>);
+      const mask = (cursor: any, parts: string[], index = 0): void => {
+        if (!cursor) return;
+        const raw = parts[index]; const isArray = raw.endsWith('[]'); const name = raw.replace(/\[\]$/, '');
+        if (isArray) { (Array.isArray(cursor[name]) ? cursor[name] : []).forEach((item: any) => mask(item, parts, index + 1)); return; }
+        if (index === parts.length - 1) { cursor[name] = '[REDACTED]'; return; }
+        mask(cursor[name], parts, index + 1);
+      };
+      for (const path of resolvedInput.sensitiveBodyPaths) mask(copy, path.split('.').filter(Boolean));
+      return copy;
+    };
+    const redactSensitive = (value: unknown): unknown => {
+      if (!resolvedInput.sensitiveValues.length) return value;
+      const redactText = (text: string) => resolvedInput.sensitiveValues.reduce((next, secret) => secret ? next.split(secret).join('[REDACTED]') : next, text);
+      if (typeof value === 'string') return redactText(value);
+      if (value && typeof value === 'object') {
+        if (Array.isArray(value)) return value.map(redactSensitive);
+        return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, redactSensitive(item)]));
+      }
+      return value;
+    };
 
     if (
       input.body !== undefined
       && input.body !== null
-      && !getHeaderValue(requestHeaders, 'Content-Type')
-      && (isPlainObject(input.body) || Array.isArray(input.body))
+      && !getHeaderValue(effectiveHeaders, 'Content-Type')
+      && (isPlainObject(resolvedInput.body) || Array.isArray(resolvedInput.body))
     ) {
-      requestHeaders['Content-Type'] = 'application/json';
+      effectiveHeaders['Content-Type'] = 'application/json';
     }
-    if (!requestHeaders.Accept) {
-      requestHeaders.Accept = 'application/json, text/plain, */*';
+    if (!effectiveHeaders.Accept) {
+      effectiveHeaders.Accept = 'application/json, text/plain, */*';
     }
 
-    const transportHeaders = { ...requestHeaders };
+    const transportHeaders = { ...effectiveHeaders };
     for (const key of Object.keys(preparedBody.headers)) {
       if (preparedBody.headers[key] === '') {
         delete transportHeaders[key];
@@ -206,7 +295,7 @@ export class ExecuteApiRequest {
     try {
       const response = await this.httpExecutor.execute({
         method,
-        url: input.requestUrl,
+        url: resolvedInput.requestUrl,
         maxRedirects: 0,
         headers: transportHeaders as AxiosRequestHeaders,
         data: preparedBody.body,
@@ -227,16 +316,16 @@ export class ExecuteApiRequest {
         durationMs: Date.now() - startedAt,
         request: {
           method,
-          url: input.requestUrl,
-          headers: requestHeaders,
-          body: preparedBody.body ?? null,
+          url: resolvedInput.requestUrl,
+          headers: responseHeaders,
+          body: safeBody(),
         },
         response: {
           status: response.status,
           statusText: response.statusText,
-          headers: toPlainHeaders(response.headers),
-          body: tryParseBody(rawBody, contentType),
-          rawBody,
+          headers: redactSensitive(toPlainHeaders(response.headers)) as Record<string, string>,
+          body: redactSensitive(tryParseBody(rawBody, contentType)),
+          rawBody: redactSensitive(rawBody) as string,
           contentType,
         },
       };
@@ -248,9 +337,9 @@ export class ExecuteApiRequest {
         durationMs: Date.now() - startedAt,
         request: {
           method,
-          url: input.requestUrl,
-          headers: requestHeaders,
-          body: preparedBody.body ?? null,
+          url: resolvedInput.requestUrl,
+          headers: responseHeaders,
+          body: safeBody(),
         },
         error: {
           message: axiosError.message || 'Failed to execute request',
@@ -259,8 +348,8 @@ export class ExecuteApiRequest {
             ? {
                 status: axiosError.response.status,
                 statusText: axiosError.response.statusText,
-                headers: toPlainHeaders(axiosError.response.headers),
-                body: axiosError.response.data ?? null,
+                headers: redactSensitive(toPlainHeaders(axiosError.response.headers)) as Record<string, string>,
+                body: redactSensitive(axiosError.response.data ?? null),
               }
             : undefined,
         },

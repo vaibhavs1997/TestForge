@@ -109,7 +109,7 @@ export class ApiController {
     async updateOperation(req: Request, res: Response): Promise<void> {
         const { projectId, serviceId, apiId } = req.params;
         await this.requireOperationInProject(projectId, serviceId, apiId);
-        const { name, method, path, description, authenticationType, status, sampleRequestBody } = req.body;
+        const { name, method, path, description, authenticationType, status, sampleRequestBody, requestUrl, sourceOperation } = req.body;
         const operation = await this.updateApiOperation.execute({
             id: apiId,
             name,
@@ -119,6 +119,8 @@ export class ApiController {
             authenticationType,
             status,
             sampleRequestBody,
+            requestUrl,
+            sourceOperation,
         });
         res.status(200).json(createSuccessResponse(serializeApiOperation(operation)));
     }
@@ -139,13 +141,18 @@ export class ApiController {
         res.status(200).json(createSuccessResponse(result));
     }
     async executeOperation(req: Request, res: Response): Promise<void> {
-        const { requestUrl, method, headers, body, timeoutMs } = req.body ?? {};
+        const { requestUrl, method, headers, body, timeoutMs, useTestData, operationId, serviceId } = req.body ?? {};
+        const projectId = req.params?.projectId;
         const result = await this.executeApiRequest.execute({
             requestUrl,
             method,
             headers,
             body,
             timeoutMs,
+            ...(projectId ? { projectId } : {}),
+            ...(useTestData ? { useTestData: true } : {}),
+            ...(operationId ? { operationId } : {}),
+            ...(serviceId ? { serviceId } : {}),
         });
         res.status(200).json(createSuccessResponse(result));
     }

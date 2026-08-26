@@ -4,7 +4,7 @@ export const VALUE_CHANGE_SCOPES = ['EACH_REQUEST', 'EACH_EXECUTION', 'SUITE_RUN
 export type ValueChangeScope = typeof VALUE_CHANGE_SCOPES[number];
 export type OptionalFieldPolicy = 'OMIT' | 'EMPTY' | 'NULL' | 'POPULATE';
 export type ManualOverridePolicy = 'ALLOW' | 'DISALLOW' | 'REVIEW_REQUIRED';
-export type FieldDataRuleStatus = 'SUGGESTED' | 'REVIEW_REQUIRED' | 'ACCEPTED';
+export type FieldDataRuleStatus = 'SUGGESTED' | 'REVIEW_REQUIRED' | 'UNRESOLVED' | 'ACCEPTED';
 export type FieldDataRuleScopeKind = 'OPERATION' | 'PROJECT_FALLBACK';
 
 export interface FieldDataRuleReviewMetadata {
@@ -22,6 +22,7 @@ export interface CanonicalInputReference {
   path: string;
   /** Adapter-provided semantic metadata used to safely match project defaults. */
   semanticType?: string;
+  operationLabel?: string;
 }
 
 export interface FieldDataSourceReference { type: string; id?: string; field?: string; value?: unknown; [key: string]: unknown; }

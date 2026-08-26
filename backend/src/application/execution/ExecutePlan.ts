@@ -641,8 +641,10 @@ export class ExecutePlan {
     // Substitute runtime variables in path
     path = this.substituteVariables(path, context);
 
-    // Build URL
-    const url = `${context.baseUrl}${path}`;
+    // Build URL. Canonical Field Data values are applied below using their
+    // recorded input locations; legacy mappings retain their historical
+    // header-only behavior when no location was persisted.
+    let url = `${context.baseUrl}${path}`;
 
     // Build headers (merge environment headers with request overrides)
     const headers: Record<string, string> = {
@@ -655,10 +657,19 @@ export class ExecutePlan {
       headers[key] = this.substituteVariables(value, context);
     }
 
-    // Apply resolved test data values to headers
+    // Apply only header/cookie values to headers. The old adapter applied every
+    // resolved field as a header, which meant body/query/path rules never
+    // reached the outbound request.
     for (const [fieldPath, resolvedValue] of Object.entries(resolvedValues)) {
-      if (resolvedValue.value !== null && resolvedValue.value !== undefined) {
+      const location = String(resolvedValue.location || 'HEADER').toUpperCase();
+      if ((location === 'HEADER') && resolvedValue.value !== null && resolvedValue.value !== undefined) {
         headers[fieldPath] = String(resolvedValue.value);
+      }
+      if (location === 'COOKIE' && resolvedValue.value !== null && resolvedValue.value !== undefined) {
+        const existing = headers.Cookie || headers.cookie || '';
+        const remaining = existing.split(';').map(item => item.trim()).filter(Boolean).filter(item => !item.toLowerCase().startsWith(`${fieldPath.toLowerCase()}=`));
+        remaining.push(`${fieldPath}=${String(resolvedValue.value)}`);
+        headers.Cookie = remaining.join('; ');
       }
     }
 
@@ -671,6 +682,34 @@ export class ExecutePlan {
     // Apply dataset values to body if body is empty
     if (!body && Object.keys(context.datasetValues).length > 0) {
       body = context.datasetValues;
+    }
+
+    const setBodyPath = (target: any, fieldPath: string, value: unknown): void => {
+      const parts = fieldPath.split('.').filter(Boolean);
+      if (!parts.length || !target || typeof target !== 'object') return;
+      const visit = (cursor: any, index: number): void => {
+        const segment = parts[index]; const isArray = segment.endsWith('[]'); const name = isArray ? segment.slice(0, -2) : segment; const last = index === parts.length - 1;
+        if (isArray) { const items = Array.isArray(cursor[name]) ? cursor[name] : []; items.forEach((item: any) => visit(item, index + 1)); return; }
+        if (last) { if (value === undefined) delete cursor[name]; else cursor[name] = value; return; }
+        if (!cursor[name] || typeof cursor[name] !== 'object') cursor[name] = {};
+        visit(cursor[name], index + 1);
+      };
+      visit(target, 0);
+    };
+    for (const [fieldPath, resolvedValue] of Object.entries(resolvedValues)) {
+      const location = String(resolvedValue.location || 'HEADER').toUpperCase();
+      if (location === 'BODY') {
+        if (!body || typeof body !== 'object') body = {};
+        setBodyPath(body, fieldPath, resolvedValue.value);
+      } else if (location === 'QUERY' || location === 'PATH') {
+        const requestUrl = new URL(url);
+        if (location === 'QUERY') {
+          if (resolvedValue.value === undefined) requestUrl.searchParams.delete(fieldPath); else requestUrl.searchParams.set(fieldPath, String(resolvedValue.value));
+        } else if (resolvedValue.value !== undefined) {
+          requestUrl.pathname = decodeURIComponent(requestUrl.pathname).replace(`{${fieldPath}}`, encodeURIComponent(String(resolvedValue.value)));
+        }
+        url = requestUrl.toString();
+      }
     }
 
     stepResult.request = { method, url, headers, body };

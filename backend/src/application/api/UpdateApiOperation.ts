@@ -19,6 +19,8 @@ export class UpdateApiOperation {
     authenticationType?: string;
     status?: string;
     sampleRequestBody?: Record<string, unknown> | null;
+    requestUrl?: string | null;
+    sourceOperation?: Record<string, unknown> | null;
   }): Promise<ApiOperationEntity> {
     const existing = await this.apiOperationRepository.findById(params.id);
     if (!existing) {
@@ -68,6 +70,16 @@ export class UpdateApiOperation {
     if (params.sampleRequestBody !== undefined) {
       updateData.sampleRequestBody = params.sampleRequestBody && typeof params.sampleRequestBody === 'object'
         ? params.sampleRequestBody
+        : null;
+    }
+    if (params.requestUrl !== undefined) {
+      updateData.requestUrl = typeof params.requestUrl === 'string' && params.requestUrl.trim()
+        ? params.requestUrl.trim()
+        : null;
+    }
+    if (params.sourceOperation !== undefined) {
+      updateData.sourceOperation = params.sourceOperation && typeof params.sourceOperation === 'object'
+        ? params.sourceOperation
         : null;
     }
 

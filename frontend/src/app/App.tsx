@@ -26,13 +26,13 @@ export const App: React.FC = () => {
   React.useEffect(() => {
     setUnauthorizedHandler(() => {
       const { isHydrated, user, loginRequired, manualLogoutUntil } = authStore.getState();
-      if (!isHydrated || !user || Date.now() < manualLogoutUntil) {
+      if (!isHydrated || Date.now() < manualLogoutUntil) {
         return;
       }
-      authStore.getState().logout();
-      if (loginRequired) {
-        window.location.assign('/?auth=login&expired=1');
-      }
+      if (user) authStore.getState().logout();
+      // A protected API can be reached before RequireAuth finishes resolving
+      // the session. Always recover an unauthenticated 401 through login.
+      if (loginRequired || !user) window.location.assign('/?auth=login&expired=1');
     });
     return () => setUnauthorizedHandler(null);
   }, []);

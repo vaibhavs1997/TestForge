@@ -20,6 +20,9 @@ export function createTestReviewRoutes(service: TestCaseVersionService, executio
   router.get('/projects/:projectId/test-case-versions/:versionId/diff/:otherVersionId', asyncHandler(async (req,res) => { service.assertVersionProject(req.params.versionId, req.params.projectId); service.assertVersionProject(req.params.otherVersionId, req.params.projectId); res.json(createSuccessResponse(service.diff(req.params.otherVersionId, req.params.versionId))); }));
   router.post('/projects/:projectId/test-case-versions/:versionId/:action', asyncHandler(async (req,res) => { service.assertVersionProject(req.params.versionId, req.params.projectId); const action = String(req.params.action).toUpperCase() as any; res.json(createSuccessResponse(service.review(req.params.versionId, action, req.auth?.subject || 'System', req.body?.reason))); }));
   router.patch('/projects/:projectId/test-case-versions/:versionId', asyncHandler(async (req,res) => { service.assertVersionProject(req.params.versionId, req.params.projectId); res.json(createSuccessResponse(service.edit(req.params.versionId, req.body))); }));
+  router.delete('/projects/:projectId/test-review/test-cases', asyncHandler(async (req, res) => {
+    res.json(createSuccessResponse(service.deleteByProject(req.params.projectId)));
+  }));
   router.post('/projects/:projectId/test-review/bulk', asyncHandler(async (req,res) => { const items = service.bulk(req.params.projectId, req.body.versionIds || [], req.body.action, req.auth?.subject || 'System', req.body.reason); res.json(createSuccessResponse({ items })); }));
   router.post('/projects/:projectId/test-review/suites/:suiteId', asyncHandler(async (req,res) => res.json(createSuccessResponse({ items: service.addToSuite(req.params.projectId, req.params.suiteId, req.body.versionIds || []) }))));
   router.get('/projects/:projectId/test-review/coverage', asyncHandler(async (req,res) => res.json(createSuccessResponse(service.coverage(req.params.projectId)))));

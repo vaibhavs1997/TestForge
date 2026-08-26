@@ -14,7 +14,7 @@ import { FileText, Download, Plus, CheckCircle, XCircle, AlertTriangle, Eye, Tra
 import { useReports } from '../hooks';
 import { useRequirements } from '../../requirements/hooks';
 import { useExecution } from '../../execution/hooks';
-import { downloadJsonFile, downloadTextFile } from '../../../utils/downloadFile';
+import { downloadJsonFile } from '../../../utils/downloadFile';
 import { Toast } from '../../../components/shared/Toast';
 import { ProjectContextMissing } from '../../../components/shared/ProjectContextMissing';
 import { createSafeHtmlReport } from '../utils/safeHtmlReport';
@@ -142,9 +142,24 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
     setToastOpen(true);
   };
 
-  const handleExportReportHtml = (report: Report) => {
-    const html = createSafeHtmlReport(report);
-    downloadTextFile(`report-${report.id.slice(0, 8)}.html`, html, 'text/html');
+  const handleDownloadReportPdf = (report: Report) => {
+    // Browsers can create a real PDF through their native print-to-PDF flow;
+    // opening it from the click handler also avoids popup blocking. The user
+    // can choose "Save to PDF" in the print dialog.
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+    if (!printWindow) {
+      setToastMessage('Allow popups to download the PDF');
+      setToastType('error');
+      setToastOpen(true);
+      return;
+    }
+    printWindow.document.open();
+    printWindow.document.write(createSafeHtmlReport(report));
+    printWindow.document.close();
+    printWindow.addEventListener('load', () => {
+      printWindow.focus();
+      printWindow.print();
+    }, { once: true });
   };
 
   if (!projectId) return <ProjectContextMissing />;
@@ -343,7 +358,7 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
                           <Button variant='ghost' size='sm' className='h-8 w-8 p-0' onClick={() => handleViewReport(report)} title='View'>
                             <Eye className='h-4 w-4' />
                           </Button>
-                          <Button variant='ghost' size='sm' className='h-8 w-8 p-0' title='Export HTML' onClick={() => handleExportReportHtml(report)}>
+                          <Button variant='ghost' size='sm' className='h-8 w-8 p-0' title='Download PDF' onClick={() => handleDownloadReportPdf(report)}>
                             <FileDown className='h-4 w-4' />
                           </Button>
                           <Button variant='ghost' size='sm' className='h-8 w-8 p-0' onClick={() => { setDeleteReportItem(report); setDeleteOpen(true); }} title='Delete'>

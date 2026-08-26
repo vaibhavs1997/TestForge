@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { projectStore } from '../../../store/projectStore';
@@ -138,6 +139,88 @@ interface RequestDraft {
   testScript: string;
   settings: RequestSettings;
 }
+
+interface TemplateVariableEditorProps {
+  value: string;
+  onChange: (value: string) => void;
+  variables: Record<string, string>;
+  environmentName?: string;
+  onSaveVariable: (name: string, value: string) => Promise<void>;
+}
+
+const TemplateVariableEditor: React.FC<TemplateVariableEditorProps> = ({ value, onChange, variables, environmentName, onSaveVariable }) => {
+  const [openVariable, setOpenVariable] = React.useState<string | null>(null);
+  const [variableValue, setVariableValue] = React.useState('');
+  const [popoverPosition, setPopoverPosition] = React.useState({ left: 0, top: 0 });
+  const [scrollOffset, setScrollOffset] = React.useState({ left: 0, top: 0 });
+  const closeTimerRef = React.useRef<number | null>(null);
+
+  React.useEffect(() => () => {
+    if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
+  }, []);
+
+  const cancelClose = () => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  };
+  const scheduleClose = () => {
+    cancelClose();
+    closeTimerRef.current = window.setTimeout(() => setOpenVariable(null), 160);
+  };
+  const openEditor = (name: string, target: HTMLElement) => {
+    cancelClose();
+    const rect = target.getBoundingClientRect();
+    setPopoverPosition({ left: rect.left, top: rect.bottom + 8 });
+    setOpenVariable(name);
+    setVariableValue(String(variables[name] ?? ''));
+  };
+  const save = async () => {
+    if (!openVariable) return;
+    await onSaveVariable(openVariable, variableValue);
+    setOpenVariable(null);
+  };
+  const segments = value.split(/(\{\{[^}]+\}\})/g);
+
+  return (
+    <div className='relative min-h-[18rem] overflow-hidden rounded-2xl border border-border bg-background/80 focus-within:border-primary/50'>
+      <div className='pointer-events-none absolute inset-0 z-20 overflow-hidden p-3 font-mono text-sm leading-6 text-text'>
+        <pre className='m-0 whitespace-pre-wrap break-words font-inherit leading-inherit' style={{ transform: `translate(${-scrollOffset.left}px, ${-scrollOffset.top}px)` }}>
+          {segments.map((segment, index) => {
+        const match = /^\{\{([^}]+)\}\}$/.exec(segment);
+        if (!match) return <React.Fragment key={`${index}-${segment}`}>{segment}</React.Fragment>;
+        const name = match[1].trim();
+        return (
+          <span key={`${index}-${segment}`} className='pointer-events-auto inline-block' onMouseEnter={(event) => openEditor(name, event.currentTarget)} onMouseLeave={scheduleClose}>
+            <button type='button' onClick={(event) => openEditor(name, event.currentTarget)} className='rounded border border-dashed border-primary/40 bg-primary/10 px-0.5 text-primary hover:bg-primary/20' aria-label={`Edit variable ${name}`}>
+              {segment}
+            </button>
+          </span>
+        );
+          })}
+        </pre>
+      </div>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onScroll={(event) => setScrollOffset({ left: event.currentTarget.scrollLeft, top: event.currentTarget.scrollTop })}
+        className='relative z-10 block min-h-[18rem] w-full resize-y bg-transparent p-3 font-mono text-sm leading-6 text-transparent caret-text outline-none selection:bg-primary/30'
+        aria-label='Raw request body'
+        spellCheck={false}
+      />
+      {openVariable && typeof document !== 'undefined' && createPortal(
+        <div className='fixed z-[100] w-[min(30rem,calc(100vw-3rem))] rounded-xl border border-border bg-surface p-3 font-sans shadow-2xl' style={{ left: popoverPosition.left, top: popoverPosition.top }} onMouseEnter={cancelClose} onMouseLeave={scheduleClose}>
+          <div className='flex items-center justify-between gap-3 text-xs'><strong className='text-text'>{`{{${openVariable}}}`}</strong><span className='truncate text-text-secondary'>{environmentName || 'No environment selected'}</span></div>
+          <label className='mt-2 block text-xs text-text-secondary'>Value</label>
+          <input aria-label={`Value for ${openVariable}`} value={variableValue} onChange={(event) => setVariableValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void save(); } }} className='mt-1 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-text outline-none' placeholder={environmentName ? 'Enter variable value' : 'Select an environment first'} disabled={!environmentName} />
+          <div className='mt-2 flex items-center justify-between gap-3'><p className='text-[11px] text-text-secondary'>Save once to update all requests using this environment.</p><Button type='button' size='sm' disabled={!environmentName} onClick={() => void save()}>Save</Button></div>
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+};
 
 type RuntimeDataStrategy = 'none' | 'unique-email' | 'uuid' | 'timestamp' | 'random-number' | 'dataset' | 'environment' | 'response';
 
@@ -349,8 +432,42 @@ export function isHydratedForProject(hydratedProjectId: string | null, projectId
   return hydratedProjectId === projectId;
 }
 
+interface ApiWorkspaceSessionSnapshot {
+  selection: SelectionState | null;
+  draft: PersistedRequestDraft;
+  draftCache: Record<string, PersistedRequestDraft>;
+  response: ResponseState;
+  responseCache: Record<string, ResponseState>;
+  manualRequests: ManualRequestRecord[];
+  savedRequests: SavedRequestRecord[];
+  history: HistoryRecord[];
+  activeEnvironmentId: string;
+  responseTab: ResponseTab;
+  responseBodyView: ResponseBodyView;
+  bottomTab: BottomTab;
+  requestTab: 'params' | 'headers' | 'authorization' | 'body' | 'scripts' | 'tests' | 'settings';
+  expandedCollections: Record<string, boolean>;
+  expandedFolders: Record<string, boolean>;
+  activeRequestLog: string;
+  useTestData: boolean;
+}
+
 function apiSelectionStorageKey(projectId: string): string {
   return getScopedStorageKey(`testforge:api-selection:${projectId}`);
+}
+
+function apiWorkspaceSessionStorageKey(projectId: string): string {
+  return getScopedStorageKey(`testforge:api-workspace-session:${projectId}`);
+}
+
+function readApiWorkspaceSession(projectId: string): Partial<ApiWorkspaceSessionSnapshot> | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const parsed = JSON.parse(window.sessionStorage.getItem(apiWorkspaceSessionStorageKey(projectId)) || 'null');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Partial<ApiWorkspaceSessionSnapshot> : null;
+  } catch {
+    return null;
+  }
 }
 
 function readPersistedApiSelection(projectId: string): SelectionState | null {
@@ -1777,22 +1894,69 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
   }, []);
 
   React.useEffect(() => {
-    // Prior versions stored complete requests, responses and imported .env
-    // files. Remove those snapshots before creating the memory-only workspace.
+    // Remove only superseded snapshots. The current workspace snapshot is
+    // session-scoped so a browser refresh restores the request and response,
+    // while sign-out still clears it through clearSensitiveBrowserState().
     clearLegacyApiWorkspaceState();
+    const restored = readApiWorkspaceSession(projectId);
+    const restoredSelection = restored?.selection ?? null;
+    const restoredDraft = restored?.draft ? cloneJson(restored.draft) : sanitizeDraftForStorage(createDraft());
+    const restoredDraftCache = { ...(restored?.draftCache ?? {}) };
+    const restoredKey = responseCacheKey(restoredSelection);
+    if (restoredKey) restoredDraftCache[restoredKey] = restoredDraft;
     setImportedArtifacts([]);
-    setManualRequests([]);
-    setSavedRequests([]);
-    setHistory([]);
-    setResponseCache({});
-    setDraftCache({});
+    setManualRequests(Array.isArray(restored?.manualRequests) ? restored.manualRequests : []);
+    setSavedRequests(Array.isArray(restored?.savedRequests) ? restored.savedRequests : []);
+    setHistory(Array.isArray(restored?.history) ? restored.history : []);
+    setResponseCache(restored?.responseCache && typeof restored.responseCache === 'object' ? restored.responseCache : {});
+    setDraftCache(restoredDraftCache);
     setRuntimeData({});
-    setSelection(null);
-    setDraft(createDraft());
-    setActiveEnvironmentId('');
+    setSelection(restoredSelection);
+    setDraft(restoredDraft);
+    setResponse(restored?.response && typeof restored.response === 'object' ? restored.response : emptyResponseState());
+    setActiveEnvironmentId(typeof restored?.activeEnvironmentId === 'string' ? restored.activeEnvironmentId : '');
+    setResponseTab(restored?.responseTab ?? 'response');
+    setResponseBodyView(restored?.responseBodyView ?? 'pretty');
+    setBottomTab(restored?.bottomTab ?? 'related');
+    setRequestTab(restored?.requestTab ?? 'params');
+    setExpandedCollections(restored?.expandedCollections && typeof restored.expandedCollections === 'object' ? restored.expandedCollections : {});
+    setExpandedFolders(restored?.expandedFolders && typeof restored.expandedFolders === 'object' ? restored.expandedFolders : {});
+    setActiveRequestLog(typeof restored?.activeRequestLog === 'string' ? restored.activeRequestLog : 'Ready to send');
+    setUseTestData(Boolean(restored?.useTestData));
     initializedEnvironmentSelectionRef.current = false;
     setHydratedProjectId(projectId);
   }, [projectId]);
+
+  React.useEffect(() => {
+    if (!lastHydrated) return;
+    const selectedResponseKey = responseCacheKey(selection);
+    const snapshot: ApiWorkspaceSessionSnapshot = {
+      selection,
+      draft: sanitizeDraftForStorage(draft),
+      draftCache,
+      response,
+      responseCache: selectedResponseKey && response.startedAt
+        ? { ...responseCache, [selectedResponseKey]: response }
+        : responseCache,
+      manualRequests,
+      savedRequests,
+      history,
+      activeEnvironmentId,
+      responseTab,
+      responseBodyView,
+      bottomTab,
+      requestTab,
+      expandedCollections,
+      expandedFolders,
+      activeRequestLog,
+      useTestData,
+    };
+    try {
+      window.sessionStorage.setItem(apiWorkspaceSessionStorageKey(projectId), JSON.stringify(snapshot));
+    } catch {
+      // Storage can be disabled or full; the open workspace remains usable.
+    }
+  }, [activeEnvironmentId, activeRequestLog, bottomTab, draft, draftCache, expandedCollections, expandedFolders, history, lastHydrated, manualRequests, projectId, requestTab, response, responseBodyView, responseCache, responseTab, savedRequests, selection, useTestData]);
 
   // Migrate collections previously stored only in the API workspace into the
   // shared backend repository used by Requirements and other project pages.
@@ -2892,6 +3056,37 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
     await queryClient.invalidateQueries({ queryKey: queryKeys.environments(projectId) });
   };
 
+  const updateEnvironmentVariable = async (name: string, value: string): Promise<void> => {
+    if (!activeEnvironmentId || !activeEnvironment) {
+      setActiveRequestLog('Select an environment before editing request variables');
+      return;
+    }
+    const variables: Record<string, string> = { ...activeEnvironment.variables, [name]: value };
+    setImportedArtifacts((current) => current.map((artifact) => {
+      if (artifact.kind !== 'env' || artifact.id !== activeEnvironmentId) return artifact;
+      const hasEntry = artifact.entries.some((entry) => entry.kind === 'pair' && entry.key === name);
+      const entries = hasEntry
+        ? artifact.entries.map((entry) => entry.kind === 'pair' && entry.key === name ? { ...entry, value, raw: `${name}=${value}` } : entry)
+        : [...artifact.entries, { kind: 'pair' as const, key: name, value, raw: `${name}=${value}` }];
+      return { ...artifact, variables, entries, summary: `${Object.keys(variables).length} variables` };
+    }));
+    try {
+      if (activeManagedEnvironment) {
+        await updateManagedEnvironment(activeManagedEnvironment.id, { variables });
+      } else {
+        await environmentService.batchUpsertEnvironments(projectId, [{
+          name: activeEnvironment.name,
+          baseUrl: resolveEnvironmentBaseUrl(variables),
+          variables,
+        }]);
+      }
+      await queryClient.invalidateQueries({ queryKey: queryKeys.environments(projectId) });
+      setActiveRequestLog(`Updated {{${name}}} for ${activeEnvironment.name}`);
+    } catch {
+      setActiveRequestLog(`Could not save {{${name}}}; the current editor keeps the new value`);
+    }
+  };
+
 
   React.useEffect(() => {
     setTokenNow(Date.now());
@@ -3961,7 +4156,13 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
                         <select value={draft.rawBodyType} onChange={(e) => setDraft((current) => ({ ...current, rawBodyType: e.target.value as RawBodyType }))} className='h-10 w-full rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none'>
                           {RAW_BODY_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                         </select>
-                        <textarea value={draft.rawBody} onChange={(e) => setDraft((current) => ({ ...current, rawBody: e.target.value }))} rows={12} className='w-full rounded-2xl border border-border bg-background/80 p-3 font-mono text-sm text-text outline-none' />
+                        <TemplateVariableEditor
+                          value={draft.rawBody}
+                          onChange={(rawBody) => setDraft((current) => ({ ...current, rawBody }))}
+                          variables={currentEnvironmentVariables}
+                          environmentName={activeEnvironment?.name}
+                          onSaveVariable={updateEnvironmentVariable}
+                        />
                       </div>
                     )}
                     {draft.bodyMode === 'form-data' && (

@@ -4,8 +4,10 @@ import type { MappingProvenance, MappingState, TestDesignEntity } from '../../do
 import {
   getOperationMatchDiagnostics,
   mappingConfidencePercent,
+  operationHasRequestPayload,
   pickOperationForCategory,
   rankOperationsForRequirement,
+  requirementNeedsRequestPayload,
 } from './RequirementOperationMatcher.js';
 import type { StrategyCategory } from '../../domain/requirements/TestStrategyEntity.js';
 
@@ -95,7 +97,13 @@ export class RequirementEndpointMappingService {
 
   preserveExisting(design: Pick<TestDesignEntity, 'operationId' | 'mappingProvenance' | 'mappingState' | 'mappingConfidence'>, requirement: RequirementEntity, operations: ApiOperationEntity[], category: StrategyCategory, acceptanceCriterionId?: string, scenarioContext?: string): MappingDecision {
     const candidates = this.rankCandidatesForScenario(requirement, operations, acceptanceCriterionId, scenarioContext);
-    if (design.mappingProvenance === 'user' && this.validateOperation(design.operationId, operations, operations)) {
+    const existingOperation = operations.find((operation) => operation.id === design.operationId);
+    const hasBodyCapableCandidate = operations.some((operation) => operationHasRequestPayload(operation));
+    const bodylessCredentialMismatch = requirementNeedsRequestPayload(requirement)
+      && Boolean(existingOperation)
+      && !operationHasRequestPayload(existingOperation!)
+      && hasBodyCapableCandidate;
+    if (design.mappingProvenance === 'user' && this.validateOperation(design.operationId, operations, operations) && !bodylessCredentialMismatch) {
       return { operationId: design.operationId, provenance: 'user', state: 'confirmed', confidence: 100 };
     }
     if (this.validateOperation(design.operationId, candidates, operations)) {

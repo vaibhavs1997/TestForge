@@ -1,14 +1,30 @@
 import type { AcceptanceCriterion } from '../types';
 
-/** Turn pasted bullets / numbered lines into acceptance criteria. */
+function createCriterion(text: string): AcceptanceCriterion {
+  return {
+    id: typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `ac-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    text,
+  };
+}
+
+/**
+ * Turn pasted bullets, numbered lines, and sentence-separated paragraphs into
+ * individual acceptance criteria. A paragraph is common when copied from a
+ * ticket, so each complete sentence is independently planned.
+ */
 export function parseAcceptanceCriteriaText(text: string): AcceptanceCriterion[] {
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
 
-  return lines.map((line) => ({
-    id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `ac-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-    text: line.replace(/^[-*•]\s*/, '').replace(/^\d+[.)]\s*/, ''),
-  }));
+  return lines.flatMap((line) => line
+    .replace(/^[\s*\-\u2022]+/, '')
+    .replace(/^\d+[.)]\s*/, '')
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean)
+    .map(createCriterion));
 }

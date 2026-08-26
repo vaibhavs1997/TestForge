@@ -72,7 +72,10 @@ export class SchemaAwareMutationEngine {
 
   private mutations(schema: Schema, original: any, location: Location, fieldPath: string, required: boolean): Array<{ value?: any; remove?: boolean; p: MutationProvenance }> {
     const out: any[] = []; const add = (strategy: MutationProvenance['strategy'], rule: string, value?: any, remove = false) => out.push({ value, remove, p: this.provenance(strategy, location, fieldPath, rule, original, remove ? undefined : value) });
-    if (required) add('required-field', 'required', undefined, true); if (schema.nullable || schema.type?.includes?.('null')) add('boundary', 'nullable', null); if (schema.enum?.length) add('enum-violation', 'enum', '__invalid_enum__');
+    // Keep the complete request shape for a required-field negative case.
+    // An empty value exercises required validation without removing the key
+    // or unrelated request fields.
+    if (required) add('required-field', 'required', ''); if (schema.nullable || schema.type?.includes?.('null')) add('boundary', 'nullable', null); if (schema.enum?.length) add('enum-violation', 'enum', '__invalid_enum__');
     const type = Array.isArray(schema.type) ? schema.type.find((x: string) => x !== 'null') : schema.type;
     if (type === 'number' || type === 'integer') { if (schema.minimum !== undefined) add('boundary', 'minimum', schema.minimum - 1); if (schema.maximum !== undefined) add('boundary', 'maximum', schema.maximum + 1); if (typeof schema.exclusiveMinimum === 'number') add('boundary', 'exclusiveMinimum', schema.exclusiveMinimum); if (typeof schema.exclusiveMaximum === 'number') add('boundary', 'exclusiveMaximum', schema.exclusiveMaximum); add('type-violation', 'type', 'not-a-number'); }
     else if (type === 'array') { if (schema.minItems !== undefined) add('array-boundary', 'minItems', Array(Math.max(0, schema.minItems - 1)).fill(this.baseline(schema.items || {}))); if (schema.maxItems !== undefined) add('array-boundary', 'maxItems', Array(schema.maxItems + 1).fill(this.baseline(schema.items || {}))); add('type-violation', 'type', {}); }

@@ -78,6 +78,31 @@ const escapeHtml = (value: unknown): string => String(value ?? '')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#039;');
 
+const formatPdfPayload = (value: unknown): string => {
+  if (value === null || value === undefined || value === '') return 'No payload';
+  if (typeof value === 'string') return value;
+  try { return JSON.stringify(value, null, 2); } catch { return String(value); }
+};
+
+const formatPdfDuration = (ms: number): string => {
+  if (!ms) return '—';
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+};
+
+const createReportPdfHtml = (report: any): string => {
+  const title = report.sections?.overview?.title || report.id;
+  const cards = (report.sections?.stepResults || []).map((step: any, index: number) => {
+    const assertions = (step.assertions || []).map((assertion: any) => {
+      const passed = assertion.passed === true || assertion.status === 'Passed';
+      return `<tr><td class="mark ${passed ? 'pass' : 'fail'}">${passed ? '✓' : '✕'}</td><td>${escapeHtml(assertion.name || assertion.description || 'Assertion')}</td><td>${escapeHtml(assertion.expected ?? '—')}</td><td>${escapeHtml(assertion.actual ?? '—')}</td></tr>`;
+    }).join('');
+    const status = String(step.status || 'Unknown');
+    return `<article class="case ${status === 'Passed' ? 'case-pass' : 'case-fail'}"><header><div><span class="number">#${index + 1}</span><strong>${escapeHtml(step.name || step.title || `Test case ${index + 1}`)}</strong><small>${escapeHtml(step.id || '')}</small></div><div class="status">${escapeHtml(status)} <span class="chevron">⌄</span></div></header><section class="details"><div><label>REQUEST</label><p><b>${escapeHtml(step.request?.method || '')}</b> ${escapeHtml(step.request?.url || '')}</p></div><div><label>RESPONSE STATUS</label><p class="${step.response?.status >= 400 ? 'fail' : 'pass'}">${escapeHtml(step.response?.status ?? '—')}</p></div><div><label>DURATION</label><p>${escapeHtml(formatPdfDuration(step.response?.duration || 0))}</p></div><div><label>STARTED</label><p>${step.startedAt ? escapeHtml(new Date(step.startedAt).toLocaleString()) : '—'}</p></div></section>${assertions ? `<section class="assertions"><b>Assertions</b><table><thead><tr><th></th><th>ASSERTION</th><th>EXPECTED</th><th>ACTUAL</th></tr></thead><tbody>${assertions}</tbody></table></section>` : ''}<div class="payloads"><div><b>▸ Request Payload</b><pre>${escapeHtml(formatPdfPayload(step.request?.body))}</pre></div><div><b>▸ Response Body</b><pre>${escapeHtml(formatPdfPayload(step.response?.body))}</pre></div></div></article>`;
+  }).join('');
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)} - TestForge report</title><style>*{box-sizing:border-box}body{margin:0;background:#eef1f5;color:#172033;font:13px Arial,sans-serif;padding:28px}h1{font-size:22px;margin:0 0 6px}.meta{color:#697789;margin-bottom:22px}.case{background:#fff;border:1px solid #dce2e9;border-radius:10px;margin:0 auto 18px;max-width:1180px;overflow:hidden;box-shadow:0 2px 5px #17203318}.case>header{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-left:5px solid #ef4444}.case-pass>header{border-left-color:#22a06b}.number{display:inline-flex;background:#f5f7fa;border-radius:50%;width:28px;height:28px;align-items:center;justify-content:center;color:#738196;margin-right:12px}.case header strong{font-size:15px}.case header small{display:block;color:#9aa7b7;margin:7px 0 0 40px}.status{border:1px solid #f3b5b5;border-radius:16px;color:#dc4444;padding:7px 11px;font-weight:bold}.case-pass .status{color:#138a56;border-color:#a7dfc4}.chevron{margin-left:8px}.details{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:18px;border-top:1px solid #e2e7ed;padding:18px 22px}.details label{display:block;color:#9aa7b7;font-size:10px;font-weight:bold;margin-bottom:8px}.details p{margin:0;font-weight:600}.pass{color:#15945b}.fail{color:#e24b4b}.assertions{padding:0 22px 16px}.assertions>b{display:block;margin-bottom:8px}.assertions table{width:100%;border-collapse:collapse}.assertions th,.assertions td{border:1px solid #e2e7ed;padding:9px;text-align:left}.assertions th{background:#f5f7fa;color:#8b99a9;font-size:10px}.mark{font-size:16px;width:28px}.payloads{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:0 22px 20px}.payloads>div{border:1px solid #dce2e9;border-radius:7px;overflow:hidden}.payloads b{display:block;color:#357dde;padding:11px;background:#fafbfd}.payloads pre{margin:0;padding:12px;min-height:45px;max-height:180px;overflow:hidden;background:#fff;color:#435268;white-space:pre-wrap;font:11px Consolas,monospace}@media print{body{padding:12px;background:#fff}.case{break-inside:avoid;box-shadow:none}}</style></head><body><h1>${escapeHtml(title)}</h1><div class="meta">Status: ${escapeHtml(report.overallStatus)} · ${report.passedSteps || 0}/${report.totalSteps || 0} test cases passed · ${escapeHtml(formatPdfDuration(report.executionDuration))}</div>${cards}</body></html>`;
+};
+
 export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
   const { projectId: routeProjectId, reportId } = useParams<{ projectId: string; reportId: string }>();
   const navigate = useNavigate();
@@ -206,7 +231,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
       <div className='mb-6 rounded-2xl border border-border bg-surface/70 p-5'>
         <div className='flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between'>
         <div className='flex items-center gap-4'>
-          <Button variant='ghost' size='sm' className='mb-3 -ml-2 text-text-secondary' onClick={() => navigate(`/projects/${projectId}/reports`)}>
+          <Button variant='outline' size='sm' className='mb-3 -ml-2 gap-2' onClick={() => navigate(`/projects/${projectId}/reports`)}>
             <ArrowLeft className='h-4 w-4' />
             Back to reports
           </Button>
@@ -264,6 +289,10 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
               printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; img-src 'none'; connect-src 'none'; script-src 'none'; style-src 'unsafe-inline'"><title>${escapeHtml(title)} - TestForge report</title><style>
                 *{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#172033;margin:32px;font-size:12px}h1{font-size:22px;margin:0 0 6px}h2{font-size:15px;margin:24px 0 8px;border-bottom:1px solid #d5dbe5;padding-bottom:5px}.meta{color:#596579;margin-bottom:18px}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.metric{border:1px solid #d5dbe5;border-radius:6px;padding:10px}.metric strong{display:block;font-size:17px;margin-top:3px}.success{color:#087f42}.failed,.Failed{color:#b42318}.Passed{color:#087f42}table{border-collapse:collapse;width:100%;margin-top:8px}th,td{border:1px solid #d5dbe5;padding:7px;text-align:left;vertical-align:top}th{background:#eef2f7}@media print{body{margin:16px}}
               </style></head><body><h1>${escapeHtml(title)}</h1><div class="meta">Status: ${escapeHtml(report.overallStatus)} · Generated from execution run ${escapeHtml(report.executionRunId || '')}</div><div class="summary"><div class="metric">Total test cases<strong>${report.totalSteps}</strong></div><div class="metric">Passed<strong class="success">${report.passedSteps}</strong></div><div class="metric">Failed<strong class="failed">${report.failedSteps}</strong></div><div class="metric">Duration<strong>${escapeHtml(formatDuration(report.executionDuration))}</strong></div></div><h2>Test-case results</h2><table><thead><tr><th>#</th><th>Request</th><th>Status</th><th>HTTP</th><th>Duration</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
+              // Replace the legacy compact markup with the themed result-card
+              // layout before closing the document.
+              printWindow.document.open();
+              printWindow.document.write(createReportPdfHtml(report));
               printWindow.document.close();
               printWindow.focus();
               window.setTimeout(() => printWindow.print(), 250);
@@ -398,6 +427,18 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
                   <span className='text-text-secondary'>Report Version</span>
                   <span className='font-medium text-text'>{report.reportVersion}</span>
                 </div>
+                <div className='flex items-start justify-between gap-4 text-sm'>
+                  <span className='text-text-secondary'>Requirements covered</span>
+                  <span className='flex flex-wrap justify-end gap-2 text-right'>
+                    {sections.requirementsCovered.length > 0 ? (
+                      sections.requirementsCovered.map((reqId) => (
+                        <Badge key={reqId} variant='outline'>{reqId}</Badge>
+                      ))
+                    ) : (
+                      <span className='text-text-secondary'>None</span>
+                    )}
+                  </span>
+                </div>
               </CardContent>
             </Card>
 
@@ -425,24 +466,6 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
               </CardContent>
             </Card>
           </div>
-
-          {/* Requirements covered */}
-          <Card>
-            <CardHeader>
-              <CardTitle className='text-base'>Requirements covered</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className='flex flex-wrap gap-2'>
-                {sections.requirementsCovered.length > 0 ? (
-                  sections.requirementsCovered.map((reqId) => (
-                    <Badge key={reqId} variant='outline'>{reqId}</Badge>
-                  ))
-                ) : (
-                  <span className='text-sm text-text-secondary'>No requirements covered.</span>
-                )}
-              </div>
-            </CardContent>
-          </Card>
 
           {/* Runtime Variables Captured */}
           <Card>

@@ -89,9 +89,12 @@ export class UpdateTestDesign {
       )) as TestStrategyEntity | null;
       const { category, focusFieldId, scenarioKind } = this.resolveStrategyContext(existing, strategy);
       const body = buildPayloadForScenario(category, operation, { focusFieldId, scenarioKind });
+      // Rebuilding a mapping replaces any previous AI-provided body. This
+      // prevents a response example from surviving after the endpoint changes.
+      const { body: _previousBody, ...overridesWithoutBody } = requestOverrides;
       requestOverrides = {
-        ...requestOverrides,
-        body: Object.keys(body).length > 0 ? body : requestOverrides.body,
+        ...overridesWithoutBody,
+        ...(Object.keys(body).length > 0 ? { body } : {}),
       };
     }
 

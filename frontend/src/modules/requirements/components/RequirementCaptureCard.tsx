@@ -8,9 +8,12 @@ import { TextInput } from '../../../components/forms/TextInput';
 
 import { TextArea } from '../../../components/forms/TextArea';
 
+import { fieldLabelClass } from '../../../components/forms/fieldStyles';
+
 import { ClipboardList, Sparkles, Link2 } from 'lucide-react';
 
 import { parseAcceptanceCriteriaText } from '../utils/parseAcceptanceCriteria';
+import { clearRequirementCaptureDraft, readRequirementCaptureDraft, writeRequirementCaptureDraft } from '../utils/requirementCaptureDraft';
 
 
 
@@ -38,6 +41,8 @@ export interface RequirementCaptureCardProps {
   onDiscardOpenDraft?: () => void;
   isDiscardingDraft?: boolean;
   onCancelGeneration?: () => void;
+  /** Project scope for retaining an unfinished capture while navigating. */
+  draftStorageKey?: string;
 }
 
 
@@ -58,12 +63,16 @@ export const RequirementCaptureCard: React.FC<RequirementCaptureCardProps> = ({
   onDiscardOpenDraft,
   isDiscardingDraft,
   onCancelGeneration,
+  draftStorageKey,
 }) => {
+  const restoredDraft = React.useMemo(() => readRequirementCaptureDraft(draftStorageKey), [draftStorageKey]);
+  const [title, setTitle] = React.useState(() => restoredDraft?.title ?? '');
+  const [criteriaText, setCriteriaText] = React.useState(() => restoredDraft?.criteriaText ?? '');
+  const [sourceMode, setSourceMode] = React.useState<'manual' | 'jira'>(() => restoredDraft?.sourceMode ?? 'manual');
 
-  const [title, setTitle] = React.useState('');
-
-  const [criteriaText, setCriteriaText] = React.useState('');
-  const [sourceMode, setSourceMode] = React.useState<'manual' | 'jira'>('manual');
+  React.useEffect(() => {
+    writeRequirementCaptureDraft(draftStorageKey, { title, criteriaText, sourceMode });
+  }, [criteriaText, draftStorageKey, sourceMode, title]);
 
 
 
@@ -85,10 +94,17 @@ export const RequirementCaptureCard: React.FC<RequirementCaptureCardProps> = ({
 
     });
 
+    clearRequirementCaptureDraft(draftStorageKey);
     setTitle('');
 
     setCriteriaText('');
 
+  };
+
+  const handleClearCapture = () => {
+    clearRequirementCaptureDraft(draftStorageKey);
+    setTitle('');
+    setCriteriaText('');
   };
 
 
@@ -187,11 +203,23 @@ export const RequirementCaptureCard: React.FC<RequirementCaptureCardProps> = ({
 
         {sourceMode === 'manual' ? <form onSubmit={(e) => void handleSubmit(e)} className='space-y-4' aria-label='Generate test cases from acceptance criteria'>
 
-          <TextInput
+          <div>
+            <div className='flex items-center gap-2'>
+              <label htmlFor='requirement-capture-title' className={`${fieldLabelClass} mb-1.5`}>
+                Requirement title <span className='ml-1 text-error' aria-hidden='true'>*</span>
+              </label>
+              <button
+                type='button'
+                onClick={handleClearCapture}
+                className='mb-1.5 text-sm text-primary underline underline-offset-4 transition-colors hover:text-primary/80'
+              >
+                Clear title and criteria
+              </button>
+            </div>
+
+            <TextInput
 
             id='requirement-capture-title'
-
-            label='Requirement title'
 
             required
 
@@ -203,7 +231,8 @@ export const RequirementCaptureCard: React.FC<RequirementCaptureCardProps> = ({
 
             helperText='Short label for the requirement; test scenarios are derived from acceptance criteria below.'
 
-          />
+            />
+          </div>
 
           <TextArea
 
@@ -223,7 +252,7 @@ export const RequirementCaptureCard: React.FC<RequirementCaptureCardProps> = ({
 
             className='font-mono'
 
-            helperText='One criterion per line. Bullets and numbers are stripped automatically.'
+            helperText='Use lines, bullets, or complete sentences in a paragraph. Each criterion is analyzed automatically.'
 
           />
 

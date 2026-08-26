@@ -19,6 +19,25 @@ export class TestCaseVersionService {
   reviewQueue(projectId: string, lifecycle?: TestCaseLifecycle, filters: Record<string, unknown> = {}) { return [...this.cases.values()].filter((tc) => tc.projectId === projectId).map((tc) => ({ testCase: tc, version: this.current(tc.id), view: this.reviewView(this.current(tc.id)) })).filter((item) => !lifecycle || item.version.lifecycle === lifecycle).filter((item: any) => (!filters.requirementId || item.version.content.requirementId === filters.requirementId) && (!filters.acceptanceCriterionId || item.version.content.acceptanceCriterionId === filters.acceptanceCriterionId) && (!filters.operationId || item.version.content.operationId === filters.operationId) && (!filters.operationRisk || item.view.operation.risk === filters.operationRisk) && (!filters.mappingStatus || item.view.mapping?.state === filters.mappingStatus) && (!filters.mappingConfidence || Number(item.view.mapping?.confidence) >= Number(filters.mappingConfidence)) && (!filters.mutationStrategy || item.version.content.mutationProvenance?.strategy === filters.mutationStrategy)); }
   edit(versionId: string, patch: Partial<TestCaseVersionContent>): TestCaseVersionEntity { const current = this.getVersion(versionId); const tc = this.cases.get(current.testCaseId)!; const content = { ...structuredClone(current.content), ...structuredClone(patch) }; if (JSON.stringify(content) === JSON.stringify(current.content)) return current; delete (content as any).coverage; const next = this.newVersion(tc.id, current.version + 1, content, 'REVIEW_REQUIRED'); tc.currentVersionId = next.id; tc.updatedAt = Date.now(); this.versions.set(next.id, next); this.persist(); return next; }
   bulk(projectId: string, versionIds: string[], action: 'APPROVED' | 'REJECTED' | 'DEPRECATED', reviewer: string, reason?: string) { return versionIds.map((id) => { try { this.assertVersionProject(id, projectId); const version = this.getVersion(id); if (action === 'APPROVED' && (!version.content.operationId || (version.content.mapping as any)?.state === 'review')) return { versionId: id, status: 'ineligible', reason: !version.content.operationId ? 'unresolved operation' : 'mapping review required' }; return { versionId: id, status: 'succeeded', version: this.review(id, action, reviewer, reason) }; } catch (error) { return { versionId: id, status: 'other validation reason', reason: error instanceof Error ? error.message : String(error) }; } }); }
+  deleteByProject(projectId: string): { testCases: number; versions: number } {
+    const testCaseIds = [...this.cases.values()]
+      .filter((testCase) => testCase.projectId === projectId)
+      .map((testCase) => testCase.id);
+    const testCaseIdSet = new Set(testCaseIds);
+    const versionIds = [...this.versions.values()]
+      .filter((version) => testCaseIdSet.has(version.testCaseId))
+      .map((version) => version.id);
+
+    for (const testCaseId of testCaseIds) this.cases.delete(testCaseId);
+    for (const versionId of versionIds) this.versions.delete(versionId);
+    for (const [suiteId, members] of this.suiteMembership) {
+      const remaining = members.filter((member) => !testCaseIdSet.has(member.testCaseId));
+      if (remaining.length > 0) this.suiteMembership.set(suiteId, remaining);
+      else this.suiteMembership.delete(suiteId);
+    }
+    this.persist();
+    return { testCases: testCaseIds.length, versions: versionIds.length };
+  }
   addToSuite(projectId: string, suiteId: string, versionIds: string[]) { const members = this.suiteMembership.get(suiteId) || []; const results = versionIds.map((id) => { try { this.assertVersionProject(id, projectId); const v = this.getVersion(id); if (v.lifecycle !== 'APPROVED') return { versionId: id, status: 'ineligible', reason: 'version is not approved' }; if (!v.content.operationId || (v.content.mapping as any)?.state === 'review') return { versionId: id, status: 'ineligible', reason: 'unresolved operation or mapping review required' }; if (members.some((m) => m.testCaseId === v.testCaseId && m.testCaseVersionId === v.id)) return { versionId: id, status: 'ineligible', reason: 'already in suite' }; members.push({ testCaseId: v.testCaseId, testCaseVersionId: v.id }); return { versionId: id, status: 'succeeded', membership: { testCaseId: v.testCaseId, testCaseVersionId: v.id } }; } catch (error) { return { versionId: id, status: 'other validation reason', reason: error instanceof Error ? error.message : String(error) }; } }); this.suiteMembership.set(suiteId, members); return results; }
   assertCaseProject(testCaseId: string, projectId: string): void { const tc = this.cases.get(testCaseId); if (!tc) throw new Error(`Test case ${testCaseId} not found`); if (tc.projectId !== projectId) throw new Error('Forbidden for this project'); }
   assertVersionProject(versionId: string, projectId: string): void { const v = this.getVersion(versionId); this.assertCaseProject(v.testCaseId, projectId); }

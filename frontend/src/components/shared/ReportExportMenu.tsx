@@ -28,13 +28,20 @@ export const ReportExportMenu: React.FC<ReportExportMenuProps> = ({
 
   return (
     <div className="relative" ref={ref}>
-      <Button variant="outline" size="sm" onClick={() => setOpen((v) => !v)}>
+      <Button
+        variant="default"
+        size="md"
+        className="gap-2 shadow-sm"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="menu"
+      >
         <Download className="h-4 w-4" />
         Export
         <ChevronDown className="ml-1 h-3 w-3" />
       </Button>
       {open && (
-        <div className="absolute right-0 z-20 mt-1 min-w-[140px] rounded-lg border border-border bg-surface py-1 shadow-lg">
+        <div className="absolute right-0 z-20 mt-2 min-w-[160px] overflow-hidden rounded-lg border border-border bg-surface py-1 shadow-xl" role="menu">
           <button
             type="button"
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text hover:bg-muted"

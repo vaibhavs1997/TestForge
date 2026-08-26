@@ -60,7 +60,7 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
   const serviceIds = React.useMemo(() => services.map((s) => s.id), [services]);
   const { operations } = useApiOperations(projectId, serviceIds);
   const { environments } = useEnvironments(projectId);
-  const { requirements, suggested, approved } = useRequirements(projectId);
+  const { activeRequirements, suggested, approved } = useRequirements(projectId);
   const { runs } = useExecution(projectId);
   const { reports } = useReports(projectId);
 
@@ -70,7 +70,7 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
   const hasApis = displayedOperationCount > 0;
   const apiImportIsSyncing = false;
   const hasEnv = environments.length > 0;
-  const hasRequirements = requirements.length > 0;
+  const hasRequirements = activeRequirements.length > 0;
   const hasRuns = runs.length > 0;
   const hasReports = reports.length > 0;
 
@@ -110,7 +110,7 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
         icon: ListChecks,
         done: hasRequirements,
         detail: hasRequirements
-          ? `${requirements.length} requirement(s) · ${suggested.length} suggested`
+          ? `${activeRequirements.length} requirement(s) · ${suggested.length} suggested`
           : 'No requirements yet',
         path: projectModulePath(projectId, 'requirements'),
         actionLabel: hasRequirements ? 'Open requirements' : 'Add requirement',
@@ -151,7 +151,7 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
       hasEnv,
       environments.length,
       hasRequirements,
-      requirements.length,
+      activeRequirements.length,
       suggested.length,
       hasRuns,
       hasReports,

@@ -181,7 +181,7 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const { requirements, suggested, approved, archived, isLoading, isError, error, generateFromAnalysisAsync, updateAsync, removeAsync, planTestStrategyAsync, generateTestDesignsAsync, isGeneratingDesigns, planExecutionAsync, createAsync, isCreating } = useRequirements(projectId);
+  const { requirements, activeRequirements, suggested, approved, archived, isLoading, isError, error, generateFromAnalysisAsync, updateAsync, removeAsync, planTestStrategyAsync, generateTestDesignsAsync, isGeneratingDesigns, planExecutionAsync, createAsync, isCreating } = useRequirements(projectId);
 
   const listedSuiteRequirements = useMemo(
     () => [...suggested, ...approved, ...archived],
@@ -1240,7 +1240,7 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
     ? 4
     : showSuiteInPanel && panelDesigns.length > 0
       ? 3
-      : requirements.length > 0
+      : activeRequirements.length > 0
         ? 2
         : 1;
 
@@ -1661,10 +1661,10 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
 
       <div className='mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
         {[
-          { label: 'Requirements', value: requirements.length, detail: 'All captured items' },
+          { label: 'Requirements', value: activeRequirements.length, detail: 'Active items' },
           { label: 'Pending review', value: pendingReview.length, detail: 'Suites awaiting approval' },
           { label: 'Approved', value: approved.length, detail: 'Ready for execution' },
-          { label: 'From Jira', value: requirements.filter((req) => req.source === 'Jira').length, detail: jiraConfigured ? 'Jira connected' : 'Jira not configured' },
+          { label: 'From Jira', value: activeRequirements.filter((req) => req.source === 'Jira').length, detail: jiraConfigured ? 'Jira connected' : 'Jira not configured' },
         ].map((metric) => (
           <Card key={metric.label} className='border-border'>
             <CardContent className='p-4'>
@@ -1679,7 +1679,8 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
       </div>
 
       <RequirementCaptureCard
-        key={captureFormKey}
+        key={`${projectId}-${captureFormKey}`}
+        draftStorageKey={projectId}
         onGenerateTestCases={handleCaptureFromCriteria}
         onImportFromJira={() => setJiraImportOpen(true)}
         jiraConfigured={jiraConfigured}

@@ -246,9 +246,12 @@ export class GenerateRequirementTestCases {
       const operation = operations.find((o) => o.id === operationId);
       const { category: scenarioCategory, focusFieldId, scenarioKind } = this.resolveStrategyContext(design, strategy);
       const body = buildPayloadForScenario(scenarioCategory, operation, { focusFieldId, scenarioKind });
+      // A mapping rebuild must use only the mapped operation's request input,
+      // never a response-shaped payload generated before the mapping.
+      const { body: _previousBody, ...overridesWithoutBody } = design.requestOverrides;
       const requestOverrides = {
-        ...design.requestOverrides,
-        body: Object.keys(body).length > 0 ? body : design.requestOverrides?.body,
+        ...overridesWithoutBody,
+        ...(Object.keys(body).length > 0 ? { body } : {}),
       };
 
       if (operationId !== design.operationId || requestOverrides.body !== design.requestOverrides?.body) {

@@ -507,9 +507,19 @@ export class ExecutePlan {
         failedStepIds.add(currentPlan.id);
         continue;
       }
+      // Execution plans are durable scheduling records, but the request body
+      // itself is authoritative in the API workspace. Always start from the
+      // operation's latest saved request sample so editing an endpoint does
+      // not require recreating every plan. Deterministic test mutations are
+      // then reapplied to that current body below.
+      const liveRequestPlan = this.withLiveOperationRequestBody(
+        dependencyResolution.plan,
+        stepOperation,
+        testDesign,
+      );
       const stepResult = await this.executeStep(
         {
-          ...dependencyResolution.plan,
+          ...liveRequestPlan,
           __snapshotReferences: { requirement: { id: requirement.id, version: requirement.updatedAt }, operation: stepOperation ? { id: stepOperation.id, serviceId: stepOperation.serviceId, version: stepOperation.updatedAt } : undefined, environment: { id: selectedEnvironment.id, version: selectedEnvironment.updatedAt }, dataset: currentPlan.datasetId ? await this.datasetRepository.findById(currentPlan.datasetId) : undefined, fieldRules, testCaseVersionId: currentPlan.testCaseVersionId || undefined, mutation: testDesign?.mutationProvenance },
           assertions: [
             ...(dependencyResolution.plan.assertions || []),
@@ -610,6 +620,65 @@ export class ExecutePlan {
     return result;
   }
 
+  private withLiveOperationRequestBody(plan: any, operation: any, design: any): any {
+    const liveBody = operation?.sampleRequestBody;
+    // The operation is the saved API-workspace source of truth. Keep its URL
+    // alongside its body so an execution never falls back to the import-time
+    // path saved in a test plan.
+    const liveRequestUrl = typeof operation?.requestUrl === 'string' && operation.requestUrl.trim()
+      ? operation.requestUrl
+      : plan.requestTemplate?.path;
+    const requestTemplate = {
+      ...(plan.requestTemplate || {}),
+      ...(liveRequestUrl ? { path: liveRequestUrl } : {}),
+    };
+    if (!liveBody || typeof liveBody !== 'object' || Array.isArray(liveBody)) {
+      return { ...plan, requestTemplate };
+    }
+    const body = this.cloneValue(liveBody);
+    const mutation = design?.mutationProvenance;
+    // Baseline/positive cases intentionally use the complete current editor
+    // body. For deterministic negative cases, replace only the one field
+    // selected by the test mutation and preserve all other live values.
+    if (mutation && mutation.location === 'body' && mutation.strategy !== 'baseline-valid') {
+      this.applyBodyMutation(body, String(mutation.fieldPath || ''), mutation.mutatedValue);
+    }
+    return {
+      ...plan,
+      requestTemplate: {
+        ...requestTemplate,
+        body,
+      },
+    };
+  }
+
+  private applyBodyMutation(body: Record<string, unknown>, fieldPath: string, value: unknown): void {
+    const parts = fieldPath.replace(/^\$\.?/, '').split('.').filter(Boolean);
+    if (parts.length === 0) return;
+    const applyAt = (cursor: Record<string, any> | any[], index: number): void => {
+      if (Array.isArray(cursor)) {
+        cursor.forEach((item) => { if (item && typeof item === 'object') applyAt(item, index); });
+        return;
+      }
+      const rawPart = parts[index];
+      const isArray = rawPart.endsWith('[]');
+      const part = isArray ? rawPart.slice(0, -2) : rawPart;
+      const last = index === parts.length - 1;
+      if (last) {
+        cursor[part] = value;
+        return;
+      }
+      if (isArray) {
+        if (!Array.isArray(cursor[part])) cursor[part] = [];
+        applyAt(cursor[part], index + 1);
+        return;
+      }
+      if (!cursor[part] || typeof cursor[part] !== 'object') cursor[part] = {};
+      applyAt(cursor[part], index + 1);
+    };
+    applyAt(body, 0);
+  }
+
   private async executeStep(
     plan: any,
     context: ExecutionContext,
@@ -636,15 +705,12 @@ export class ExecutePlan {
     // Resolve runtime variables in request template
     const requestTemplate = plan.requestTemplate || { method: 'GET', path: '/' };
     const method = requestTemplate.method || 'GET';
-    let path = requestTemplate.path || '/';
-
-    // Substitute runtime variables in path
-    path = this.substituteVariables(path, context);
+    const path = requestTemplate.path || '/';
 
     // Build URL. Canonical Field Data values are applied below using their
     // recorded input locations; legacy mappings retain their historical
     // header-only behavior when no location was persisted.
-    let url = `${context.baseUrl}${path}`;
+    let url = this.resolveRequestUrl(path, context);
 
     // Build headers (merge environment headers with request overrides)
     const headers: Record<string, string> = {
@@ -872,6 +938,31 @@ export class ExecutePlan {
       }
       return match; // Keep original if not found
     });
+  }
+
+  private resolveRequestUrl(pathOrUrl: string, context: ExecutionContext): string {
+    const resolvedTarget = this.substituteVariables(String(pathOrUrl || '/'), context).trim();
+    const unresolved = resolvedTarget.match(/\{\{[^}]+\}\}/);
+    if (unresolved) {
+      throw new Error(`Unable to resolve request URL variable ${unresolved[0]}`);
+    }
+
+    // API workspace URLs may already be absolute after environment-variable
+    // substitution (for example {{ident_base_url}}/auth/login). In that case
+    // do not prepend the environment base URL a second time.
+    if (/^https?:\/\//i.test(resolvedTarget)) {
+      return resolvedTarget;
+    }
+
+    const baseUrl = this.substituteVariables(String(context.baseUrl || ''), context).replace(/\/+$/, '');
+    if (!baseUrl) {
+      throw new Error('Execution environment has no base URL');
+    }
+    const unresolvedBase = baseUrl.match(/\{\{[^}]+\}\}/);
+    if (unresolvedBase) {
+      throw new Error(`Unable to resolve environment base URL variable ${unresolvedBase[0]}`);
+    }
+    return `${baseUrl}/${resolvedTarget.replace(/^\/+/, '')}`;
   }
 
   private resolveObject(obj: any, context: ExecutionContext): any {

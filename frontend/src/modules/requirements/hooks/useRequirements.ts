@@ -79,9 +79,13 @@ export const useRequirements = (projectId?: string) => {
   const suggested = data.filter(r => r.approvalStatus === 'Suggested');
   const approved = data.filter(r => r.approvalStatus === 'Approved');
   const archived = data.filter(r => r.approvalStatus === 'Archived' || r.approvalStatus === 'Rejected');
+  const activeRequirements = data.filter(
+    r => r.approvalStatus !== 'Archived' && r.approvalStatus !== 'Rejected',
+  );
 
   return {
     requirements: data,
+    activeRequirements,
     suggested,
     approved,
     archived,

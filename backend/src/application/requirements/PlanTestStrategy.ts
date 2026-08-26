@@ -81,7 +81,8 @@ export class PlanTestStrategy {
 
     const scenarioOrdinals = new Map<string, number>();
     for (const scenario of planned) {
-      const acceptanceCriterionId = this.resolveAcceptanceCriterionId(requirement, scenario.title, scenario.reason);
+      const acceptanceCriterionId = scenario.acceptanceCriterionId
+        ?? this.resolveAcceptanceCriterionId(requirement, scenario.title, scenario.reason);
       const identityBase = acceptanceCriterionId || 'legacy';
       const ordinal = scenarioOrdinals.get(identityBase) || 0;
       scenarioOrdinals.set(identityBase, ordinal + 1);

@@ -32,8 +32,9 @@ describe('SchemaAwareMutationEngine', () => {
     expect(cases.some((c) => c.provenance.strategy === 'enum-violation')).toBe(true);
     expect(cases.some((c) => c.provenance.schemaRule === 'nullable')).toBe(true);
     const missing = cases.find((c) => c.provenance.fieldPath === '$.name' && c.provenance.strategy === 'required-field')!;
-    expect((missing.requestOverrides.body as any).name).toBeUndefined();
+    expect((missing.requestOverrides.body as any).name).toBe('');
     expect((missing.requestOverrides.body as any).nested.value).toBe(2);
+    expect(missing.requestOverrides.body).toMatchObject({ count: 1, choice: 'a', tags: ['a'] });
   });
 
   it('handles nested objects, arrays, all composition, and every OpenAPI parameter location', () => {

@@ -9,6 +9,7 @@ const READ_HINTS = ['get', 'list', 'fetch', 'read'];
 const UPDATE_HINTS = ['update', 'patch', 'put', 'modify'];
 const DELETE_HINTS = ['delete', 'remove'];
 const AUTH_HINTS = ['login', 'log in', 'sign in', 'signin', 'authenticate', 'auth'];
+const CREDENTIAL_TERMS = ['email', 'password', 'username', 'credential', 'credentials'];
 
 const RESET_TERMS = ['forgot password', 'reset password', 'password reset', 'forgotten password'];
 const RECOVERY_TERMS = ['reset', 'recover', 'recovery', 'forgot', 'forgotten', 'unlock'];
@@ -69,6 +70,7 @@ function scoreOperation(op: ApiOperationEntity, tokens: string[], corpus: string
   const operationIsRecovery = RECOVERY_TERMS.some((term) => containsTerm(hay, term));
   const operationIsAuthentication = AUTH_HINTS.some((term) => containsTerm(hay, term));
   const operationIsRegistration = REGISTRATION_TERMS.some((term) => containsTerm(hay, term));
+  const requirementNeedsRequestPayload = CREDENTIAL_TERMS.some((term) => containsTerm(corpus, term));
 
   if (requirementIsRegistration && operationIsReset && !RESET_TERMS.some((term) => containsTerm(corpus, term))) {
     score -= 8;
@@ -85,6 +87,15 @@ function scoreOperation(op: ApiOperationEntity, tokens: string[], corpus: string
   if (requirementIsRecovery && operationIsAuthentication && !operationIsRecovery) {
     score -= 16;
     reasons.push('Rejected authentication semantics for a recovery requirement (-16)');
+  }
+  if (requirementNeedsRequestPayload) {
+    if (operationHasRequestPayload(op)) {
+      score += 7;
+      reasons.push('Requirement includes request credentials and operation has a request payload (+7)');
+    } else {
+      score -= 10;
+      reasons.push('Requirement includes request credentials but operation has no request payload (-10)');
+    }
   }
   // HTTP method alone is not enough to identify the business operation. A
   // password-reset POST must not win for a registration requirement simply
@@ -108,6 +119,17 @@ function scoreOperation(op: ApiOperationEntity, tokens: string[], corpus: string
     reasons.push(`Requirement suggests "delete" action and operation is DELETE (+3)`);
   }
   return { score, reasons };
+}
+
+export function operationHasRequestPayload(operation: ApiOperationEntity): boolean {
+  const workspaceBody = readSavedWorkspaceRequestBody(operation).body;
+  const body = workspaceBody ?? operation.sampleRequestBody;
+  return Boolean(body && typeof body === 'object' && !Array.isArray(body) && Object.keys(body).length > 0);
+}
+
+export function requirementNeedsRequestPayload(requirement: RequirementEntity): boolean {
+  const corpus = requirementCorpus(requirement).toLowerCase();
+  return CREDENTIAL_TERMS.some((term) => containsTerm(corpus, term));
 }
 
 export interface OperationMatchScore {
@@ -237,7 +259,12 @@ export function buildPayloadForScenario(
     scenarioKind?: 'missing_field' | 'invalid_field' | 'duplicate' | 'default';
   },
 ): Record<string, unknown> {
-  const sample = operation?.sampleRequestBody;
+  const workspaceBody = readSavedWorkspaceRequestBody(operation);
+  // A saved API-workspace edit is the user's current request definition and
+  // therefore takes precedence over the payload captured during import. If
+  // it has no usable body, retain the normal contract fallback so a scenario
+  // never becomes blank merely because a request editor was opened.
+  const sample = workspaceBody.body ?? operation?.sampleRequestBody;
   let body: Record<string, unknown>;
   if (sample && typeof sample === 'object' && !Array.isArray(sample) && Object.keys(sample).length > 0) {
     body = mutateSampleForCategory(category, { ...sample }, scenario);
@@ -286,6 +313,50 @@ export function buildPayloadForScenario(
   }
 
   return body;
+}
+
+function readSavedWorkspaceRequestBody(operation?: ApiOperationEntity | null): {
+  hasSavedEditor: boolean;
+  body: Record<string, unknown> | null;
+} {
+  const source = operation?.sourceOperation;
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return { hasSavedEditor: false, body: null };
+  const raw = (source as { raw?: unknown }).raw;
+  const editor = (source as { requestEditor?: unknown }).requestEditor
+    ?? (raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as { requestEditor?: unknown }).requestEditor : undefined);
+  if (!editor || typeof editor !== 'object' || Array.isArray(editor)) return { hasSavedEditor: false, body: null };
+  const draft = editor as Record<string, unknown>;
+  const mode = String(draft.bodyMode || 'none');
+  if (mode === 'raw') {
+    const raw = String(draft.rawBody || '').trim();
+    try {
+      const parsed = JSON.parse(raw);
+      return { hasSavedEditor: true, body: parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null };
+    } catch {
+      return { hasSavedEditor: true, body: null };
+    }
+  }
+  if (mode === 'form-data' || mode === 'x-www-form-urlencoded') {
+    const rows = draft[mode === 'form-data' ? 'formDataRows' : 'urlEncodedRows'];
+    if (!Array.isArray(rows)) return { hasSavedEditor: true, body: null };
+    const body = Object.fromEntries(rows.flatMap((row) => {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) return [];
+      const item = row as { enabled?: unknown; key?: unknown; value?: unknown };
+      const key = String(item.key || '').trim();
+      return item.enabled !== false && key ? [[key, String(item.value ?? '')]] : [];
+    }));
+    return { hasSavedEditor: true, body };
+  }
+  if (mode === 'graphql') {
+    const variables = String(draft.graphqlVariables || '').trim();
+    try {
+      const parsedVariables = variables ? JSON.parse(variables) : {};
+      return { hasSavedEditor: true, body: { query: String(draft.graphqlQuery || ''), variables: parsedVariables } };
+    } catch {
+      return { hasSavedEditor: true, body: { query: String(draft.graphqlQuery || ''), variables: {} } };
+    }
+  }
+  return { hasSavedEditor: true, body: null };
 }
 
 function bodyKeyForFieldId(fieldId: string): string {

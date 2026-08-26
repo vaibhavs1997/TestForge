@@ -19,6 +19,8 @@ export interface PlannedScenario {
   /** When set, payload omits or invalidates this field for the scenario. */
   focusFieldId?: string;
   scenarioKind?: 'missing_field' | 'invalid_field' | 'duplicate' | 'default';
+  /** The acceptance criterion that produced this scenario. */
+  acceptanceCriterionId?: string;
 }
 
 export interface PlanScenariosOptions {
@@ -29,7 +31,7 @@ export interface PlanScenariosOptions {
 }
 
 function dedupeKey(s: PlannedScenario): string {
-  return `${s.testCaseType}|${s.expectedHttpStatus}|${s.title.toLowerCase()}`;
+  return `${s.acceptanceCriterionId ?? 'legacy'}|${s.testCaseType}|${s.expectedHttpStatus}|${s.title.toLowerCase()}`;
 }
 
 function addAccountRegistrationScenarios(
@@ -239,6 +241,27 @@ function addGenericScenarios(
   });
 }
 
+const ACTION_START = '(?:log(?:\\s|-)?(?:in|out)|sign(?:\\s|-)?(?:in|out|up)|authenticate|register|create|update|edit|change|delete|remove|view|get|retrieve|reset|forgot|verify|submit|send|add|search|list|upload|download)';
+const compoundActionBoundary = new RegExp(
+  `\\s+(?:and\\s+then|then|also|and)\\s+(?=${ACTION_START}\\b)`,
+  'ig',
+);
+const actionStart = new RegExp(ACTION_START, 'i');
+
+/**
+ * A single criterion can describe several actions (for example, "login and
+ * update profile"). Split only conjunctions that introduce another action so
+ * field lists such as "email and password" remain one scenario.
+ */
+function splitCompoundCriterionActions(text: string): string[] {
+  const firstAction = actionStart.exec(text);
+  const parts = text.split(compoundActionBoundary).map((part) => part.trim()).filter(Boolean);
+  if (!firstAction || firstAction.index === undefined || parts.length < 2) return [text];
+
+  const subjectPrefix = text.slice(0, firstAction.index);
+  return parts.map((part, index) => (index === 0 ? part : `${subjectPrefix}${part}`.trim()));
+}
+
 export function planScenariosFromAcceptanceCriteria(
   requirement: RequirementEntity,
   options: PlanScenariosOptions = {},
@@ -257,7 +280,6 @@ export function planScenariosFromAcceptanceCriteria(
     ];
   }
 
-  const lowerNorm = acText.trim().toLowerCase();
   const scenarios: PlannedScenario[] = [];
   const seen = new Set<string>();
 
@@ -268,34 +290,49 @@ export function planScenariosFromAcceptanceCriteria(
     scenarios.push(scenario);
   };
 
-  const isAccountFlow = /(create|register|sign[\s-]?up|new account|account creation)/i.test(lowerNorm);
-  const isAuthFlow = /(log[\s-]?in|sign[\s-]?in|authenticate)/i.test(lowerNorm);
+  const criteria = (requirement.acceptanceCriteria ?? [])
+    .map((criterion) => ({ id: criterion.id, text: criterion.text.trim() }))
+    .filter((criterion) => criterion.text.length > 0);
+  const criteriaToPlan = criteria.length > 0
+    ? criteria
+    : [{ id: undefined, text: acText.trim() }];
 
-  const fields = inferFieldsFromAcceptanceCriteria(acText, {
-    flowKind: isAccountFlow ? 'account' : isAuthFlow ? 'auth' : 'generic',
-    apiRequiredBodyKeys: options.apiRequiredBodyKeys,
-    apiBodyKeys: options.apiBodyKeys,
-  });
-  const mentionsRegion = Boolean(fields.contextPhrase) ||
-    /\b(region|market|locale|country|site|store|portal|platform|application)\b/i.test(lowerNorm);
+  for (const criterion of criteriaToPlan) {
+    for (const criterionText of splitCompoundCriterionActions(criterion.text)) {
+      const criterionLower = criterionText.toLowerCase();
+      const isAccountFlow = /(create|register|sign[\s-]?up|new account|account creation)/i.test(criterionLower);
+      const isAuthFlow = /(log[\s-]?in|sign[\s-]?in|authenticate)/i.test(criterionLower);
+      const fields = inferFieldsFromAcceptanceCriteria(criterionText, {
+        flowKind: isAccountFlow ? 'account' : isAuthFlow ? 'auth' : 'generic',
+        apiRequiredBodyKeys: options.apiRequiredBodyKeys,
+        apiBodyKeys: options.apiBodyKeys,
+      });
+      const mentionsRegion = Boolean(fields.contextPhrase) ||
+        /\b(region|market|locale|country|site|store|portal|platform|application)\b/i.test(criterionLower);
+      const addForCriterion = (scenario: PlannedScenario) => add({
+        ...scenario,
+        acceptanceCriterionId: criterion.id,
+      });
 
-  if (isAccountFlow) {
-    addAccountRegistrationScenarios(add, fields, mentionsRegion, lowerNorm);
-  } else if (isAuthFlow) {
-    addAuthScenarios(add, fields);
-  } else {
-    addGenericScenarios(add, acText.trim(), fields);
-  }
+      if (isAccountFlow) {
+        addAccountRegistrationScenarios(addForCriterion, fields, mentionsRegion, criterionLower);
+      } else if (isAuthFlow) {
+        addAuthScenarios(addForCriterion, fields);
+      } else {
+        addGenericScenarios(addForCriterion, criterionText, fields);
+      }
 
-  if (/password|reset|forgot/i.test(lowerNorm) && !isAccountFlow) {
-    add({
-      category: 'Positive',
-      testCaseType: 'Positive',
-      title: 'Initiate password reset with a registered email address',
-      reason: 'Password reset flow from acceptance criteria.',
-      priority: 'High',
-      expectedHttpStatus: 200,
-    });
+      if (/password|reset|forgot/i.test(criterionLower) && !isAccountFlow) {
+        addForCriterion({
+          category: 'Positive',
+          testCaseType: 'Positive',
+          title: 'Initiate password reset with a registered email address',
+          reason: 'Password reset flow from acceptance criteria.',
+          priority: 'High',
+          expectedHttpStatus: 200,
+        });
+      }
+    }
   }
 
   return scenarios;

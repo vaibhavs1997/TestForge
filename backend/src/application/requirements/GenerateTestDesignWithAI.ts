@@ -113,7 +113,7 @@ export class GenerateTestDesignWithAI {
     } catch (err: any) {
       warnings.push(`Project context could not be built: ${err.message}`);
     }
-    if (!context) warnings.push('No project context was available for test design generation.');
+    if (!context) warnings.push('No project context was available for post-generation mapping.');
     const projectOperations = (context?.apiOperations || []) as any[];
     const existingDesigns = await this.testDesignRepository.findByRequirement(request.requirementId);
     const existingUserOperationIds = existingDesigns
@@ -142,29 +142,12 @@ export class GenerateTestDesignWithAI {
       ...toRequirementPromptPayload(requirement),
       title: requirement.title,
       description: requirement.description,
-      relatedFlows: requirement.relatedFlows || [],
       strategyScenarios: (strategy?.sections || []).flatMap((section: any) => section.items.map((item: any) => ({
         scenarioId: item.scenarioId,
         strategyItemId: item.id,
         acceptanceCriterionId: item.acceptanceCriterionId,
         title: item.title,
-        candidateOperations: (item.scenarioId && strategyScenarioCandidates.get(item.scenarioId)
-          ? projectOperations.filter((operation) => strategyScenarioCandidates.get(item.scenarioId)!.has(operation.id))
-          : item.acceptanceCriterionId && criterionCandidates.get(item.acceptanceCriterionId)
-            ? projectOperations.filter((operation) => criterionCandidates.get(item.acceptanceCriterionId)!.has(operation.id))
-            : candidateOperations),
       }))),
-      candidateOperations: candidateOperations.map((operation) => ({
-        id: operation.id,
-        serviceId: operation.serviceId,
-        name: operation.name,
-        method: operation.method,
-        path: operation.path,
-        description: operation.description,
-        authenticationType: operation.authenticationType,
-        tags: operation.tags,
-        score: operation.score,
-      })),
     };
 
     let providerEntity;
@@ -183,7 +166,8 @@ export class GenerateTestDesignWithAI {
       const preview = await this.promptBuilderService.previewPrompt({
         templateId: TEST_DESIGN_TEMPLATE_ID,
         projectId,
-        variableOverrides: { requirements: [requirementPrompt], apiOperations: candidateOperations },
+        // Endpoint candidates are applied after generation by the mapping step.
+        variableOverrides: { requirements: [requirementPrompt], apiOperations: [] },
       });
       builtPrompt = {
         systemPrompt: preview.systemPrompt,
@@ -455,11 +439,11 @@ export class GenerateTestDesignWithAI {
 
   private deriveDesignsFromStrategy(context: any, requirement: any, strategy: TestStrategyEntity | null): ParsedTestDesignInput[] {
     const inputs: ParsedTestDesignInput[] = [];
-    const environments = context?.environments || [];
-    const datasets = context?.datasets || [];
-    const apiOperations = context?.apiOperations || [];
-    const environment = environments.find((e: any) => (e.name || '').toLowerCase().includes('qa')) || environments[0];
-    const dataset = datasets[0];
+    // Fallback generation is also requirement/strategy-only. API, environment,
+    // and dataset assignment is performed by the mapping/enrichment phase.
+    const apiOperations: any[] = [];
+    const environment: any = undefined;
+    const dataset: any = undefined;
 
     if (!strategy) {
       const categories = ['Positive', 'Negative', 'Boundary', 'Security', 'Validation'];

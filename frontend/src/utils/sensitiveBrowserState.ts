@@ -10,6 +10,7 @@ const SENSITIVE_KEYS = new Set([
 
 const SENSITIVE_PREFIXES = [
   'testforge:api-workspace:',
+  'testforge:api-workspace-session:',
 ];
 
 function removeMatching(storage: Storage): void {
@@ -30,7 +31,15 @@ export function clearSensitiveBrowserState(): void {
   try { removeMatching(window.sessionStorage); } catch { /* storage may be disabled */ }
 }
 
-/** API workspace data is intentionally session-memory only. */
+/** Removes only superseded API workspace snapshots during page migration. */
 export function clearLegacyApiWorkspaceState(): void {
-  clearSensitiveBrowserState();
+  if (typeof window === 'undefined') return;
+  const legacyPrefixes = ['testforge:api-workspace:'];
+  const removeLegacy = (storage: Storage) => {
+    const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index))
+      .filter((key): key is string => Boolean(key) && legacyPrefixes.some((prefix) => key!.startsWith(prefix)));
+    keys.forEach((key) => storage.removeItem(key));
+  };
+  try { removeLegacy(window.localStorage); } catch { /* storage may be disabled */ }
+  try { removeLegacy(window.sessionStorage); } catch { /* storage may be disabled */ }
 }

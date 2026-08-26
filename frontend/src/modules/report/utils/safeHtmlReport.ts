@@ -1,45 +1,9 @@
 import type { Report } from '../types';
-
-const EXPORTED_REPORT_CSP = "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; img-src 'none'; connect-src 'none'; script-src 'none'; style-src 'unsafe-inline'";
-
-/** Escapes untrusted text for insertion into an HTML text or attribute context. */
-export function escapeHtml(value: unknown): string {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-/**
- * Creates a self-contained, inert HTML representation of a report.
- * The report is serialized once and escaped as text, so nested API payloads,
- * responses, test names, failures, and all other dynamic values cannot become
- * markup or executable content in the downloaded file.
- */
+const CSP = "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; img-src 'none'; connect-src 'none'; script-src 'none'; style-src 'unsafe-inline'";
+export function escapeHtml(value: unknown): string { return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#39;'); }
 export function createSafeHtmlReport(report: Report): string {
-  const title = report.sections?.overview?.title || report.id || 'TestForge report';
-  const serializedReport = JSON.stringify(report, null, 2);
-
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="${EXPORTED_REPORT_CSP}">
-  <meta name="referrer" content="no-referrer">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(title)} — TestForge report</title>
-  <style>
-    body { margin: 2rem; color: #172033; background: #fff; font-family: system-ui, sans-serif; }
-    h1 { margin: 0 0 1rem; font-size: 1.5rem; }
-    pre { overflow: auto; margin: 0; padding: 1rem; border: 1px solid #d5dbe5; border-radius: .5rem; background: #f8fafc; white-space: pre-wrap; overflow-wrap: anywhere; font: 0.8125rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
-  </style>
-</head>
-<body>
-  <h1>${escapeHtml(title)}</h1>
-  <pre>${escapeHtml(serializedReport)}</pre>
-</body>
-</html>`;
+  const steps = report.sections?.stepResults || [];
+  const results = steps.map((step: any, index: number) => `<article class="result ${step.status === 'Passed' ? 'ok' : 'bad'}"><h3>${step.status === 'Passed' ? '✓' : '✕'} ${escapeHtml(step.name || step.title || `Test case ${index + 1}`)}</h3><p class="endpoint">${escapeHtml(step.request?.method || '')} ${escapeHtml(step.request?.url || '')}</p><p>Duration: ${escapeHtml(step.response?.duration ?? 0)} ms<br>HTTP: ${escapeHtml(step.response?.status ?? '—')}</p><h4>Expected</h4><p>Status: ${escapeHtml(step.expected?.status ?? step.expectedStatus ?? '—')}</p><h4>Actual</h4><p>Status: ${escapeHtml(step.response?.status ?? '—')}</p><h4>Validation</h4><ul>${(step.assertions || []).map((a: any) => `<li class="${a.passed === false ? 'bad' : 'ok'}">${a.passed === false ? '✕' : '✓'} ${escapeHtml(a.name || a.description || 'Validation')}</li>`).join('')}</ul><h4>Test Data</h4><pre>${escapeHtml(step.request?.body ? JSON.stringify(step.request.body, null, 2) : 'No test data')}</pre><h4>Attempts</h4><p>#1&nbsp;&nbsp; ${escapeHtml(step.response?.status ?? '—')} &nbsp; ${escapeHtml(step.status || 'Unknown')} &nbsp; ${escapeHtml(step.response?.duration ?? 0)} ms</p><h4>Traceability</h4><p>Requirement → ${escapeHtml(step.requirementId || '—')}<br>Test Case Version → ${escapeHtml(step.testCaseVersionId || '—')}<br>Generation → Deterministic</p></article>`).join('');
+  const coverage = report.totalSteps ? Math.round(((report.passedSteps + report.failedSteps) / report.totalSteps) * 100) : 0;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${CSP}"><title>TESTFORGE - API Test Execution Report</title><style>body{margin:0;padding:32px;color:#172033;background:#fff;font:14px/1.5 Arial,sans-serif}main{max-width:1100px;margin:auto}.heading{display:flex;justify-content:space-between;margin-bottom:30px}.brand{color:#697789;letter-spacing:.08em}h1{margin:0;font-size:24px}h2{margin:28px 0 8px;border-bottom:2px solid #172033;padding-bottom:5px;font-size:16px}.summary,.execution,.coverage{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}.summary strong,.execution strong,.coverage strong{display:block;font-size:17px}.ok{color:#15945b}.bad{color:#c83b3b}.result{margin:18px 0;padding:18px 22px;border:1px solid #d5dbe5;border-left:5px solid #dc4444;border-radius:9px;page-break-inside:avoid}.result.ok{border-left-color:#15945b}.result h3{margin:0;font-size:16px}.endpoint{color:#3e6ea8;font-family:monospace}.result h4{margin:14px 0 2px;color:#697789;font-size:11px;text-transform:uppercase}.result p{margin:3px 0}.result ul{list-style:none;padding:0}.result pre{padding:10px;border:1px solid #d5dbe5;background:#f8fafc;white-space:pre-wrap}@media print{body{padding:14px}}</style></head><body><main><div class="heading"><div><div class="brand">TESTFORGE</div><h1>API Test Execution Report</h1></div><div><strong>${escapeHtml(report.sections?.overview?.title || report.id)}</strong><div class="bad">${escapeHtml(report.overallStatus).toUpperCase()}</div></div></div><h2>Run summary</h2><div class="summary"><div>Total Tests<strong>${report.totalSteps}</strong></div><div>Passed<strong class="ok">${report.passedSteps}</strong></div><div>Failed<strong class="bad">${report.failedSteps}</strong></div><div>Duration<strong>${escapeHtml(report.executionDuration)} ms</strong></div></div><h2>Execution</h2><div class="execution"><div>Environment<strong>${escapeHtml(report.environment?.name)}</strong></div><div>Generated<strong>${escapeHtml(new Date(report.generatedAt).toLocaleString())}</strong></div><div>Execution Run<strong>${escapeHtml(report.executionRunId?.slice(0, 8))}...</strong></div><div>Report Version<strong>${escapeHtml(report.reportVersion)}</strong></div></div><h2>Coverage</h2><div class="coverage"><div>Requirements<strong>${report.sections?.requirementsCovered?.length || 0}</strong></div><div>Operations<strong>${report.sections?.executionPlansExecuted?.length || 0}</strong></div><div>Scenarios<strong>${steps.length}</strong></div><div>Coverage<strong>${coverage}%</strong></div></div><h2>Test Results</h2>${results}</main></body></html>`;
 }
-

@@ -235,7 +235,7 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
         })}
       </div>
 
-      <Card className="mt-8">
+      {false && <Card className="mt-8">
         <CardHeader className="pb-2">
           <button
             type="button"
@@ -266,7 +266,7 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
             </Button>
           </CardContent>
         )}
-      </Card>
+      </Card>}
     </div>
   );
 };

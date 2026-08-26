@@ -283,6 +283,63 @@ describe('ImportApiContract', () => {
     expect(zitadel?.baseUrl).toBe('https://my-instance.zitadel.cloud');
   });
 
+  it('preserves enabled Postman cookie headers so refresh does not change request execution', async () => {
+    const postmanSpec = JSON.stringify({
+      info: { name: 'Cookie collection', schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' },
+      item: [{
+        name: 'Cookie request',
+        request: {
+          method: 'GET',
+          url: 'https://api.example.com/profile',
+          header: [{ key: 'Cookie', value: 'session=postman-cookie' }, { key: 'X-Disabled', value: 'ignored', disabled: true }],
+          body: { mode: 'urlencoded', urlencoded: [{ key: 'grant_type', value: 'client_credentials' }] },
+        },
+      }],
+    });
+    const services = new ApiServiceRepository(); const operations = new ApiOperationRepository();
+    const useCase = new ImportApiContract(services, operations);
+    await useCase.execute({ projectId: 'project-cookie-header', fileName: 'cookie.postman_collection.json', content: postmanSpec });
+    const service = (await services.findByProject('project-cookie-header'))[0];
+    const [operation] = await operations.findByProjectAndService('project-cookie-header', service.id);
+
+    expect(operation.sourceOperation?.requestHeaders).toEqual([{ name: 'Cookie', value: 'session=postman-cookie' }]);
+    expect(operation.sourceOperation?.requestBody).toEqual({ mode: 'urlencoded', urlencoded: [{ key: 'grant_type', value: 'client_credentials' }] });
+  });
+
+  it('preserves a Postman URL template separately from its executable import URL', async () => {
+    const postmanSpec = JSON.stringify({
+      info: { name: 'Environment URL collection', schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' },
+      variable: [{ key: 'identity_base_url', value: 'https://api.example.com/uup/v1' }],
+      item: [{ name: 'Login', request: { method: 'POST', url: '{{identity_base_url}}/auth/login' } }],
+    });
+    const services = new ApiServiceRepository(); const operations = new ApiOperationRepository();
+    await new ImportApiContract(services, operations).execute({ projectId: 'project-template-url', fileName: 'template.postman_collection.json', content: postmanSpec });
+    const service = (await services.findByProject('project-template-url'))[0];
+    const [operation] = await operations.findByProjectAndService('project-template-url', service.id);
+
+    expect(operation.requestUrl).toBe('https://api.example.com/uup/v1/auth/login');
+    expect(operation.sourceOperation?.requestUrlTemplate).toBe('{{identity_base_url}}/auth/login');
+  });
+
+  it('keeps distinct Postman request names when several requests share one method and path', async () => {
+    const postmanSpec = JSON.stringify({
+      info: { name: 'Token variants', schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' },
+      item: ['dev token', 'uat token', 'prod token'].map((name) => ({
+        name,
+        request: { method: 'POST', url: 'https://api.example.com/oauth/token' },
+      })),
+    });
+    const services = new ApiServiceRepository(); const operations = new ApiOperationRepository();
+    const useCase = new ImportApiContract(services, operations);
+    await useCase.execute({ projectId: 'project-token-variants', fileName: 'tokens.postman_collection.json', content: postmanSpec });
+    await useCase.execute({ projectId: 'project-token-variants', fileName: 'tokens.postman_collection.json', content: postmanSpec });
+    const service = (await services.findByProject('project-token-variants'))[0];
+    const imported = await operations.findByProjectAndService('project-token-variants', service.id);
+
+    expect(imported).toHaveLength(3);
+    expect(imported.map((operation) => operation.name)).toEqual(['dev token', 'uat token', 'prod token']);
+  });
+
   it('prefers absolute Postman request URLs over misleading path-heavy variables', async () => {
     const postmanSpec = JSON.stringify({
       info: {

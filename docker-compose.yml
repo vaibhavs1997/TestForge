@@ -8,17 +8,20 @@ services:
     env_file:
       - .env
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - PORT=3000
       - DB_PATH=/app/data/testforge.db
       - BACKUP_DIR=/app/data/backups
       - PERSISTENCE_DRIVER=json
       # Current repository set is single-node JSON/file persistence.
       - TESTFORGE_ALLOW_SINGLE_NODE_JSON=true
+      # The base stack does not include Postgres. Enable RAG only when the
+      # local Compose override is used with its Postgres service.
+      - RAG_ENABLED=${RAG_ENABLED_DOCKER:-false}
     volumes:
       - testforge-data:/app/data
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/ready', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3

@@ -16,8 +16,8 @@ const NAV_LINKS = [
 
 export const LandingNav: React.FC = () => {
   const [open, setOpen] = useState(false);
-  const user = authStore((s) => s.user);
-  const cta = getLandingCtaPaths(user);
+  const user = authStore((s) => s.user);
+  const cta = getLandingCtaPaths(user);
   const { openLogin, openRegister } = useLandingAuth();
 
   return (

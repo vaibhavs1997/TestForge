@@ -43,9 +43,17 @@ type ImpactKind = keyof ContractImpact;
 type ProjectRecordRepository = { findByProject(projectId: string): Promise<any[]>; impactKind?: ImpactKind };
 
 function stable(value: unknown): string { return JSON.stringify(value ?? null); }
+function withoutSavedEditor(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const { requestEditor: _requestEditor, ...contractMetadata } = value as Record<string, unknown>;
+  return contractMetadata;
+}
 function operationDiff(existing: any, incoming: ParsedOperation): { status: ContractDiffStatus; reasons: string[] } {
   if (!existing) return { status: 'ADDED', reasons: ['Operation was added by the contract.'] };
-  const before = existing.sourceOperation ?? {};
+  // The saved request-editor template is user configuration, not contract
+  // metadata. It must neither create a false contract change nor be replaced
+  // during a re-import.
+  const before = withoutSavedEditor(existing.sourceOperation) ?? {};
   const after = incoming.sourceOperation ?? {};
   if (stable(before) === stable(after) && existing.name === incoming.name && existing.description === incoming.description) return { status: 'UNCHANGED', reasons: ['No contract metadata changed.'] };
   const requestBefore = (before as any).requestBody ?? (before as any).parameters;
@@ -389,6 +397,14 @@ function extractFromPostman(spec: any, warnings: string[]): ParsedService[] {
           status: 'Active',
           sampleRequestBody: extractPostmanSampleRequestBody(req as Record<string, unknown>),
           requiredRequestBodyFields: null,
+          sourceOperation: {
+            // Preserve Postman's URL expression separately from the resolved
+            // executable URL so the client can require an environment before
+            // activating a {{variable}} request.
+            requestUrlTemplate: rawPath,
+            requestHeaders: extractPostmanRequestHeaders(req),
+            requestBody: extractPostmanRequestBody(req),
+          },
         });
       }
     }
@@ -419,6 +435,28 @@ function extractFromPostman(spec: any, warnings: string[]): ParsedService[] {
   }
 
   return services;
+}
+
+/** Preserve enabled Postman request headers exactly as supplied so imported
+ * requests execute the same way before and after a workspace refresh. */
+function extractPostmanRequestHeaders(request: Record<string, unknown>): Array<{ name: string; value: string }> {
+  if (!Array.isArray(request.header)) return [];
+  return request.header.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return [];
+    const header = entry as Record<string, unknown>;
+    if (header.disabled === true) return [];
+    const name = String(header.key || '').trim();
+    if (!name) return [];
+    return [{ name, value: String(header.value || '') }];
+  });
+}
+
+/** Keep the Postman body mode and rows, not only a flattened sample payload.
+ * The API editor needs this to restore the correct Body tab after refresh. */
+function extractPostmanRequestBody(request: Record<string, unknown>): Record<string, unknown> | null {
+  const body = request.body;
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+  return JSON.parse(JSON.stringify(body)) as Record<string, unknown>;
 }
 
 function mapPostmanAuth(auth: any): string {
@@ -614,6 +652,12 @@ function resolvePostmanExecutableRequestUrl(url: any, baseUrl: string, variables
   if (typeof url === 'string') {
     const resolved = replacePostmanVariables(url, variables);
     if (/^https?:\/\//i.test(resolved)) return resolved;
+    // A collection can supply the service origin while a request still begins
+    // with an environment-only `{{base_url}}` variable. Joining both created
+    // URLs such as `https://host/{{base_url}}/users`; retain the discovered
+    // service origin and join just the request path instead.
+    const unresolvedBaseVariable = resolved.match(/^\{\{[^}]+\}\}(\/.*)?$/);
+    if (unresolvedBaseVariable) return joinExecutableUrl(baseUrl, unresolvedBaseVariable[1] || '/');
     return joinExecutableUrl(baseUrl, resolved);
   }
 
@@ -623,6 +667,8 @@ function resolvePostmanExecutableRequestUrl(url: any, baseUrl: string, variables
       if (/^https?:\/\//i.test(raw)) return raw;
       const absFromRaw = raw.match(/^(https?:\/\/[^/?#]+)/i);
       if (absFromRaw) return raw;
+      const unresolvedBaseVariable = raw.match(/^\{\{[^}]+\}\}(\/.*)?$/);
+      if (unresolvedBaseVariable) return joinExecutableUrl(baseUrl, unresolvedBaseVariable[1] || '/');
       return joinExecutableUrl(baseUrl, raw);
     }
 
@@ -984,9 +1030,10 @@ export class ImportApiContract {
 
     const existingServices = await this.apiServiceRepository.findByProject(params.projectId);
     const reconciledServiceIds = new Set<string>();
-    const operationKey = (method: string, path: string) =>
-      `${method.toUpperCase()}:${path}`;
-
+    const isPostmanOperation = (operation: Pick<ParsedOperation, 'sourceOperation'> | ApiOperationEntity): boolean => {
+      const source = operation.sourceOperation;
+      return Boolean(source && typeof source === 'object' && ('requestHeaders' in source || 'requestBody' in source));
+    };
     for (const svc of parsedServices) {
       let serviceEntity: ApiServiceEntity | null = null;
       const serviceBaseUrl = svc.baseUrl || fallbackBaseUrl || '';
@@ -1041,15 +1088,17 @@ export class ImportApiContract {
         serviceEntity!.id,
       );
       reconciledServiceIds.add(serviceEntity!.id);
-      const importedKeys = new Set<string>();
+      const matchedExistingOperationIds = new Set<string>();
 
         for (const op of svc.operations) {
-        importedKeys.add(operationKey(op.method, op.path));
-          const match = existingOps.find(
-          (e) =>
-            e.method.toUpperCase() === op.method.toUpperCase() && e.path === op.path,
+          const pathMatches = existingOps.filter((e) =>
+            e.method.toUpperCase() === op.method.toUpperCase() && e.path === op.path && !matchedExistingOperationIds.has(e.id),
           );
+          const match = isPostmanOperation(op)
+            ? pathMatches.find((e) => e.name.trim().toLowerCase() === op.name.trim().toLowerCase()) ?? pathMatches[0]
+            : pathMatches[0];
           if (match) {
+          matchedExistingOperationIds.add(match.id);
           const diff = operationDiff(match, op);
           const manual = !match.sourceOperation;
           changes.push({ operationId: match.id, serviceId: serviceEntity!.id, method: op.method, path: op.path, status: diff.status, reasons: manual ? ['Manually maintained operation is preserved.', ...diff.reasons] : diff.reasons, manual, reviewRequired: diff.status === 'MATERIAL_CHANGE' || diff.status === 'BREAKING_CHANGE' });
@@ -1064,7 +1113,10 @@ export class ImportApiContract {
             requestUrl: op.requestUrl,
             tags: op.tags ?? [],
             contentTypes: op.contentTypes ?? [],
-            sourceOperation: op.sourceOperation ?? null,
+            sourceOperation: match.sourceOperation && typeof match.sourceOperation === 'object'
+              && 'requestEditor' in match.sourceOperation
+              ? { ...(op.sourceOperation ?? {}), requestEditor: (match.sourceOperation as Record<string, unknown>).requestEditor }
+              : op.sourceOperation ?? null,
           };
           // Imported operations can be refreshed. Manual operations are never overwritten by a re-import.
           if (!params.preview && !manual) await this.apiOperationRepository.update(match.id, patch);
@@ -1102,7 +1154,7 @@ export class ImportApiContract {
       // Re-imports are intentionally non-destructive. Missing operations retain their IDs and
       // historical mappings; they become review-required rather than being deleted.
       for (const existingOp of existingOps) {
-        if (!importedKeys.has(operationKey(existingOp.method, existingOp.path))) {
+        if (!matchedExistingOperationIds.has(existingOp.id)) {
           const manual = !existingOp.sourceOperation;
           changes.push({ operationId: existingOp.id, serviceId: serviceEntity!.id, method: existingOp.method, path: existingOp.path, status: 'REMOVED', reasons: [manual ? 'Manual operation is absent from the imported contract and is preserved.' : 'Operation is absent from the imported contract.'], manual, reviewRequired: true });
           impactedOperationIds.add(existingOp.id);

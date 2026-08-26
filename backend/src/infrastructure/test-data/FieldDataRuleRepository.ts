@@ -16,4 +16,10 @@ export class FieldDataRuleRepository implements IFieldDataRuleRepository {
   async findById(id: string) { const root = path.join(process.cwd(), 'data', 'test-data'); for (const projectId of fs.existsSync(root) ? fs.readdirSync(root) : []) { const found = (await this.read(projectId)).find((row) => row.id === id); if (found) return found; } return null; }
   async findByProject(projectId: string) { return this.read(projectId); }
   async findByOperation(projectId: string, operationId: string) { return (await this.read(projectId)).filter((row) => row.input.operationId === operationId); }
+  async deleteByProject(projectId: string): Promise<number> {
+    const rows = await this.read(projectId);
+    if (rows.length === 0) return 0;
+    await writeJsonArray(this.file(projectId), []);
+    return rows.length;
+  }
 }

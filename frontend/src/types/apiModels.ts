@@ -115,6 +115,10 @@ export interface ApiExecutionRequestDto {
   headers?: Record<string, string>;
   body?: unknown;
   timeoutMs?: number;
+  /** Resolve accepted Field Data rules for this one manual execution. */
+  useTestData?: boolean;
+  operationId?: string;
+  serviceId?: string;
 }
 
 export interface ApiExecutionResponseDto {

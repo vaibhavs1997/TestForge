@@ -44,4 +44,21 @@ describe('safe contract re-import', () => {
     const changed = await useCase.execute({ projectId, fileName: 'api.json', preview: true, content: spec({ '/items': { post: operation(incompatible) } }) });
     expect(changed.changes?.[0]).toMatchObject({ status: 'BREAKING_CHANGE', reviewRequired: true });
   });
+
+  it('preserves a saved editor template without classifying it as a contract change', async () => {
+    const projectId = `safe-editor-${Date.now()}`;
+    const services = new ApiServiceRepository(); const operations = new ApiOperationRepository();
+    const useCase = new ImportApiContract(services, operations);
+    await useCase.execute({ projectId, fileName: 'api.json', content: spec({ '/items': { get: operation() } }) });
+    const service = (await services.findByProject(projectId))[0];
+    const imported = (await operations.findByProjectAndService(projectId, service.id))[0];
+    await operations.update(imported.id, {
+      sourceOperation: { ...(imported.sourceOperation || {}), requestEditor: { url: 'https://saved.example.test/items', headers: [{ name: 'Accept', value: 'application/json' }] } },
+    });
+
+    const result = await useCase.execute({ projectId, fileName: 'api.json', content: spec({ '/items': { get: operation() } }) });
+    expect(result.changes?.[0]).toMatchObject({ status: 'UNCHANGED' });
+    const saved = await operations.findById(imported.id);
+    expect(saved?.sourceOperation?.requestEditor).toMatchObject({ url: 'https://saved.example.test/items' });
+  });
 });

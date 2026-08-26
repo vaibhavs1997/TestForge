@@ -106,6 +106,8 @@ export function serializeApiService(service: ApiServiceEntity): ApiServiceDto {
 export function serializeApiOperation(operation: ApiOperationEntity): ApiOperationDto {
   const sourceOperationSnapshot = toRecord(operation.sourceOperation);
   const sourceOperationRaw = cloneRecord(sourceOperationSnapshot?.rawOperation ?? sourceOperationSnapshot);
+  const savedRequestEditor = cloneRecord(sourceOperationSnapshot?.requestEditor);
+  if (sourceOperationRaw && savedRequestEditor) sourceOperationRaw.requestEditor = savedRequestEditor;
   const requestBody = cloneRecord(sourceOperationSnapshot?.requestBody);
   const responses = cloneRecord(sourceOperationSnapshot?.responses);
   const security = cloneArray(sourceOperationSnapshot?.security, []);

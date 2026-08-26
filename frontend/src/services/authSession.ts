@@ -4,6 +4,7 @@
  */
 
 const ANON_ID_KEY = 'testforge_anon_id';
+const JWT_SESSION_KEY = 'testforge_jwt';
 let inMemoryJwt: string | null = null;
 
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
@@ -18,13 +19,28 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
 }
 
 export function getStoredJwt(): string | null {
+  if (inMemoryJwt) return inMemoryJwt;
+  if (typeof window === 'undefined') return null;
+
+  try {
+    inMemoryJwt = window.sessionStorage.getItem(JWT_SESSION_KEY)?.trim() || null;
+  } catch {
+    // Privacy settings can deny browser storage. The in-memory session remains
+    // usable in that case, but it cannot survive a page refresh.
+  }
   return inMemoryJwt;
 }
 
 export function setStoredJwt(token: string | null): void {
-  // Kept only for the lifetime of this document.  JWTs and VITE_* credentials
-  // are intentionally never read from or written to browser persistence.
   inMemoryJwt = token?.trim() || null;
+  if (typeof window === 'undefined') return;
+
+  try {
+    if (inMemoryJwt) window.sessionStorage.setItem(JWT_SESSION_KEY, inMemoryJwt);
+    else window.sessionStorage.removeItem(JWT_SESSION_KEY);
+  } catch {
+    // Keep the active in-memory session when session storage is unavailable.
+  }
 }
 
 /** Stable subject for namespacing browser storage per user. */

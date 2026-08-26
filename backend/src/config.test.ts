@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validateConfig } from './config.js';
+import { getEnterpriseAuthConfig, validateConfig } from './config.js';
 
 const baseEnv = {
   PORT: '3001',
@@ -11,6 +11,11 @@ const deploymentSecrets = {
 } as NodeJS.ProcessEnv;
 
 describe('validateConfig', () => {
+  it('honors an explicit development auth disable override even when MongoDB is configured', () => {
+    expect(getEnterpriseAuthConfig({ MONGODB_URI: 'mongodb://configured', TESTFORGE_AUTH_ENABLED: 'false' })).toEqual({ requireLogin: false });
+    expect(getEnterpriseAuthConfig({ MONGODB_URI: 'mongodb://configured', TESTFORGE_AUTH_ENABLED: 'true' })).toEqual({ requireLogin: true });
+  });
+
   it('uses a custom CORS origin when provided', () => {
     const config = validateConfig({
       ...baseEnv,

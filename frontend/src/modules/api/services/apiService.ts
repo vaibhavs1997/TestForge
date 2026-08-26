@@ -60,9 +60,11 @@ class ApiService extends ApiClient<ApiServiceDto> {
   }
 
   async refreshApiContract(projectId: string, serviceId: string): Promise<ApiContractRefreshResultDto> {
-    return apiRequest.post<ApiContractRefreshResultDto>(
+    const result = await apiRequest.post<ApiContractRefreshResultDto>(
       `${API_BASE_URL}/projects/${projectId}/services/${serviceId}/api-contract/refresh`,
     );
+    await this.triggerFieldDataAnalysis(projectId);
+    return result;
   }
 
   // Operations
@@ -105,6 +107,9 @@ class ApiService extends ApiClient<ApiServiceDto> {
       authenticationType?: string;
       status?: string;
       sampleRequestBody?: Record<string, unknown> | null;
+      requestUrl?: string | null;
+      /** Contract metadata plus the saved API-editor template. */
+      sourceOperation?: Record<string, unknown> | null;
     }
   ): Promise<ApiOperationDto> {
     return apiRequest.patch<ApiOperationDto>(
@@ -137,15 +142,29 @@ class ApiService extends ApiClient<ApiServiceDto> {
     formData.append('file', file);
 
     const path = `/projects/${projectId}/import`;
-    return this.post(path, formData, {
+    const summary = await this.post<ImportSummary>(path, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress,
     });
+    await this.triggerFieldDataAnalysis(projectId);
+    return summary;
   }
 
   async importContractFromUrl(projectId: string, url: string): Promise<ImportSummary> {
     const path = `/projects/${projectId}/import/url`;
-    return this.post(path, { url });
+    const summary = await this.post<ImportSummary>(path, { url });
+    await this.triggerFieldDataAnalysis(projectId);
+    return summary;
+  }
+
+  /** Reconcile test-data rules after a successful contract write. Analysis is
+   * best-effort so a transient analysis failure never hides a successful API import. */
+  private async triggerFieldDataAnalysis(projectId: string): Promise<void> {
+    try {
+      await apiRequest.post(`${API_BASE_URL}/projects/${projectId}/field-data-analysis/reanalyze`);
+    } catch {
+      // The manual Re-analyze action remains available as recovery.
+    }
   }
 
   /** Safe review endpoint; it never writes services, operations, or rules. */

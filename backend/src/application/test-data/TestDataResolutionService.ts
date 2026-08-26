@@ -18,6 +18,11 @@ import { FieldDataResolutionService, OMIT } from './FieldDataResolutionService.j
 export interface ResolvedValue {
   sourceType: string;
   value: any;
+  /** Canonical input metadata lets execution adapters apply a value to its real request location. */
+  location?: string;
+  path?: string;
+  sensitive?: boolean;
+  sourceReference?: FieldDataSourceReference | null;
   datasetId?: string;
   rowId?: string;
   columnName?: string;
@@ -56,6 +61,13 @@ export class TestDataResolutionService {
   ) { this.fieldDataResolver = new FieldDataResolutionService(secretStore); }
   private readonly fieldDataResolver: FieldDataResolutionService;
 
+  async getInputRule(projectId: string, operationId: string, path: string, location?: string): Promise<FieldDataRuleEntity | null> {
+    if (!this.fieldDataRuleRepository) return null;
+    const rules = await this.fieldDataRuleRepository.findByProject(projectId);
+    return rules.find((rule) => rule.status === 'ACCEPTED' && rule.input.operationId === operationId && rule.input.path === path
+      && (!location || rule.input.location.toUpperCase() === location.toUpperCase())) || null;
+  }
+
   async resolveRequestFields(
     projectId: string,
     serviceId: string,
@@ -81,7 +93,16 @@ export class TestDataResolutionService {
         environmentValues: context.environmentVariables,
         cache: context.fieldDataCache ?? new Map<string, unknown>(),
       });
-      if (resolved.value !== OMIT) resolvedValues[rule.input.path] = { sourceType: resolved.sourceStrategy, value: resolved.value };
+      if (resolved.value !== OMIT) {
+        resolvedValues[rule.input.path] = {
+          sourceType: resolved.sourceStrategy,
+          value: resolved.value,
+          location: rule.input.location,
+          path: rule.input.path,
+          sensitive: resolved.sensitive,
+          sourceReference: rule.sourceReference,
+        };
+      }
     }
 
     for (const mapping of mappings) {

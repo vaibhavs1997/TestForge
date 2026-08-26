@@ -92,7 +92,8 @@ export function getAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfig 
 }
 
 export function getEnterpriseAuthConfig(env: NodeJS.ProcessEnv = process.env): EnterpriseAuthConfig {
-  return { requireLogin: Boolean(env.MONGODB_URI?.trim()) };
+  const authEnabledOverride = env.TESTFORGE_AUTH_ENABLED?.trim().toLowerCase();
+  return { requireLogin: authEnabledOverride === 'false' ? false : Boolean(env.MONGODB_URI?.trim()) };
 }
 
 export const APP_VERSION = process.env.npm_package_version || '0.1.0';

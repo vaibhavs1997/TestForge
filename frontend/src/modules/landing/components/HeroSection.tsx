@@ -13,8 +13,8 @@ const TRUST = [
 ];
 
 export const HeroSection: React.FC = () => {
-  const user = authStore((s) => s.user);
-  const cta = getLandingCtaPaths(user);
+  const user = authStore((s) => s.user);
+  const cta = getLandingCtaPaths(user);
   const { openLogin, openRegister } = useLandingAuth();
 
   return (

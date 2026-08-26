@@ -15,7 +15,6 @@ import {
   Workflow,
   History,
   ScrollText,
-  Puzzle,
   Bot,
   ChevronDown,
   ChevronRight,
@@ -50,7 +49,6 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
   { key: 'pipeline', label: 'Pipeline', icon: Workflow },
   { key: 'versions', label: 'Versions', icon: History },
   { key: 'audit', label: 'Audit', icon: ScrollText },
-  { key: 'plugins', label: 'Plugins', icon: Puzzle },
   { key: 'ai-providers', label: 'AI Providers', icon: Bot },
 ];
 
@@ -65,7 +63,6 @@ export const Sidebar: React.FC = () => {
   // Project-centric primary navigation (outside project workspace)
   const primaryNavigationItems = [
     { to: '/projects', label: 'Projects', icon: FolderKanban },
-    { to: '/plugins', label: 'Plugins', icon: Puzzle },
     { to: '/settings', label: 'Settings', icon: Settings },
   ];
 

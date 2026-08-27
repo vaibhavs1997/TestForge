@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
@@ -8,14 +9,17 @@ import { useEnvironments } from '../../environment/hooks/useEnvironments';
 import { useRequirements } from '../../requirements/hooks';
 import { useExecution } from '../../execution/hooks';
 import { useReports } from '../../report/hooks';
+import { useKnowledgeFlows } from '../../knowledge/hooks';
+import { datasetService } from '../../test-data/services/datasetService';
 import { projectModulePath } from '../../../routes/paths';
 import {
   FolderOpen,
-  Globe,
+  Database,
+  BookOpen,
   ListChecks,
   Play,
   BarChart3,
-  ArrowRight,
+  Shield,
   CheckCircle2,
   Circle,
   ChevronDown,
@@ -25,10 +29,9 @@ import {
 
 interface PipelineDashboardProps {
   projectId: string;
-  projectName?: string;
 }
 
-type StepKey = 'apis' | 'environment' | 'requirements' | 'execution' | 'reports';
+type StepKey = 'apis' | 'testdata' | 'knowledge' | 'requirements' | 'review' | 'execution' | 'reports';
 
 interface GoldenStep {
   key: StepKey;
@@ -52,7 +55,7 @@ const formatAgo = (timestamp: number | null | undefined): string => {
   return `${Math.floor(hours / 24)}d ago`;
 };
 
-export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId, projectName }) => {
+export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId }) => {
   const navigate = useNavigate();
   const [showFullPipeline, setShowFullPipeline] = React.useState(false);
 
@@ -63,6 +66,13 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
   const { activeRequirements, suggested, approved } = useRequirements(projectId);
   const { runs } = useExecution(projectId);
   const { reports } = useReports(projectId);
+  const { flows } = useKnowledgeFlows(projectId);
+  const { data: datasets = [] } = useQuery({
+    queryKey: ['project-datasets', projectId],
+    queryFn: () => datasetService.listDatasets(projectId),
+    enabled: !!projectId,
+    staleTime: 30_000,
+  });
 
   const opCount = operations?.length ?? 0;
   const sharedOperationCount = opCount;
@@ -70,7 +80,10 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
   const hasApis = displayedOperationCount > 0;
   const apiImportIsSyncing = false;
   const hasEnv = environments.length > 0;
+  const hasTestData = datasets.length > 0;
+  const hasKnowledge = flows.length > 0;
   const hasRequirements = activeRequirements.length > 0;
+  const hasReview = approved.length > 0;
   const hasRuns = runs.length > 0;
   const hasReports = reports.length > 0;
 
@@ -88,20 +101,30 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
         detail: hasApis
           ? apiImportIsSyncing
             ? `${displayedOperationCount} operation(s) imported locally — syncing to the project workspace`
-            : `${services.length} service(s), ${displayedOperationCount} operation(s)`
+            : `${services.length} service(s), ${displayedOperationCount} operation(s)${hasEnv ? ` · ${environments.length} environment(s)` : ''}`
           : 'No API imported yet',
         path: projectModulePath(projectId, 'apis'),
         actionLabel: hasApis ? 'Manage APIs' : 'Import APIs',
       },
       {
-        key: 'environment',
-        label: 'Set target environment',
-        description: 'Base URL and variables used when you run tests.',
-        icon: Globe,
-        done: hasEnv,
-        detail: hasEnv ? `${environments.length} environment(s)` : 'No environment configured',
-        path: projectModulePath(projectId, 'apis'),
-        actionLabel: hasEnv ? 'Manage in API workspace' : 'Add in API workspace',
+        key: 'testdata',
+        label: 'Test Data',
+        description: 'Manage datasets and execution values for your API scenarios.',
+        icon: Database,
+        done: hasTestData,
+        detail: hasTestData ? `${datasets.length} dataset(s)` : 'No test data configured',
+        path: projectModulePath(projectId, 'testdata'),
+        actionLabel: hasTestData ? 'Manage test data' : 'Add test data',
+      },
+      {
+        key: 'knowledge',
+        label: 'Knowledge',
+        description: 'Capture project flows and context used for mapping and execution.',
+        icon: BookOpen,
+        done: hasKnowledge,
+        detail: hasKnowledge ? `${flows.length} knowledge flow(s)` : 'No knowledge captured',
+        path: projectModulePath(projectId, 'knowledge'),
+        actionLabel: hasKnowledge ? 'Manage knowledge' : 'Add knowledge',
       },
       {
         key: 'requirements',
@@ -114,6 +137,16 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
           : 'No requirements yet',
         path: projectModulePath(projectId, 'requirements'),
         actionLabel: hasRequirements ? 'Open requirements' : 'Add requirement',
+      },
+      {
+        key: 'review',
+        label: 'Test Review',
+        description: 'Review and approve generated test cases before execution.',
+        icon: Shield,
+        done: hasReview,
+        detail: hasReview ? `${approved.length} approved item(s)` : 'No approved test cases yet',
+        path: projectModulePath(projectId, 'review'),
+        actionLabel: hasReview ? 'Open test review' : 'Review test cases',
       },
       {
         key: 'execution',
@@ -150,9 +183,15 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
       apiImportIsSyncing,
       hasEnv,
       environments.length,
+      hasTestData,
+      datasets.length,
+      hasKnowledge,
+      flows.length,
       hasRequirements,
       activeRequirements.length,
       suggested.length,
+      hasReview,
+      approved.length,
       hasRuns,
       hasReports,
       latestRun,
@@ -166,27 +205,6 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId,
 
   return (
     <div className="w-full px-4 py-8 lg:px-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-text">{projectName || 'Project'}</h1>
-        <p className="mt-1 text-sm text-text-secondary">
-          Follow the steps below to go from API contract to test report.
-        </p>
-      </div>
-
-      <Card className="mb-8 border-primary/30 bg-primary/5">
-        <CardContent className="flex flex-col gap-4 pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-text-secondary">Suggested next step</p>
-            <p className="mt-1 text-lg font-semibold text-text">{nextStep.label}</p>
-            <p className="text-sm text-text-secondary">{nextStep.description}</p>
-          </div>
-          <Button onClick={() => navigate(nextStep.path)} className="shrink-0">
-            {nextStep.actionLabel}
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-        </CardContent>
-      </Card>
-
       <div className="mb-4 flex items-center justify-between">
         <span className="text-sm font-medium text-text">Progress</span>
         <span className="text-sm text-text-secondary">

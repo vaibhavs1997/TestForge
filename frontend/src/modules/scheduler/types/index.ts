@@ -10,6 +10,7 @@ export interface Schedule {
   suiteId: string;
   executionProfileId: string;
   environmentId: string | null;
+  tokenOperationId: string | null;
   cronExpression: string;
   timezone: string;
   nextRun: number | null;
@@ -25,6 +26,7 @@ export interface ScheduleFormData {
   suiteId: string;
   executionProfileId: string;
   environmentId?: string | null;
+  tokenOperationId?: string | null;
   cronExpression: string;
   timezone: string;
   enabled?: boolean;

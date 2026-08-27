@@ -362,7 +362,6 @@ export class RecommendationEngine {
 
   private checkMissingDependencies(context: ProjectAnalysisContext): Recommendation[] {
     const recommendations: Recommendation[] = [];
-    const plansWithPrereqs = context.executionPlans.filter((p: any) => p.prerequisiteDesignIds && p.prerequisiteDesignIds.length > 0);
     const designsWithoutPlans = context.designs.filter((d: any) => {
       return !context.executionPlans.some((p: any) => p.testDesignId === d.id);
     });

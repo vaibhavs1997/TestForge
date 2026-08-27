@@ -4,7 +4,6 @@ import { ListWebhooks, GetWebhook, CreateWebhook, UpdateWebhook, DeleteWebhook }
 import { assertProjectAccess, authorizeResource } from '../middleware/auth.js';
 import { ForbiddenError } from '../../shared/errors.js';
 import { getAuthConfig } from '../../config.js';
-import { asyncHandler } from '../middleware/AsyncHandler.js';
 
 export function createWebhookRoutes(
   listWebhooks: ListWebhooks,

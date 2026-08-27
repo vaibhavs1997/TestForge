@@ -40,6 +40,10 @@ export interface RequirementsPageProps {
   section?: 'requirements' | 'approved' | 'archived';
 }
 
+const formatApprovalTimestamp = (value?: number) => value
+  ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+  : 'Approval time unavailable';
+
 const getStatusBadgeVariant = (status: string) => {
   switch (status) {
     case 'Approved':
@@ -1312,6 +1316,9 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
               <span>Category: {requirement.category}</span>
               {requirement.jiraIssueKey ? <span>Issue: {requirement.jiraIssueKey}</span> : null}
               <span>{requirement.acceptanceCriteria.length} criteria</span>
+              {requirement.approvalStatus === 'Approved' && (
+                <span>Approved: {formatApprovalTimestamp(requirement.updatedAt)}</span>
+              )}
               <span className='inline-flex items-center gap-1'>
                 {suiteConfidence.label}:{' '}
                 <span className={getConfidenceColor(suiteConfidence.percent ?? 0)}>

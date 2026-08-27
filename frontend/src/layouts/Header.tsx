@@ -15,10 +15,15 @@ export const Header: React.FC = () => {
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-surface px-6">
-      <div className="flex min-w-0 flex-1 items-center md:hidden">
-        <span className="text-lg font-semibold tracking-tight text-text">TestForge</span>
+      <div className="flex min-w-0 flex-1 items-center">
+        <div className="md:hidden">
+          <span className="text-lg font-semibold tracking-tight text-text">TestForge</span>
+        </div>
+        <div className="hidden md:block">
+          <p className="text-lg font-bold leading-tight text-text">Project</p>
+          <p className="mt-0.5 text-xs text-text-secondary">Follow the steps below to go from API contract to test report.</p>
+        </div>
       </div>
-      <div className="hidden flex-1 md:block" aria-hidden />
       <div className="flex items-center gap-3">
         <SessionBadge />
         {isInsideProject ? (

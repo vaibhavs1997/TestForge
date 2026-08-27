@@ -81,13 +81,6 @@ class MetricsCollector {
       
       const sum = values.reduce((a, b) => a + b, 0);
       const count = values.length;
-      const sorted = [...values].sort((a, b) => a - b);
-      
-      // Calculate percentiles
-      const p50 = sorted[Math.floor(count * 0.5)] || 0;
-      const p95 = sorted[Math.floor(count * 0.95)] || 0;
-      const p99 = sorted[Math.floor(count * 0.99)] || 0;
-      
       const labelsStr = this.formatLabels({});
       lines.push(`testforge_request_duration_seconds_sum${labelsStr} ${sum}`);
       lines.push(`testforge_request_duration_seconds_count${labelsStr} ${count}`);

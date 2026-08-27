@@ -20,6 +20,7 @@ export interface CreateScheduleInput {
   suiteId: string;
   executionProfileId: string;
   environmentId?: string | null;
+  tokenOperationId?: string | null;
   cronExpression: string;
   timezone: string;
   enabled?: boolean;
@@ -79,6 +80,7 @@ export class CreateSchedule {
       suiteId,
       executionProfileId,
       environmentId: input.environmentId ?? null,
+      tokenOperationId: input.tokenOperationId ?? null,
       cronExpression,
       timezone,
       nextRun,

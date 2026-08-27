@@ -1,19 +1,7 @@
 // PluginRoutes - Express routes for Plugin Module
 import { Router } from 'express';
 import { PluginController } from './PluginController.js';
-import { container } from '../../application/ApplicationContainer.js';
 import { asyncHandler } from '../middleware/AsyncHandler.js';
-
-// Reuse shared services from the ApplicationContainer
-const {
-  pluginRepository,
-  pluginRegistry,
-  pluginService,
-  pluginLoader,
-} = container;
-
-// Initialize controller
-const pluginController = new PluginController(pluginService);
 
 export function createPluginRoutes(pluginController: PluginController): Router {
   const router = Router();

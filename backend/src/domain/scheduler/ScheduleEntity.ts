@@ -15,6 +15,7 @@ export class ScheduleEntity {
     public suiteId: string,
     public executionProfileId: string,
     public environmentId: string | null,
+    public tokenOperationId: string | null,
     public cronExpression: string,
     public timezone: string,
     public nextRun: number | null,

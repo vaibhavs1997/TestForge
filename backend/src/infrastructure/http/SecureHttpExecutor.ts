@@ -29,7 +29,16 @@ export class SecureHttpExecutor {
   }
 
   private agentFor(destination: ValidatedOutboundDestination, secure: boolean): http.Agent | https.Agent {
-    const lookup: NonNullable<http.AgentOptions['lookup']> = (_hostname, _options, callback) => callback(null, destination.address, destination.family);
+    const lookup: NonNullable<http.AgentOptions['lookup']> = (_hostname, options, callback) => {
+      // Node may request either the single-address or all-address lookup
+      // shape. Returning the wrong shape causes its socket layer to read an
+      // undefined address (`Invalid IP address: undefined`).
+      if (options && typeof options === 'object' && 'all' in options && options.all) {
+        callback(null, [{ address: destination.address, family: destination.family }]);
+      } else {
+        callback(null, destination.address, destination.family);
+      }
+    };
     return secure ? new https.Agent({ lookup, servername: destination.hostname }) : new http.Agent({ lookup });
   }
 }

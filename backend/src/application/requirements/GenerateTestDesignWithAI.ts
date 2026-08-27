@@ -119,7 +119,8 @@ export class GenerateTestDesignWithAI {
     const existingUserOperationIds = existingDesigns
       .filter((design) => design.mappingProvenance === 'user' && design.operationId)
       .map((design) => design.operationId);
-    const candidateOperations = requirementEndpointMappingService.rankCandidates(requirement, projectOperations, 8, existingUserOperationIds);
+    const knowledgeContext = { knowledgeFlows: context?.knowledgeFlows || [], businessRules: context?.businessRules || [] };
+    const candidateOperations = requirementEndpointMappingService.rankCandidates(requirement, projectOperations, 8, existingUserOperationIds, knowledgeContext);
     const candidateIds = new Set(candidateOperations.map((operation) => operation.id));
     const strategyScenarioCandidates = new Map<string, Set<string>>();
     const criterionCandidates = new Map<string, Set<string>>();
@@ -131,7 +132,7 @@ export class GenerateTestDesignWithAI {
           item.acceptanceCriterionId,
           `${item.title} ${item.reason}`,
           8,
-          existingUserOperationIds,
+          existingUserOperationIds, knowledgeContext,
         );
         const ids = new Set(candidates.map((operation) => operation.id));
         if (item.scenarioId) strategyScenarioCandidates.set(item.scenarioId, ids);

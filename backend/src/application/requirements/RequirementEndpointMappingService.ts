@@ -18,11 +18,12 @@ export interface MappingDecision {
   state: MappingState;
   confidence: number;
 }
+export interface KnowledgeMappingContext { knowledgeFlows?: any[]; businessRules?: any[] }
 
 /** Single authority for primary endpoint candidate selection and validation. */
 export class RequirementEndpointMappingService {
-  rankCandidates(requirement: RequirementEntity, operations: ApiOperationEntity[], max = 8, additionalOperationIds: string[] = []): OperationCandidate[] {
-    const ranked = rankOperationsForRequirement(requirement, operations);
+  rankCandidates(requirement: RequirementEntity, operations: ApiOperationEntity[], max = 8, additionalOperationIds: string[] = [], knowledge?: KnowledgeMappingContext): OperationCandidate[] {
+    const ranked = rankOperationsForRequirement(this.withKnowledge(requirement, knowledge), operations);
     const scoreById = new Map(ranked.map((operation, index) => [operation.id, Math.max(0, ranked.length - index)]));
     const ordered: ApiOperationEntity[] = [];
     const add = (id: string) => {
@@ -50,9 +51,9 @@ export class RequirementEndpointMappingService {
     acceptanceCriterionId?: string,
     scenarioContext?: string,
     max = 8,
-    additionalOperationIds: string[] = [],
+    additionalOperationIds: string[] = [], knowledge?: KnowledgeMappingContext,
   ): OperationCandidate[] {
-    if (!acceptanceCriterionId) return this.rankCandidates(requirement, operations, max, additionalOperationIds);
+    if (!acceptanceCriterionId) return this.rankCandidates(requirement, operations, max, additionalOperationIds, knowledge);
     const criterion = requirement.acceptanceCriteria?.find((item) => item.id === acceptanceCriterionId);
     if (!criterion) return this.rankCandidates(requirement, operations, max, additionalOperationIds);
     const scopedRequirement = {
@@ -60,7 +61,14 @@ export class RequirementEndpointMappingService {
       description: [requirement.description, scenarioContext].filter(Boolean).join(' '),
       acceptanceCriteria: [criterion],
     } as RequirementEntity;
-    return this.rankCandidates(scopedRequirement, operations, max, additionalOperationIds);
+    return this.rankCandidates(scopedRequirement, operations, max, additionalOperationIds, knowledge);
+  }
+
+  private withKnowledge(requirement: RequirementEntity, knowledge?: KnowledgeMappingContext): RequirementEntity {
+    const entries = [...(knowledge?.knowledgeFlows || []), ...(knowledge?.businessRules || [])];
+    if (!entries.length) return requirement;
+    const context = entries.map((item) => [item.name, item.title, item.description, item.summary, item.rule].filter(Boolean).join(' ')).filter(Boolean).join(' ');
+    return context ? { ...requirement, description: `${requirement.description || ''} Knowledge context: ${context}` } as RequirementEntity : requirement;
   }
 
   validateOperation(operationId: string | undefined, candidates: ApiOperationEntity[], operations: ApiOperationEntity[]): boolean {
@@ -80,8 +88,8 @@ export class RequirementEndpointMappingService {
     return this.confidence(scopedRequirement, operations);
   }
 
-  resolveFallback(requirement: RequirementEntity, operations: ApiOperationEntity[], category: StrategyCategory, acceptanceCriterionId?: string, scenarioContext?: string): MappingDecision {
-    const candidates = this.rankCandidatesForScenario(requirement, operations, acceptanceCriterionId, scenarioContext);
+  resolveFallback(requirement: RequirementEntity, operations: ApiOperationEntity[], category: StrategyCategory, acceptanceCriterionId?: string, scenarioContext?: string, knowledge?: KnowledgeMappingContext): MappingDecision {
+    const candidates = this.rankCandidatesForScenario(requirement, operations, acceptanceCriterionId, scenarioContext, 8, [], knowledge);
     const scopedRequirement = acceptanceCriterionId && requirement.acceptanceCriteria?.some((item) => item.id === acceptanceCriterionId)
       ? ({ ...requirement, acceptanceCriteria: [requirement.acceptanceCriteria.find((item) => item.id === acceptanceCriterionId)!], description: [requirement.description, scenarioContext].filter(Boolean).join(' ') } as RequirementEntity)
       : requirement;

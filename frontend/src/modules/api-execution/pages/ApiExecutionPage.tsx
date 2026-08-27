@@ -23,7 +23,6 @@ import {
   Globe,
   Database,
   ClipboardList,
-  Play,
   BookOpen,
   Activity,
   Layers3,
@@ -31,15 +30,12 @@ import {
   X,
   Trash2,
   RotateCcw,
-  MoreHorizontal,
   Settings2,
   Clock3,
   FileJson,
-  FileText,
   CheckCircle2,
   ArrowRight,
   Copy,
-  ExternalLink,
 } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/Card';
@@ -69,7 +65,6 @@ type AuthType = 'none' | 'bearer' | 'basic' | 'apiKey' | 'oauth2';
 type ResponseTab = 'response' | 'headers' | 'cookies' | 'timeline';
 type ResponseBodyView = 'pretty' | 'raw' | 'preview';
 type BottomTab = 'related' | 'tests' | 'environments' | 'mock' | 'documentation' | 'activity';
-type ImportedKind = 'api' | 'env' | 'unknown';
 type SelectionKind = 'api-endpoint' | 'manual' | 'saved' | null;
 export type CanonicalOverrideLocation = 'BODY' | 'QUERY' | 'PATH' | 'HEADER' | 'COOKIE' | 'GRAPHQL_VARIABLE';
 
@@ -357,11 +352,12 @@ function comparableApiPath(value: string | undefined): string {
   const raw = String(value || '').trim();
   if (!raw) return '';
   try {
-    return new URL(raw, 'http://testforge.local').pathname
-      .split('/')
-      .filter((segment) => !/^\{\{[^}]+\}\}$/.test(segment))
-      .join('/')
-      .replace(/\/$/, '') || '/';
+    // URL normalizes template braces to percent-encoded text. Decode before
+    // removing a base-url variable so selectors show `/auth/login`, not
+    // `/%7B%7Bident_base_url%7D%7D/auth/login`.
+    const pathname = decodeURIComponent(new URL(raw, 'http://testforge.local').pathname);
+    const segments = pathname.split('/').filter((segment) => !/^\{\{[^}]+\}\}$/.test(segment));
+    return `/${segments.filter(Boolean).join('/')}`.replace(/\/$/, '') || '/';
   } catch {
     return raw.split('?')[0].replace(/\/$/, '') || '/';
   }
@@ -1213,24 +1209,6 @@ function parseStructuredText(text: string): unknown {
   }
 }
 
-function deepMerge<T extends Record<string, unknown>>(base: T, addition: T): T {
-  const out = cloneJson(base);
-  Object.entries(addition).forEach(([key, value]) => {
-    if (value === undefined) return;
-    if (Array.isArray(value) || typeof value !== 'object' || value === null) {
-      (out as Record<string, unknown>)[key] = value;
-      return;
-    }
-    const existing = (out as Record<string, unknown>)[key];
-    if (existing && typeof existing === 'object' && !Array.isArray(existing)) {
-      (out as Record<string, unknown>)[key] = deepMerge(existing as Record<string, unknown>, value as Record<string, unknown>);
-      return;
-    }
-    (out as Record<string, unknown>)[key] = value;
-  });
-  return out;
-}
-
 function sampleFromSchema(schema: Record<string, unknown> | null | undefined, propertyName?: string): unknown {
   if (!schema) return propertyName ? `${propertyName}-value` : 'string';
   if (schema.example !== undefined) return cloneJson(schema.example);
@@ -1686,43 +1664,6 @@ function toReadableSize(bytes: number | null): string {
     unit += 1;
   }
   return `${size.toFixed(size >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
-}
-
-function buildBodyFromDraft(draft: RequestDraft): { body: BodyInit | null; headersToRemove: string[] } {
-  const headersToRemove: string[] = [];
-  if (draft.bodyMode === 'none') return { body: null, headersToRemove };
-  if (draft.bodyMode === 'form-data') {
-    const formData = new FormData();
-    draft.formDataRows.forEach((row) => {
-      if (row.enabled && row.key.trim()) formData.append(row.key.trim(), row.value);
-    });
-    headersToRemove.push('Content-Type');
-    return { body: formData, headersToRemove };
-  }
-  if (draft.bodyMode === 'x-www-form-urlencoded') {
-    const params = new URLSearchParams();
-    draft.urlEncodedRows.forEach((row) => {
-      if (row.enabled && row.key.trim()) params.append(row.key.trim(), row.value);
-    });
-    return { body: params.toString(), headersToRemove: [] };
-  }
-  if (draft.bodyMode === 'binary') {
-    if (!draft.binaryFile) return { body: null, headersToRemove };
-    headersToRemove.push('Content-Type');
-    return { body: draft.binaryFile, headersToRemove };
-  }
-  if (draft.bodyMode === 'graphql') {
-    const variables = draft.graphqlVariables.trim() ? (parseJsonSafely(draft.graphqlVariables.trim()) ?? {}) : {};
-    return {
-      body: JSON.stringify({ query: draft.graphqlQuery, variables }),
-      headersToRemove: [],
-    };
-  }
-  const selectedType = RAW_BODY_TYPES.find((item) => item.value === draft.rawBodyType);
-  return {
-    body: draft.rawBody,
-    headersToRemove: selectedType ? [] : [],
-  };
 }
 
 function getAuthHeadersAndQuery(auth: AuthDraft): { headers: Record<string, string>; query: Record<string, string> } {

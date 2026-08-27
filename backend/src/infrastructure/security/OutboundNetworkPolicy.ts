@@ -139,7 +139,17 @@ export class OutboundNetworkPolicy {
     const literalFamily = net.isIP(hostname);
     let records: Array<{ address: string; family: number }>;
     try {
-      records = explicitLocalhost ? [{ address: '127.0.0.1', family: 4 }] : literalFamily ? [{ address: hostname, family: literalFamily }] : await this.lookup(hostname);
+      const resolved = explicitLocalhost ? [{ address: '127.0.0.1', family: 4 }] : literalFamily ? [{ address: hostname, family: literalFamily }] : await this.lookup(hostname);
+      // Never let malformed/custom DNS results reach the HTTP agent. Passing
+      // an undefined address to Node's socket lookup produces the opaque
+      // `Invalid IP address: undefined` suite error.
+      records = (Array.isArray(resolved) ? resolved : [])
+        .map((record) => {
+          const address = typeof record?.address === 'string' ? record.address.trim() : '';
+          const family = net.isIP(address);
+          return address && (family === 4 || family === 6) ? { address, family } : null;
+        })
+        .filter((record): record is { address: string; family: number } => record !== null);
     } catch {
       throw new OutboundDestinationBlockedError('DNS_RESOLUTION_UNSAFE', 'destination host could not be resolved.');
     }

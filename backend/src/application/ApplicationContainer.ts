@@ -37,7 +37,6 @@ import { PipelineRepositoryImpl } from '../infrastructure/pipeline/PipelineRepos
 import { PromptRepository } from '../infrastructure/prompt/PromptRepository.js';
 import ProviderRepository from '../infrastructure/providers/ProviderRepository.js';
 import VersionRepository from '../infrastructure/versioning/VersionRepository.js';
-import AuditLogRepository from '../infrastructure/audit/AuditLogRepository.js';
 import PluginRepository from '../infrastructure/plugin/PluginRepository.js';
 import { FileAIProviderRepository } from '../infrastructure/ai-provider/AIProviderRepository.js';
 import { InMemoryNotificationRepository } from '../infrastructure/notification/NotificationRepository.js';

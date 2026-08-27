@@ -8,7 +8,7 @@ import { Badge } from '../../../components/ui/Badge';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
-import { FileText, Download, Plus, CheckCircle, XCircle, AlertTriangle, Eye, Trash2, FileDown, Clock } from 'lucide-react';
+import { FileText, Download, Plus, CheckCircle, XCircle, AlertTriangle, Eye, Trash2, FileDown } from 'lucide-react';
 
 // Hooks
 import { useReports } from '../hooks';
@@ -146,7 +146,7 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
     // Browsers can create a real PDF through their native print-to-PDF flow;
     // opening it from the click handler also avoids popup blocking. The user
     // can choose "Save to PDF" in the print dialog.
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+    const printWindow = window.open('', '_blank');
     if (!printWindow) {
       setToastMessage('Allow popups to download the PDF');
       setToastType('error');
@@ -156,10 +156,15 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
     printWindow.document.open();
     printWindow.document.write(createSafeHtmlReport(report));
     printWindow.document.close();
-    printWindow.addEventListener('load', () => {
+    let printed = false;
+    const print = () => {
+      if (printed) return;
+      printed = true;
       printWindow.focus();
       printWindow.print();
-    }, { once: true });
+    };
+    printWindow.addEventListener('load', print, { once: true });
+    window.setTimeout(print, 250);
   };
 
   if (!projectId) return <ProjectContextMissing />;

@@ -632,11 +632,17 @@ export class ExecutePlan {
       ...(plan.requestTemplate || {}),
       ...(liveRequestUrl ? { path: liveRequestUrl } : {}),
     };
+    const mutation = design?.mutationProvenance;
+    // Older approved suites may already contain their mutated payload in the
+    // plan but have no mutation provenance metadata. Preserve that durable
+    // approved body instead of replacing it with the unmutated live sample.
+    if (!mutation && plan.requestTemplate?.body && typeof plan.requestTemplate.body === 'object') {
+      return { ...plan, requestTemplate };
+    }
     if (!liveBody || typeof liveBody !== 'object' || Array.isArray(liveBody)) {
       return { ...plan, requestTemplate };
     }
     const body = this.cloneValue(liveBody);
-    const mutation = design?.mutationProvenance;
     // Baseline/positive cases intentionally use the complete current editor
     // body. For deterministic negative cases, replace only the one field
     // selected by the test mutation and preserve all other live values.
@@ -828,13 +834,20 @@ export class ExecutePlan {
         const actual = this.extractValue(response, assertion.path, assertion.type);
         return { type: assertion.type, operator: assertion.operator, path: assertion.path, expected: assertion.expected, actual, passed: this.validateAssertion(assertion, actual) };
       });
-      const rules: ValidationRule[] = (plan.assertions || []).map((assertion: any, index: number) => ({ id: `validation-${index}`, executionPlanId: plan.id, name: `Validation ${index + 1}`, type: this.mapAssertionType(assertion.type), config: { path: assertion.path, expected: assertion.expected, operator: assertion.operator } }));
+      const rules: ValidationRule[] = (plan.assertions || []).map((assertion: any, index: number) => ({ id: `validation-${index}`, executionPlanId: plan.id, name: `Validation ${index + 1}`, type: this.mapAssertionType(assertion.type, assertion.operator), config: { path: assertion.path, expected: assertion.type === 'status' ? Number(assertion.expected) : assertion.expected, operator: assertion.operator } }));
       const validations = ValidationEngine.validateStep(rules, { response, runtimeVariables: context.runtimeVariables }).validations;
       assertions.forEach((item: any, index: number) => {
-        if (this.mapAssertionType(item.type) === 'Custom Assertion') item.passed = validations[index]?.status === 'Passed';
+        if (this.mapAssertionType(item.type, item.operator) === 'Custom Assertion') item.passed = validations[index]?.status === 'Passed';
       });
-      const accepted = response.status >= 200 && response.status < 300 && assertions.every((item: any) => item.passed) && validations.every((item) => item.status !== 'Failed');
-      const error = accepted ? null : response.status < 200 || response.status >= 300 ? `HTTP ${response.status}` : assertions.some((item: any) => !item.passed) ? 'Assertion failed' : 'Validation failed';
+      // A test case may intentionally expect a non-2xx response (for example
+      // a negative or security scenario expecting 400/401). The status
+      // assertion, rather than a blanket 2xx check, determines success.
+      const expectedStatusAssertion = assertions.find((item: any) => item.type === 'status');
+      const statusAccepted = expectedStatusAssertion
+        ? expectedStatusAssertion.passed
+        : response.status >= 200 && response.status < 300;
+      const accepted = statusAccepted && assertions.every((item: any) => item.passed) && validations.every((item) => item.status !== 'Failed');
+      const error = accepted ? null : expectedStatusAssertion && !expectedStatusAssertion.passed ? `HTTP ${response.status}` : assertions.some((item: any) => !item.passed) ? 'Assertion failed' : 'Validation failed';
       return { accepted, response: responseResult, rawResponse: response, assertions, validations, error, metadata: { attempt, outcome: accepted ? 'Passed' : 'Failed', statusCode: response.status, error: error || undefined, startedAt, completedAt: Date.now() } };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Request failed';
@@ -1010,12 +1023,12 @@ export class ExecutePlan {
     return null;
   }
 
-  private mapAssertionType(type: string): string {
+  private mapAssertionType(type: string, operator?: string): string {
     const typeMap: Record<string, string> = {
       'status': 'HTTP Status',
       'header': 'Header Exists',
       'jsonPath': 'JSON Path Exists',
-      'body': 'Response Body Contains',
+      'body': operator === 'exists' ? 'JSON Path Exists' : 'Response Body Contains',
     };
     return typeMap[type] || 'Custom Assertion';
   }
@@ -1023,6 +1036,16 @@ export class ExecutePlan {
   private validateAssertion(assertion: any, actual: any): boolean {
     switch (assertion.operator) {
       case 'equals':
+        // HTTP status values can arrive from generated test designs as either
+        // numbers or numeric strings. Compare them by value so a valid 401,
+        // 400, etc. response is not reported as a false failure.
+        if (assertion.type === 'status') {
+          const expectedStatus = Number(assertion.expected);
+          const actualStatus = Number(actual);
+          return Number.isFinite(expectedStatus) && Number.isFinite(actualStatus)
+            ? actualStatus === expectedStatus
+            : actual === assertion.expected;
+        }
         return actual === assertion.expected;
       case 'contains':
         return String(actual).includes(String(assertion.expected));

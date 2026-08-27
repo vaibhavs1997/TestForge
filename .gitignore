@@ -39,6 +39,9 @@ Thumbs.db
 backend/data/**
 !backend/data/README.md
 
+# Root-level runtime snapshots (generated locally; not source fixtures)
+data/**
+
 # Graphify (local codebase knowledge graph for Cursor MCP)
 graphify-out/
 **/graphify-out/

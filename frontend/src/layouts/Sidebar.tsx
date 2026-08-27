@@ -133,10 +133,24 @@ export const Sidebar: React.FC = () => {
   return (
     <aside className={`flex flex-shrink-0 flex-col border-r border-border bg-surface transition-[width] duration-200 ${collapsed ? 'w-16' : 'w-64'}`}>
       <div className={`flex h-16 items-center border-b border-border ${collapsed ? 'justify-center px-2' : 'justify-between px-7'}`}>
-        {!collapsed && <div className="flex items-center">
-          <span className="text-xl font-semibold leading-none tracking-tight text-text">TestForge</span>
-        </div>}
-        {collapsed && <span className="text-sm font-semibold tracking-tight text-text">TF</span>}
+        {!collapsed && (
+          <Link
+            to="/projects"
+            aria-label="Go to projects"
+            className="flex items-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+          >
+            <span className="text-xl font-semibold leading-none tracking-tight text-text">TestForge</span>
+          </Link>
+        )}
+        {collapsed && (
+          <Link
+            to="/projects"
+            aria-label="Go to projects"
+            className="rounded-sm text-sm font-semibold tracking-tight text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+          >
+            TF
+          </Link>
+        )}
       </div>
       <nav className={`flex-1 space-y-1 overflow-y-auto ${collapsed ? 'p-2' : 'p-4'}`} aria-label="Main navigation">
         {collapsed && <div className='mb-3 flex justify-center'>

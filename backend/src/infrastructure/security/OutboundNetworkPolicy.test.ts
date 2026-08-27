@@ -33,6 +33,11 @@ describe('OutboundNetworkPolicy', () => {
     await expect(new OutboundNetworkPolicy(dns).validate('https://api.example.com')).rejects.toMatchObject({ reason: 'LOOPBACK_ADDRESS' });
   });
 
+  it('rejects malformed DNS records instead of passing an undefined address to the HTTP agent', async () => {
+    const malformedDns = async () => [{ address: undefined as unknown as string, family: 4 }];
+    await expect(new OutboundNetworkPolicy(malformedDns).validate('https://api.example.com')).rejects.toMatchObject({ reason: 'DNS_RESOLUTION_UNSAFE' });
+  });
+
   it('allows explicit local development egress only outside production', async () => {
     const dns = async () => [{ address: '127.0.0.1', family: 4 }];
     const local = new OutboundNetworkPolicy(dns);

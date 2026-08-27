@@ -109,7 +109,6 @@ export class GenerateRequirementTestCases {
 
     await this.planTestStrategy.execute(request.requirementId);
 
-    let usedAi = false;
     let generationMode: 'DETERMINISTIC' | 'AI_GENERATED' | 'FALLBACK' = 'DETERMINISTIC';
     let aiEvidence: GenerationAiEvidence | undefined;
     let fallbackReason: string | undefined;
@@ -123,7 +122,6 @@ export class GenerateRequirementTestCases {
           deferProvenance: true,
         });
         warnings.push(...(aiResult.warnings ?? []));
-        usedAi = true;
         aiEvidence = { providerId: aiResult.providerUsed.id, provider: aiResult.providerUsed.provider, model: aiResult.providerUsed.model, promptTemplateId: 'tmpl-design-001', promptVersion: '1' };
         // A provider can return valid text that does not contain the expected
         // design JSON. Keep the workflow useful instead of showing an empty

@@ -17,7 +17,7 @@ import { executionService } from '../services';
 import { useExecution } from '../hooks';
 import { useReports } from '../../report/hooks';
 import { useEnvironments } from '../../environment/hooks/useEnvironments';
-import type { ExecutionRun, RunnableSuite } from '../types';
+import type { ExecutionRun } from '../types';
 
 export interface ExecutionPageProps {}
 
@@ -32,6 +32,13 @@ const formatDate = (value: number) => new Intl.DateTimeFormat(undefined, {
 const formatDuration = (milliseconds: number) => milliseconds >= 1000
   ? `${(milliseconds / 1000).toFixed(milliseconds >= 10_000 ? 0 : 1)}s`
   : `${milliseconds}ms`;
+
+// Environment secrets are intentionally returned to the browser as references
+// (for example `{ secretRef, masked: true }`).  Treat those references as an
+// available token, but never stringify them into the UI as "[object Object]"
+// or copy them into the manual-token field.
+const isMaskedSecret = (value: unknown): value is { secretRef?: string; masked?: boolean } =>
+  Boolean(value && typeof value === 'object' && ('secretRef' in value || (value as any).masked === true));
 
 export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
@@ -76,16 +83,20 @@ const ExecutionPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
     if (!selectedEnvironment) return { label: 'No environment', tone: 'secondary' as const, detail: 'Configure an environment on the API page.', tokenPreview: '' };
     const variables = selectedEnvironment.variables || {};
     const token = variables.accessToken || variables.access_token || variables.oauthToken || variables.oauth_token;
-    const tokenPreview = token ? `Bearer ••••••••${String(token).slice(-8)}` : '';
+    const tokenIsMasked = isMaskedSecret(token);
+    const tokenPreview = token && !tokenIsMasked ? `Bearer ••••••••${String(token).slice(-8)}` : '';
     if (!token) return { label: 'Token missing', tone: 'destructive' as const, detail: `${selectedEnvironment.name} has no access token.`, tokenPreview };
     const expiry = Number(variables.tokenExpiresAt || variables.expires_at || variables.expiresAt || 0);
     if (expiry > 0 && Date.now() >= expiry) return { label: 'Token expired', tone: 'destructive' as const, detail: `${selectedEnvironment.name} token has expired.`, tokenPreview };
-    return { label: 'Token active', tone: 'success' as const, detail: `Token available in ${selectedEnvironment.name}.`, tokenPreview };
+    return { label: 'Token active', tone: 'success' as const, detail: tokenIsMasked
+      ? `Token securely saved for ${selectedEnvironment.name}.`
+      : `Token available in ${selectedEnvironment.name}.`, tokenPreview };
   }, [selectedEnvironment]);
 
   React.useEffect(() => {
     const variables = selectedEnvironment?.variables || {};
-    setTokenDraft(String(variables.accessToken || variables.access_token || ''));
+    const savedToken = variables.accessToken || variables.access_token || '';
+    setTokenDraft(isMaskedSecret(savedToken) ? '' : String(savedToken));
     setTokenSaveMessage(null);
   }, [selectedEnvironment?.id, selectedEnvironment?.variables]);
 

@@ -67,6 +67,7 @@ export class GenerateTestDesigns {
     const dataset = datasets[0] || (analysis ? await this.datasetRepository.findById(analysis.relatedDatasets[0]) : null);
 
     const operations = await this.apiOperationRepository.findByProject(requirement.projectId);
+    const knowledge = { knowledgeFlows: await this.knowledgeFlowRepository.findByProject(requirement.projectId) };
 
     // Process each enabled strategy item
     for (const section of strategy.sections) {
@@ -77,7 +78,7 @@ export class GenerateTestDesigns {
           item,
           requirement,
           section.category,
-          operations,
+          operations, knowledge,
         );
 
         const operation = operations.find((o) => o.id === operationId);
@@ -122,8 +123,8 @@ export class GenerateTestDesigns {
                   item.testCaseType,
                   item.expectedHttpStatus,
                   'matcher',
-                  requirementEndpointMappingService.resolveFallback(requirement, operations, section.category, item.acceptanceCriterionId, `${item.title} ${item.reason}`).state,
-                  requirementEndpointMappingService.resolveFallback(requirement, operations, section.category, item.acceptanceCriterionId, `${item.title} ${item.reason}`).confidence,
+                  requirementEndpointMappingService.resolveFallback(requirement, operations, section.category, item.acceptanceCriterionId, `${item.title} ${item.reason}`, knowledge).state,
+                  requirementEndpointMappingService.resolveFallback(requirement, operations, section.category, item.acceptanceCriterionId, `${item.title} ${item.reason}`, knowledge).confidence,
                   item.acceptanceCriterionId,
                   item.scenarioId || item.id
                 );
@@ -149,9 +150,9 @@ export class GenerateTestDesigns {
     item: StrategyItem,
     requirement: RequirementEntity,
     category: StrategyCategory,
-    operations: Awaited<ReturnType<ApiOperationRepository['findByProject']>>,
+    operations: Awaited<ReturnType<ApiOperationRepository['findByProject']>>, knowledge?: any,
   ): string {
-    return requirementEndpointMappingService.resolveFallback(requirement, operations, category, item.acceptanceCriterionId, `${item.title} ${item.reason}`).operationId;
+    return requirementEndpointMappingService.resolveFallback(requirement, operations, category, item.acceptanceCriterionId, `${item.title} ${item.reason}`, knowledge).operationId;
   }
 
 

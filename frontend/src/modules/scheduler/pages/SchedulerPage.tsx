@@ -13,18 +13,18 @@ import { Switch } from '../../../components/forms/Switch';
 import { useSchedules } from '../hooks';
 import { useSuites } from '../../suite/hooks';
 import { useEnvironments } from '../../environment/hooks/useEnvironments';
+import { useProjectApiOperations } from '../../api/hooks/useProjectApiOperations';
 import { profileService } from '../../execution/services/profileService';
 import { projectStore } from '../../../store/projectStore';
 import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useFormValidation } from '../../../hooks/useFormValidation';
 import { validateCron, FormErrors } from '../../../utils/validation';
 import { ErrorAlert } from '../../../components/shared/ErrorAlert';
 import { ProjectContextMissing } from '../../../components/shared/ProjectContextMissing';
 import type { Schedule, ScheduleFormData, ScheduleStatus } from '../types';
 import type { TestSuite } from '../../suite/types';
 import type { ExecutionProfile } from '../../execution/types/profile';
-import { CalendarClock, Plus, Copy, Trash2, Play, Power, Pencil, Clock, CheckCircle2, XCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { CalendarClock, Plus, Copy, Trash2, Play, Pencil, Clock, CheckCircle2, XCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 const TIMEZONES = [
   'UTC',
@@ -75,6 +75,7 @@ const SchedulerPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
   ];
   const { suites } = useSuites(projectId);
   const { environments } = useEnvironments(projectId);
+  const { operations = [] } = useProjectApiOperations(projectId);
 
   const [search, setSearch] = React.useState('');
   const [editorOpen, setEditorOpen] = React.useState(false);
@@ -89,6 +90,7 @@ const SchedulerPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
   const [formSuiteId, setFormSuiteId] = React.useState('');
   const [formProfileId, setFormProfileId] = React.useState('');
   const [formEnvironmentId, setFormEnvironmentId] = React.useState('');
+  const [formTokenOperationId, setFormTokenOperationId] = React.useState('');
   const [formCron, setFormCron] = React.useState('');
   const [formTimezone, setFormTimezone] = React.useState('UTC');
   const [formEnabled, setFormEnabled] = React.useState(true);
@@ -145,12 +147,6 @@ const SchedulerPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
     return profile?.name || profileId;
   };
 
-  const getEnvironmentName = (envId: string | null) => {
-    if (!envId) return 'Default';
-    const env = environments.find(e => e.id === envId);
-    return env?.name || envId;
-  };
-
   const formatDate = (timestamp: number | null) => {
     if (!timestamp) return '—';
     return new Date(timestamp).toLocaleString();
@@ -163,6 +159,7 @@ const SchedulerPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
     setFormSuiteId('');
     setFormProfileId('');
     setFormEnvironmentId('');
+    setFormTokenOperationId('');
     setFormCron('0 9 * * *');
     setFormTimezone('UTC');
     setFormEnabled(true);
@@ -178,6 +175,7 @@ const SchedulerPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
     setFormSuiteId(schedule.suiteId);
     setFormProfileId(schedule.executionProfileId);
     setFormEnvironmentId(schedule.environmentId || '');
+    setFormTokenOperationId(schedule.tokenOperationId || '');
     setFormCron(schedule.cronExpression);
     setFormTimezone(schedule.timezone);
     setFormEnabled(schedule.enabled);
@@ -212,6 +210,7 @@ const SchedulerPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
       suiteId: formSuiteId,
       executionProfileId: formProfileId,
       environmentId: formEnvironmentId || null,
+      tokenOperationId: formTokenOperationId || null,
       cronExpression: formCron,
       timezone: formTimezone,
       enabled: formEnabled,
@@ -233,6 +232,7 @@ const SchedulerPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
       suiteId: schedule.suiteId,
       executionProfileId: schedule.executionProfileId,
       environmentId: schedule.environmentId,
+      tokenOperationId: schedule.tokenOperationId,
       cronExpression: schedule.cronExpression,
       timezone: schedule.timezone,
       enabled: false,
@@ -487,6 +487,17 @@ const SchedulerPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
                       label: env.name,
                     }))}
                     helperText='Leave empty to use the suite or profile default environment.'
+                  />
+                  <Select
+                    label='Bearer token API (optional)'
+                    value={formTokenOperationId}
+                    onChange={(e) => setFormTokenOperationId(e.target.value)}
+                    placeholder='No automatic token generation'
+                    options={operations.map((operation: any) => ({
+                      value: operation.id,
+                      label: `${operation.method || 'API'} ${operation.path || operation.name || operation.id}`,
+                    }))}
+                    helperText='Run this API first and use its access token for the scheduled suite.'
                   />
                 </div>
               </div>

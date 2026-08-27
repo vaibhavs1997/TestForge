@@ -27,11 +27,11 @@ export const ReportExportMenu: React.FC<ReportExportMenuProps> = ({
   }, []);
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative w-[180px]" ref={ref}>
       <Button
         variant="default"
         size="md"
-        className="gap-2 shadow-sm"
+        className="w-full gap-2 shadow-sm"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="menu"
@@ -41,7 +41,7 @@ export const ReportExportMenu: React.FC<ReportExportMenuProps> = ({
         <ChevronDown className="ml-1 h-3 w-3" />
       </Button>
       {open && (
-        <div className="absolute right-0 z-20 mt-2 min-w-[160px] overflow-hidden rounded-lg border border-border bg-surface py-1 shadow-xl" role="menu">
+        <div className="absolute right-0 z-20 mt-2 w-full overflow-hidden rounded-lg border border-border bg-surface py-1 shadow-xl" role="menu">
           <button
             type="button"
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text hover:bg-muted"

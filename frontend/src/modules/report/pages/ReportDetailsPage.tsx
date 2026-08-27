@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { EmptyState } from '../../../components/ui/EmptyState';
-import { ArrowLeft, Download, FileDown, CheckCircle, XCircle, AlertCircle, Clock, Shield, FileText, Globe, Key, AlertTriangle, ListChecks, Send } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, AlertCircle, Clock, Shield, FileText, Globe, Key, AlertTriangle, ListChecks, Send } from 'lucide-react';
 
 // Hooks
 import { useReport } from '../hooks';
@@ -284,7 +284,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
               const title = report.sections?.overview?.title || report.id;
               const rows = (report.sections?.stepResults || []).map((step: any, index: number) => `
                 <tr><td>${index + 1}</td><td>${escapeHtml(step.request?.method || '')} ${escapeHtml(step.request?.url || '')}</td><td class="${escapeHtml(step.status)}">${escapeHtml(step.status)}</td><td>${escapeHtml(step.response?.status ?? '')}</td><td>${escapeHtml(formatDuration(step.response?.duration || 0))}</td></tr>`).join('');
-              const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+              const printWindow = window.open('', '_blank');
               if (!printWindow) return;
               printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; img-src 'none'; connect-src 'none'; script-src 'none'; style-src 'unsafe-inline'"><title>${escapeHtml(title)} - TestForge report</title><style>
                 *{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#172033;margin:32px;font-size:12px}h1{font-size:22px;margin:0 0 6px}h2{font-size:15px;margin:24px 0 8px;border-bottom:1px solid #d5dbe5;padding-bottom:5px}.meta{color:#596579;margin-bottom:18px}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.metric{border:1px solid #d5dbe5;border-radius:6px;padding:10px}.metric strong{display:block;font-size:17px;margin-top:3px}.success{color:#087f42}.failed,.Failed{color:#b42318}.Passed{color:#087f42}table{border-collapse:collapse;width:100%;margin-top:8px}th,td{border:1px solid #d5dbe5;padding:7px;text-align:left;vertical-align:top}th{background:#eef2f7}@media print{body{margin:16px}}

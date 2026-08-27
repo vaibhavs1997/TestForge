@@ -9,6 +9,7 @@ export interface CreateScheduleDraft {
   suiteId: string;
   executionProfileId: string;
   environmentId: string | null;
+  tokenOperationId?: string | null;
   cronExpression: string;
   timezone: string;
   nextRun: number | null;
@@ -21,6 +22,7 @@ export interface UpdateSchedulePatch {
   suiteId?: string;
   executionProfileId?: string;
   environmentId?: string | null;
+  tokenOperationId?: string | null;
   cronExpression?: string;
   timezone?: string;
   nextRun?: number | null;
@@ -58,6 +60,7 @@ export function buildScheduleEntity(
     draft.suiteId,
     draft.executionProfileId,
     draft.environmentId,
+    draft.tokenOperationId ?? null,
     draft.cronExpression,
     draft.timezone,
     draft.nextRun,
@@ -77,6 +80,7 @@ export function buildSchedulePatch(patch: UpdateSchedulePatch): Partial<Schedule
   if (patch.suiteId !== undefined) updateData.suiteId = patch.suiteId;
   if (patch.executionProfileId !== undefined) updateData.executionProfileId = patch.executionProfileId;
   if (patch.environmentId !== undefined) updateData.environmentId = patch.environmentId;
+  if (patch.tokenOperationId !== undefined) updateData.tokenOperationId = patch.tokenOperationId;
   if (patch.cronExpression !== undefined) updateData.cronExpression = patch.cronExpression;
   if (patch.timezone !== undefined) updateData.timezone = patch.timezone;
   if (patch.nextRun !== undefined) updateData.nextRun = patch.nextRun;

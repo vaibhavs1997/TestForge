@@ -15,16 +15,16 @@
 
 @layer base {
   :root {
-    --color-primary: #3b82f6;
-    --color-secondary: #64748b;
-    --color-background: #f8fafc;
+    --color-primary: #302d78;
+    --color-secondary: #625f83;
+    --color-background: #f8f7fc;
     --color-surface: #ffffff;
-    --color-text: #0f172a;
-    --color-text-secondary: #64748b;
-    --color-border: #dbe4f0;
-    --color-success: #16a34a;
-    --color-warning: #d97706;
-    --color-error: #dc2626;
+    --color-text: #26234c;
+    --color-text-secondary: #625f83;
+    --color-border: #e5e2f0;
+    --color-success: #167348;
+    --color-warning: #b86b12;
+    --color-error: #c63d42;
   }
 
   .dark {
@@ -52,9 +52,9 @@
     margin: 0;
     min-height: 100vh;
     background-image:
-      radial-gradient(circle at top left, rgba(59, 130, 246, 0.08), transparent 28%),
-      radial-gradient(circle at top right, rgba(34, 211, 238, 0.06), transparent 24%),
-      linear-gradient(135deg, var(--color-background), color-mix(in srgb, var(--color-background) 82%, #cbd5e1 18%));
+      radial-gradient(circle at top left, rgba(48, 45, 120, 0.08), transparent 30%),
+      radial-gradient(circle at top right, rgba(134, 95, 72, 0.06), transparent 26%),
+      linear-gradient(135deg, var(--color-background), color-mix(in srgb, var(--color-background) 88%, #e7e3f4 12%));
     background-attachment: fixed;
   }
 

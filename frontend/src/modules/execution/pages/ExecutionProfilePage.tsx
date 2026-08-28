@@ -164,7 +164,7 @@ const ExecutionProfilePageContent: React.FC<{ projectId: string; navigate: Retur
 
   if (isLoading) {
     return (
-      <div className='mx-auto max-w-7xl px-4 py-8'>
+      <div className='w-full px-4 py-8 lg:px-8'>
         <div className='mb-6'>
           <h1 className='text-2xl font-bold text-text'>Execution Profiles</h1>
           <p className='mt-1 text-sm text-text-secondary'>Loading...</p>
@@ -175,7 +175,7 @@ const ExecutionProfilePageContent: React.FC<{ projectId: string; navigate: Retur
 
   if (error && profiles.length === 0) {
     return (
-      <div className='mx-auto max-w-7xl px-4 py-8'>
+      <div className='w-full px-4 py-8 lg:px-8'>
         <div className='mb-6'>
           <h1 className='text-2xl font-bold text-text'>Execution Profiles</h1>
         </div>
@@ -189,7 +189,7 @@ const ExecutionProfilePageContent: React.FC<{ projectId: string; navigate: Retur
   }
 
   return (
-    <div className='mx-auto max-w-7xl px-4 py-8'>
+    <div className='w-full px-4 py-8 lg:px-8'>
       <WorkflowOptionalBanner
         projectId={projectId}
         description="Profiles control timeouts, retries, and parallelism. Default settings work for most requirement-based runs."

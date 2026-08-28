@@ -25,7 +25,6 @@ const PluginManagementPage = lazy(() => import('../plugin/pages').then(m => ({ d
 const AIProviderManagementPage = lazy(() => import('../ai-provider/pages').then(m => ({ default: m.AIProviderManagementPage })));
 const ProjectContextPage = lazy(() => import('../context/pages').then(m => ({ default: m.ProjectContextPage })));
 const PromptBuilderPage = lazy(() => import('../prompt/pages').then(m => ({ default: m.PromptBuilderPage })));
-const TestReviewPage = lazy(() => import('../review/pages/TestReviewPage'));
 
 // Project store
 import { projectStore } from '../../store/projectStore';
@@ -79,7 +78,6 @@ const ProjectWorkspace: React.FC = () => {
       <Route path={`${projectModules.testData}/*`} element={<TestDataWorkspace projectId={projectId} />} />
       <Route path={projectModules.knowledge} element={<ProjectKnowledgePage />} />
       <Route path={`${projectModules.requirements}/*`} element={<RequirementsWorkspace projectId={projectId} />} />
-      <Route path={projectModules.review} element={<Suspense fallback={<PageLoader />}><TestReviewPage /></Suspense>} />
       <Route path={`${projectModules.execution}/*`} element={<ExecutionWorkspace projectId={projectId} />} />
       <Route path={`${projectModules.reports}/*`} element={<ProjectReportPage />} />
 

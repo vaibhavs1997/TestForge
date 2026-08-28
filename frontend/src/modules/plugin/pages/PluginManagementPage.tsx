@@ -93,7 +93,7 @@ export function PluginManagementPage() {
   }
 
   return (
-    <div className="w-full max-w-none p-6">
+    <div className="w-full px-4 py-6 lg:px-8">
       <WorkflowOptionalBanner
         description="Extend the platform with optional integrations. Core API testing does not require plugins."
       />

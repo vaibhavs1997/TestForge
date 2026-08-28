@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { projectModulePath } from '../../../routes/paths';
-import { Plus, Eye, EyeOff, CheckCircle, XCircle, Archive, Sparkles, RefreshCw, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Edit2, Trash2, ToggleLeft, ToggleRight, Copy, FlaskConical, ArrowUp, ArrowDown, GitBranch, Clock, Upload } from 'lucide-react';
+import { Plus, Eye, EyeOff, CheckCircle, XCircle, Archive, Sparkles, RefreshCw, AlertTriangle, ChevronDown, ChevronRight, Edit2, Trash2, ToggleLeft, ToggleRight, Copy, FlaskConical, ArrowUp, ArrowDown, GitBranch, Clock, Upload } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../components/ui/Card';
 import { Badge } from '../../../components/ui/Badge';
@@ -73,60 +73,6 @@ const getConfidenceColor = (confidence: number) => {
 
 const suiteConfidenceLabel = (source: Requirement['source']) =>
   source === 'ProjectAnalysis' ? 'Analysis confidence' : 'API mapping';
-
-const RoundedSelect: React.FC<{
-  value: string;
-  options: Array<{ value: string; label: string }>;
-  onChange: (value: string) => void;
-  'aria-label': string;
-}> = ({ value, options, onChange, 'aria-label': ariaLabel }) => {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const selected = options.find((option) => option.value === value) ?? options[0];
-
-  useEffect(() => {
-    if (!open) return;
-    const handleOutsideClick = (event: MouseEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, [open]);
-
-  return (
-    <div ref={containerRef} className='relative w-full sm:w-44'>
-      <button
-        type='button'
-        aria-label={ariaLabel}
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-        className='flex h-10 w-full items-center justify-between rounded-xl border border-border bg-background px-3 text-left text-sm text-text outline-none transition-colors focus:border-primary'
-      >
-        <span className='truncate'>{selected?.label}</span>
-        <ChevronDown className={`ml-2 h-4 w-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div className='absolute left-0 top-full z-30 mt-1 w-full overflow-hidden rounded-xl border border-border bg-surface p-1 shadow-xl' role='listbox' aria-label={ariaLabel}>
-          {options.map((option) => (
-            <button
-              key={option.value}
-              type='button'
-              role='option'
-              aria-selected={option.value === value}
-              onClick={() => {
-                onChange(option.value);
-                setOpen(false);
-              }}
-              className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${option.value === value ? 'bg-primary/15 text-primary' : 'text-text hover:bg-background/60'}`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
 
 const resolveSuiteConfidence = (
   requirement: Requirement,
@@ -217,8 +163,6 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
   const [toastOpen, setToastOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error'>('success');
-  const [requirementSearch, setRequirementSearch] = useState('');
-  const [requirementSourceFilter, setRequirementSourceFilter] = useState<'all' | Requirement['source']>('all');
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteAllPendingOpen, setDeleteAllPendingOpen] = useState(false);
   const [isDeletingAllPending, setIsDeletingAllPending] = useState(false);
@@ -1222,32 +1166,9 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
   };
 
   const pendingReview = [...suggested].sort((a, b) => b.updatedAt - a.updatedAt);
-  const normalizedRequirementSearch = requirementSearch.trim().toLowerCase();
-  const matchesRequirementFilter = (requirement: Requirement) => {
-    if (requirementSourceFilter !== 'all' && requirement.source !== requirementSourceFilter) return false;
-    if (!normalizedRequirementSearch) return true;
-    return [
-      requirement.title,
-      requirement.description,
-      requirement.jiraIssueKey ?? '',
-      ...requirement.acceptanceCriteria.map((criterion) => criterion.text),
-    ].join(' ').toLowerCase().includes(normalizedRequirementSearch);
-  };
-
   const cancelTestCaseGeneration = () => {
     generationAbortControllerRef.current?.abort();
   };
-  const visiblePendingReview = pendingReview.filter(matchesRequirementFilter);
-  const visibleApproved = approved.filter(matchesRequirementFilter);
-  const visibleArchived = archived.filter(matchesRequirementFilter);
-  const workflowStep = panelRequirement?.approvalStatus === 'Approved'
-    ? 4
-    : showSuiteInPanel && panelDesigns.length > 0
-      ? 3
-      : activeRequirements.length > 0
-        ? 2
-        : 1;
-
   const handleDeleteAllPending = async () => {
     if (pendingReview.length === 0) return;
     const toDelete = [...pendingReview];
@@ -1626,7 +1547,7 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
 
   if (isLoading) {
     return (
-      <div className='mx-auto max-w-7xl px-6 py-8'>
+      <div className='w-full px-4 py-8 sm:px-6 lg:px-8'>
         <h1 className='text-2xl font-bold text-text mb-6'>Requirements</h1>
         <div className='flex items-center justify-center py-16'>
           <p className='text-sm text-text-secondary'>Loading requirements...</p>
@@ -1637,7 +1558,7 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
 
   if (isError) {
     return (
-      <div className='mx-auto max-w-7xl px-6 py-8'>
+      <div className='w-full px-4 py-8 sm:px-6 lg:px-8'>
         <h1 className='text-2xl font-bold text-text mb-6'>Requirements</h1>
         <div className='flex items-center justify-center py-16'>
           <p className='text-sm text-error'>Error loading requirements: {error?.message || 'Unknown error'}</p>
@@ -1647,25 +1568,9 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
   }
 
   return (
-    <div className='mx-auto max-w-7xl px-6 py-8'>
+    <div className='w-full px-4 py-8 sm:px-6 lg:px-8'>
       {section === 'requirements' && (
         <>
-      <div className='mb-6 grid gap-2 rounded-2xl border border-border bg-surface p-3 sm:grid-cols-4' aria-label='Requirements workflow'>
-        {[
-          { number: 1, label: 'Add requirement' },
-          { number: 2, label: 'Review criteria' },
-          { number: 3, label: 'Generate cases' },
-          { number: 4, label: 'Approve suite' },
-        ].map((step) => (
-          <div key={step.number} className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm ${workflowStep === step.number ? 'bg-primary/10 text-primary' : workflowStep > step.number ? 'text-success' : 'text-text-secondary'}`}>
-            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${workflowStep >= step.number ? 'bg-primary/10' : 'border border-border'}`}>
-              {workflowStep > step.number ? <CheckCircle2 className='h-4 w-4' aria-hidden /> : step.number}
-            </span>
-            <span className='font-medium'>{step.label}</span>
-          </div>
-        ))}
-      </div>
-
       <div className='mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
         {[
           { label: 'Requirements', value: activeRequirements.length, detail: 'Active items' },
@@ -1719,28 +1624,6 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
         </>
       )}
 
-      <div className='mb-6 flex flex-col gap-3 rounded-2xl border border-border bg-surface p-3 sm:flex-row sm:items-center'>
-        <input
-          type='search'
-          value={requirementSearch}
-          onChange={(event) => setRequirementSearch(event.target.value)}
-          placeholder='Search requirements, Jira keys, or acceptance criteria'
-          aria-label='Search requirements'
-          className='h-10 min-w-0 flex-1 rounded-lg border border-border bg-background px-3 text-sm text-text outline-none focus:border-primary'
-        />
-        <RoundedSelect
-          value={requirementSourceFilter}
-          onChange={(value) => setRequirementSourceFilter(value as typeof requirementSourceFilter)}
-          aria-label='Filter requirements by source'
-          options={[
-            { value: 'all', label: 'All sources' },
-            { value: 'Jira', label: 'Jira' },
-            { value: 'Manual', label: 'Manual' },
-            { value: 'ProjectAnalysis', label: 'Project analysis' },
-          ]}
-        />
-      </div>
-
       {section === 'requirements' && <div ref={suitePanelRef}>
         <GeneratedTestCasesPanel
           requirement={panelRequirement}
@@ -1769,7 +1652,7 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
       </div>}
 
       {section === 'requirements' && pendingReview.length > 0 && (
-        <div className='mb-8'>
+        <div className='mb-8 rounded-2xl border border-border bg-surface p-6'>
           <div className='mb-4 flex flex-wrap items-center justify-between gap-2'>
             <div className='flex items-center gap-2'>
               <h2 className='text-lg font-semibold text-text'>Pending review</h2>
@@ -1791,8 +1674,8 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
           <p className='mb-3 text-sm text-text-secondary'>
             Generated suites appear here for review. Approve them for execution or archive them when they are no longer needed. Use the eye icon on a card to show or hide test cases inside that card.
           </p>
-          {visiblePendingReview.length > 0 ? visiblePendingReview.map((req) => renderRequirementCard(req)) : (
-            <Card className='p-6 text-center'><p className='text-sm text-text-secondary'>No pending requirements match your filters.</p></Card>
+          {pendingReview.length > 0 ? pendingReview.map((req) => renderRequirementCard(req)) : (
+            <Card className='p-6 text-center'><p className='text-sm text-text-secondary'>No pending requirements.</p></Card>
           )}
         </div>
       )}
@@ -1804,10 +1687,8 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
               No approved suites yet. Generate test cases, select which to keep, then click Approve test suite.
             </p>
           </Card>
-        ) : visibleApproved.length === 0 ? (
-          <Card className='p-6 text-center'><p className='text-sm text-text-secondary'>No approved requirements match your filters.</p></Card>
         ) : (
-          visibleApproved.map((req) => renderRequirementCard(req))
+          approved.map((req) => renderRequirementCard(req))
         )}
       </div>}
 
@@ -1816,10 +1697,8 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
           <Card className='p-6 text-center'>
             <p className='text-sm text-text-secondary'>No archived requirements.</p>
           </Card>
-        ) : visibleArchived.length === 0 ? (
-          <Card className='p-6 text-center'><p className='text-sm text-text-secondary'>No archived requirements match your filters.</p></Card>
         ) : (
-          visibleArchived.map((req) => renderRequirementCard(req))
+          archived.map((req) => renderRequirementCard(req))
         )}
       </div>}
 

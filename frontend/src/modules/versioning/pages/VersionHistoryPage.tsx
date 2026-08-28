@@ -5,7 +5,6 @@ import { versioningService } from '../services';
 import type { Version, EntityType } from '../types';
 import { useParams } from 'react-router-dom';
 import { AdminPageIntro } from '../../../components/shared/AdminPageIntro';
-import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
 import { PageEmpty, PageError, PageLoading } from '../../../components/shared/PageState';
 
 export function VersionHistoryPage() {
@@ -79,13 +78,7 @@ export function VersionHistoryPage() {
   }
 
   return (
-    <div className="w-full max-w-none p-6">
-      {projectId && (
-        <WorkflowOptionalBanner
-          description="Restore or compare historical snapshots of entities. Use when you need to roll back a change."
-          projectId={projectId}
-        />
-      )}
+    <div className="w-full px-4 py-6 lg:px-8">
       <AdminPageIntro
         title="Version history"
         description="Browse versions by entity type, compare two snapshots, or restore a prior state."

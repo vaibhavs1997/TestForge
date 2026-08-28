@@ -19,7 +19,6 @@ import {
   ListChecks,
   Play,
   BarChart3,
-  Shield,
   CheckCircle2,
   Circle,
   ChevronDown,
@@ -31,7 +30,7 @@ interface PipelineDashboardProps {
   projectId: string;
 }
 
-type StepKey = 'apis' | 'testdata' | 'knowledge' | 'requirements' | 'review' | 'execution' | 'reports';
+type StepKey = 'apis' | 'testdata' | 'knowledge' | 'requirements' | 'execution' | 'reports';
 
 interface GoldenStep {
   key: StepKey;
@@ -83,7 +82,6 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId 
   const hasTestData = datasets.length > 0;
   const hasKnowledge = flows.length > 0;
   const hasRequirements = activeRequirements.length > 0;
-  const hasReview = approved.length > 0;
   const hasRuns = runs.length > 0;
   const hasReports = reports.length > 0;
 
@@ -139,16 +137,6 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId 
         actionLabel: hasRequirements ? 'Open requirements' : 'Add requirement',
       },
       {
-        key: 'review',
-        label: 'Test Review',
-        description: 'Review and approve generated test cases before execution.',
-        icon: Shield,
-        done: hasReview,
-        detail: hasReview ? `${approved.length} approved item(s)` : 'No approved test cases yet',
-        path: projectModulePath(projectId, 'review'),
-        actionLabel: hasReview ? 'Open test review' : 'Review test cases',
-      },
-      {
         key: 'execution',
         label: 'Run tests',
         description: 'Execute ready plans from your requirements.',
@@ -190,8 +178,6 @@ export const PipelineDashboard: React.FC<PipelineDashboardProps> = ({ projectId 
       hasRequirements,
       activeRequirements.length,
       suggested.length,
-      hasReview,
-      approved.length,
       hasRuns,
       hasReports,
       latestRun,

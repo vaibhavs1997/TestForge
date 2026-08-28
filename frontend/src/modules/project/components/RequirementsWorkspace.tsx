@@ -31,8 +31,8 @@ export const RequirementsWorkspace: React.FC<RequirementsWorkspaceProps> = ({ pr
   const activeSub = subPath === '' || subPath === '/' ? '' : subPath;
 
   return (
-    <div className='flex h-full min-h-0 flex-row bg-background'>
-      <aside className='w-[300px] shrink-0 p-4' aria-label='Requirements navigation'>
+    <div className='flex h-full min-h-0 flex-col gap-4 bg-background lg:h-[calc(100vh-4rem)] lg:flex-row lg:overflow-hidden'>
+      <aside className='w-full shrink-0 p-4 lg:h-full lg:w-[300px]' aria-label='Requirements navigation'>
         <div className='flex h-full min-h-[520px] flex-col overflow-hidden rounded-2xl border border-border bg-surface p-4 shadow-xl'>
           <div className='flex items-center gap-2 border-b border-border pb-4'>
             <ClipboardList className='h-5 w-5 text-primary' aria-hidden />
@@ -69,8 +69,9 @@ export const RequirementsWorkspace: React.FC<RequirementsWorkspaceProps> = ({ pr
           </div>
         </div>
       </aside>
-      <main className='min-w-0 flex-1 overflow-y-auto'>
-      <div className='h-full min-w-0'>
+      {/* On desktop, only this content pane scrolls; the explorer stays static. */}
+      <main className='min-w-0 flex-1 scrollbar-none lg:h-full lg:overflow-y-auto'>
+      <div className='min-w-0'>
         <Routes key={location.pathname}>
           <Route path='/' element={<RequirementsPage section='requirements' />} />
           <Route path='approved' element={<RequirementsPage section='approved' />} />

@@ -112,7 +112,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
   ];
 
   return (
-    <div className='mx-auto max-w-7xl px-4 py-8'>
+    <div className='w-full px-4 py-8 lg:px-8'>
       {/* Page Header */}
       <div className='mb-6'>
         <h1 className='text-2xl font-bold text-text'>Settings</h1>

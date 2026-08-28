@@ -1773,6 +1773,7 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
   const [responseBodyView, setResponseBodyView] = React.useState<ResponseBodyView>('pretty');
   const [bottomTab, setBottomTab] = React.useState<BottomTab>('related');
   const [requestTab, setRequestTab] = React.useState<'params' | 'headers' | 'authorization' | 'body' | 'scripts' | 'tests' | 'settings'>('params');
+  const [authorizationExpanded, setAuthorizationExpanded] = React.useState(false);
   const [methodMenuOpen, setMethodMenuOpen] = React.useState(false);
   const [environmentMenuOpen, setEnvironmentMenuOpen] = React.useState(false);
   const [expandedCollections, setExpandedCollections] = React.useState<Record<string, boolean>>({});
@@ -3465,7 +3466,17 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
       <div className='relative mx-auto max-w-[1600px] px-4 pb-5 sm:px-6 lg:px-8' style={{ paddingTop: '24px' }}>
         <div className='mb-4 p-0'>
           <div className='relative z-50 flex justify-end'>
-            <div className='flex flex-wrap items-center justify-end gap-3'>
+            <div className='flex flex-nowrap items-center justify-end gap-3 overflow-x-auto pb-1'>
+              {selectedEnvironment && (
+                <div className='mr-auto flex flex-nowrap items-center gap-2'>
+                  <div className='flex h-11 items-center rounded-lg border border-border bg-background/40 px-4 text-sm font-medium text-text'>
+                    Environment active
+                  </div>
+                  <div className='flex h-11 items-center rounded-lg border border-border bg-background/40 px-4 text-sm font-medium text-text'>
+                    {selectedEnvironment.name}
+                  </div>
+                </div>
+              )}
               <Button type='button' variant='outline' className='h-11 w-44 border-border bg-background/40 px-4 text-sm font-medium text-text' onClick={() => fileInputRef.current?.click()}>
                 <UploadCloud className='mr-2 h-4 w-4' />
                 Import API
@@ -3544,13 +3555,6 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
             }}
           />
 
-          {selectedEnvironment && (
-            <div className='mt-4 flex flex-wrap items-center gap-2'>
-              <Badge variant='outline' className='border-border bg-background/40 text-text'>Environment active</Badge>
-              <Badge variant='outline' className='border-border bg-background/40 text-text'>{selectedEnvironment.name}</Badge>
-              <span className='text-xs text-text-secondary'>{Object.keys(selectedEnvironment.variables).length} variables</span>
-            </div>
-          )}
         </div>
 
         <div className='grid items-start gap-4 lg:grid-cols-[minmax(340px,0.3fr)_minmax(0,0.7fr)]'>
@@ -3882,8 +3886,6 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
                     </React.Fragment>
                   ))}
                 </div>
-                <p className='px-1 text-[11px] text-text-secondary'>{useTestData ? 'Configured Test Data rules will replace matching request values for this execution.' : 'The request will use the values currently in the editor.'}</p>
-
                 {requestTab === 'params' && (
                   <div className='space-y-4'>
                     <section className='rounded-2xl border border-primary/30 bg-primary/5 p-4'>
@@ -3981,10 +3983,20 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
 
                 {requestTab === 'authorization' && (
                   <section className='space-y-4 rounded-2xl border border-border bg-surface p-3'>
-                    <div className='flex items-center justify-between'>
-                      <h3 className='font-medium text-text'>Authorization</h3>
-                      <Shield className='h-4 w-4 text-text-secondary' />
-                    </div>
+                    <button
+                      type='button'
+                      className='flex w-full items-center justify-between rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary'
+                      onClick={() => setAuthorizationExpanded((expanded) => !expanded)}
+                      aria-expanded={authorizationExpanded}
+                    >
+                      <span className='font-medium text-text'>Authorization</span>
+                      <span className='flex items-center gap-2 text-text-secondary'>
+                        <Shield className='h-4 w-4' aria-hidden />
+                        {authorizationExpanded ? <ChevronDown className='h-4 w-4' aria-hidden /> : <ChevronRight className='h-4 w-4' aria-hidden />}
+                      </span>
+                    </button>
+                    {authorizationExpanded && (
+                      <>
                     <label className='block'>
                       <span className='mb-1.5 block text-sm font-medium text-text'>Auth type</span>
                       <select value={draft.auth.type} onChange={(e) => setDraft((current) => {
@@ -4071,6 +4083,8 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
                         <input value={draft.auth.oauth2Scopes} onChange={(e) => setDraft((current) => ({ ...current, auth: { ...current.auth, oauth2Scopes: e.target.value } }))} className='h-10 w-full rounded-xl border border-border bg-background/80 px-3 text-sm text-text outline-none' placeholder='Scopes, space separated' />
                         {environmentTokenConfigured && !draft.auth.oauth2Token && <p className='text-xs text-emerald-200'>Using the active environment token automatically.</p>}
                       </div>
+                    )}
+                      </>
                     )}
                   </section>
                 )}

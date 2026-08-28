@@ -52,7 +52,6 @@ import { logger } from './infrastructure/logging/Logger.js';
 import { createRateLimiter } from './infrastructure/security/rateLimiter.js';
 import { metrics } from './infrastructure/metrics/Metrics.js';
 import { registerWebhookModule } from './interfaces/webhook/WebhookModule.js';
-import { createTestReviewRoutes } from './interfaces/review/TestReviewRoutes.js';
 import { fieldDataRuleRoutes } from './interfaces/test-data/FieldDataRuleRoutes.js';
 import { PostgresConnection, RagDatabaseHealthService, runKnowledgeChunkMigration, runRagDatabaseMigrations } from './infrastructure/database/index.js';
 import { OllamaEmbeddingProvider } from './infrastructure/embedding/index.js';
@@ -271,7 +270,6 @@ async function bootstrap(): Promise<void> {
   app.use('/api', createKnowledgeSearchRoutes(retrieval));
   app.use('/api', analysisRoutes);
   app.use('/api', requirementRoutes);
-  app.use('/api', createTestReviewRoutes(container.testCaseVersionService, container.executionRunRepository));
   app.use('/api', executionRoutes);
   app.use('/api', executionProfileRoutes);
   app.use('/api', recommendationRoutes);

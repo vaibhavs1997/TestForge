@@ -129,7 +129,12 @@ export class ProjectController {
   async recentActivity(req: Request, res: Response): Promise<void> {
     const visibleProjectIds = new Set(filterProjectsForAuth(await this.listProjects.execute(), req.auth).map((project) => project.id));
     const logs = await this.auditLogService.getRecentLogs(100);
-    res.status(200).json(createSuccessResponse(logs.filter((log) => visibleProjectIds.has(log.projectId)).slice(0, 5)));
+    const projectLifecycleLogs = logs.filter((log) =>
+      visibleProjectIds.has(log.projectId)
+      && log.module === 'Project'
+      && log.entityType === 'Project',
+    );
+    res.status(200).json(createSuccessResponse(projectLifecycleLogs.slice(0, 5)));
   }
 }
 

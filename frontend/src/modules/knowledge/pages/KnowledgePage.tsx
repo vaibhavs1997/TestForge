@@ -477,7 +477,7 @@ export const KnowledgePage: React.FC = () => {
 
   if (!projectId) {
     return (
-      <div className="mx-auto max-w-7xl px-6 py-16 text-center text-text-secondary">
+      <div className="w-full px-4 py-16 text-center text-text-secondary sm:px-6 lg:px-8">
         Open a project to manage project knowledge.
       </div>
     );
@@ -485,50 +485,7 @@ export const KnowledgePage: React.FC = () => {
 
   return (
     <div className='min-h-screen'>
-      <div className='mx-auto max-w-7xl px-6 py-8'>
-        <div className='mb-6 flex flex-wrap items-start justify-between gap-4'>
-          <div>
-            <h1 className='text-2xl font-bold text-text'>Knowledge</h1>
-            <p className='mt-1 max-w-2xl text-sm text-text-secondary'>
-              Upload documentation, tag it, and connect it to the API and Test Data workspace.
-            </p>
-          </div>
-          <div className='flex flex-wrap items-center gap-2'>
-            <Button variant='outline' onClick={() => setImportOpen(true)}>
-              <Upload className='mr-2 h-4 w-4' />
-              Import
-            </Button>
-            {primaryCreateSection ? (
-              <Button onClick={() => openCreate(primaryCreateSection)}>
-                <Plus className='mr-2 h-4 w-4' />
-                Add {SECTION_LABELS[primaryCreateSection]}
-              </Button>
-            ) : (
-              <div className='relative' ref={addMenuRef}>
-                <Button onClick={() => setAddMenuOpen((v) => !v)}>
-                  <Plus className='mr-2 h-4 w-4' />
-                  Add
-                  <ChevronDown className='ml-1 h-4 w-4' />
-                </Button>
-                {addMenuOpen && (
-                  <div className='absolute right-0 z-20 mt-1 w-52 rounded-lg border border-border bg-surface py-1 shadow-lg'>
-                    {(TYPE_CHIPS.filter((c) => c.id !== 'all') as { id: KnowledgeSection; label: string }[]).map((chip) => (
-                      <button
-                        key={chip.id}
-                        type='button'
-                        className='flex w-full px-3 py-2 text-left text-sm text-text hover:bg-primary/10'
-                        onClick={() => openCreate(chip.id)}
-                      >
-                        {SECTION_LABELS[chip.id]}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
+      <div className='w-full px-4 py-8 sm:px-6 lg:px-8'>
         <div className='mb-6 grid gap-3 sm:grid-cols-3'>
           <div className='rounded-lg border border-border bg-surface p-4'><div className='flex items-center gap-2 text-xs font-medium text-text-secondary'><Globe className='h-4 w-4' /> API endpoints</div><p className='mt-2 text-2xl font-semibold text-text'>{workspaceStats.importedApis}</p><p className='mt-1 text-xs text-text-secondary'>Imported in the API workspace</p></div>
           <div className='rounded-lg border border-border bg-surface p-4'><div className='flex items-center gap-2 text-xs font-medium text-text-secondary'><Database className='h-4 w-4' /> Test data datasets</div><p className='mt-2 text-2xl font-semibold text-text'>{workspaceStats.datasets}</p><p className='mt-1 text-xs text-text-secondary'>Available for endpoint workflows</p></div>
@@ -564,17 +521,51 @@ export const KnowledgePage: React.FC = () => {
             value={search}
             onChange={setSearch}
             placeholder='Search all knowledge…'
-            className='sm:max-w-md'
+            className='w-full sm:w-[34rem]'
           />
-          <Button
-            type='button'
-            variant='destructive'
-            onClick={() => setDeleteAllOpen(true)}
-            disabled={allItems.length === 0 || isDeletingAll}
-          >
-            <Trash2 className='mr-2 h-4 w-4' />
-            Delete all
-          </Button>
+          <div className='flex flex-wrap items-center gap-2'>
+            <Button variant='outline' onClick={() => setImportOpen(true)}>
+              <Upload className='mr-2 h-4 w-4' />
+              Import
+            </Button>
+            {primaryCreateSection ? (
+              <Button onClick={() => openCreate(primaryCreateSection)}>
+                <Plus className='mr-2 h-4 w-4' />
+                Add {SECTION_LABELS[primaryCreateSection]}
+              </Button>
+            ) : (
+              <div className='relative w-40' ref={addMenuRef}>
+                <Button className='w-full justify-between' onClick={() => setAddMenuOpen((v) => !v)}>
+                  <Plus className='mr-2 h-4 w-4' />
+                  Add
+                  <ChevronDown className='ml-1 h-4 w-4' />
+                </Button>
+                {addMenuOpen && (
+                  <div className='absolute right-0 z-20 mt-1 w-full rounded-lg border border-border bg-surface py-1 shadow-lg'>
+                    {(TYPE_CHIPS.filter((c) => c.id !== 'all') as { id: KnowledgeSection; label: string }[]).map((chip) => (
+                      <button
+                        key={chip.id}
+                        type='button'
+                        className='flex w-full px-3 py-2 text-left text-sm text-text hover:bg-primary/10'
+                        onClick={() => openCreate(chip.id)}
+                      >
+                        {SECTION_LABELS[chip.id]}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <Button
+              type='button'
+              variant='destructive'
+              onClick={() => setDeleteAllOpen(true)}
+              disabled={allItems.length === 0 || isDeletingAll}
+            >
+              <Trash2 className='mr-2 h-4 w-4' />
+              Delete all
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (

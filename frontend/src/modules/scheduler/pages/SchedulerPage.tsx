@@ -265,7 +265,7 @@ const SchedulerPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
 
   if (queryError) {
     return (
-      <div className='mx-auto max-w-7xl px-4 py-8'>
+      <div className='w-full px-4 py-8 lg:px-8'>
         <ErrorAlert
           title='Failed to load schedules'
           message={queryError}
@@ -276,7 +276,7 @@ const SchedulerPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
   }
 
   return (
-    <div className='mx-auto max-w-7xl px-4 py-8'>
+    <div className='w-full px-4 py-8 lg:px-8'>
       <WorkflowOptionalBanner
         projectId={projectId}
         description="Cron-based suite runs for CI or nightly checks. Manual runs from Requirements or Execution do not need a schedule."

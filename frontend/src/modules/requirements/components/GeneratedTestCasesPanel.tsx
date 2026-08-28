@@ -60,7 +60,7 @@ export const GeneratedTestCasesPanel: React.FC<GeneratedTestCasesPanelProps> = (
   const includedCount = designs.filter((d) => d.status !== 'Disabled').length;
 
   return (
-    <div className='mb-8' aria-busy={isGenerating}>
+    <div className='mb-8 rounded-2xl border border-border bg-surface p-6' aria-busy={isGenerating}>
       <div className='mb-4 flex flex-wrap items-center justify-between gap-2'>
         <div>
           <div className='flex items-center gap-2'>

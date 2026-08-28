@@ -64,8 +64,8 @@ export const ExecutionWorkspace: React.FC<ExecutionWorkspaceProps> = ({ projectI
   const activeSub = subPath === '' || subPath === '/' ? '' : subPath;
 
   return (
-    <div className='flex h-full min-h-0 flex-col gap-4 p-4 lg:flex-row lg:p-6'>
-      <aside className='flex w-full shrink-0 flex-col rounded-2xl border border-border bg-surface p-4 lg:h-full lg:w-64'>
+    <div className='flex h-full min-h-0 flex-col gap-4 px-4 py-6 lg:h-[calc(100vh-4rem)] lg:flex-row lg:overflow-hidden lg:px-8'>
+      <aside className='flex w-full shrink-0 flex-col rounded-2xl border border-border bg-surface p-4 lg:h-full lg:w-64 lg:overflow-y-auto'>
         <div className='border-b border-border px-2 pb-4'>
           <div className='flex items-center gap-2 text-lg font-semibold text-text'>
             <Play className='h-5 w-5 text-primary' />
@@ -100,9 +100,8 @@ export const ExecutionWorkspace: React.FC<ExecutionWorkspaceProps> = ({ projectI
           Select a section to manage execution.
         </p>
       </aside>
-      {/* AppShell owns the page scroll. Keeping this wrapper non-scrollable avoids
-          a nested scrollbar beside the workspace content. */}
-      <div className='min-w-0 flex-1'>
+      {/* On desktop, only this content pane scrolls; the explorer stays static. */}
+      <div className='min-w-0 flex-1 scrollbar-none lg:h-full lg:overflow-y-auto'>
         <ExecutionRenderBoundary>
           <Routes key={location.pathname}>
           {/* Execute - main execution page (also contains validation history in details) */}

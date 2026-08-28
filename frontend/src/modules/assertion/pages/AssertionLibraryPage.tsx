@@ -132,7 +132,7 @@ const AssertionLibraryPageContent: React.FC<{ projectId: string }> = ({ projectI
   };
 
   return (
-    <div className='mx-auto max-w-7xl px-4 py-8'>
+    <div className='w-full px-4 py-8 lg:px-8'>
       <div className='mb-6 flex items-center justify-between'>
         <div>
           <h1 className='text-2xl font-bold text-text'>Assertion Library</h1>

@@ -174,7 +174,7 @@ export function ProjectContextPage({ projectId }: ProjectContextPageProps) {
   }
 
   return (
-    <div className='p-6'>
+    <div className='w-full px-4 py-6 lg:px-8'>
       {/* Header */}
       <div className='mb-6 flex items-center justify-between'>
         <div>

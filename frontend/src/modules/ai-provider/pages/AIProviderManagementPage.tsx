@@ -5,8 +5,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAIProviders, useAIProviderTypes } from '../hooks';
 import { aiProviderService } from '../services';
 import type { AIProvider, AIProviderType, AIProviderFormData } from '../types';
-import { AdminPageIntro } from '../../../components/shared/AdminPageIntro';
-import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
 import { getApiErrorMessage } from '../../../services/apiHelpers';
 
 interface AIProviderManagementPageProps {
@@ -351,28 +349,7 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
   if (error) return <div className="p-4 text-red-500">Error: {String(error)}</div>;
 
   return (
-    <div className="w-full max-w-none p-6">
-      <WorkflowOptionalBanner
-        description="Configure models used for test design and assertions. The default project provider is used when you generate from Requirements."
-        projectId={projectId}
-        primaryLink={{ label: 'Requirements', path: `/projects/${projectId}/requirements` }}
-      />
-      <AdminPageIntro
-        title="AI providers"
-        description="Manage LLM connections, defaults, and health for this project."
-      >
-        <button
-          onClick={() => {
-            setFormData(EMPTY_FORM);
-            setFormError('');
-            setShowCreateModal(true);
-          }}
-          className="rounded bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
-        >
-          + Add provider
-        </button>
-      </AdminPageIntro>
-
+    <div className="w-full px-4 py-6 lg:px-8">
       {/* Filters */}
       <div className="mb-6 rounded-2xl border border-border bg-surface p-4">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -411,6 +388,18 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
               ]}
             />
           </div>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={() => {
+              setFormData(EMPTY_FORM);
+              setFormError('');
+              setShowCreateModal(true);
+            }}
+            className="rounded bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+          >
+            + Add provider
+          </button>
         </div>
       </div>
 

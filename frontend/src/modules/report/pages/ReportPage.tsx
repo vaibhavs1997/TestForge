@@ -66,7 +66,6 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
 
   const [search, setSearch] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState<string>('all');
-  const [suiteFilter, setSuiteFilter] = React.useState<string>('all');
   const [dateFilter, setDateFilter] = React.useState<string>('');
   const [generateOpen, setGenerateOpen] = React.useState(false);
   const [executionRunId, setExecutionRunId] = React.useState('');
@@ -92,16 +91,10 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
         reqTitle.includes(term) ||
         overviewTitle.includes(term);
       const matchesStatus = statusFilter === 'all' || report.overallStatus === statusFilter;
-      const matchesSuite = suiteFilter === 'all' || (report.suiteId === suiteFilter);
       const matchesDate = !dateFilter || new Date(report.generatedAt).toLocaleDateString().includes(dateFilter);
-      return matchesSearch && matchesStatus && matchesSuite && matchesDate;
+      return matchesSearch && matchesStatus && matchesDate;
     });
-  }, [search, statusFilter, suiteFilter, dateFilter, reports, requirementTitleById]);
-
-  const uniqueSuites = React.useMemo(() => {
-    const suites = reports.filter(r => r.suiteId).map(r => ({ id: r.suiteId!, name: r.suiteId! }));
-    return [...new Map(suites.map(s => [s.id, s])).values()];
-  }, [reports]);
+  }, [search, statusFilter, dateFilter, reports, requirementTitleById]);
 
   const totalPassed = reports.filter(r => r.overallStatus === 'Passed').length;
   const totalFailed = reports.filter(r => r.overallStatus === 'Failed').length;
@@ -191,26 +184,6 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
 
   return (
     <div className='w-full max-w-none px-4 py-8'>
-      {/* Page Header */}
-      <div className='mb-6 flex items-center justify-between'>
-        <div>
-          <h1 className='text-2xl font-bold text-text'>Test reports</h1>
-          <p className='mt-1 text-sm text-text-secondary'>
-            Outcomes from test runs — export or post to Jira when a requirement is linked.
-          </p>
-        </div>
-        <div className='flex items-center gap-3'>
-          <Button variant='outline' onClick={handleExportAll}>
-            <Download className='mr-2 h-4 w-4' />
-            Export All
-          </Button>
-          <Button onClick={() => setGenerateOpen(true)}>
-            <Plus className='mr-2 h-4 w-4' />
-            Generate Report
-          </Button>
-        </div>
-      </div>
-
       {/* Summary Cards */}
       <div className='mb-8 grid grid-cols-1 gap-4 sm:grid-cols-4'>
         <Card>
@@ -283,12 +256,6 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
               { value: 'Completed', label: 'Completed' },
             ]}
           />
-          <SelectField
-            value={suiteFilter}
-            onChange={setSuiteFilter}
-            hideSelectedOption
-            options={[{ value: 'all', label: 'All Suites' }, ...uniqueSuites.map((suite) => ({ value: suite.id, label: suite.name }))]}
-          />
           <input
             type='text'
             placeholder='Date filter'
@@ -296,6 +263,16 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
             onChange={(e) => setDateFilter(e.target.value)}
             className='rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text'
           />
+        </div>
+        <div className='flex items-center gap-2'>
+          <Button variant='outline' onClick={handleExportAll}>
+            <Download className='mr-2 h-4 w-4' />
+            Export All
+          </Button>
+          <Button onClick={() => setGenerateOpen(true)}>
+            <Plus className='mr-2 h-4 w-4' />
+            Generate Report
+          </Button>
         </div>
       </div>
 

@@ -200,7 +200,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-7xl px-4 py-8">
+      <div className="w-full px-4 py-8 lg:px-8">
         <h1 className="text-3xl font-bold text-text">Select a Project</h1>
         <p className="mt-2 text-sm text-text-secondary">Loading projects…</p>
       </div>
@@ -209,7 +209,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
 
   if (isError) {
     return (
-      <div className="mx-auto max-w-7xl px-4 py-8">
+      <div className="w-full px-4 py-8 lg:px-8">
         <ErrorAlert
           title="Failed to load projects"
           message={error?.message ?? 'Could not reach the API.'}
@@ -220,22 +220,13 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-text">Your projects</h1>
-          <p className="mt-2 text-sm text-text-secondary">
-            Open a workspace or create one — each project follows import → requirements → run → report.
-          </p>
-        </div>
+    <div className="w-full px-4 py-8 lg:px-8">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <SearchBar value={search} onChange={setSearch} placeholder="Search projects..." className="sm:w-96" />
         <Button onClick={() => setCreateModalOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Create New Project
         </Button>
-      </div>
-
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-        <SearchBar value={search} onChange={setSearch} placeholder="Search projects..." className="sm:w-96" />
       </div>
 
       <section className="mb-8 rounded-2xl border border-border bg-surface/40 p-6">

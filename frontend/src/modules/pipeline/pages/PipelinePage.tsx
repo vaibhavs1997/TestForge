@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { usePipeline } from '../hooks/usePipeline';
 import { useAIProviders } from '../../ai-provider/hooks';
 import { PipelineStage, PipelineStatus } from '../types';
-import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
 import { Button } from '../../../components/ui/Button';
 
 interface PipelinePageProps {
@@ -115,15 +114,15 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
   };
 
   return (
-    <div className="pipeline-page w-full max-w-none p-6">
-      <WorkflowOptionalBanner
+    <div className="pipeline-page w-full px-4 py-6 lg:px-8">
+      {/* Optional-workflows banner intentionally omitted from the pipeline page.
         projectId={projectId}
         description="Automated multi-stage orchestration (analysis, strategy, design, plans). Most teams use Requirements → Generate test cases → Run instead."
         primaryLink={{
           label: 'Open requirements',
           path: `/projects/${projectId}/requirements`,
         }}
-      />
+      */}
 
       <div className="mb-6">
         <h1 className="text-2xl font-bold mb-1 text-text">Pipeline orchestration</h1>

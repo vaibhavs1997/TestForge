@@ -1,5 +1,5 @@
 // External libraries
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
 
 import {
@@ -39,7 +39,6 @@ const PRIMARY_NAV_ITEMS: NavItem[] = [
   { key: 'testdata', label: 'Test Data', icon: Database },
   { key: 'knowledge', label: 'Knowledge', icon: BookOpen },
   { key: 'requirements', label: 'Requirements', icon: ListChecks },
-  { key: 'review', label: 'Test Review', icon: Shield },
   { key: 'execution', label: 'Execution', icon: Play },
   { key: 'reports', label: 'Reports', icon: BarChart3 },
 ];
@@ -86,6 +85,12 @@ export const Sidebar: React.FC = () => {
   const adminKeys = ADMIN_NAV_ITEMS.map((i) => i.key);
   const isAdminActive = adminKeys.includes(activeProjectTab);
 
+  // Open automatically when entering an administration route, while still
+  // allowing the user to collapse it afterward without being forced open.
+  useEffect(() => {
+    setAdminOpen(isAdminActive);
+  }, [isAdminActive]);
+
   const renderNavItem = (item: NavItem) => {
     const Icon = item.icon;
     const tabPath = `/projects/${activeProjectId}/${item.key}`;
@@ -94,6 +99,8 @@ export const Sidebar: React.FC = () => {
       <NavLink
         key={item.key}
         to={tabPath}
+        title={collapsed ? item.label : undefined}
+        aria-label={collapsed ? item.label : undefined}
         className={() =>
           `flex items-center gap-3 rounded-lg py-2 text-sm font-medium transition-colors ${collapsed ? 'justify-center px-2' : 'px-3'} ${
             isActive
@@ -116,6 +123,8 @@ export const Sidebar: React.FC = () => {
       <NavLink
         key={item.key}
         to={tabPath}
+        title={collapsed ? item.label : undefined}
+        aria-label={collapsed ? item.label : undefined}
         className={() =>
           `flex items-center gap-3 rounded-lg ${collapsed ? 'justify-center px-2' : indent ? 'px-3 pl-9' : 'px-3'} py-2 text-sm font-medium transition-colors ${
             isActive
@@ -157,11 +166,11 @@ export const Sidebar: React.FC = () => {
           <button
             type="button"
             onClick={() => setCollapsed((current) => !current)}
-            className="rounded-lg p-2 text-text-secondary transition-colors hover:bg-background hover:text-text"
+            className="flex h-10 w-10 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-background hover:text-text"
             aria-label={collapsed ? 'Expand navigation sidebar' : 'Collapse navigation sidebar'}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            {collapsed ? <PanelLeftOpen className="h-4 w-4" aria-hidden /> : <PanelLeftClose className="h-4 w-4" aria-hidden />}
+            {collapsed ? <PanelLeftOpen className="h-5 w-5" aria-hidden /> : <PanelLeftClose className="h-5 w-5" aria-hidden />}
           </button>
         </div>}
         {!isInsideProject && primaryNavigationItems.map((item) => {
@@ -170,6 +179,8 @@ export const Sidebar: React.FC = () => {
             <NavLink
               key={item.to}
               to={item.to}
+              title={collapsed ? item.label : undefined}
+              aria-label={collapsed ? item.label : undefined}
               className={({ isActive }) =>
                 `flex items-center gap-3 rounded-lg py-2 text-sm font-medium transition-colors ${collapsed ? 'justify-center px-2' : 'px-3'} ${
                   isActiveRoute(item.to)
@@ -195,11 +206,11 @@ export const Sidebar: React.FC = () => {
                       <button
                         type='button'
                         onClick={() => setCollapsed(true)}
-                        className='rounded-lg p-2 text-text-secondary transition-colors hover:bg-background hover:text-text'
+                        className='flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-background hover:text-text'
                         aria-label='Collapse navigation sidebar'
                         title='Collapse sidebar'
                       >
-                        <PanelLeftClose className='h-4 w-4' aria-hidden />
+                        <PanelLeftClose className='h-5 w-5' aria-hidden />
                       </button>
                     </div>
                   );
@@ -217,10 +228,11 @@ export const Sidebar: React.FC = () => {
                       ? 'text-text'
                       : 'text-text-secondary hover:bg-surface hover:text-text'
                   }`}
-                  aria-expanded={adminOpen || isAdminActive}
+                  aria-expanded={adminOpen}
                   aria-label="Toggle administration section"
+                  title={collapsed ? 'Administration' : undefined}
                 >
-                  {adminOpen || isAdminActive ? (
+                  {adminOpen ? (
                     <ChevronDown className="h-4 w-4" aria-hidden />
                   ) : (
                     <ChevronRight className="h-4 w-4" aria-hidden />
@@ -228,7 +240,7 @@ export const Sidebar: React.FC = () => {
                   <Shield className="h-4 w-4" aria-hidden />
                   {!collapsed && 'Administration'}
                 </button>
-                {!collapsed && (adminOpen || isAdminActive) && (
+                {!collapsed && adminOpen && (
                   <div className="mt-1 space-y-1">
                     {ADMIN_NAV_ITEMS.map((item) => renderCollapsibleItem(item))}
                   </div>

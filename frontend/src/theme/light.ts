@@ -18,16 +18,17 @@ import { typography } from './typography';
 
 export const lightTheme = {
   colors: {
-    primary: '#3b82f6',
-    secondary: '#64748b',
-    background: '#f8fafc',
+    // Aadhaar-inspired light palette: deep indigo controls on a soft lavender canvas.
+    primary: '#302D78',
+    secondary: '#625F83',
+    background: '#F8F7FC',
     surface: '#ffffff',
-    text: '#0f172a',
-    textSecondary: '#64748b',
-    border: '#dbe4f0',
-    success: '#16a34a',
-    warning: '#d97706',
-    error: '#dc2626',
+    text: '#26234C',
+    textSecondary: '#625F83',
+    border: '#E5E2F0',
+    success: '#167348',
+    warning: '#B86B12',
+    error: '#C63D42',
   },
   spacing,
   radius,

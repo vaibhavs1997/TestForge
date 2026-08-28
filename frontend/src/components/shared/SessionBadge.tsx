@@ -31,8 +31,8 @@ export const SessionBadge: React.FC = () => {
         <span className="max-w-[140px] truncate">{label}</span>
       </span>
       {user ? (
-        <Button type="button" variant="ghost" size="sm" onClick={onLogout} aria-label="Sign out">
-          <LogOut className="h-4 w-4" />
+        <Button type="button" variant="ghost" size="sm" onClick={onLogout} aria-label="Sign out" title="Sign out of TestForge">
+          <LogOut className="h-4 w-4" aria-hidden />
         </Button>
       ) : null}
     </div>

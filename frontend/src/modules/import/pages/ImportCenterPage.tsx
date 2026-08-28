@@ -104,7 +104,7 @@ export const ImportCenterPage: React.FC<ImportCenterPageProps> = () => {
 
   if (isLoadingJobs) {
     return (
-      <div className="mx-auto max-w-7xl px-4 py-8">
+      <div className="w-full px-4 py-8 lg:px-8">
         <h1 className="text-2xl font-bold text-text">Import Center</h1>
         <p className="mt-1 text-sm text-text-secondary">Loading import history…</p>
       </div>
@@ -112,7 +112,7 @@ export const ImportCenterPage: React.FC<ImportCenterPageProps> = () => {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
+    <div className="w-full px-4 py-8 lg:px-8">
       <AdminPageIntro
         title="Import center"
         description="Cross-project bulk import and history. To add or update APIs for daily work, use your project APIs page—that is the recommended path."

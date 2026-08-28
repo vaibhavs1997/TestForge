@@ -163,7 +163,7 @@ export const MappingPage: React.FC<MappingPageProps> = ({ embedded = false }) =>
     </>
   );
 
-  const pageShell = embedded ? '' : 'mx-auto max-w-7xl px-4 py-8';
+  const pageShell = embedded ? '' : 'w-full px-4 py-8 lg:px-8';
 
   if (!projectId) {
     return (

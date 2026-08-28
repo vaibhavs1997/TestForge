@@ -171,7 +171,7 @@ const SuitePageContent: React.FC<{ projectId: string; navigate: ReturnType<typeo
   };
 
   return (
-    <div className='mx-auto max-w-7xl px-4 py-8'>
+    <div className='w-full px-4 py-8 lg:px-8'>
       <WorkflowOptionalBanner
         projectId={projectId}
         description="Suites group execution plans for batch or scheduled runs. Running from Requirements → Run tests does not require a suite."

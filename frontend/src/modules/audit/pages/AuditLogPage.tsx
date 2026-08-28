@@ -5,7 +5,6 @@ import { auditService } from '../services';
 import type { AuditLog, AuditModule, AuditAction, AuditLogFilters } from '../types';
 import { useParams } from 'react-router-dom';
 import { AdminPageIntro } from '../../../components/shared/AdminPageIntro';
-import { WorkflowOptionalBanner } from '../../../components/shared/WorkflowOptionalBanner';
 import { PageEmpty, PageError, PageLoading } from '../../../components/shared/PageState';
 
 export function AuditLogPage() {
@@ -104,13 +103,13 @@ export function AuditLogPage() {
   }
 
   return (
-    <div className="w-full max-w-none p-6">
-      {projectId && (
+    <div className="w-full px-4 py-6 lg:px-8">
+      {/* The optional-workflows banner is intentionally omitted from this page.
         <WorkflowOptionalBanner
           description="Compliance and troubleshooting trail. Not needed for the everyday import → test → report flow."
           projectId={projectId}
         />
-      )}
+      */}
       <AdminPageIntro
         title="Audit log"
         description="Filter and inspect create, update, and delete events across modules in this project."

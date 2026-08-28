@@ -55,12 +55,12 @@ const ExecutionPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
   const [selectedSuiteId, setSelectedSuiteId] = React.useState('');
   const [selectedRun, setSelectedRun] = React.useState<ExecutionRun | null>(null);
   const [search, setSearch] = React.useState('');
-  const [status, setStatus] = React.useState('all');
   const [launchError, setLaunchError] = React.useState<string | null>(null);
   const [isExecuting, setIsExecuting] = React.useState(false);
   const [tokenDraft, setTokenDraft] = React.useState('');
   const [isSavingToken, setIsSavingToken] = React.useState(false);
   const [tokenSaveMessage, setTokenSaveMessage] = React.useState<string | null>(null);
+  const [tokenPanelOpen, setTokenPanelOpen] = React.useState(false);
   const [readiness, setReadiness] = React.useState<any>(null);
   const [readinessOpen, setReadinessOpen] = React.useState(false);
 
@@ -156,9 +156,9 @@ const ExecutionPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
       .slice(0, 5);
     return recentRuns.filter((run) => {
       const suiteName = suiteNames.get(run.suiteId ?? '') ?? 'Individual run';
-      return (status === 'all' || run.status === status) && (!term || suiteName.toLowerCase().includes(term) || run.id.toLowerCase().includes(term));
+      return !term || suiteName.toLowerCase().includes(term) || run.id.toLowerCase().includes(term);
     });
-  }, [runs, search, status, suiteNames]);
+  }, [runs, search, suiteNames]);
 
   const handleRun = async () => {
     if (!selectedSuite) return;
@@ -185,7 +185,7 @@ const ExecutionPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
   };
 
   return (
-    <div className='mx-auto max-w-6xl space-y-6 py-2'>
+    <div className='w-full space-y-6 py-2'>
       <Card className='border-primary/30'>
         <CardHeader>
           <CardTitle>Run approved suite</CardTitle>
@@ -212,6 +212,12 @@ const ExecutionPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
                   <span>{selectedSuite.executionPolicy === 'FailFast' ? 'Stops on first failure' : 'Continues after failures'}</span>
                 </div>
               )}
+              <div className='rounded-lg border border-border bg-background/30'>
+                <button type='button' className='flex w-full items-center justify-between px-3 py-2 text-left text-sm font-medium text-text' onClick={() => setTokenPanelOpen((open) => !open)} aria-expanded={tokenPanelOpen} aria-controls='execution-token-panel'>
+                  <span className='flex items-center gap-2'><KeyRound className='h-4 w-4 text-text-secondary' />Authentication token</span>
+                  <ChevronRight className={`h-4 w-4 text-text-secondary transition-transform ${tokenPanelOpen ? 'rotate-90' : ''}`} />
+                </button>
+                {tokenPanelOpen && <div id='execution-token-panel' className='space-y-3 border-t border-border p-3'>
               <div className='flex items-center justify-between gap-3 rounded-lg border border-border bg-background/30 px-3 py-2'>
                 <div className='flex min-w-0 items-center gap-2'>
                   <KeyRound className='h-4 w-4 shrink-0 text-text-secondary' />
@@ -240,6 +246,8 @@ const ExecutionPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
                 </div>
                 {tokenSaveMessage && <p className='mt-1 text-xs text-text-secondary'>{tokenSaveMessage}</p>}
               </div>
+                </div>}
+              </div>
               {launchError && <ErrorAlert title='Unable to run suite' message={launchError} onRetry={() => void handleRun()} />}
             </>
           )}
@@ -251,7 +259,7 @@ const ExecutionPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
       <section className='space-y-4'>
         <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
           <div><h2 className='text-lg font-semibold text-text'>Recent runs</h2><p className='text-sm text-text-secondary'>Showing the 5 most recent runs. Select one to inspect its outcome.</p></div>
-          <div className='flex flex-wrap gap-2'><SearchBar value={search} onChange={setSearch} placeholder='Search runs…' className='sm:w-64' /><SelectField value={status} onChange={setStatus} options={[{ value: 'all', label: 'All statuses' }, ...(['Running', 'Completed', 'Failed', 'Cancelled'] as const).map((value) => ({ value, label: value }))]} /></div>
+          <div className='flex flex-wrap gap-2'><SearchBar value={search} onChange={setSearch} placeholder='Search runs…' className='sm:w-96' /></div>
         </div>
         {runsError ? <ErrorAlert title='Failed to load runs' message={runsFailure?.message ?? 'Try again.'} onRetry={() => void refetch()} /> : (
           <div className='grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]'>

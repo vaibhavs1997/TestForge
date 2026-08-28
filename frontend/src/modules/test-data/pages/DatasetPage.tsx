@@ -181,7 +181,6 @@ interface Dataset {
 type ViewMode = 'card' | 'table';
 type TestDataSection = 'primary' | 'datasets' | 'scenarios' | 'bindings' | 'reservations' | 'mappings' | 'relationships' | 'providers' | 'datasources' | 'generators';
 
-const CATEGORY_OPTIONS = ['General', 'Customer', 'Product', 'Order', 'Payment', 'User', 'Custom'];
 
 const SECTION_CHIPS: {
   id: TestDataSection;
@@ -210,7 +209,6 @@ export const TestDataLibraryPage: React.FC<TestDataLibraryPageProps> = ({ projec
   const storeProjectId = projectStore((s) => s.selectedProjectId);
   const resolvedProjectId = propProjectId ?? routeProjectId ?? storeProjectId ?? '';
   const [search, setSearch] = React.useState('');
-  const [categoryFilter, setCategoryFilter] = React.useState<string>('All');
   const [viewMode, setViewMode] = React.useState<ViewMode>('card');
   const [activeSection, setActiveSection] = React.useState<TestDataSection>('primary');
   const [editOpen, setEditOpen] = React.useState(false);
@@ -338,10 +336,9 @@ export const TestDataLibraryPage: React.FC<TestDataLibraryPageProps> = ({ projec
     const term = search.trim().toLowerCase();
     return datasets.filter((dataset) => {
       const matchesSearch = dataset.name.toLowerCase().includes(term) || dataset.description.toLowerCase().includes(term);
-      const matchesCategory = categoryFilter === 'All' || dataset.category === categoryFilter;
-      return matchesSearch && matchesCategory;
+      return matchesSearch;
     });
-  }, [search, categoryFilter, datasets]);
+  }, [search, datasets]);
 
   const handleCreate = (data: DatasetDialogData) => {
     const newDataset: Dataset = {
@@ -665,7 +662,7 @@ export const TestDataLibraryPage: React.FC<TestDataLibraryPageProps> = ({ projec
 
   if (!resolvedProjectId) {
     return (
-      <div className="mx-auto max-w-7xl px-6 py-16 text-center text-text-secondary">
+      <div className="w-full px-4 py-16 text-center text-text-secondary sm:px-6 lg:px-8">
         Open a project from the Projects page to manage test data.
       </div>
     );
@@ -673,38 +670,7 @@ export const TestDataLibraryPage: React.FC<TestDataLibraryPageProps> = ({ projec
 
   return (
     <div className='min-h-screen'>
-      <div className='mx-auto max-w-7xl px-6 py-8'>
-        <div className='mb-6 flex flex-wrap items-start justify-between gap-4'>
-          <div>
-            <h1 className='text-2xl font-bold text-text'>Test data</h1>
-            <p className='mt-1 max-w-2xl text-sm text-text-secondary'>
-              Control how TestForge supplies request data automatically when your APIs run.
-            </p>
-          </div>
-          <div className='flex flex-wrap items-center gap-2'>
-            <Button variant='outline' loading={reanalyzeBusy} onClick={async () => { setReanalyzeBusy(true); try { const response = await apiAxios.post(`/api/projects/${resolvedProjectId}/field-data-analysis/reanalyze`); const result = response.data.data || {}; setReanalyzeMessage(`${result.newInputs || 0} new inputs and ${result.reviewRequiredChanges || 0} changes need attention.`); setAnalysisRefresh((current) => current + 1); } catch { setReanalyzeMessage('Contract analysis could not be completed.'); } finally { setReanalyzeBusy(false); } }}>Re-analyze</Button>
-          {activeSection === 'datasets' && (
-            <div className='flex flex-wrap items-center gap-2'>
-              <Button
-                variant='outline'
-                onClick={() => {
-                  const defaultId = selectedDataset?.id ?? datasets[0]?.id ?? '';
-                  setImportTargetDatasetId(defaultId);
-                  setImportDatasetMode(datasets.length > 0 ? 'existing' : 'new');
-                  setImportWizardOpen(true);
-                }}
-              >
-                <Upload className='mr-2 h-4 w-4' />
-                Import Dataset
-              </Button>
-              <Button onClick={() => { setSelectedDataset(null); setEditOpen(true); }}>
-                <Plus className='mr-2 h-4 w-4' />
-                New Dataset
-              </Button>
-            </div>
-          )}
-          </div>
-        </div>
+      <div className='w-full px-4 py-8 sm:px-6 lg:px-8'>
         {reanalyzeMessage && <p role='status' className='mb-4 text-sm text-text-secondary'>{reanalyzeMessage}</p>}
         <div className='mb-6'>
           <ExecutionDataWorkspace
@@ -759,21 +725,26 @@ export const TestDataLibraryPage: React.FC<TestDataLibraryPageProps> = ({ projec
             <>
               <div className='mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
                 <div className='flex flex-1 items-center gap-3'>
-                  <SearchBar value={search} onChange={setSearch} placeholder='Search datasets...' className='sm:w-80' />
-                  <div className='flex flex-wrap gap-2'>
-                    {['All', ...CATEGORY_OPTIONS].map((category) => (
-                      <Button
-                        key={category}
-                        variant={categoryFilter === category ? 'default' : 'outline'}
-                        size='sm'
-                        onClick={() => setCategoryFilter(category)}
-                      >
-                        {category}
-                      </Button>
-                    ))}
-                  </div>
+                  <SearchBar value={search} onChange={setSearch} placeholder='Search datasets...' className='w-full sm:w-[40rem]' />
                 </div>
                 <div className='flex items-center gap-2'>
+                  <Button variant='outline' loading={reanalyzeBusy} onClick={async () => { setReanalyzeBusy(true); try { const response = await apiAxios.post(`/api/projects/${resolvedProjectId}/field-data-analysis/reanalyze`); const result = response.data.data || {}; setReanalyzeMessage(`${result.newInputs || 0} new inputs and ${result.reviewRequiredChanges || 0} changes need attention.`); setAnalysisRefresh((current) => current + 1); } catch { setReanalyzeMessage('Contract analysis could not be completed.'); } finally { setReanalyzeBusy(false); } }}>Re-analyze</Button>
+                  <Button
+                    variant='outline'
+                    onClick={() => {
+                      const defaultId = selectedDataset?.id ?? datasets[0]?.id ?? '';
+                      setImportTargetDatasetId(defaultId);
+                      setImportDatasetMode(datasets.length > 0 ? 'existing' : 'new');
+                      setImportWizardOpen(true);
+                    }}
+                  >
+                    <Upload className='mr-2 h-4 w-4' />
+                    Import Dataset
+                  </Button>
+                  <Button onClick={() => { setSelectedDataset(null); setEditOpen(true); }}>
+                    <Plus className='mr-2 h-4 w-4' />
+                    New Dataset
+                  </Button>
                   <Button
                     variant={viewMode === 'card' ? 'default' : 'outline'}
                     size='sm'

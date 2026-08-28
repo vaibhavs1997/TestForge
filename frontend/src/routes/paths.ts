@@ -19,7 +19,6 @@ export const projectModules = {
   requirements: 'requirements',
   execution: 'execution',
   reports: 'reports',
-  review: 'review',
   recommendations: 'recommendations',
   pipeline: 'pipeline',
   notifications: 'notifications',

@@ -34,12 +34,17 @@ TestForge/
 - OpenAPI, Swagger, Postman, environment, and GraphQL import workflows
 - Environment selection with variable substitution and base-URL resolution
 - OAuth/Bearer token reuse across authenticated API requests
+- Scheduled suite runs with optional automatic bearer-token API generation
 - Persistent request configuration, endpoint responses, headers, cookies, and history
 - Postman-style API explorer with expandable folders and endpoint names
 - Test Data synchronization with API payload fields, mappings, reservations, and runtime generators
 - Knowledge documentation import with tagging and API/Test Data project summaries
 - Requirements import from Jira/files with AI test generation
+- Knowledge-assisted endpoint mapping with deterministic fallback selection
 - Test suites for positive, negative, boundary, security, and performance coverage
+- Live request-body mutation for mapped test scenarios while preserving untouched fields
+- HTML, JSON, CSV, and print-to-PDF report exports
+- Project overview cards synchronized with APIs, Test Data, Knowledge, Requirements, Test Review, Execution, and Reports
 - Knowledge documents with categories, tags, and replace/remove workflows
 - Dark and light theme support
 
@@ -167,6 +172,7 @@ single-node only.
 - Project selection with Zustand
 - Request, environment, runtime token, and response persistence with `localStorage` where useful
 - Backend persistence for datasets, rows, mappings, reservations, and knowledge documents
+- Runtime-generated root-level snapshots are ignored and are not source fixtures
 
 ## Primary Workflows
 
@@ -183,6 +189,28 @@ Test Data identifies fields used by imported API endpoints and supports reusable
 Knowledge is a documentation workspace independent from API contract parsing. Users can import documentation files, organize them with tags, replace or remove documents, and view project-level relationships with imported APIs and Test Data.
 
 The Environment navigation entry now redirects to the API workspace, where environment import and management are available alongside request execution.
+
+### Requirements and mapping
+
+Test-case generation is based on the supplied requirement or Jira content. During
+mapping, project knowledge flows and business rules are used to rank candidate
+API operations and enrich dependency and fallback decisions. Generated scenarios
+retain their API mapping and mutation metadata for execution.
+
+### Execution and scheduling
+
+Execution uses the approved suite and the current API request configuration. For
+negative scenarios, only the selected field is mutated while the remaining
+request body is preserved. A schedule can optionally point to a token-generation
+operation; the scheduler runs that operation first and reuses the resulting token
+for the suite requests.
+
+### Project overview and reports
+
+The project overview mirrors the primary sidebar workflow with synchronized
+cards for APIs, Test Data, Knowledge, Requirements, Test Review, Execution, and
+Reports. Reports can be exported as structured HTML, JSON, CSV, or printed to a
+PDF using the browser print dialog.
 
 ## Scripts
 
@@ -221,9 +249,9 @@ HTTP Request -> Route -> Controller -> Use Case -> Repository -> Storage
 
 ### Persistence Strategy
 
-- Most feature data uses file-based JSON storage under `data/` with per-file locking
+- Most feature data uses file-based JSON storage under `backend/data/` with per-file locking
 - Some repositories use SQLite or in-memory storage depending on the module
-- API data is stored per project in paths such as `data/apis/{projectId}/services.json` and `operations.json`
+- API data is stored per project in paths such as `backend/data/apis/{projectId}/services.json` and `operations.json`
 
 ## Deployment Workflow
 

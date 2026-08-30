@@ -24,8 +24,6 @@ import {
   getAcceptanceCriteriaFocusText,
   toRequirementPromptPayload,
 } from './requirementAcceptanceFocus.js';
-import { pickOperationForCategory } from './RequirementOperationMatcher.js';
-import { requirementEndpointMappingService } from './RequirementEndpointMappingService.js';
 import type { GenerationProvenanceService } from './GenerationProvenanceService.js';
 import { selectByBudget, type GenerationBudget } from './GenerationBudget.js';
 
@@ -107,38 +105,10 @@ export class GenerateTestDesignWithAI {
       warnings.push('No approved test strategy found for this requirement. Using context-derived fallback.');
     }
 
-    let context: any = null;
-    try {
-      context = await this.projectContextService.buildContext(projectId);
-    } catch (err: any) {
-      warnings.push(`Project context could not be built: ${err.message}`);
-    }
-    if (!context) warnings.push('No project context was available for post-generation mapping.');
-    const projectOperations = (context?.apiOperations || []) as any[];
-    const existingDesigns = await this.testDesignRepository.findByRequirement(request.requirementId);
-    const existingUserOperationIds = existingDesigns
-      .filter((design) => design.mappingProvenance === 'user' && design.operationId)
-      .map((design) => design.operationId);
-    const knowledgeContext = { knowledgeFlows: context?.knowledgeFlows || [], businessRules: context?.businessRules || [] };
-    const candidateOperations = requirementEndpointMappingService.rankCandidates(requirement, projectOperations, 8, existingUserOperationIds, knowledgeContext);
-    const candidateIds = new Set(candidateOperations.map((operation) => operation.id));
-    const strategyScenarioCandidates = new Map<string, Set<string>>();
-    const criterionCandidates = new Map<string, Set<string>>();
-    for (const section of strategy?.sections || []) {
-      for (const item of section.items) {
-        const candidates = requirementEndpointMappingService.rankCandidatesForScenario(
-          requirement,
-          projectOperations,
-          item.acceptanceCriterionId,
-          `${item.title} ${item.reason}`,
-          8,
-          existingUserOperationIds, knowledgeContext,
-        );
-        const ids = new Set(candidates.map((operation) => operation.id));
-        if (item.scenarioId) strategyScenarioCandidates.set(item.scenarioId, ids);
-        if (item.acceptanceCriterionId) criterionCandidates.set(item.acceptanceCriterionId, ids);
-      }
-    }
+    // Generation must be solely requirement/acceptance-criteria driven. API
+    // contracts, datasets, environments and project knowledge are deliberately
+    // absent here; a later enrichment phase maps an immutable scenario.
+    const context: any = null;
     const requirementPrompt = {
       ...toRequirementPromptPayload(requirement),
       title: requirement.title,
@@ -167,8 +137,14 @@ export class GenerateTestDesignWithAI {
       const preview = await this.promptBuilderService.previewPrompt({
         templateId: TEST_DESIGN_TEMPLATE_ID,
         projectId,
-        // Endpoint candidates are applied after generation by the mapping step.
-        variableOverrides: { requirements: [requirementPrompt], apiOperations: [] },
+        variableOverrides: {
+          requirements: [requirementPrompt],
+          apiOperations: [],
+          datasets: [],
+          datasetColumns: [],
+          datasetRelationships: [],
+          runtimeVariables: [],
+        },
       });
       builtPrompt = {
         systemPrompt: preview.systemPrompt,
@@ -222,15 +198,9 @@ export class GenerateTestDesignWithAI {
     const designInputs = parsed.designInputs.length > 0
       ? parsed.designInputs
       : this.deriveDesignsFromStrategy(context, requirement, strategy);
-    const invalidOperationCount = designInputs.filter((input) => {
-      if (!input.operationId) return false;
-      const allowed = (input.scenarioId && strategyScenarioCandidates.get(input.scenarioId))
-        || (input.acceptanceCriterionId && criterionCandidates.get(input.acceptanceCriterionId))
-        || candidateIds;
-      return !allowed.has(input.operationId);
-    }).length;
-    if (invalidOperationCount > 0) {
-      warnings.push(`${invalidOperationCount} AI test design operation mapping(s) were outside the supplied candidate set and require review.`);
+    const ignoredOperationCount = designInputs.filter((input) => Boolean(input.operationId)).length;
+    if (ignoredOperationCount > 0) {
+      warnings.push(`${ignoredOperationCount} AI-supplied operation mapping(s) were ignored. Endpoint mapping is performed separately.`);
     }
     const criterionIds = new Set((requirement.acceptanceCriteria || []).map((criterion: any) => criterion.id));
     const invalidCriterionCount = designInputs.filter((input) => input.acceptanceCriterionId && !criterionIds.has(input.acceptanceCriterionId)).length;
@@ -255,21 +225,16 @@ export class GenerateTestDesignWithAI {
       const acceptanceCriterionId = input.acceptanceCriterionId && criterionIds.has(input.acceptanceCriterionId)
         ? input.acceptanceCriterionId
         : strategyMeta?.acceptanceCriterionId;
-      const scenarioConfidence = requirementEndpointMappingService.confidenceForScenario(requirement, projectOperations, acceptanceCriterionId, title);
-      const allowedOperationIds = (input.scenarioId && strategyScenarioCandidates.get(input.scenarioId))
-        || (acceptanceCriterionId && criterionCandidates.get(acceptanceCriterionId))
-        || candidateIds;
-
       const design = new TestDesignEntity(
         randomUUID(),
         projectId,
         request.requirementId,
         strategyItemId,
         title,
-        allowedOperationIds.has(input.operationId || '') ? input.operationId || '' : '',
-        input.environmentId || (context?.environments && context.environments[0]?.id) || '',
-        input.datasetId || (context?.datasets && context.datasets[0]?.id) || '',
-        input.datasetRowReference || '',
+        '',
+        '',
+        '',
+        '',
         input.requestOverrides || {},
         input.runtimeBindings || [],
         input.assertions || [],
@@ -281,9 +246,9 @@ export class GenerateTestDesignWithAI {
         [],
         strategyMeta?.testCaseType,
         strategyMeta?.expectedHttpStatus,
-        ((input.scenarioId && strategyScenarioCandidates.get(input.scenarioId)) || (input.acceptanceCriterionId && criterionCandidates.get(input.acceptanceCriterionId)) || candidateIds).has(input.operationId || '') ? 'ai' : 'matcher',
-        allowedOperationIds.has(input.operationId || '') && scenarioConfidence >= 70 ? 'confirmed' : 'review',
-        scenarioConfidence,
+        'matcher',
+        'unmapped',
+        0,
         acceptanceCriterionId,
         (input.scenarioId && (strategyScenarioIds.size === 0 || strategyScenarioIds.has(input.scenarioId)))
           ? input.scenarioId
@@ -438,13 +403,10 @@ export class GenerateTestDesignWithAI {
       .filter((v): v is CleanupStep => !!v);
   }
 
-  private deriveDesignsFromStrategy(context: any, requirement: any, strategy: TestStrategyEntity | null): ParsedTestDesignInput[] {
+  private deriveDesignsFromStrategy(_context: any, requirement: any, strategy: TestStrategyEntity | null): ParsedTestDesignInput[] {
     const inputs: ParsedTestDesignInput[] = [];
     // Fallback generation is also requirement/strategy-only. API, environment,
     // and dataset assignment is performed by the mapping/enrichment phase.
-    const apiOperations: any[] = [];
-    const environment: any = undefined;
-    const dataset: any = undefined;
 
     if (!strategy) {
       const categories = ['Positive', 'Negative', 'Boundary', 'Security', 'Validation'];
@@ -455,12 +417,10 @@ export class GenerateTestDesignWithAI {
           acceptanceCriterionId: requirement.acceptanceCriteria?.[0]?.id,
           scenarioId: `${requirement.acceptanceCriteria?.[0]?.id || 'legacy'}:scenario:${scenarioIndex}`,
           title: this.categoryTitle(requirement.title, category),
-          operationId: apiOperations.length > 0
-            ? pickOperationForCategory(requirement, apiOperations, category as any)
-            : '',
-          environmentId: environment?.id || '',
-          datasetId: dataset?.id || '',
-          datasetRowReference: dataset ? `row-${Date.now()}` : '',
+          operationId: '',
+          environmentId: '',
+          datasetId: '',
+          datasetRowReference: '',
           requestOverrides: this.defaultRequestOverrides(category),
           runtimeBindings: this.defaultRuntimeBindings(category),
           assertions: this.defaultAssertions(category),
@@ -478,12 +438,10 @@ export class GenerateTestDesignWithAI {
             acceptanceCriterionId: item.acceptanceCriterionId,
             scenarioId: item.scenarioId || item.id,
             title: item.title,
-            operationId: apiOperations.length > 0
-              ? pickOperationForCategory(requirement, apiOperations, category as any)
-              : '',
-            environmentId: environment?.id || '',
-            datasetId: dataset?.id || '',
-            datasetRowReference: dataset ? `row-${Date.now()}` : '',
+            operationId: '',
+            environmentId: '',
+            datasetId: '',
+            datasetRowReference: '',
             requestOverrides: this.defaultRequestOverrides(category),
             runtimeBindings: this.defaultRuntimeBindings(category),
             assertions: this.defaultAssertions(category),

@@ -21,7 +21,7 @@ export const LandingNav: React.FC = () => {
   const { openLogin, openRegister } = useLandingAuth();
 
   return (
-    <header className="relative z-50 border-b border-white/[0.06] bg-[#0B1120]/80 backdrop-blur-xl">
+    <header className="landing-surface relative z-50 border-b bg-background/70">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <BrandLogo variant="landing" linkTo="/" />
 
@@ -30,7 +30,7 @@ export const LandingNav: React.FC = () => {
             <a
               key={item.label}
               href={item.href}
-              className="text-sm font-medium text-slate-400 transition-colors hover:text-white"
+              className="text-sm font-medium text-text-secondary transition-colors hover:text-primary"
             >
               {item.label}
             </a>
@@ -41,7 +41,7 @@ export const LandingNav: React.FC = () => {
           {cta.signedIn ? (
             <Link
               to={cta.primary}
-              className="rounded-2xl bg-[#2563EB] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/30 transition-all hover:bg-blue-500"
+              className="landing-primary-action rounded-2xl px-5 py-2.5 text-sm font-semibold text-white"
             >
               {cta.primaryLabel}
             </Link>
@@ -50,14 +50,14 @@ export const LandingNav: React.FC = () => {
               <button
                 type="button"
                 onClick={openLogin}
-                className="rounded-xl px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:text-white"
+                className="rounded-xl px-4 py-2 text-sm font-medium text-text-secondary transition-colors hover:text-primary"
               >
                 {cta.secondaryLabel}
               </button>
               <button
                 type="button"
                 onClick={openRegister}
-                className="rounded-2xl bg-[#2563EB] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/30 transition-all hover:bg-blue-500 hover:shadow-blue-500/40"
+                className="landing-primary-action rounded-2xl px-5 py-2.5 text-sm font-semibold text-white"
               >
                 {cta.primaryLabel}
               </button>
@@ -67,7 +67,7 @@ export const LandingNav: React.FC = () => {
 
         <button
           type="button"
-          className="rounded-lg p-2 text-slate-400 md:hidden"
+          className="rounded-lg p-2 text-text-secondary md:hidden"
           onClick={() => setOpen(!open)}
           aria-label="Toggle menu"
         >
@@ -76,13 +76,13 @@ export const LandingNav: React.FC = () => {
       </div>
 
       {open && (
-        <div className="border-t border-white/[0.06] bg-[#0B1120]/95 px-4 py-4 md:hidden">
+        <div className="landing-surface border-t px-4 py-4 md:hidden">
           <nav className="flex flex-col gap-3">
             {NAV_LINKS.map((item) => (
               <a
                 key={item.label}
                 href={item.href}
-                className="text-sm font-medium text-slate-300"
+                className="text-sm font-medium text-text-secondary"
                 onClick={() => setOpen(false)}
               >
                 {item.label}
@@ -91,7 +91,7 @@ export const LandingNav: React.FC = () => {
             {!cta.signedIn ? (
               <button
                 type="button"
-                className="text-left text-sm font-medium text-slate-300"
+                className="text-left text-sm font-medium text-text-secondary"
                 onClick={() => {
                   setOpen(false);
                   openLogin();
@@ -103,7 +103,7 @@ export const LandingNav: React.FC = () => {
             {cta.signedIn ? (
               <Link
                 to={cta.primary}
-                className="mt-2 rounded-2xl bg-[#2563EB] px-4 py-3 text-center text-sm font-semibold text-white"
+                className="landing-primary-action mt-2 rounded-2xl px-4 py-3 text-center text-sm font-semibold text-white"
                 onClick={() => setOpen(false)}
               >
                 {cta.primaryLabel}
@@ -111,7 +111,7 @@ export const LandingNav: React.FC = () => {
             ) : (
               <button
                 type="button"
-                className="mt-2 rounded-2xl bg-[#2563EB] px-4 py-3 text-center text-sm font-semibold text-white"
+                className="landing-primary-action mt-2 rounded-2xl px-4 py-3 text-center text-sm font-semibold text-white"
                 onClick={() => {
                   setOpen(false);
                   openRegister();

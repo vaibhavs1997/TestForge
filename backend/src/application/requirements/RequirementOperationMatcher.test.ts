@@ -93,4 +93,15 @@ describe('RequirementOperationMatcher', () => {
       ),
     ).toBe('reset');
   });
+
+  it('does not confirm a mapping that has only a generic action match', () => {
+    const createCustomer = operation('customer', 'Create customer', '/customers');
+    const diagnostics = getOperationMatchDiagnostics(
+      requirement('Create a subscription', 'A customer can create a subscription'),
+      [createCustomer],
+    );
+
+    expect(diagnostics.lowConfidence).toBe(true);
+    expect(diagnostics.ranked[0]?.reasons.some((reason) => reason.startsWith('Business entity match:'))).toBe(false);
+  });
 });

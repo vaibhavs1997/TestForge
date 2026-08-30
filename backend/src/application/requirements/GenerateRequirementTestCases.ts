@@ -7,7 +7,6 @@ import type { ApiOperationRepository } from '../../domain/api/ApiOperationReposi
 import type { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
 import type { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository.js';
 import {
-  rankOperationsForRequirement,
   buildPayloadForScenario,
   getOperationMatchDiagnostics,
   mappingConfidencePercent,
@@ -170,7 +169,6 @@ export class GenerateRequirementTestCases {
     }
 
     const projectOperations = await this.apiOperationRepository.findByProject(requirement.projectId);
-    const ranked = rankOperationsForRequirement(requirement, projectOperations);
     const diagnostics = getOperationMatchDiagnostics(requirement, projectOperations);
     if (projectOperations.length === 0) {
       warnings.push('No API operations are imported for this project. Test cases were generated without API mappings.');
@@ -183,11 +181,9 @@ export class GenerateRequirementTestCases {
     await this.requirementRepository.update(requirement.id, {
       confidence: mappingPercent,
     } as Partial<typeof requirement>);
-    if (ranked.length > 0 && requirement.relatedOperations.length === 0) {
-      await this.requirementRepository.update(requirement.id, {
-        relatedOperations: ranked.slice(0, 5).map((o) => o.id),
-      } as Partial<typeof requirement>);
-    }
+    // Do not write automatic suggestions back into the requirement. Doing so
+    // would make a previous API ranking influence future requirement-only
+    // scenario generation.
 
     if (requirement.generationPending) {
       await this.requirementRepository.update(requirement.id, {

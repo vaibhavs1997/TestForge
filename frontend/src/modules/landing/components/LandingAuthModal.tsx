@@ -50,14 +50,14 @@ export const LandingAuthModal: React.FC<LandingAuthModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-[#020617]/80 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-labelledby="landing-auth-title"
       onClick={onClose}
     >
       <Card
-        className="flex max-h-[90vh] w-full max-w-md flex-col border-white/10 bg-[#0f172a] text-slate-200 shadow-2xl shadow-black/50"
+        className="landing-auth-modal landing-surface flex max-h-[90vh] w-full max-w-md flex-col border text-text shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <CardHeader className="shrink-0 border-b border-white/[0.06] pb-4">
@@ -66,13 +66,13 @@ export const LandingAuthModal: React.FC<LandingAuthModalProps> = ({
               <CardTitle id="landing-auth-title" className="text-xl text-white">
                 {title}
               </CardTitle>
-              <CardDescription className="mt-1 text-slate-400">{subtitle}</CardDescription>
+              <CardDescription className="mt-1 text-text-secondary">{subtitle}</CardDescription>
             </div>
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="h-8 w-8 shrink-0 p-0 text-slate-400 hover:text-white"
+              className="h-8 w-8 shrink-0 p-0 text-text-secondary hover:text-primary"
               onClick={onClose}
               aria-label="Close"
             >
@@ -83,18 +83,18 @@ export const LandingAuthModal: React.FC<LandingAuthModalProps> = ({
 
         <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-6 scrollbar-none">
           {!isHydrated || loginRequired === null ? (
-            <p className="text-center text-sm text-slate-400">Loading…</p>
+            <p className="text-center text-sm text-text-secondary">Loading…</p>
           ) : !loginRequired ? (
-            <div className="space-y-4 text-sm text-slate-300">
+            <div className="space-y-4 text-sm text-text-secondary">
               <p>
                 This environment runs in open development mode. Configure{' '}
-                <code className="text-xs text-violet-300">MONGODB_URI</code> and{' '}
-                <code className="text-xs text-violet-300">TESTFORGE_JWT_SECRET</code> on the backend to
+                <code className="text-xs text-primary">MONGODB_URI</code> and{' '}
+                <code className="text-xs text-primary">TESTFORGE_JWT_SECRET</code> on the backend to
                 enable enterprise accounts.
               </p>
               <Link
                 to="/projects"
-                className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-[#2563EB] text-sm font-medium text-white hover:bg-blue-500"
+                className="landing-primary-action inline-flex h-10 w-full items-center justify-center rounded-lg text-sm font-medium text-white"
                 onClick={onClose}
               >
                 Continue to projects
@@ -106,14 +106,14 @@ export const LandingAuthModal: React.FC<LandingAuthModalProps> = ({
               sessionExpired={sessionExpired}
               onSuccess={onClose}
               onSwitchToRegister={() => onSwitchMode('register')}
-              footerClassName="text-slate-400"
+              footerClassName="text-text-secondary"
             />
           ) : (
             <RegisterForm
               redirectTo={from}
               onSuccess={onClose}
               onSwitchToLogin={() => onSwitchMode('login')}
-              footerClassName="text-slate-400"
+              footerClassName="text-text-secondary"
             />
           )}
         </CardContent>

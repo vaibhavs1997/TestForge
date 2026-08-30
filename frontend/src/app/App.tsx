@@ -22,6 +22,20 @@ const queryClient = new QueryClient({
   },
 });
 
+function UserScopedQueryCache() {
+  const userId = authStore((state) => state.user?.id ?? null);
+  const previousUserId = React.useRef(userId);
+
+  React.useEffect(() => {
+    if (previousUserId.current !== userId) {
+      queryClient.clear();
+      previousUserId.current = userId;
+    }
+  }, [userId]);
+
+  return null;
+}
+
 export const App: React.FC = () => {
   React.useEffect(() => {
     setUnauthorizedHandler(() => {
@@ -39,6 +53,7 @@ export const App: React.FC = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <UserScopedQueryCache />
       <BrowserRouter>
         <AuthBootstrap>
           <AppRoutes />

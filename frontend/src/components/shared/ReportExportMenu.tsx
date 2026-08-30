@@ -51,7 +51,7 @@ export const ReportExportMenu: React.FC<ReportExportMenuProps> = ({
             }}
           >
             <FileDown className="h-4 w-4" />
-            HTML
+            Interactive HTML
           </button>
           <button
             type="button"
@@ -84,7 +84,7 @@ export const ReportExportMenu: React.FC<ReportExportMenuProps> = ({
             }}
           >
             <FileDown className="h-4 w-4" />
-            PDF
+            Preview / download PDF
           </button>
         </div>
       )}

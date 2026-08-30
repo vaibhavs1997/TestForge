@@ -517,12 +517,23 @@ export class ExecutePlan {
         stepOperation,
         testDesign,
       );
+      // Test designs are the source of truth for a generated scenario's
+      // expected HTTP outcome. Plans are persisted separately and may retain
+      // an outdated status assertion after a design is regenerated or edited.
+      // Align the copied plan assertion at execution time so an intentional
+      // 4xx response (for example invalid credentials expecting 401) passes.
+      const expectedHttpStatus = Number(testDesign?.expectedHttpStatus);
+      const planAssertions = (dependencyResolution.plan.assertions || []).map((assertion: any) => (
+        assertion.type === 'status' && Number.isInteger(expectedHttpStatus) && expectedHttpStatus >= 100 && expectedHttpStatus <= 599
+          ? { ...assertion, expected: expectedHttpStatus }
+          : assertion
+      ));
       const stepResult = await this.executeStep(
         {
           ...liveRequestPlan,
           __snapshotReferences: { requirement: { id: requirement.id, version: requirement.updatedAt }, operation: stepOperation ? { id: stepOperation.id, serviceId: stepOperation.serviceId, version: stepOperation.updatedAt } : undefined, environment: { id: selectedEnvironment.id, version: selectedEnvironment.updatedAt }, dataset: currentPlan.datasetId ? await this.datasetRepository.findById(currentPlan.datasetId) : undefined, fieldRules, testCaseVersionId: currentPlan.testCaseVersionId || undefined, mutation: testDesign?.mutationProvenance },
           assertions: [
-            ...(dependencyResolution.plan.assertions || []),
+            ...planAssertions,
             ...reusableAssertions.map((assertion) => ({
               type: assertion.type === 'Custom Assertion' ? 'custom' : assertion.type,
               operator: (assertion.expectedValue as any)?.operator || 'equals',

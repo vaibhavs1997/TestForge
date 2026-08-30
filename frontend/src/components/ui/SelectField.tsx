@@ -52,7 +52,7 @@ export const SelectField: React.FC<SelectFieldProps> = ({
         <ChevronDown className={cn('h-4 w-4 shrink-0 text-text-secondary transition-transform', open && 'rotate-180')} />
       </button>
       {open && !disabled && (
-        <div className='absolute left-0 top-full z-40 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-border bg-surface p-1 shadow-xl' role='listbox'>
+        <div className='theme-select-menu absolute left-0 top-full z-40 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-border bg-surface p-1 shadow-xl' role='listbox'>
           {options.filter((option) => !hideSelectedOption || option.value !== value).map((option) => (
             <button
               key={option.value}
@@ -64,7 +64,7 @@ export const SelectField: React.FC<SelectFieldProps> = ({
                 setOpen(false);
               }}
               className={cn(
-                'block w-full rounded-md px-3 py-2 text-left text-sm text-text transition-colors hover:bg-background',
+                'theme-select-option block w-full rounded-md px-3 py-2 text-left text-sm text-text transition-colors hover:bg-background',
                 option.value === value && 'bg-primary/15 text-primary',
               )}
             >

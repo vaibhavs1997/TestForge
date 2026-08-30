@@ -14,6 +14,17 @@ const CREDENTIAL_TERMS = ['email', 'password', 'username', 'credential', 'creden
 const RESET_TERMS = ['forgot password', 'reset password', 'password reset', 'forgotten password'];
 const RECOVERY_TERMS = ['reset', 'recover', 'recovery', 'forgot', 'forgotten', 'unlock'];
 const REGISTRATION_TERMS = ['register', 'registration', 'signup', 'sign up', 'create account', 'new user', 'user creation'];
+const ACTIONS: Record<string, string[]> = {
+  create: ['create', 'register', 'signup', 'sign up', 'add', 'submit', 'upload', 'place'],
+  read: ['get', 'list', 'fetch', 'read', 'view', 'retrieve', 'search', 'find'],
+  update: ['update', 'edit', 'modify', 'change', 'patch', 'put'],
+  delete: ['delete', 'remove', 'cancel', 'archive', 'deactivate'],
+  authenticate: ['login', 'log in', 'sign in', 'signin', 'authenticate'],
+  recover: ['reset', 'recover', 'recovery', 'forgot', 'unlock'],
+};
+const NON_ENTITY_TOKENS = new Set([
+  ...Object.values(ACTIONS).flat(), 'user', 'users', 'customer', 'customers', 'should', 'able', 'with', 'when', 'then', 'given', 'valid', 'invalid', 'request', 'response', 'must', 'will', 'from', 'their', 'that', 'this', 'have', 'for', 'and', 'the', 'api', 'http', 'status', 'field', 'fields',
+]);
 
 function tokenize(text: string): string[] {
   return text
@@ -50,7 +61,33 @@ function containsTerm(text: string, term: string): boolean {
   return new RegExp(`\\b${escaped}\\b`, 'i').test(text);
 }
 
-function scoreOperation(op: ApiOperationEntity, tokens: string[], corpus: string): { score: number; reasons: string[] } {
+function inferAction(text: string): string | undefined {
+  const lower = text.toLowerCase();
+  // Recovery language must win over "registered user" or other creation
+  // words that may appear in a precondition.
+  if (ACTIONS.recover.some((term) => containsTerm(lower, term))) return 'recover';
+  for (const [action, terms] of Object.entries(ACTIONS)) {
+    if (action === 'recover') continue;
+    if (terms.some((term) => containsTerm(lower, term))) return action;
+  }
+  return undefined;
+}
+
+function entityTokens(text: string): string[] {
+  return tokenize(text).filter((token) => !NON_ENTITY_TOKENS.has(token) && !/^\d+$/.test(token));
+}
+
+function methodFitsAction(method: string, action?: string): boolean {
+  if (!action) return true;
+  const normalized = method.toUpperCase();
+  return (action === 'create' && normalized === 'POST')
+    || (action === 'read' && normalized === 'GET')
+    || (action === 'update' && (normalized === 'PUT' || normalized === 'PATCH'))
+    || (action === 'delete' && (normalized === 'DELETE' || normalized === 'POST'))
+    || ((action === 'authenticate' || action === 'recover') && normalized === 'POST');
+}
+
+function scoreOperation(requirement: RequirementEntity, op: ApiOperationEntity, tokens: string[], corpus: string): { score: number; reasons: string[] } {
   const expandedOpText = expandOperationWithSynonyms(op);
   const hay = expandedOpText.toLowerCase();
   let score = 0;
@@ -61,9 +98,39 @@ function scoreOperation(op: ApiOperationEntity, tokens: string[], corpus: string
       reasons.push(`Matched "${token}" in operation name/path/description`);
     }
   }
-  // Add synonym-based reasoning
-  const synonymReasons = getSynonymReasoning(op as any, op);
+  // Synonym evidence must compare the requirement with the operation, never
+  // the operation with itself.
+  const synonymReasons = getSynonymReasoning(requirement, op);
   reasons.push(...synonymReasons);
+  const requirementAction = inferAction(corpus);
+  const operationAction = inferAction(hay);
+  if (requirementAction && operationAction === requirementAction) {
+    score += 12;
+    reasons.push(`Action intent matches: ${requirementAction} (+12)`);
+  } else if (requirementAction && operationAction && operationAction !== requirementAction) {
+    score -= 10;
+    reasons.push(`Action intent conflicts: requirement ${requirementAction}, operation ${operationAction} (-10)`);
+  }
+  if (methodFitsAction(op.method, requirementAction)) {
+    score += 4;
+    reasons.push(`HTTP method ${op.method} is compatible with ${requirementAction || 'the requested action'} (+4)`);
+  } else if (requirementAction) {
+    score -= 5;
+    reasons.push(`HTTP method ${op.method} conflicts with ${requirementAction} (-5)`);
+  }
+  const opEntities = new Set(entityTokens(`${op.name} ${op.path} ${op.description || ''}`));
+  const sharedEntities = [...new Set(entityTokens(corpus))].filter((token) => opEntities.has(token));
+  if (sharedEntities.length > 0) {
+    const evidence = sharedEntities.slice(0, 3);
+    score += evidence.length * 5;
+    reasons.push(`Business entity match: ${evidence.join(', ')} (+${evidence.length * 5})`);
+  }
+  const requestKeys = Object.keys(op.sampleRequestBody || {});
+  const matchingFields = requestKeys.filter((key) => containsTerm(corpus, key));
+  if (matchingFields.length > 0) {
+    score += Math.min(6, matchingFields.length * 2);
+    reasons.push(`Request fields support the scenario: ${matchingFields.slice(0, 3).join(', ')} (+${Math.min(6, matchingFields.length * 2)})`);
+  }
   const requirementIsRegistration = REGISTRATION_TERMS.some((term) => containsTerm(corpus, term));
   const requirementIsRecovery = RECOVERY_TERMS.some((term) => containsTerm(corpus, term));
   const operationIsReset = RESET_TERMS.some((term) => containsTerm(hay, term)) || /forgot|reset/.test(hay);
@@ -153,7 +220,7 @@ export function getOperationMatchDiagnostics(
   const corpus = requirementCorpus(requirement).toLowerCase();
   const tokens = tokenize(corpus);
   const scored: OperationMatchScore[] = operations.map((operation) => {
-    const { score, reasons } = scoreOperation(operation, tokens, corpus);
+    const { score, reasons } = scoreOperation(requirement, operation, tokens, corpus);
     return { operation, score, reasons };
   });
   scored.sort((a, b) => b.score - a.score);
@@ -162,11 +229,11 @@ export function getOperationMatchDiagnostics(
   const ranked = scored;
 
   const secondScore = ranked[1]?.score ?? 0;
-  const strongIntentMatch = Boolean(
-    scored[0]?.reasons.some((reason) => reason.includes('intent matches operation semantics')) && topScore >= 8,
-  );
-  const lowConfidence = !strongIntentMatch &&
-    (topScore === 0 || (topScore > 0 && topScore < 4) || (topScore > 0 && topScore - secondScore < 2));
+  const topReasons = scored[0]?.reasons ?? [];
+  const strongIntentMatch = topReasons.some((reason) => reason.includes('intent matches operation semantics'))
+    || (topReasons.some((reason) => reason.startsWith('Action intent matches:'))
+      && topReasons.some((reason) => reason.startsWith('Business entity match:') || reason.startsWith('Synonym match:')));
+  const lowConfidence = !strongIntentMatch || topScore < 12 || topScore - secondScore < 5;
 
   return { ranked, lowConfidence };
 }
@@ -184,10 +251,12 @@ export function mappingConfidencePercent(
   const secondScore = diagnostics.ranked[1]?.score ?? 0;
   const margin = topScore - secondScore;
   const reasonCount = top.reasons.length;
-  const strongIntentMatch = top.reasons.some((reason) => reason.includes('intent matches operation semantics')) && topScore >= 8;
+  const strongIntentMatch = top.reasons.some((reason) => reason.includes('intent matches operation semantics'))
+    || (top.reasons.some((reason) => reason.startsWith('Action intent matches:'))
+      && top.reasons.some((reason) => reason.startsWith('Business entity match:') || reason.startsWith('Synonym match:')));
 
-  if (strongIntentMatch) {
-    return Math.round(Math.min(95, 78 + Math.max(0, margin) * 3));
+  if (strongIntentMatch && margin >= 5) {
+    return Math.round(Math.min(95, 80 + Math.max(0, margin) * 2));
   }
 
   // Base score from match quality
@@ -206,7 +275,7 @@ export function mappingConfidencePercent(
 
   // Penalty for low confidence heuristics
   if (diagnostics.lowConfidence) {
-    percent = Math.min(percent, 52);
+    percent = Math.min(percent, 55);
   } else {
     // Bonus for strong, well-reasoned matches
     percent = Math.max(percent, reasonCount >= 3 ? 78 : 65);

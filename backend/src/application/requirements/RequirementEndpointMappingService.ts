@@ -95,11 +95,14 @@ export class RequirementEndpointMappingService {
       : requirement;
     const operationId = pickOperationForCategory(scopedRequirement, candidates.length ? candidates : operations, category);
     const confidence = this.confidence(scopedRequirement, operations);
+    const diagnostics = getOperationMatchDiagnostics(scopedRequirement, operations);
     return {
       operationId: operationId || '',
       provenance: 'matcher',
       confidence,
-      state: operationId && confidence >= 70 ? 'confirmed' : operationId ? 'review' : 'unmapped',
+      // A suggestion is never confirmed on score alone. It must also have
+      // unambiguous evidence over the next candidate.
+      state: operationId && confidence >= 80 && !diagnostics.lowConfidence ? 'confirmed' : operationId ? 'review' : 'unmapped',
     };
   }
 
@@ -114,10 +117,8 @@ export class RequirementEndpointMappingService {
     if (design.mappingProvenance === 'user' && this.validateOperation(design.operationId, operations, operations) && !bodylessCredentialMismatch) {
       return { operationId: design.operationId, provenance: 'user', state: 'confirmed', confidence: 100 };
     }
-    if (this.validateOperation(design.operationId, candidates, operations)) {
-      const confidence = design.mappingConfidence || this.confidence(requirement, operations);
-      return { operationId: design.operationId, provenance: design.mappingProvenance || 'matcher', confidence, state: confidence >= 70 ? 'confirmed' : 'review' };
-    }
+    // Matcher and AI suggestions are deliberately recomputed. Only an explicit
+    // user confirmation is stable across remapping and contract changes.
     return this.resolveFallback(requirement, operations, category, acceptanceCriterionId, scenarioContext);
   }
 }

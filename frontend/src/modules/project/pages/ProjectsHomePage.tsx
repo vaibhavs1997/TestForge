@@ -229,7 +229,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
         </Button>
       </div>
 
-      <section className="mb-8 rounded-2xl border border-border bg-surface/40 p-6">
+      <section className="theme-glass-card mb-8 rounded-2xl border border-border bg-surface/40 p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-text">Recent Projects</h2>
           {showViewAllProjects && !search.trim() && (

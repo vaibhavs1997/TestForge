@@ -1,3 +1,5 @@
+import { getScopedStorageKey } from '../services/authSession';
+
 /**
  * Browser storage is not a secret store.  Keep request material, environment
  * values, responses, and credentials out of it and remove snapshots created
@@ -12,6 +14,21 @@ const SENSITIVE_PREFIXES = [
   'testforge:api-workspace:',
   'testforge:api-workspace-session:',
 ];
+
+export function clearProjectBrowserState(projectId: string): void {
+  if (typeof window === 'undefined' || !projectId) return;
+  const scopedKeys = [
+    getScopedStorageKey('selectedProjectId'),
+    getScopedStorageKey(`testforge:api-selection:${projectId}`),
+    getScopedStorageKey(`testforge:api-workspace-session:${projectId}`),
+  ];
+  for (const storage of [window.localStorage, window.sessionStorage]) {
+    try {
+      if (storage.getItem(scopedKeys[0]) === projectId) storage.removeItem(scopedKeys[0]);
+      scopedKeys.slice(1).forEach((key) => storage.removeItem(key));
+    } catch { /* storage may be unavailable */ }
+  }
+}
 
 function removeMatching(storage: Storage): void {
   const keys: string[] = [];

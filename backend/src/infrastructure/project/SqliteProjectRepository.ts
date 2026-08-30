@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import type { ProjectRecord } from '../../domain/project/ProjectRecord.js';
 import type { ProjectRepository } from '../../domain/project/ProjectRepository.js';
 import { JsonProjectRepository } from './JsonProjectRepository.js';
+import { deleteProjectDataOnDisk } from './projectDataPaths.js';
 
 import {
   allocateProjectIdentifiers,
@@ -19,6 +20,8 @@ function rowToRecord(row: Record<string, unknown>): ProjectRecord {
     description: row.description ? String(row.description) : undefined,
     status: (row.status as ProjectRecord['status']) || 'active',
     lastOpenedAt: row.last_opened_at ? Number(row.last_opened_at) : undefined,
+    ownerId: row.owner_id ? String(row.owner_id) : undefined,
+    tenantId: row.tenant_id ? String(row.tenant_id) : undefined,
     createdAt: Number(row.created_at),
     updatedAt: Number(row.updated_at),
   };
@@ -41,12 +44,24 @@ export class SqliteProjectRepository implements ProjectRepository {
         description TEXT,
         status TEXT NOT NULL DEFAULT 'active',
         last_opened_at INTEGER,
+        owner_id TEXT,
+        tenant_id TEXT,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
     `);
     try {
       this.db.exec('ALTER TABLE projects ADD COLUMN last_opened_at INTEGER');
+    } catch {
+      // Existing databases already have the column.
+    }
+    try {
+      this.db.exec('ALTER TABLE projects ADD COLUMN owner_id TEXT');
+    } catch {
+      // Existing databases already have the column.
+    }
+    try {
+      this.db.exec('ALTER TABLE projects ADD COLUMN tenant_id TEXT');
     } catch {
       // Existing databases already have the column.
     }
@@ -71,8 +86,8 @@ export class SqliteProjectRepository implements ProjectRepository {
   private insert(record: ProjectRecord): void {
     this.db
       .prepare(
-        `INSERT INTO projects (id, name, project_key, description, status, last_opened_at, created_at, updated_at)
-         VALUES (@id, @name, @projectKey, @description, @status, @lastOpenedAt, @createdAt, @updatedAt)`,
+        `INSERT INTO projects (id, name, project_key, description, status, last_opened_at, owner_id, tenant_id, created_at, updated_at)
+         VALUES (@id, @name, @projectKey, @description, @status, @lastOpenedAt, @ownerId, @tenantId, @createdAt, @updatedAt)`,
       )
       .run({
         id: record.id,
@@ -81,6 +96,8 @@ export class SqliteProjectRepository implements ProjectRepository {
         description: record.description ?? null,
         status: record.status ?? 'active',
         lastOpenedAt: record.lastOpenedAt ?? null,
+        ownerId: record.ownerId ?? null,
+        tenantId: record.tenantId ?? null,
         createdAt: record.createdAt,
         updatedAt: record.updatedAt,
       });
@@ -128,6 +145,8 @@ export class SqliteProjectRepository implements ProjectRepository {
       lastOpenedAt: input.lastOpenedAt,
       createdAt: now,
       updatedAt: now,
+      ownerId: input.ownerId?.trim() || undefined,
+      tenantId: input.tenantId?.trim() || undefined,
     };
 
     try {
@@ -190,6 +209,7 @@ export class SqliteProjectRepository implements ProjectRepository {
     if (result.changes === 0) {
       throw new Error(`Project with id ${id} not found`);
     }
+    deleteProjectDataOnDisk(id);
   }
 }
 

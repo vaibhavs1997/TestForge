@@ -1,9 +1,10 @@
 import React, { useEffect, useCallback } from 'react';
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { LandingBackground } from '../components/LandingBackground';
 import { LandingNav } from '../components/LandingNav';
 import { HeroSection } from '../components/HeroSection';
-import { LandingFeatures } from '../components/LandingFeatures';
+import { LandingFeatures } from '../components/LandingFeatures';
+import { LandingOverviewSections } from '../components/LandingOverviewSections';
 import { authStore } from '../../../store/authStore';
 import { getLandingCtaPaths } from '../utils/landingCta';
 import { LandingAuthProvider, type LandingAuthMode } from '../context/LandingAuthContext';
@@ -18,7 +19,7 @@ function LandingCtaButton() {
     return (
       <Link
         to={cta.primary}
-        className="mt-8 inline-flex rounded-2xl bg-gradient-to-r from-[#2563EB] to-[#7C3AED] px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-violet-900/30 transition-opacity hover:opacity-95"
+        className="landing-primary-action mt-8 inline-flex rounded-2xl px-8 py-3.5 text-sm font-semibold text-white"
       >
         {cta.primaryLabel}
       </Link>
@@ -29,7 +30,7 @@ function LandingCtaButton() {
     <button
       type="button"
       onClick={openRegister}
-      className="mt-8 inline-flex rounded-2xl bg-gradient-to-r from-[#2563EB] to-[#7C3AED] px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-violet-900/30 transition-opacity hover:opacity-95"
+      className="landing-primary-action mt-8 inline-flex rounded-2xl px-8 py-3.5 text-sm font-semibold text-white"
     >
       Create free account
     </button>
@@ -40,6 +41,7 @@ export const LandingPage: React.FC = () => {
   const user = authStore((s) => s.user);
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const authParam = searchParams.get('auth');
   const sessionExpired = searchParams.get('expired') === '1';
@@ -78,6 +80,12 @@ export const LandingPage: React.FC = () => {
     }
   }, [user, authMode, setAuthMode]);
 
+  useEffect(() => {
+    if (user) {
+      navigate('/projects', { replace: true });
+    }
+  }, [user, navigate]);
+
 
   return (
     <LandingAuthProvider
@@ -85,29 +93,26 @@ export const LandingPage: React.FC = () => {
       sessionExpired={sessionExpired}
       onAuthModeChange={setAuthMode}
     >
-      <div className="relative min-h-screen bg-[#0B1120] text-slate-200 antialiased">
+      <div className="relative min-h-screen bg-background text-text antialiased">
         <LandingBackground />
         <LandingNav />
         <main>
           <HeroSection />
           <LandingFeatures />
-          <section id="solutions" className="sr-only" aria-hidden />
-          <section id="pricing" className="sr-only" aria-hidden />
-          <section id="docs" className="sr-only" aria-hidden />
-          <section id="blog" className="sr-only" aria-hidden />
-          <section className="relative z-10 border-t border-white/[0.06] py-20">
+          <LandingOverviewSections />
+          <section className="relative z-10 border-t border-border py-20">
             <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
-              <h2 className="text-2xl font-bold text-white sm:text-3xl">
+              <h2 className="text-2xl font-semibold text-text sm:text-3xl">
                 Ready to engineer quality with AI?
               </h2>
-              <p className="mt-4 text-slate-400">
+              <p className="mt-4 text-text-secondary">
                 Import your APIs, let TestForge build the strategy, and run validations in minutes.
               </p>
               <LandingCtaButton />
             </div>
           </section>
         </main>
-        <footer className="relative z-10 border-t border-white/[0.06] py-8 text-center text-sm text-slate-500">
+        <footer className="relative z-10 border-t border-border py-8 text-center text-sm text-text-secondary">
           © {new Date().getFullYear()} TestForge. AI Quality Engineering Platform.
         </footer>
       </div>

@@ -12,7 +12,7 @@ import type { AIProviderEntity } from '../../domain/ai-provider/index.js';
  */
 const STATIC_SYNONYM_GROUPS: Record<string, string[]> = {
   // Account/User creation
-  create_account: ['create account', 'register', 'signup', 'sign-up', 'sign up', 'new user', 'user creation', 'registration', 'enroll', 'onboard'],
+  create_account: ['create account', 'create an account', 'register', 'signup', 'sign-up', 'sign up', 'new user', 'user creation', 'registration', 'enroll', 'onboard'],
   read_account: ['get account', 'fetch account', 'list users', 'view account', 'account details', 'user profile', 'retrieve user', 'show account'],
   update_account: ['update account', 'modify account', 'edit account', 'change account', 'account update', 'profile update'],
   delete_account: ['delete account', 'remove account', 'cancel account', 'deactivate account', 'account deletion'],

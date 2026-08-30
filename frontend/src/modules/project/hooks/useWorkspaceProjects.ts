@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { projectService } from '../../../services/ProjectService';
 import type { ProjectDto } from '../../../types/apiModels';
 import { queryKeys } from '../../../constants';
+import { clearProjectBrowserState } from '../../../utils/sensitiveBrowserState';
 
 export function useWorkspaceProjects() {
   const queryClient = useQueryClient();
@@ -36,7 +37,11 @@ export function useWorkspaceProjects() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => projectService.deleteProject(id),
-    onSuccess: invalidate,
+    onSuccess: (_data, projectId) => {
+      clearProjectBrowserState(projectId);
+      queryClient.removeQueries({ predicate: (query) => query.queryKey.includes(projectId) });
+      void invalidate();
+    },
   });
 
   const activityQuery = useQuery({

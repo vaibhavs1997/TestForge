@@ -41,13 +41,13 @@ const FEATURES = [
 ];
 
 export const LandingFeatures: React.FC = () => (
-  <section id="features" className="relative z-10 border-t border-white/[0.06] py-24">
+  <section id="features" className="relative z-10 border-t border-border py-24">
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-2xl text-center">
-        <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+        <h2 className="text-3xl font-semibold tracking-tight text-text sm:text-4xl">
           Quality engineering, not click-and-send
         </h2>
-        <p className="mt-4 text-lg text-slate-400">
+        <p className="mt-4 text-lg text-text-secondary">
           TestForge automates the work senior QA engineers do—analysis, design, execution, and reporting.
         </p>
       </div>
@@ -55,14 +55,14 @@ export const LandingFeatures: React.FC = () => (
         {FEATURES.map((f) => (
           <article
             key={f.title}
-            className="group rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6 transition-colors hover:border-[#2563EB]/30 hover:bg-white/[0.04]"
+            className="theme-glass-card group rounded-2xl border p-6 transition-colors hover:border-primary/50"
             style={{ borderRadius: 16 }}
           >
-            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[#2563EB]/20 to-[#7C3AED]/20 text-[#7C3AED] transition-colors group-hover:from-[#2563EB]/30 group-hover:to-[#7C3AED]/30">
+            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[#4FD1C5]/20 to-[#7F00FF]/20 text-primary transition-colors group-hover:from-[#4FD1C5]/30 group-hover:to-[#7F00FF]/30">
               <f.icon className="h-5 w-5" />
             </div>
-            <h3 className="text-lg font-semibold text-white">{f.title}</h3>
-            <p className="mt-2 text-sm leading-relaxed text-slate-400">{f.description}</p>
+            <h3 className="text-lg font-semibold text-text">{f.title}</h3>
+            <p className="mt-2 text-sm leading-relaxed text-text-secondary">{f.description}</p>
           </article>
         ))}
       </div>

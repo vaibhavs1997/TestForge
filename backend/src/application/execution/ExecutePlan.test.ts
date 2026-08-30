@@ -91,6 +91,39 @@ describe('ExecutePlan', () => {
     expect(executionRunRepository.update).toHaveBeenCalled();
   });
 
+  it('passes a negative scenario when its test design expects the returned 401 status', async () => {
+    mockedAxios.mockResolvedValue({
+      status: 401,
+      statusText: 'Unauthorized',
+      headers: {},
+      data: { message: 'Incorrect username or password.' },
+    } as any);
+    const stalePlan = {
+      ...plan,
+      assertions: [{ type: 'status', operator: 'equals', path: '$.status', expected: 400 }],
+    };
+    const executePlan = new ExecutePlan(
+      executionRunRepository as any,
+      { findByProject: vi.fn().mockResolvedValue([]), findById: vi.fn().mockResolvedValue(stalePlan), findByRequirement: vi.fn().mockResolvedValue([stalePlan]) } as any,
+      { findById: vi.fn().mockResolvedValue({ id: 'req-1' }) } as any,
+      { findByProject: vi.fn().mockResolvedValue([environment]) } as any,
+      { findById: vi.fn() } as any,
+      { findById: vi.fn().mockResolvedValue({ id: 'op-1', serviceId: 'svc-1', method: 'GET', path: '/get' }) } as any,
+      { findByProjectAndOperation: vi.fn().mockResolvedValue([]) } as any,
+      {} as any,
+      { findByDataset: vi.fn().mockResolvedValue([]) } as any,
+      { findByProject: vi.fn().mockResolvedValue([]) } as any,
+      { findById: vi.fn().mockResolvedValue({ id: 'design-1', assertionIds: [], expectedHttpStatus: 401 }) } as any,
+      { findById: vi.fn() } as any,
+    );
+
+    const result = await executePlan.execute('plan-1');
+
+    expect(result.status).toBe('Completed');
+    expect(result.stepResults[0].status).toBe('Passed');
+    expect(result.stepResults[0].assertions[0]).toMatchObject({ expected: 401, actual: 401, passed: true });
+  });
+
   it('executes enabled reusable custom assertions as part of the normal attempt', async () => {
     const executePlan = new ExecutePlan(
       executionRunRepository as any,

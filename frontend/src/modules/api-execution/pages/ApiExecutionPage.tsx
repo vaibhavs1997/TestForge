@@ -3466,7 +3466,7 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
       <div className='relative mx-auto max-w-[1600px] px-4 pb-5 sm:px-6 lg:px-8' style={{ paddingTop: '24px' }}>
         <div className='mb-4 p-0'>
           <div className='relative z-50 flex justify-end'>
-            <div className='flex flex-nowrap items-center justify-end gap-3 overflow-x-auto pb-1'>
+            <div className='flex flex-nowrap items-center justify-end gap-3 overflow-x-auto scrollbar-none pb-1'>
               {selectedEnvironment && (
                 <div className='mr-auto flex flex-nowrap items-center gap-2'>
                   <div className='flex h-11 items-center rounded-lg border border-border bg-background/40 px-4 text-sm font-medium text-text'>

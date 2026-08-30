@@ -1,7 +1,7 @@
 // GenerateTestDesigns - Deterministic Test Design Generator
 // Converts approved Test Strategy items into executable designs.
 // Does NOT execute tests or generate reports.
-// Reuses Requirement, Strategy, API Contract, Datasets, Environment, and Knowledge.
+// Uses Requirement and Strategy only. Execution enrichment happens later.
 import { randomUUID } from 'node:crypto';
 import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
 import { RequirementEntity } from '../../domain/requirements/RequirementEntity.js';
@@ -14,10 +14,6 @@ import { EnvironmentRepository } from '../../infrastructure/environment/Environm
 import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository.js';
 import { TestDesignEntity, DesignPriority, DesignStatus, RequestOverride, RuntimeBinding, Assertion, CleanupStep } from '../../domain/requirements/TestDesignEntity.js';
 import { TestStrategyEntity, StrategyItem, StrategyCategory } from '../../domain/requirements/TestStrategyEntity.js';
-import {
-  buildPayloadForScenario,
-} from './RequirementOperationMatcher.js';
-import { requirementEndpointMappingService } from './RequirementEndpointMappingService.js';
 import type { GenerationProvenanceService } from './GenerationProvenanceService.js';
 import { selectByBudget, type GenerationBudget } from './GenerationBudget.js';
 
@@ -50,47 +46,16 @@ export class GenerateTestDesigns {
 
     const designs: TestDesignEntity[] = [];
 
-    // Get related data
-    const analysis = requirement.projectAnalysisId
-      ? await this.analysisRepository.findById(requirement.projectAnalysisId)
-      : null;
-
-    // Use the environment selected in the API workspace as the shared default.
-    // Keep QA/first as backwards-compatible fallbacks for older projects.
-    const environments = await this.environmentRepository.findByProject(requirement.projectId);
-    const environment = environments.find(e => e.isDefault)
-      || environments.find(e => e.name.toLowerCase().includes('qa'))
-      || environments[0];
-
-    // Get dataset (prefer test data, fallback to analysis datasets)
-    const datasets = await this.datasetRepository.findByProject(requirement.projectId);
-    const dataset = datasets[0] || (analysis ? await this.datasetRepository.findById(analysis.relatedDatasets[0]) : null);
-
-    const operations = await this.apiOperationRepository.findByProject(requirement.projectId);
-    const knowledge = { knowledgeFlows: await this.knowledgeFlowRepository.findByProject(requirement.projectId) };
-
     // Process each enabled strategy item
     for (const section of strategy.sections) {
       for (const item of section.items) {
         if (item.status !== 'Enabled') continue;
 
-        const operationId = this.findRelatedOperationId(
-          item,
-          requirement,
-          section.category,
-          operations, knowledge,
-        );
-
-        const operation = operations.find((o) => o.id === operationId);
-        const requestOverrides: RequestOverride = {
-          body: buildPayloadForScenario(section.category, operation, {
-            focusFieldId: item.focusFieldId,
-            scenarioKind: item.scenarioKind,
-          }),
-        };
-        if (section.category === 'Security') {
-          requestOverrides.headers = { Authorization: 'Bearer invalid-token' };
-        }
+        // A design is an immutable requirement-derived scenario at this point.
+        // Endpoint, environment, dataset, payload, and runtime bindings are
+        // assigned later by the mapping/execution-enrichment phase.
+        const operationId = '';
+        const requestOverrides: RequestOverride = {};
         
         // Generate runtime bindings
         const runtimeBindings = this.generateRuntimeBindings(section.category);
@@ -108,9 +73,9 @@ export class GenerateTestDesigns {
                   item.id,
                   item.title,
                   operationId,
-                  environment?.id || '',
-                  dataset?.id || '',
-                  dataset ? `row-${Date.now()}` : '',
+                  '',
+                  '',
+                  '',
                   requestOverrides,
                   runtimeBindings,
                   assertions,
@@ -123,8 +88,8 @@ export class GenerateTestDesigns {
                   item.testCaseType,
                   item.expectedHttpStatus,
                   'matcher',
-                  requirementEndpointMappingService.resolveFallback(requirement, operations, section.category, item.acceptanceCriterionId, `${item.title} ${item.reason}`, knowledge).state,
-                  requirementEndpointMappingService.resolveFallback(requirement, operations, section.category, item.acceptanceCriterionId, `${item.title} ${item.reason}`, knowledge).confidence,
+                  'unmapped',
+                  0,
                   item.acceptanceCriterionId,
                   item.scenarioId || item.id
                 );
@@ -145,16 +110,6 @@ export class GenerateTestDesigns {
     for (const design of persistedDesigns) if (!ids.has(design.id)) await this.testDesignRepository.delete(design.id);
     return this.provenanceService!.captureGeneratedDesigns({ requirement, designs: selection.selected.map(x => x.design), mode: 'DETERMINISTIC', budgetDecisions: new Map(selection.selected.map(x => [x.design.id, { ...x.decision, omissions: selection.omitted }])) });
   }
-
-  private findRelatedOperationId(
-    item: StrategyItem,
-    requirement: RequirementEntity,
-    category: StrategyCategory,
-    operations: Awaited<ReturnType<ApiOperationRepository['findByProject']>>, knowledge?: any,
-  ): string {
-    return requirementEndpointMappingService.resolveFallback(requirement, operations, category, item.acceptanceCriterionId, `${item.title} ${item.reason}`, knowledge).operationId;
-  }
-
 
   private generateRuntimeBindings(category: string): RuntimeBinding[] {
     const bindings: RuntimeBinding[] = [];

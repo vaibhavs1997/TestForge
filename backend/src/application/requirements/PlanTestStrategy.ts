@@ -1,15 +1,13 @@
 // PlanTestStrategy - Deterministic Test Strategy Planner
 // Creates the testing strategy for every Approved Requirement.
 // Determines WHAT should be tested. Does NOT generate test cases.
-// Reuses Requirement, Project Analysis, Knowledge, APIs, and Readiness Report.
+// Uses requirement acceptance criteria only. Execution context is added later.
 import { randomUUID } from 'node:crypto';
 import { RequirementRepository } from '../../domain/requirements/RequirementRepository.js';
 import { AnalysisRepository } from '../../infrastructure/analysis/AnalysisRepository.js';
 import { KnowledgeFlowRepository } from '../../infrastructure/knowledge/KnowledgeFlowRepository.js';
-import { ApiOperationRepository } from '../../infrastructure/api/ApiOperationRepository.js';
 import { TestStrategyRepository } from '../../domain/requirements/TestStrategyRepository.js';
 import { TestStrategyEntity, StrategyCategorySection, StrategyItem } from '../../domain/requirements/TestStrategyEntity.js';
-import { rankOperationsForRequirement } from './RequirementOperationMatcher.js';
 import { planScenariosFromAcceptanceCriteria } from './acceptanceCriteriaScenarios.js';
 
 export class PlanTestStrategy {
@@ -17,7 +15,10 @@ export class PlanTestStrategy {
     private readonly requirementRepository: RequirementRepository,
     private readonly analysisRepository: AnalysisRepository,
     private readonly knowledgeFlowRepository: KnowledgeFlowRepository,
-    private readonly apiOperationRepository: ApiOperationRepository,
+    // Kept in the constructor for compatibility with the composition root.
+    // Strategy planning intentionally must not read an API contract: acceptance
+    // criteria alone define which scenarios exist.
+    private readonly _apiOperationRepository: any,
     private readonly testStrategyRepository: TestStrategyRepository
   ) {}
 
@@ -36,46 +37,12 @@ export class PlanTestStrategy {
       return existing;
     }
 
-    const operations = await this.apiOperationRepository.findByProject(requirement.projectId);
-    const rankedIds = rankOperationsForRequirement(requirement, operations).map((o) => o.id);
-    const topOperation = rankedIds.length > 0 ? operations.find((o) => o.id === rankedIds[0]) : undefined;
-    const apiBodyKeys =
-      topOperation?.sampleRequestBody && typeof topOperation.sampleRequestBody === 'object'
-        ? Object.keys(topOperation.sampleRequestBody)
-        : undefined;
-    const apiRequiredBodyKeys =
-      topOperation?.requiredRequestBodyFields && topOperation.requiredRequestBodyFields.length > 0
-        ? topOperation.requiredRequestBodyFields
-        : undefined;
+    const planned = planScenariosFromAcceptanceCriteria(requirement);
 
-    const planned = planScenariosFromAcceptanceCriteria(requirement, {
-      apiRequiredBodyKeys,
-      apiBodyKeys,
-    });
-    const matchedOpIds =
-      rankedIds.length > 0
-        ? rankedIds.slice(0, 5)
-        : requirement.relatedOperations.length > 0
-          ? requirement.relatedOperations
-          : [];
-
-    const analysis = requirement.projectAnalysisId
-      ? await this.analysisRepository.findById(requirement.projectAnalysisId)
-      : null;
-
-    const relatedApis: string[] = [...matchedOpIds];
-    for (const opId of requirement.relatedOperations) {
-      if (!relatedApis.includes(opId)) relatedApis.push(opId);
-    }
-
-    const relatedData: string[] = [...requirement.relatedDatasets];
-    if (analysis) {
-      for (const dsId of analysis.relatedDatasets) {
-        if (!relatedData.includes(dsId)) {
-          relatedData.push(dsId);
-        }
-      }
-    }
+    // Associations are enrichment data and must not influence scenario
+    // generation. They are populated by independent later phases.
+    const relatedApis: string[] = [];
+    const relatedData: string[] = [];
 
     const sectionMap = new Map<string, StrategyCategorySection>();
 

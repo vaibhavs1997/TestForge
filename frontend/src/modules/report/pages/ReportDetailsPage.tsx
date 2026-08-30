@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { EmptyState } from '../../../components/ui/EmptyState';
-import { ArrowLeft, CheckCircle, XCircle, AlertCircle, Clock, Shield, FileText, Globe, Key, AlertTriangle, ListChecks, Send } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, AlertCircle, Clock, Shield, FileText, Globe, Key, AlertTriangle, ListChecks, Send, ChevronRight } from 'lucide-react';
 
 // Hooks
 import { useReport } from '../hooks';
@@ -23,6 +23,7 @@ import { useProjectApiOperations } from '../../api/hooks/useProjectApiOperations
 import { resolveExecutionPlanOperationLabel, explainBlockedPrerequisites } from '../../execution/utils/dependencyDisplay';
 import type { ExecutionPlan } from '../../requirements/types';
 import { testDesignService } from '../../requirements/services/testDesignService';
+import { suiteService } from '../../suite/services';
 
 export interface ReportDetailsPageProps {}
 
@@ -90,7 +91,7 @@ const formatPdfDuration = (ms: number): string => {
   return `${(ms / 1000).toFixed(1)}s`;
 };
 
-const createReportPdfHtml = (report: any): string => {
+const createReportPdfHtml = (report: any, context: ExecutionReportHeaderContext = {}): string => {
   const title = report.sections?.overview?.title || report.id;
   const cards = (report.sections?.stepResults || []).map((step: any, index: number) => {
     const assertions = (step.assertions || []).map((assertion: any) => {
@@ -98,10 +99,51 @@ const createReportPdfHtml = (report: any): string => {
       return `<tr><td class="mark ${passed ? 'pass' : 'fail'}">${passed ? '✓' : '✕'}</td><td>${escapeHtml(assertion.name || assertion.description || 'Assertion')}</td><td>${escapeHtml(assertion.expected ?? '—')}</td><td>${escapeHtml(assertion.actual ?? '—')}</td></tr>`;
     }).join('');
     const status = String(step.status || 'Unknown');
-    return `<article class="case ${status === 'Passed' ? 'case-pass' : 'case-fail'}"><header><div><span class="number">#${index + 1}</span><strong>${escapeHtml(step.name || step.title || `Test case ${index + 1}`)}</strong><small>${escapeHtml(step.id || '')}</small></div><div class="status">${escapeHtml(status)} <span class="chevron">⌄</span></div></header><section class="details"><div><label>REQUEST</label><p><b>${escapeHtml(step.request?.method || '')}</b> ${escapeHtml(step.request?.url || '')}</p></div><div><label>RESPONSE STATUS</label><p class="${step.response?.status >= 400 ? 'fail' : 'pass'}">${escapeHtml(step.response?.status ?? '—')}</p></div><div><label>DURATION</label><p>${escapeHtml(formatPdfDuration(step.response?.duration || 0))}</p></div><div><label>STARTED</label><p>${step.startedAt ? escapeHtml(new Date(step.startedAt).toLocaleString()) : '—'}</p></div></section>${assertions ? `<section class="assertions"><b>Assertions</b><table><thead><tr><th></th><th>ASSERTION</th><th>EXPECTED</th><th>ACTUAL</th></tr></thead><tbody>${assertions}</tbody></table></section>` : ''}<div class="payloads"><div><b>▸ Request Payload</b><pre>${escapeHtml(formatPdfPayload(step.request?.body))}</pre></div><div><b>▸ Response Body</b><pre>${escapeHtml(formatPdfPayload(step.response?.body))}</pre></div></div></article>`;
+    const testCaseNumber = `Test Case ${index + 1}`;
+    const statement = context.testCaseStatements?.[step.stepId] || step.statement || step.testCaseStatement || step.name || step.title || 'Executed API validation';
+    return `<article class="case ${status === 'Passed' ? 'case-pass' : 'case-fail'}"><header><div><span style="display:inline-block;margin-right:12px;color:#738196;font-size:12px;font-weight:bold">${escapeHtml(testCaseNumber)}</span><strong>${escapeHtml(statement)}</strong><small>${escapeHtml(step.id || '')}</small></div><div class="status">Status: ${escapeHtml(status)} <span class="chevron">⌄</span></div></header><section class="details"><div><label>REQUEST</label><p><b>${escapeHtml(step.request?.method || '')}</b> ${escapeHtml(step.request?.url || '')}</p></div><div><label>RESPONSE STATUS</label><p class="${step.response?.status >= 400 ? 'fail' : 'pass'}">${escapeHtml(step.response?.status ?? '—')}</p></div><div><label>DURATION</label><p>${escapeHtml(formatPdfDuration(step.response?.duration || 0))}</p></div><div><label>STARTED</label><p>${step.startedAt ? escapeHtml(new Date(step.startedAt).toLocaleString()) : '—'}</p></div></section>${assertions ? `<section class="assertions"><b>Assertions</b><table><thead><tr><th></th><th>ASSERTION</th><th>EXPECTED</th><th>ACTUAL</th></tr></thead><tbody>${assertions}</tbody></table></section>` : ''}<div class="payloads"><div><b>▸ Request Payload</b><pre>${escapeHtml(formatPdfPayload(step.request?.body))}</pre></div><div><b>▸ Response Body</b><pre>${escapeHtml(formatPdfPayload(step.response?.body))}</pre></div></div></article>`;
   }).join('');
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)} - TestForge report</title><style>*{box-sizing:border-box}body{margin:0;background:#eef1f5;color:#172033;font:13px Arial,sans-serif;padding:28px}h1{font-size:22px;margin:0 0 6px}.meta{color:#697789;margin-bottom:22px}.case{background:#fff;border:1px solid #dce2e9;border-radius:10px;margin:0 auto 18px;max-width:1180px;overflow:hidden;box-shadow:0 2px 5px #17203318}.case>header{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-left:5px solid #ef4444}.case-pass>header{border-left-color:#22a06b}.number{display:inline-flex;background:#f5f7fa;border-radius:50%;width:28px;height:28px;align-items:center;justify-content:center;color:#738196;margin-right:12px}.case header strong{font-size:15px}.case header small{display:block;color:#9aa7b7;margin:7px 0 0 40px}.status{border:1px solid #f3b5b5;border-radius:16px;color:#dc4444;padding:7px 11px;font-weight:bold}.case-pass .status{color:#138a56;border-color:#a7dfc4}.chevron{margin-left:8px}.details{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:18px;border-top:1px solid #e2e7ed;padding:18px 22px}.details label{display:block;color:#9aa7b7;font-size:10px;font-weight:bold;margin-bottom:8px}.details p{margin:0;font-weight:600}.pass{color:#15945b}.fail{color:#e24b4b}.assertions{padding:0 22px 16px}.assertions>b{display:block;margin-bottom:8px}.assertions table{width:100%;border-collapse:collapse}.assertions th,.assertions td{border:1px solid #e2e7ed;padding:9px;text-align:left}.assertions th{background:#f5f7fa;color:#8b99a9;font-size:10px}.mark{font-size:16px;width:28px}.payloads{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:0 22px 20px}.payloads>div{border:1px solid #dce2e9;border-radius:7px;overflow:hidden}.payloads b{display:block;color:#357dde;padding:11px;background:#fafbfd}.payloads pre{margin:0;padding:12px;min-height:45px;max-height:180px;overflow:hidden;background:#fff;color:#435268;white-space:pre-wrap;font:11px Consolas,monospace}@media print{body{padding:12px;background:#fff}.case{break-inside:avoid;box-shadow:none}}</style></head><body><h1>${escapeHtml(title)}</h1><div class="meta">Status: ${escapeHtml(report.overallStatus)} · ${report.passedSteps || 0}/${report.totalSteps || 0} test cases passed · ${escapeHtml(formatPdfDuration(report.executionDuration))}</div>${cards}</body></html>`;
 };
+
+interface ExecutionReportHeaderContext {
+  suiteName?: string | null;
+  ticketReference?: string | null;
+  testCaseStatements?: Record<string, string>;
+}
+
+const createExecutionReportHeaderHtml = (report: any, context: ExecutionReportHeaderContext): string => {
+  const title = report.sections?.overview?.title || report.id;
+  const suite = context.suiteName || report.suiteId || 'Individual execution';
+  const ticket = context.ticketReference || report.requirementIds?.[0] || 'Not linked';
+  const detail = (label: string, value: unknown, tone = '') => `<div class="execution-report-detail"><span>${escapeHtml(label)}</span><strong class="${tone}">${escapeHtml(value ?? '—')}</strong></div>`;
+
+  return `<style>.execution-report-header{max-width:1180px;margin:0 auto 22px;padding:22px;background:#fff;border:1px solid #dce2e9;border-radius:10px;box-shadow:0 2px 5px #17203318}.execution-report-kicker{color:#53677f;font-size:11px;font-weight:bold;letter-spacing:.12em}.execution-report-header h1{font-size:22px;margin:5px 0 6px}.execution-report-header p{margin:0;color:#52637a}.execution-report-status{margin-top:8px!important;font-weight:bold}.execution-report-details{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:18px}.execution-report-detail{padding:10px;border:1px solid #dce2e9;border-radius:7px;background:#fafbfd}.execution-report-detail span{display:block;margin-bottom:5px;color:#728198;font-size:10px;font-weight:bold;letter-spacing:.04em;text-transform:uppercase}.execution-report-detail strong{display:block;overflow-wrap:anywhere;font-size:13px}.execution-report-detail .pass{color:#15945b}.execution-report-detail .fail{color:#e24b4b}@media print{.execution-report-header{break-inside:avoid;box-shadow:none}}</style><header class="execution-report-header"><div class="execution-report-kicker">TESTFORGE · EXECUTION REPORT</div><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(new Date(report.generatedAt).toLocaleString())}</p><p class="execution-report-status">Status: ${escapeHtml(report.overallStatus)}</p><section class="execution-report-details" aria-label="Execution summary">${detail('Suite', suite)}${detail('Ticket / requirement', ticket)}${detail('Run ID', report.executionRunId)}${detail('Total test cases', report.totalSteps || 0)}${detail('Passed', report.passedSteps || 0, 'pass')}${detail('Failed', report.failedSteps || 0, 'fail')}${detail('Duration', formatPdfDuration(report.executionDuration))}${detail('Environment', report.environment?.name || report.sections?.environmentInfo?.name)}</section></header>`;
+};
+
+const createExecutionReportDetailThemeHtml = (): string => `<style>
+  .case{border-color:#e5e2f0;background:#fffdfd;box-shadow:0 5px 16px rgba(48,45,120,.08)}
+  .case>header{border-left-color:#c63d42;background:linear-gradient(90deg,#fff7f7,#fff)}
+  .case-pass>header{border-left-color:#167348;background:linear-gradient(90deg,#f1fbf6,#fff)}
+  .details{margin:14px 18px 12px;padding:15px 16px;border:1px solid #e5e2f0;border-radius:12px;background:#f8f7fc;gap:12px}
+  .details>div{min-width:0;padding:4px 10px;border-left:2px solid #ded9f3}
+  .details>div:first-child{border-left-color:#302d78}
+  .details label{color:#625f83;font-size:10px;letter-spacing:.05em}
+  .details p{color:#26234c;overflow-wrap:anywhere}
+  .assertions{margin:0 18px 14px;padding:14px;border:1px solid #e5e2f0;border-radius:12px;background:#fff}
+  .assertions>b{color:#302d78;font-size:14px}
+  .assertions table{border-collapse:separate;border-spacing:0;overflow:hidden;border:1px solid #e5e2f0;border-radius:8px}
+  .assertions th{background:#eeecfa;color:#4d497a;font-size:10px;letter-spacing:.04em}
+  .assertions td{border-width:0 0 1px 1px;border-color:#e9e6f2}
+  .assertions td:first-child{border-left:0}
+  .assertions tr:last-child td{border-bottom:0}
+  .payloads{padding:0 18px 18px;gap:16px}
+  .payloads>div{border-color:#e5e2f0;border-radius:12px;background:#fff;box-shadow:0 2px 7px rgba(48,45,120,.05)}
+  .payloads b{color:#302d78;background:#f0edff;border-bottom:1px solid #e5e2f0;font-size:12px}
+  .payloads>div:last-child b{color:#167348;background:#edf9f1}
+  .payloads pre{max-height:210px;background:#fbfaff;color:#403d62;line-height:1.45}
+  @media print{.details,.assertions,.payloads>div{break-inside:avoid}.case{box-shadow:none}}
+</style>`;
 
 export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
   const { projectId: routeProjectId, reportId } = useParams<{ projectId: string; reportId: string }>();
@@ -115,6 +157,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
   const [jiraConfigured, setJiraConfigured] = React.useState(false);
   const [jiraIssueKey, setJiraIssueKey] = React.useState<string | null>(null);
   const [linkedRequirementTitle, setLinkedRequirementTitle] = React.useState<string | null>(null);
+  const [suiteName, setSuiteName] = React.useState<string | null>(null);
   const [publishingJira, setPublishingJira] = React.useState(false);
   const [jiraPublishMessage, setJiraPublishMessage] = React.useState<string | null>(null);
   const [executionPlans, setExecutionPlans] = React.useState<ExecutionPlan[]>([]);
@@ -147,6 +190,17 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
         setLinkedRequirementTitle(null);
       });
   }, [projectId, report?.requirementIds]);
+
+  React.useEffect(() => {
+    if (!projectId || !report?.suiteId) {
+      setSuiteName(null);
+      return;
+    }
+    suiteService
+      .getSuite(projectId, report.suiteId)
+      .then((suite) => setSuiteName(suite.name || report.suiteId))
+      .catch(() => setSuiteName(report.suiteId));
+  }, [projectId, report?.suiteId]);
 
   React.useEffect(() => {
     if (!projectId) return;
@@ -259,7 +313,21 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
         <div className='flex shrink-0 items-center gap-2'>
           <ReportExportMenu
             onExportHtml={() => {
-              downloadTextFile(`report-${report.id.slice(0, 8)}.html`, createSafeHtmlReport(report), 'text/html');
+              const htmlTestCaseStatements = Object.fromEntries(
+                (report.sections?.stepResults || []).map((step: any) => [
+                  step.stepId,
+                  step.statement || step.testCaseStatement || testCaseStatements[executionPlans.find((plan) => plan.id === step.stepId)?.testDesignId || ''] || 'Executed API validation',
+                ]),
+              );
+              downloadTextFile(
+                `report-${report.id.slice(0, 8)}.html`,
+                createSafeHtmlReport(report, {
+                  suiteName,
+                  ticketReference: jiraIssueKey || linkedRequirementTitle || report.requirementIds?.[0],
+                  testCaseStatements: htmlTestCaseStatements,
+                }),
+                'text/html',
+              );
             }}
             onExportJson={() => downloadJsonFile(`report-${report.id.slice(0, 8)}.json`, report)}
             onExportCsv={() => {
@@ -281,6 +349,30 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
               );
             }}
             onExportPdf={() => {
+              const previewTestCaseStatements = Object.fromEntries(
+                (report.sections?.stepResults || []).map((step: any) => [
+                  step.stepId,
+                  step.statement || step.testCaseStatement || testCaseStatements[executionPlans.find((plan) => plan.id === step.stepId)?.testDesignId || ''] || 'Executed API validation',
+                ]),
+              );
+              const previewWindow = window.open('', '_blank');
+              if (!previewWindow) return;
+              const interactivePreviewHtml = createSafeHtmlReport(report, {
+                suiteName,
+                ticketReference: jiraIssueKey || linkedRequirementTitle || report.requirementIds?.[0],
+                testCaseStatements: previewTestCaseStatements,
+              })
+                .replace("script-src 'none'", "script-src 'unsafe-inline'")
+                .replace('</head>', '<style>.pdf-preview-actions{display:flex;justify-content:flex-end;gap:10px;margin:0 0 16px}.pdf-preview-actions button{cursor:pointer;border:0;border-radius:9px;background:#302d78;color:#fff;padding:10px 16px;font:600 14px Arial,sans-serif}.pdf-preview-actions .secondary{background:#eeecfa;color:#302d78}@media print{.pdf-preview-actions{display:none!important}}</style></head>')
+                .replace('<main>', '<main><div class="pdf-preview-actions"><button id="download-html" class="secondary" type="button">Download interactive HTML</button><button id="download-pdf" type="button">Download PDF</button></div>')
+                .replace('</body>', '<script>document.getElementById("download-pdf")?.addEventListener("click",function(){window.print();});document.getElementById("download-html")?.addEventListener("click",function(){const copy=document.documentElement.cloneNode(true);copy.querySelector(".pdf-preview-actions")?.remove();copy.querySelectorAll("script").forEach(function(node){node.remove();});const html="<!doctype html>\\n"+copy.outerHTML.replace("script-src \'unsafe-inline\'","script-src \'none\'");const link=document.createElement("a");link.href=URL.createObjectURL(new Blob([html],{type:"text/html"}));link.download="testforge-execution-report.html";link.click();URL.revokeObjectURL(link.href);});</script></body>');
+              previewWindow.document.open();
+              previewWindow.document.write(interactivePreviewHtml);
+              previewWindow.document.close();
+              previewWindow.focus();
+              return;
+
+              /* Legacy static print export retired in favor of the interactive preview.
               const title = report.sections?.overview?.title || report.id;
               const rows = (report.sections?.stepResults || []).map((step: any, index: number) => `
                 <tr><td>${index + 1}</td><td>${escapeHtml(step.request?.method || '')} ${escapeHtml(step.request?.url || '')}</td><td class="${escapeHtml(step.status)}">${escapeHtml(step.status)}</td><td>${escapeHtml(step.response?.status ?? '')}</td><td>${escapeHtml(formatDuration(step.response?.duration || 0))}</td></tr>`).join('');
@@ -292,10 +384,24 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
               // Replace the legacy compact markup with the themed result-card
               // layout before closing the document.
               printWindow.document.open();
-              printWindow.document.write(createReportPdfHtml(report));
+              const pdfTestCaseStatements = Object.fromEntries(
+                (report.sections?.stepResults || []).map((step: any) => [
+                  step.stepId,
+                  step.statement || step.testCaseStatement || testCaseStatements[executionPlans.find((plan) => plan.id === step.stepId)?.testDesignId || ''] || 'Executed API validation',
+                ]),
+              );
+              const reportPdfHtml = createReportPdfHtml(report, { testCaseStatements: pdfTestCaseStatements }).replace(
+                /<body><h1>[\s\S]*?<\/h1><div class="meta">[\s\S]*?<\/div>/,
+                createExecutionReportDetailThemeHtml() + createExecutionReportHeaderHtml(report, {
+                  suiteName,
+                  ticketReference: jiraIssueKey || linkedRequirementTitle || report.requirementIds?.[0],
+                }),
+              );
+              printWindow.document.write(reportPdfHtml);
               printWindow.document.close();
               printWindow.focus();
               window.setTimeout(() => printWindow.print(), 250);
+              */
             }}
           />
           {jiraConfigured && jiraIssueKey && reportId && (
@@ -566,18 +672,20 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
               {stepResults.length > 0 ? (
                 <div className='space-y-3'>
                   {stepResults.map((step: any, idx: number) => (
-                    <div key={step.stepId || idx} className='border border-border rounded-lg p-3'>
-                      <div className='flex items-center justify-between mb-2'>
+                    <details key={step.stepId || idx} className='group rounded-lg border border-border bg-surface'>
+                      <summary className='flex cursor-pointer list-none items-center justify-between gap-3 p-3 [&::-webkit-details-marker]:hidden'>
                         <div className='flex items-center gap-2'>
                           {getStepStatusIcon(step.status)}
                           <span className='text-sm font-medium text-text'>
                             Test case {step.executionOrder}: {step.statement || step.testCaseStatement || testCaseStatements[executionPlans.find((plan) => plan.id === step.stepId)?.testDesignId || ''] || 'Executed API validation'}
                           </span>
                         </div>
-                        <span className='text-xs text-text-secondary'>
-                          {step.request?.method} {step.request?.url}
-                        </span>
-                      </div>
+                        <div className='flex min-w-0 items-center gap-2 text-xs text-text-secondary'>
+                          <span className='truncate'>{step.request?.method} {step.request?.url}</span>
+                          <ChevronRight className='h-4 w-4 shrink-0 transition-transform group-open:rotate-90' aria-hidden />
+                        </div>
+                      </summary>
+                      <div className='border-t border-border px-3 pb-3 pt-2'>
                       {step.response && (
                         <div className='text-xs text-text-secondary mt-1'>
                           Status: {step.response.status} • Duration: {step.response.duration}ms
@@ -600,7 +708,8 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
                           </pre>
                         </details>
                       </div>
-                    </div>
+                      </div>
+                    </details>
                   ))}
                 </div>
               ) : (

@@ -19,14 +19,14 @@ import { buttonHasVisibleText } from '../../utils/a11y';
 // --- Button variants ---
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+  'theme-button inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
-        default: 'bg-primary text-white hover:bg-primary/90',
+        default: 'theme-button-primary bg-primary text-white hover:bg-primary/90',
         destructive: 'bg-error text-white hover:bg-error/90',
-        outline: 'border border-border bg-transparent hover:bg-surface hover:text-text',
-        secondary: 'bg-surface text-text hover:bg-surface/80',
+        outline: 'theme-button-glass border border-border bg-transparent hover:bg-surface hover:text-text',
+        secondary: 'theme-button-glass bg-surface text-text hover:bg-surface/80',
         ghost: 'hover:bg-surface hover:text-text',
         link: 'text-primary underline-offset-4 hover:underline',
       },

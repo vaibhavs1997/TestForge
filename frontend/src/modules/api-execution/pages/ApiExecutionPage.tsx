@@ -4572,7 +4572,7 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
       </div>
       {environmentManagerOpen && (
         <div className='fixed inset-0 z-50 flex justify-end bg-background/80 backdrop-blur-sm' role='dialog' aria-modal='true' aria-label='Manage environments'>
-          <div className='flex h-full w-full max-w-2xl flex-col border-l border-border bg-surface p-5 text-text shadow-2xl'>
+          <div className='environment-manager-drawer flex h-full w-full max-w-2xl flex-col border-l border-border p-5 text-text shadow-2xl'>
             <div className='flex items-start justify-between gap-4'>
               <div>
                 <h2 className='text-lg font-semibold'>Manage environments</h2>

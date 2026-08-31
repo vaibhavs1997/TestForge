@@ -214,7 +214,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
               className="mt-0.5 rounded border-border"
             />
             <span>
-              I agree to use TestForge in accordance with my organization&apos;s policies and understand
+              I agree to use TestsForge in accordance with my organization&apos;s policies and understand
               that project data is isolated per organization.
             </span>
           </label>

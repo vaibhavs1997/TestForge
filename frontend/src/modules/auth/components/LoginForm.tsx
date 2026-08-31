@@ -96,7 +96,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
             </p>
           ) : (
             <p id="login-email-helper" className="mt-1 text-xs text-text-secondary">
-              Use the email address associated with your TestForge account.
+              Use the email address associated with your TestsForge account.
             </p>
           )}
         </div>

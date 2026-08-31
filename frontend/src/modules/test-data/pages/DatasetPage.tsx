@@ -1715,7 +1715,7 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
             <div className='flex items-center gap-3'>
               <Sparkles className='h-5 w-5 text-primary' />
               <div>
-                <p className='text-sm font-medium text-text'>✨ TestForge analyzed your imported API definitions.</p>
+                <p className='text-sm font-medium text-text'>✨ TestsForge analyzed your imported API definitions.</p>
                 <p className='text-xs text-text-secondary'>
                   {activeSuggestions.length} recommended columns based on your API operations
                 </p>
@@ -1737,7 +1737,7 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
                 <Sparkles className='h-5 w-5 text-primary' />
                 <div>
                   <CardTitle className='text-base'>Recommended Columns</CardTitle>
-                  <p className='text-xs text-text-secondary'>✨ TestForge analyzed your imported API definitions.</p>
+                  <p className='text-xs text-text-secondary'>✨ TestsForge analyzed your imported API definitions.</p>
                 </div>
               </div>
             </div>

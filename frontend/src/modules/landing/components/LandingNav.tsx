@@ -18,7 +18,20 @@ export const LandingNav: React.FC = () => {
   const [open, setOpen] = useState(false);
   const user = authStore((s) => s.user);
   const cta = getLandingCtaPaths(user);
-  const { openLogin, openRegister } = useLandingAuth();
+  const { openLogin, openRegister } = useLandingAuth();
+
+  const handleSectionNavigation = (event: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    event.preventDefault();
+    setOpen(false);
+
+    window.setTimeout(() => {
+      document.querySelector(href)?.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        block: 'start',
+      });
+      window.history.replaceState(null, '', href);
+    }, 140);
+  };
 
   return (
     <header className="landing-surface relative z-50 border-b bg-background/70">
@@ -29,7 +42,8 @@ export const LandingNav: React.FC = () => {
           {NAV_LINKS.map((item) => (
             <a
               key={item.label}
-              href={item.href}
+              href={item.href}
+              onClick={(event) => handleSectionNavigation(event, item.href)}
               className="text-sm font-medium text-text-secondary transition-colors hover:text-primary"
             >
               {item.label}
@@ -83,7 +97,7 @@ export const LandingNav: React.FC = () => {
                 key={item.label}
                 href={item.href}
                 className="text-sm font-medium text-text-secondary"
-                onClick={() => setOpen(false)}
+                onClick={(event) => handleSectionNavigation(event, item.href)}
               >
                 {item.label}
               </a>

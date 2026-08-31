@@ -34,7 +34,7 @@ export const HeroSection: React.FC = () => {
           </h1>
 
           <p className="mt-6 max-w-xl text-lg leading-relaxed text-text-secondary">
-            TestForge understands your project, analyzes API dependencies, generates intelligent
+            TestsForge understands your project, analyzes API dependencies, generates intelligent
             validation strategies, creates execution plans, executes validations, and delivers
             developer-ready reports automatically.
           </p>

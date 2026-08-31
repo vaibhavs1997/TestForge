@@ -38,8 +38,8 @@ export async function sendWelcomeEmail(input: WelcomeEmailInput): Promise<boolea
   }
 
   const from =
-    process.env.MAIL_FROM?.trim() || 'TestForge <noreply@testforge.local>';
-  const appName = process.env.APP_NAME?.trim() || 'TestForge';
+    process.env.MAIL_FROM?.trim() || 'TestsForge <noreply@testforge.local>';
+  const appName = process.env.APP_NAME?.trim() || 'TestsForge';
   const firstName = input.firstName.trim() || 'there';
 
   const subject = `Welcome to ${appName}`;

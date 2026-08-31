@@ -5,6 +5,7 @@ import { Sun, Moon, Home, FolderKanban } from 'lucide-react';
 
 // Components
 import { SessionBadge } from '../components/shared/SessionBadge';
+import { BrandLogo } from '../components/brand/BrandLogo';
 import { useThemeStore } from '../store/themeStore';
 import { appPaths } from '../routes/paths';
 
@@ -18,7 +19,7 @@ export const Header: React.FC = () => {
     const headers: Record<string, { title: string; description: string }> = {
       overview: { title: 'Project', description: 'Follow the steps below to go from API contract to test report.' },
       apis: { title: 'APIs', description: 'Import, edit, and execute API requests in your project workspace.' },
-      testdata: { title: 'Test data', description: 'Control how TestForge supplies request data automatically when your APIs run.' },
+      testdata: { title: 'Test data', description: 'Control how TestsForge supplies request data automatically when your APIs run.' },
       knowledge: { title: 'Knowledge', description: 'Upload documentation, tag it, and connect it to the API and Test Data workspace.' },
       requirements: { title: 'Requirements', description: 'Capture acceptance criteria, generate test cases, and prepare them for review.' },
       execution: { title: 'Execution', description: 'Run and manage approved project test suites.' },
@@ -31,8 +32,8 @@ export const Header: React.FC = () => {
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-surface px-6">
       <div className="flex min-w-0 flex-1 items-center">
-        <div className="md:hidden">
-          <span className="text-lg font-semibold tracking-tight text-text">TestForge</span>
+        <div className="mr-5 md:hidden">
+          <BrandLogo variant="header" linkTo="/" />
         </div>
         {(isInsideProject || isProjectsPage) && (
           <div className="hidden md:block">

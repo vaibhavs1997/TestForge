@@ -362,11 +362,13 @@
 
 @layer components {
   .dark .landing-surface {
-    background: linear-gradient(145deg, rgba(38, 57, 82, 0.94), rgba(21, 39, 64, 0.94)) !important;
+    background:
+      radial-gradient(circle at 12% 0%, rgba(255, 255, 255, 0.12), transparent 38%),
+      linear-gradient(145deg, rgba(38, 57, 82, 0.86), rgba(21, 39, 64, 0.82)) !important;
     border-color: rgba(221, 226, 232, 0.28);
-    box-shadow: 0 18px 50px rgba(2, 12, 27, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.2);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
+    box-shadow: 0 18px 50px rgba(2, 12, 27, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.24), inset 0 -1px 0 rgba(79, 209, 197, 0.08);
+    backdrop-filter: blur(24px) saturate(135%);
+    -webkit-backdrop-filter: blur(24px) saturate(135%);
   }
 
   .dark .landing-primary-action {
@@ -418,11 +420,13 @@
   .dark .theme-glass-card {
     position: relative;
     overflow: hidden;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.08));
+    background:
+      radial-gradient(circle at 100% 0%, rgba(79, 209, 197, 0.1), transparent 42%),
+      linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.09));
     border-color: var(--color-glass-border, var(--color-border));
     box-shadow: 0 18px 50px rgba(2, 12, 27, 0.22), inset 0 1px 0 var(--color-glass-highlight, transparent);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(22px) saturate(125%);
+    -webkit-backdrop-filter: blur(22px) saturate(125%);
   }
 
   .dark .theme-glass-card::after {
@@ -494,6 +498,16 @@
     box-shadow: 0 26px 80px rgba(2, 12, 27, 0.58), inset 0 1px 0 rgba(255, 255, 255, 0.16);
     backdrop-filter: blur(22px);
     -webkit-backdrop-filter: blur(22px);
+  }
+
+  .dark .environment-manager-drawer {
+    background: linear-gradient(145deg, rgba(30, 48, 73, 0.99), rgba(14, 31, 55, 0.99));
+    border-color: rgba(221, 226, 232, 0.42);
+  }
+
+  :root:not(.dark) .environment-manager-drawer {
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.99), rgba(242, 244, 248, 0.99));
+    border-color: rgba(10, 25, 47, 0.24);
   }
 
   :root:not(.dark) .landing-auth-modal {

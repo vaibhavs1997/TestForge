@@ -48,7 +48,7 @@ export const LandingFeatures: React.FC = () => (
           Quality engineering, not click-and-send
         </h2>
         <p className="mt-4 text-lg text-text-secondary">
-          TestForge automates the work senior QA engineers do—analysis, design, execution, and reporting.
+          TestsForge automates the work senior QA engineers do—analysis, design, execution, and reporting.
         </p>
       </div>
       <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">

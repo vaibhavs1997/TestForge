@@ -23,6 +23,7 @@ import {
   Shield,
 } from 'lucide-react';
 import { projectStore } from '../store/projectStore';
+import { BrandLogo } from '../components/brand/BrandLogo';
 
 // Styles
 
@@ -140,18 +141,20 @@ export const Sidebar: React.FC = () => {
   };
 
   return (
-    <aside className={`flex flex-shrink-0 flex-col border-r border-border bg-surface transition-[width] duration-200 ${collapsed ? 'w-16' : 'w-64'}`}>
-      <div className={`flex h-16 items-center border-b border-border ${collapsed ? 'justify-center px-2' : 'justify-between px-7'}`}>
-        {!collapsed && (
+    <aside className={`relative z-40 flex flex-shrink-0 flex-col border-r border-border bg-surface transition-[width] duration-200 ${collapsed ? 'w-16' : 'w-64'}`}>
+      <div className={`relative z-50 flex h-16 items-center border-b border-border ${collapsed ? 'justify-center px-2' : 'justify-between px-7'}`}>
+        {!collapsed && <BrandLogo variant="sidebar" linkTo="/projects" />}
+        {false && (
           <Link
             to="/projects"
             aria-label="Go to projects"
             className="flex items-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           >
-            <span className="text-xl font-semibold leading-none tracking-tight text-text">TestForge</span>
+            <span className="text-xl font-semibold leading-none tracking-tight text-text">TestsForge</span>
           </Link>
         )}
-        {collapsed && (
+        {collapsed && <BrandLogo variant="compact" showLabel={false} linkTo="/projects" />}
+        {false && (
           <Link
             to="/projects"
             aria-label="Go to projects"
@@ -251,7 +254,7 @@ export const Sidebar: React.FC = () => {
         )}
       </nav>
       <div className={`border-t border-border ${collapsed ? 'p-2 text-center' : 'p-4'}`}>
-        {!collapsed && <p className="text-xs text-text-secondary">TestForge v0.1.0</p>}
+        {!collapsed && <p className="text-xs text-text-secondary">TestsForge v0.1.0</p>}
       </div>
     </aside>
   );

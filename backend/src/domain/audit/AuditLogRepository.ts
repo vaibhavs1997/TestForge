@@ -6,6 +6,7 @@ import { AuditLogEntity } from './AuditLogEntity.js';
 export interface AuditLogRepository {
   create(log: AuditLogEntity): Promise<AuditLogEntity>;
   findById(id: string): Promise<AuditLogEntity | null>;
+  delete(id: string): Promise<boolean>;
   findByProject(projectId: string): Promise<AuditLogEntity[]>;
   findByProjectAndFilters(
     projectId: string,

@@ -20,6 +20,10 @@ export const auditService = {
   getAuditLog: async (logId: string): Promise<AuditLog> => {
     return apiRequest.get<AuditLog>(`${API_BASE_URL}/audit/${logId}`);
   },
+
+  deleteAuditLog: async (logId: string): Promise<void> => {
+    await apiRequest.delete<void>(`${API_BASE_URL}/audit/${logId}`);
+  },
 };
 
 export default auditService;

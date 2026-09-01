@@ -23,6 +23,16 @@ export class InMemoryAuditLogRepository implements AuditLogRepository {
     return this.logs.get(id) || null;
   }
 
+  async delete(id: string): Promise<boolean> {
+    const log = this.logs.get(id);
+    if (!log) return false;
+
+    this.logs.delete(id);
+    const projectLogIds = this.projectLogs.get(log.projectId) || [];
+    this.projectLogs.set(log.projectId, projectLogIds.filter((logId) => logId !== id));
+    return true;
+  }
+
   async findByProject(projectId: string): Promise<AuditLogEntity[]> {
     const logIds = this.projectLogs.get(projectId) || [];
     return logIds

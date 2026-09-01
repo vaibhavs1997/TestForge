@@ -434,8 +434,8 @@ const ProfileDialog: React.FC<ProfileDialogProps> = ({ open, onClose, onSubmit, 
   if (!open) return null;
 
   return (
-    <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
-      <div className='w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg border border-border bg-background p-6 shadow-lg'>
+    <div className='app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
+      <div className='app-modal-panel w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg border border-border p-6 shadow-lg'>
         <div className='mb-4 flex items-center justify-between'>
           <h2 className='text-lg font-semibold'>{profile ? 'Edit Profile' : 'Create Profile'}</h2>
           <Button variant='ghost' size='sm' onClick={onClose} aria-label="Close">✕</Button>

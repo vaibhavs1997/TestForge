@@ -101,6 +101,21 @@
     color-scheme: dark;
   }
 
+  /* Native option popups do not reliably inherit the select's Tailwind
+   * background on every browser/OS combination. Keep them in the app theme. */
+  select {
+    color-scheme: light;
+  }
+
+  select option {
+    background-color: var(--color-background);
+    color: var(--color-text);
+  }
+
+  .dark select {
+    color-scheme: dark;
+  }
+
   .dark body {
     background-image:
       radial-gradient(circle at 12% 8%, rgba(79, 209, 197, 0.18), transparent 28%),
@@ -224,6 +239,15 @@
   :root:not(.dark) .theme-select-option[aria-selected='true'] {
     background: rgba(79, 209, 197, 0.18);
     color: #006d77;
+  }
+
+  /* Application modal panels must remain opaque so the page behind them never
+   * competes with form fields, dialogs, or confirmation content. */
+  .app-modal-panel {
+    background: var(--color-background) !important;
+    background-image: none !important;
+    color: var(--color-text);
+    opacity: 1;
   }
 
   .dark .app-modal-backdrop {
@@ -443,6 +467,16 @@
   .dark .theme-glass-card:hover::after {
     opacity: 1;
     transform: translateX(110%);
+  }
+
+  /* Project tiles use a deeper surface so the white glass highlight does not
+   * overpower their content in the dark application theme. */
+  .dark .project-card.theme-glass-card {
+    background:
+      radial-gradient(circle at 100% 0%, rgba(79, 209, 197, 0.06), transparent 42%),
+      linear-gradient(145deg, rgba(31, 54, 80, 0.94), rgba(14, 31, 55, 0.98)) !important;
+    border-color: rgba(221, 226, 232, 0.3);
+    box-shadow: 0 16px 36px rgba(2, 12, 27, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.12);
   }
 
   .theme-button {

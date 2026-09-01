@@ -19,6 +19,7 @@ export interface ImportEnvironmentModalProps {
   onClose: () => void;
   onImport: (data: ImportEnvironmentModalData) => void;
   isImporting?: boolean;
+  importError?: string;
 }
 
 const formatOptions = [
@@ -36,6 +37,7 @@ export const ImportEnvironmentModal = ({
   onClose,
   onImport,
   isImporting,
+  importError,
 }: ImportEnvironmentModalProps) => {
   const [source, setSource] = React.useState<'file' | 'url'>('file');
   const [files, setFiles] = React.useState<File[]>([]);
@@ -112,11 +114,11 @@ export const ImportEnvironmentModal = ({
 
   return (
     <div
-      className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4'
+      className='app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4'
       onClick={onClose}
     >
       <Card
-        className='flex max-h-[90vh] w-full max-w-lg flex-col'
+        className='app-modal-panel flex max-h-[90vh] w-full max-w-lg flex-col'
         onClick={(e) => e.stopPropagation()}
       >
         <CardHeader className='shrink-0'>
@@ -265,9 +267,9 @@ export const ImportEnvironmentModal = ({
               Format is detected from file contents. Override only if auto-detect is wrong.
             </p>
 
-            {error && (
+            {(error || importError) && (
               <p className='text-sm text-error' role='alert'>
-                {error}
+                {error || importError}
               </p>
             )}
           </CardContent>

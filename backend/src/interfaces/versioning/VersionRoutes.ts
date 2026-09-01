@@ -13,6 +13,7 @@ const authorizeVersion = authorizeResource('versionId', versionController.findFo
 router.get('/versions/:versionId', authorizeVersion, asyncHandler(versionController.getVersion.bind(versionController)));
 router.get('/versions/compare/:versionId1/:versionId2', authorizeResource('versionId1', versionController.findForAuthorization.bind(versionController)), authorizeResource('versionId2', versionController.findForAuthorization.bind(versionController)), asyncHandler(versionController.compareVersions.bind(versionController)));
 router.post('/versions/:versionId/restore', authorizeVersion, asyncHandler(versionController.restoreVersion.bind(versionController)));
+router.delete('/versions/:versionId', authorizeVersion, asyncHandler(versionController.deleteVersion.bind(versionController)));
 
   return router;
 }

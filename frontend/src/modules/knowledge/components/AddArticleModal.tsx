@@ -87,10 +87,10 @@ export const AddArticleModal = ({ open, onClose, onCreate, initialData, isSubmit
 
   return (
     <div
-      className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'
+      className='app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50'
       onClick={onClose}
     >
-      <Card className='mx-4 flex max-h-[90vh] w-full max-w-lg flex-col' onClick={(e) => e.stopPropagation()}>
+      <Card className='app-modal-panel mx-4 flex max-h-[90vh] w-full max-w-lg flex-col' onClick={(e) => e.stopPropagation()}>
         <CardHeader className='flex-shrink-0'>
           <div className='flex items-center justify-between'>
             <CardTitle>{initialData?.id ? 'Edit Documentation' : 'Add Documentation'}</CardTitle>

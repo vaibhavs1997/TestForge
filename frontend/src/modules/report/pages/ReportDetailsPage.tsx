@@ -692,7 +692,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
                         </div>
                       )}
                       {step.error && (
-                        <p className='text-xs text-red-600 mt-1'>{step.error}</p>
+                        <p className='mt-2 break-words rounded-md border border-error/25 bg-error/10 px-2 py-1.5 text-sm leading-5 text-error'>{step.error}</p>
                       )}
                       <div className='mt-3 grid gap-2 sm:grid-cols-2'>
                         <details className='rounded-lg border border-border bg-background/40 px-3 py-2'>
@@ -768,7 +768,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
                         </span>
                       </div>
                       {step.error && (
-                        <p className='text-xs text-red-600 mt-1'>{step.error}</p>
+                        <p className='mt-2 break-words rounded-md border border-error/25 bg-error/10 px-2 py-1.5 text-sm leading-5 text-error'>{step.error}</p>
                       )}
                       {step.response && (
                         <div className='text-xs text-text-secondary mt-1'>
@@ -837,7 +837,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
                           Actual: {JSON.stringify(validation.actual)}
                         </p>
                         {validation.error && (
-                          <p className='text-red-600 mt-1'>{validation.error}</p>
+                          <p className='mt-2 break-words rounded-md border border-error/25 bg-error/10 px-2 py-1.5 text-sm leading-5 text-error'>{validation.error}</p>
                         )}
                       </div>
                     </div>
@@ -936,7 +936,7 @@ export const ReportDetailsPage: React.FC<ReportDetailsPageProps> = () => {
                           <span className='text-xs text-text-secondary'>{step.request?.method} {step.request?.url}</span>
                         </div>
                         {step.error && (
-                          <p className='text-xs text-red-600 mt-1'>{step.error}</p>
+                          <p className='mt-2 break-words rounded-md border border-error/25 bg-error/10 px-2 py-1.5 text-sm leading-5 text-error'>{step.error}</p>
                         )}
                         {step.response && (
                           <p className='text-xs text-text-secondary mt-1'>

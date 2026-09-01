@@ -47,7 +47,7 @@ export function EntityDialog({
       role="presentation"
     >
       <Card
-        className={`mx-4 w-full ${sizeClasses[size]} ${scrollable ? 'max-h-[90vh] overflow-y-auto scrollbar-none' : ''}`}
+        className={`app-modal-panel mx-4 w-full ${sizeClasses[size]} ${scrollable ? 'max-h-[90vh] overflow-y-auto scrollbar-none' : ''}`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

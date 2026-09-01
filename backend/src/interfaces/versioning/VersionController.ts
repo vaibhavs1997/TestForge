@@ -49,6 +49,11 @@ export class VersionController {
         const restored = await this.versionService.restoreVersion({ versionId });
         res.status(200).json(createSuccessResponse(restored));
     }
+    async deleteVersion(req: Request, res: Response): Promise<void> {
+        const { versionId } = req.params;
+        await this.versionService.deleteVersion(versionId);
+        res.status(204).send();
+    }
     async compareVersions(req: Request, res: Response): Promise<void> {
         const { versionId1, versionId2 } = req.params;
         const oldVersion = await this.versionService.getVersion(versionId1);

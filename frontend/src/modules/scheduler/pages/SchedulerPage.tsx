@@ -413,8 +413,8 @@ const SchedulerPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
 
       {/* Schedule Editor Modal */}
       {editorOpen && (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
-          <Card className='w-full max-w-2xl max-h-[90vh] overflow-y-auto'>
+        <div className='app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
+          <Card className='app-modal-panel w-full max-w-2xl max-h-[90vh] overflow-y-auto'>
             <CardHeader>
               <CardTitle>{editingSchedule ? 'Edit Schedule' : 'Create Schedule'}</CardTitle>
               <CardDescription>Configure when a test suite should execute automatically.</CardDescription>

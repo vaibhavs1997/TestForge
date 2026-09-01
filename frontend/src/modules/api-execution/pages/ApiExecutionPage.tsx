@@ -57,6 +57,7 @@ import { queryKeys } from '../../../constants';
 import { clearLegacyApiWorkspaceState } from '../../../utils/sensitiveBrowserState';
 import { getScopedStorageKey } from '../../../services/authSession';
 import { runSandboxedScript, SCRIPT_SANDBOX_VERSION, type ScriptMutation } from '../utils/scriptSandbox';
+import { EndpointActionMenu } from '../components/EndpointActionMenu';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
 type BodyMode = 'none' | 'form-data' | 'x-www-form-urlencoded' | 'raw' | 'binary' | 'graphql';
@@ -1776,6 +1777,9 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
   const [authorizationExpanded, setAuthorizationExpanded] = React.useState(false);
   const [methodMenuOpen, setMethodMenuOpen] = React.useState(false);
   const [environmentMenuOpen, setEnvironmentMenuOpen] = React.useState(false);
+  const environmentMenuButtonRef = React.useRef<HTMLButtonElement>(null);
+  const environmentMenuRef = React.useRef<HTMLDivElement>(null);
+  const [environmentMenuPosition, setEnvironmentMenuPosition] = React.useState({ left: 0, top: 0, width: 0 });
   const [expandedCollections, setExpandedCollections] = React.useState<Record<string, boolean>>({});
   const [expandedFolders, setExpandedFolders] = React.useState<Record<string, boolean>>({});
   const [activeRequestLog, setActiveRequestLog] = React.useState<string>('Ready to send');
@@ -1799,11 +1803,53 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
   const [apiDeleteConfirmOpen, setApiDeleteConfirmOpen] = React.useState(false);
   const [endpointDeleteTarget, setEndpointDeleteTarget] = React.useState<{ collection: ImportedApiCollection; endpoint: ImportedApiEndpoint } | null>(null);
   const [endpointDeleteBusy, setEndpointDeleteBusy] = React.useState(false);
+  const [endpointRenameTarget, setEndpointRenameTarget] = React.useState<{ collection: ImportedApiCollection; endpoint: ImportedApiEndpoint } | null>(null);
+  const [endpointRenameValue, setEndpointRenameValue] = React.useState('');
+  const [endpointRenameBusy, setEndpointRenameBusy] = React.useState(false);
+  const [endpointRenameError, setEndpointRenameError] = React.useState('');
   const [apiImportFiles, setApiImportFiles] = React.useState<File[]>([]);
   const [apiImportBusy, setApiImportBusy] = React.useState(false);
+  const [apiImportError, setApiImportError] = React.useState('');
   const [environmentSearch, setEnvironmentSearch] = React.useState('');
   const [environmentActionBusy, setEnvironmentActionBusy] = React.useState(false);
   const [environmentActionError, setEnvironmentActionError] = React.useState('');
+
+  React.useEffect(() => {
+    if (!environmentMenuOpen) return undefined;
+
+    const updatePosition = () => {
+      const button = environmentMenuButtonRef.current;
+      if (!button) return;
+      const rect = button.getBoundingClientRect();
+      const width = rect.width;
+      setEnvironmentMenuPosition({
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)),
+        top: rect.bottom + 4,
+        width,
+      });
+    };
+    const closeOnOutsidePointer = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!environmentMenuButtonRef.current?.contains(target) && !environmentMenuRef.current?.contains(target)) {
+        setEnvironmentMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setEnvironmentMenuOpen(false);
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    document.addEventListener('mousedown', closeOnOutsidePointer);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+      document.removeEventListener('mousedown', closeOnOutsidePointer);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [environmentMenuOpen]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -2061,9 +2107,16 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
   );
   const environments = React.useMemo(
     () => {
-      const candidates = importedArtifacts
+      const localCandidates = importedArtifacts
         .filter((item): item is ImportedEnvironment => item.kind === 'env')
         .filter((environment) => environment.sourceFormat !== 'auto' && !/\(from \.env\)$/i.test(environment.name));
+      // The manager is backed by the canonical project query. Include that
+      // query directly so the top-level selector cannot lag behind the
+      // manager while imported artifacts are being rehydrated.
+      const candidates = [
+        ...localCandidates,
+        ...managedEnvironments.map(environmentDtoToArtifact),
+      ];
       const byName = new Map<string, ImportedEnvironment>();
       candidates.forEach((environment) => {
         const key = environment.name.trim().toLowerCase();
@@ -2072,7 +2125,7 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
       });
       return Array.from(byName.values());
     },
-    [importedArtifacts],
+    [importedArtifacts, managedEnvironments],
   );
   const unknownImports = React.useMemo(
     () => importedArtifacts.filter((item): item is ImportedUnknown => item.kind === 'unknown'),
@@ -2489,6 +2542,71 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
     setResponse(emptyResponseState());
   };
 
+  const openEndpointRename = (collection: ImportedApiCollection, endpoint: ImportedApiEndpoint) => {
+    setEndpointRenameTarget({ collection, endpoint });
+    setEndpointRenameValue(endpoint.name);
+    setEndpointRenameError('');
+  };
+
+  const closeEndpointRename = (force = false) => {
+    if (endpointRenameBusy && !force) return;
+    setEndpointRenameTarget(null);
+    setEndpointRenameValue('');
+    setEndpointRenameError('');
+  };
+
+  const renameImportedEndpoint = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!endpointRenameTarget) return;
+    const nextName = endpointRenameValue.trim();
+    if (!nextName) {
+      setEndpointRenameError('Enter an endpoint name.');
+      return;
+    }
+
+    const { collection, endpoint } = endpointRenameTarget;
+    setEndpointRenameBusy(true);
+    setEndpointRenameError('');
+    try {
+      const matchingOperation = sharedApiOperations.find((operation) =>
+        (endpoint.backendOperationId && operation.id === endpoint.backendOperationId)
+        || (endpoint.backendServiceId && operation.serviceId === endpoint.backendServiceId
+          && operation.method.toUpperCase() === endpoint.method.toUpperCase()
+          && operation.path === endpoint.path)
+        || (operation.serviceName?.toLowerCase() === collection.name.toLowerCase()
+          && operation.method.toUpperCase() === endpoint.method.toUpperCase()
+          && operation.path === endpoint.path),
+      );
+      const serviceId = endpoint.backendServiceId || matchingOperation?.serviceId;
+      const operationId = endpoint.backendOperationId || matchingOperation?.id;
+      if (serviceId && operationId) {
+        await apiService.updateOperation(projectId, serviceId, operationId, { name: nextName });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.operations(projectId) });
+      }
+
+      setImportedArtifacts((current) => current.map((artifact) => {
+        if (artifact.kind !== 'api' || artifact.id !== collection.id) return artifact;
+        return {
+          ...artifact,
+          endpoints: artifact.endpoints.map((candidate) => candidate.id !== endpoint.id
+            ? candidate
+            : { ...candidate, name: nextName, requestTemplate: { ...candidate.requestTemplate, name: nextName } }),
+        };
+      }));
+      if (selection?.kind === 'api-endpoint' && selection.endpointId === endpoint.id) {
+        setDraft((current) => ({ ...current, name: nextName }));
+        const key = responseCacheKey(selection);
+        if (key) setDraftCache((current) => current[key] ? { ...current, [key]: { ...current[key], name: nextName } } : current);
+      }
+      setActiveRequestLog(`Renamed endpoint to ${nextName}`);
+      closeEndpointRename(true);
+    } catch {
+      setEndpointRenameError('Could not rename this endpoint. Try again.');
+    } finally {
+      setEndpointRenameBusy(false);
+    }
+  };
+
   const deleteImportedEndpoint = async () => {
     if (!endpointDeleteTarget) return;
     const { collection, endpoint } = endpointDeleteTarget;
@@ -2582,6 +2700,9 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
   const importApiFiles = async (files: File[]) => {
     if (files.length === 0) return;
     setApiImportBusy(true);
+    setApiImportError('');
+    let importFailed = false;
+    let importCompleted = false;
     try {
       const parsedFiles = await Promise.all(
         files.map(async (file) => ({ file, artifact: await parseImportedFile(file) })),
@@ -2610,6 +2731,12 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
 
       let syncedEnvironments = envs;
       if (envs.length > 0) {
+        const missingBaseUrl = envs.find((environment) => !resolveEnvironmentBaseUrl(environment.variables));
+        if (missingBaseUrl) {
+          throw new Error(
+            `Environment "${missingBaseUrl.name}" has no HTTP API base URL. Add BASE_URL=https://api.example.com (or upload a dedicated API environment file).`,
+          );
+        }
         try {
           const result = await environmentService.batchUpsertEnvironments(projectId, envs.map((environment) => ({
             name: environment.name,
@@ -2617,8 +2744,12 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
             variables: environment.variables,
           })));
           syncedEnvironments = result.environments.map(environmentDtoToArtifact);
-        } catch {
-          setActiveRequestLog('Environment saved locally; shared environment sync failed');
+        } catch (error) {
+          importFailed = true;
+          syncedEnvironments = [];
+          const message = getApiErrorMessage(error, 'Environment could not be synchronized.');
+          setApiImportError(message);
+          setActiveRequestLog(`Environment import failed: ${message}`);
         }
       }
       if (syncedEnvironments.length > 0) {
@@ -2694,13 +2825,22 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
       if (syncedApiCount > 0) {
         setActiveRequestLog(`Synchronized ${syncedApiCount} API operation${syncedApiCount === 1 ? '' : 's'} for Requirements`);
       }
+      const firstSyncedEnvironment = syncedEnvironments[0];
+      if (!importFailed && firstSyncedEnvironment) {
+        await selectEnvironment(firstSyncedEnvironment.id);
+      }
       if (collections.length > 0) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.services(projectId) });
         void queryClient.invalidateQueries({ queryKey: queryKeys.operations(projectId) });
       }
+      importCompleted = !importFailed;
+    } catch (error) {
+      const message = getApiErrorMessage(error, 'Unable to import the selected file(s).');
+      setApiImportError(message);
+      setActiveRequestLog(`Import failed: ${message}`);
     } finally {
       setApiImportBusy(false);
-      setApiImportFiles([]);
+      if (importCompleted) setApiImportFiles([]);
     }
   };
 
@@ -2831,6 +2971,7 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
 
   const handleEnvironmentImport = async (data: ImportEnvironmentModalData) => {
     setEnvironmentActionBusy(true);
+    setEnvironmentActionError('');
     try {
       const payloads: Array<{ name: string; baseUrl: string; description?: string; variables?: Record<string, string>; timeout?: number }> = [];
       if (data.source === 'file' && data.files?.length) {
@@ -2857,8 +2998,23 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
       if (payloads.length === 0) throw new Error('Select an environment file or enter an environment URL.');
       const result = await environmentService.batchUpsertEnvironments(projectId, payloads);
       await queryClient.invalidateQueries({ queryKey: queryKeys.environments(projectId) });
+      if (result.environments[0]) {
+        const imported = result.environments.map(environmentDtoToArtifact);
+        setImportedArtifacts((current) => {
+          const importedNames = new Set(imported.map((environment) => environment.name.trim().toLowerCase()));
+          return [
+            ...current.filter((artifact) => artifact.kind !== 'env' || !importedNames.has(artifact.name.trim().toLowerCase())),
+            ...imported,
+          ];
+        });
+        await selectEnvironment(result.environments[0].id);
+      }
       setEnvironmentImportOpen(false);
       setActiveRequestLog(`Synchronized ${result.environments.length} environment${result.environments.length === 1 ? '' : 's'}`);
+    } catch (error) {
+      const message = getApiErrorMessage(error, 'Unable to import this environment.');
+      setEnvironmentActionError(message);
+      setActiveRequestLog(`Environment import failed: ${message}`);
     } finally {
       setEnvironmentActionBusy(false);
     }
@@ -3487,6 +3643,7 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
               </Button>
               <div className='relative z-50 w-44'>
                 <button
+                  ref={environmentMenuButtonRef}
                   type='button'
                   onClick={() => setEnvironmentMenuOpen((current) => !current)}
                   className='flex h-11 w-full items-center justify-between rounded-lg border border-violet-400/30 bg-violet-400/10 px-4 text-left text-sm font-medium text-primary outline-none transition-colors hover:bg-violet-400/15 focus:border-violet-300/60'
@@ -3498,8 +3655,13 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
                   <span className='truncate'>{selectedEnvironment?.name ?? (environmentToken ? 'Default environment' : 'No environment')}</span>
                   <ChevronDown className={`ml-2 h-4 w-4 shrink-0 transition-transform ${environmentMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
-                {environmentMenuOpen && (
-                  <div className='absolute left-0 top-full z-[100] mt-1 w-full overflow-hidden rounded-lg border border-border bg-surface p-1 shadow-xl' role='listbox'>
+                {environmentMenuOpen && typeof document !== 'undefined' && createPortal(
+                  <div
+                    ref={environmentMenuRef}
+                    className='theme-select-menu fixed z-[100] max-h-60 overflow-auto rounded-lg border border-border p-1 shadow-xl'
+                    style={{ left: environmentMenuPosition.left, top: environmentMenuPosition.top, width: environmentMenuPosition.width }}
+                    role='listbox'
+                  >
                     <button
                       type='button'
                       role='option'
@@ -3508,7 +3670,7 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
                         setActiveEnvironmentId('');
                         setEnvironmentMenuOpen(false);
                       }}
-                      className={`block w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${!activeEnvironmentId ? 'bg-background/60 text-primary' : 'text-text hover:bg-background/60'}`}
+                      className={`theme-select-option block w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${!activeEnvironmentId ? 'bg-primary/15 text-primary' : 'text-text hover:bg-background'}`}
                     >
                       No environment
                     </button>
@@ -3522,12 +3684,13 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
                           void selectEnvironment(environment.id);
                           setEnvironmentMenuOpen(false);
                         }}
-                        className={`block w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${activeEnvironmentId === environment.id ? 'bg-background/60 text-primary' : 'text-text hover:bg-background/60'}`}
+                        className={`theme-select-option block w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${activeEnvironmentId === environment.id ? 'bg-primary/15 text-primary' : 'text-text hover:bg-background'}`}
                       >
                         {environment.name}
                       </button>
                     ))}
-                  </div>
+                  </div>,
+                  document.body,
                 )}
               </div>
               <Button type='button' variant='outline' className='h-11 border-border bg-background/40 px-4 text-sm font-medium text-text' onClick={() => setEnvironmentManagerOpen(true)}>
@@ -3550,6 +3713,7 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
             onChange={(event) => {
               const files = event.target.files;
               if (!files?.length) return;
+              setApiImportError('');
               setApiImportFiles(Array.from(files));
               event.target.value = '';
             }}
@@ -3622,17 +3786,11 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
                                           <div className='truncate text-xs font-medium'>{endpoint.name}</div>
                                         </div>
                                       </button>
-                                      <button
-                                        type='button'
-                                        className='mr-2 rounded-lg p-1.5 text-text-secondary hover:bg-error/10 hover:text-error'
-                                        aria-label={`Delete ${endpoint.name}`}
-                                        onClick={(event) => {
-                                          event.stopPropagation();
-                                          setEndpointDeleteTarget({ collection, endpoint });
-                                        }}
-                                      >
-                                        <Trash2 className='h-3.5 w-3.5' />
-                                      </button>
+                                      <EndpointActionMenu
+                                        endpointName={endpoint.name}
+                                        onRename={() => openEndpointRename(collection, endpoint)}
+                                        onDelete={() => setEndpointDeleteTarget({ collection, endpoint })}
+                                      />
                                     </div>
                                   );
                                 })}
@@ -4571,8 +4729,8 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
         </div>
       </div>
       {environmentManagerOpen && (
-        <div className='fixed inset-0 z-50 flex justify-end bg-background/80 backdrop-blur-sm' role='dialog' aria-modal='true' aria-label='Manage environments'>
-          <div className='environment-manager-drawer flex h-full w-full max-w-2xl flex-col border-l border-border p-5 text-text shadow-2xl'>
+        <div className='app-modal-backdrop fixed inset-0 z-50 flex justify-end bg-background/80 backdrop-blur-sm' role='dialog' aria-modal='true' aria-label='Manage environments'>
+          <div className='app-modal-panel environment-manager-drawer flex h-full w-full max-w-2xl flex-col border-l border-border p-5 text-text shadow-2xl'>
             <div className='flex items-start justify-between gap-4'>
               <div>
                 <h2 className='text-lg font-semibold'>Manage environments</h2>
@@ -4671,6 +4829,30 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
           if (!endpointDeleteBusy) setEndpointDeleteTarget(null);
         }}
       />
+      <EntityDialog
+        open={Boolean(endpointRenameTarget)}
+        title='Rename endpoint'
+        description={endpointRenameTarget ? `Choose a new name for ${endpointRenameTarget.endpoint.name}.` : undefined}
+        submitLabel='Rename endpoint'
+        isLoading={endpointRenameBusy}
+        size='sm'
+        onClose={closeEndpointRename}
+        onSubmit={(event) => void renameImportedEndpoint(event)}
+      >
+        <label className='block text-sm font-medium text-text'>
+          Endpoint name
+          <input
+            autoFocus
+            value={endpointRenameValue}
+            onChange={(event) => setEndpointRenameValue(event.target.value)}
+            className='mt-2 h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-text outline-none transition placeholder:text-text-secondary focus:border-primary focus:ring-2 focus:ring-primary/20'
+            placeholder='Enter endpoint name'
+            aria-invalid={Boolean(endpointRenameError)}
+            disabled={endpointRenameBusy}
+          />
+        </label>
+        {endpointRenameError && <p role='alert' className='mt-2 text-sm text-error'>{endpointRenameError}</p>}
+      </EntityDialog>
       {/* Individual API sends execute directly. Keep the preview implementation
           out of the rendered workflow until a less disruptive UX is designed.
       <EntityDialog
@@ -4710,7 +4892,10 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
         isLoading={apiImportBusy}
         size='md'
         onClose={() => {
-          if (!apiImportBusy) setApiImportFiles([]);
+          if (!apiImportBusy) {
+            setApiImportError('');
+            setApiImportFiles([]);
+          }
         }}
         onSubmit={(event) => {
           event.preventDefault();
@@ -4718,6 +4903,7 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
         }}
       >
         <div className='space-y-2'>
+          {apiImportError && <p role='alert' className='rounded-xl border border-error/30 bg-error/10 px-3 py-2 text-sm text-error'>{apiImportError}</p>}
           <p className='text-xs font-medium uppercase tracking-wide text-text-secondary'>
             {apiImportFiles.length} file{apiImportFiles.length === 1 ? '' : 's'} selected
           </p>
@@ -4731,7 +4917,7 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
           </div>
         </div>
       </EntityDialog>
-      <ImportEnvironmentModal open={environmentImportOpen} onClose={() => setEnvironmentImportOpen(false)} onImport={(data) => void handleEnvironmentImport(data)} isImporting={environmentActionBusy} />
+      <ImportEnvironmentModal open={environmentImportOpen} onClose={() => { setEnvironmentActionError(''); setEnvironmentImportOpen(false); }} onImport={(data) => void handleEnvironmentImport(data)} isImporting={environmentActionBusy} importError={environmentActionError} />
     </div>
   );
 };

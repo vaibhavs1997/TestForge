@@ -6,6 +6,7 @@ import { VersionEntity } from './VersionEntity.js';
 export interface VersionRepository {
   create(version: VersionEntity): Promise<VersionEntity>;
   findById(id: string): Promise<VersionEntity | null>;
+  delete(id: string): Promise<boolean>;
   findByProject(projectId: string): Promise<VersionEntity[]>;
   findByEntity(entityType: string, entityId: string): Promise<VersionEntity[]>;
   findLatestByEntity(entityType: string, entityId: string): Promise<VersionEntity | null>;

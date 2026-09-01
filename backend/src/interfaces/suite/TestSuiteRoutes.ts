@@ -15,6 +15,8 @@ const {
   executionPlanRepository,
   executionProfileRepository,
   requirementRepository,
+  environmentRepository,
+  testDesignRepository,
 } = container;
 
 // Initialize use cases
@@ -29,6 +31,8 @@ const testSuiteController = new TestSuiteController(
   executionProfileRepository,
   requirementRepository,
   executePlan,
+  environmentRepository,
+  testDesignRepository,
 );
 
 const router = Router();

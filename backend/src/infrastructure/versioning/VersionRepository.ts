@@ -27,6 +27,17 @@ export class InMemoryVersionRepository implements VersionRepository {
     return this.versions.get(id) || null;
   }
 
+  async delete(id: string): Promise<boolean> {
+    const version = this.versions.get(id);
+    if (!version) return false;
+
+    this.versions.delete(id);
+    const entityKey = this.getEntityKey(version.entityType, version.entityId);
+    const versionIds = this.entityVersions.get(entityKey) || [];
+    this.entityVersions.set(entityKey, versionIds.filter((versionId) => versionId !== id));
+    return true;
+  }
+
   async findByProject(projectId: string): Promise<VersionEntity[]> {
     return Array.from(this.versions.values()).filter(v => v.projectId === projectId);
   }

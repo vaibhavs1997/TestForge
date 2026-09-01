@@ -392,8 +392,8 @@ const SuitePageContent: React.FC<{ projectId: string; navigate: ReturnType<typeo
 
       {/* Create Suite Modal */}
       {createOpen && (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
-          <Card className='w-full max-w-lg'>
+        <div className='app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
+          <Card className='app-modal-panel w-full max-w-lg'>
             <CardHeader>
               <CardTitle>Create Test Suite</CardTitle>
               <CardDescription>Create a reusable collection of execution plans.</CardDescription>

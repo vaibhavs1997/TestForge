@@ -82,13 +82,13 @@ function FilterSelect({ value, options, onChange, ariaLabel }: FilterSelectProps
         aria-label={ariaLabel}
         aria-expanded={open}
         onClick={() => setOpen(current => !current)}
-        className="flex h-10 w-full items-center justify-between rounded-xl border border-border bg-background/80 px-3 text-left text-sm text-text outline-none transition-colors hover:border-primary/60 focus:border-primary"
+        className="flex h-10 w-full items-center justify-between rounded-xl border border-border bg-background px-3 text-left text-sm text-text outline-none transition-colors hover:border-primary/60 focus:border-primary"
       >
         <span>{selectedOption?.label}</span>
         <span className={`ml-3 text-xs text-text-secondary transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true">v</span>
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-30 mt-1 w-full overflow-hidden rounded-xl border border-border bg-surface p-1 shadow-xl">
+        <div className="theme-select-menu absolute left-0 top-full z-30 mt-1 w-full overflow-hidden rounded-xl border border-border bg-background p-1 shadow-xl">
           {options.map(option => (
             <button
               key={option.value}
@@ -97,10 +97,10 @@ function FilterSelect({ value, options, onChange, ariaLabel }: FilterSelectProps
                 onChange(option.value);
                 setOpen(false);
               }}
-              className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+              className={`theme-select-option block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
                 option.value === value
                   ? 'bg-primary/15 text-primary'
-                  : 'text-text hover:bg-background/60'
+                  : 'text-text hover:bg-surface'
               }`}
             >
               {option.label}
@@ -527,8 +527,8 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
 
       {/* Create/Edit Modal */}
       {(showCreateModal || isEditing) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border bg-surface p-6 text-text shadow-2xl">
+        <div className="app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="app-modal-panel max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border p-6 text-text shadow-2xl">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-text">
                 {isEditing ? 'Edit AI Provider' : 'Add AI Provider'}
@@ -736,12 +736,12 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
       )}
 
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div className="app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-provider-title"
-            className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 text-text shadow-2xl"
+            className="app-modal-panel w-full max-w-md rounded-2xl border border-border p-6 text-text shadow-2xl"
           >
             <h2 id="delete-provider-title" className="text-lg font-semibold text-text">
               Delete AI provider?
@@ -780,8 +780,8 @@ export function AIProviderManagementPage({ projectId }: AIProviderManagementPage
 
       {/* Test Connection Modal */}
       {showTestModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 text-text shadow-2xl">
+        <div className="app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="app-modal-panel w-full max-w-md rounded-2xl border border-border p-6 text-text shadow-2xl">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-text">Test Connection</h2>
               <button

@@ -56,6 +56,11 @@ export class VersionService {
     return version;
   }
 
+  async deleteVersion(versionId: string): Promise<void> {
+    await this.getVersion(versionId);
+    await this.versionRepository.delete(versionId);
+  }
+
   async listProjectVersions(projectId: string): Promise<VersionEntity[]> {
     return this.versionRepository.findByProject(projectId);
   }

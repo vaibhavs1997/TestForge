@@ -1,6 +1,7 @@
 // Execution service functions
 import axios from 'axios';
 import { apiAxios } from '../../../services/apiAxios';
+import { getApiErrorMessage } from '../../../services/apiHelpers';
 import type { ExecutionPlanDto, ExecutionRunDto } from '../../../types/moduleContracts';
 import { normalizeExecutionPlan, normalizeExecutionRun } from '../../../utils/moduleAdapters';
 import type { ExecutionPlan } from '../../requirements/types';
@@ -57,11 +58,15 @@ export const executionService = {
   },
 
   executeApprovedSuite: async (projectId: string, suiteId: string, executionProfileId?: string): Promise<ExecutionRunDto> => {
-    const { data } = await apiAxios.post(
-      `${API_BASE_URL}/projects/${projectId}/execution/suites/${suiteId}/execute`,
-      { executionProfileId },
-    );
-    return normalizeExecutionRun(data.data as ExecutionRunDto);
+    try {
+      const { data } = await apiAxios.post(
+        `${API_BASE_URL}/projects/${projectId}/execution/suites/${suiteId}/execute`,
+        { executionProfileId },
+      );
+      return normalizeExecutionRun(data.data as ExecutionRunDto);
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error, 'The approved suite could not be started.'));
+    }
   },
 
   deleteExecution: async (projectId: string, runId: string): Promise<void> => {

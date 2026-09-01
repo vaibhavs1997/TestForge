@@ -257,7 +257,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
             {displayedProjects.map((project) => (
               <Card
                 key={project.id}
-                className="transition-shadow hover:shadow-lg"
+                className="project-card bg-surface dark:bg-background/55 transition-shadow hover:shadow-lg"
               >
                 <CardContent className="pt-6">
                   <div className="mb-4 flex items-start justify-between">
@@ -295,7 +295,7 @@ export const ProjectsHomePage: React.FC<ProjectsHomePageProps> = () => {
                       <span className="text-text-secondary">Status</span>
                       {getStatusBadge(project.uiStatus)}
                     </div>
-                    <Button className="mt-3 w-full" variant="outline" size="sm" onClick={() => handleOpenProject(project)}>
+                    <Button className="mt-3 w-full dark:bg-background/40 dark:hover:bg-background/70" variant="outline" size="sm" onClick={() => handleOpenProject(project)}>
                       Open project
                       <ArrowRight className="ml-1 h-3 w-3" />
                     </Button>

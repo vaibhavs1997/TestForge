@@ -71,8 +71,8 @@ export const ImportKnowledgeModal: React.FC<ImportKnowledgeModalProps> = ({
   };
 
   return (
-    <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4'>
-      <Card className='w-full max-w-lg'>
+    <div className='app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4'>
+      <Card className='app-modal-panel w-full max-w-lg'>
         <form onSubmit={handleSubmit}>
           <CardHeader className='flex flex-row items-start justify-between space-y-0'>
             <div>

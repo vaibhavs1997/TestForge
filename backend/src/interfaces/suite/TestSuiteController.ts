@@ -8,6 +8,9 @@ import { ExecutionPlanRepository } from '../../infrastructure/requirements/Execu
 import { ExecutionProfileRepository } from '../../infrastructure/execution/ExecutionProfileRepository.js';
 import { RequirementRepository } from '../../infrastructure/requirements/RequirementRepository.js';
 import { ExecutePlan } from '../../application/execution/ExecutePlan.js';
+import { ExecutionSafetyService } from '../../application/execution/ExecutionSafetyService.js';
+import type { EnvironmentRepository } from '../../domain/environment/EnvironmentRepository.js';
+import type { TestDesignRepository } from '../../domain/requirements/TestDesignRepository.js';
 export class TestSuiteController {
     constructor(
         private readonly manageTestSuites: ManageTestSuites,
@@ -17,7 +20,39 @@ export class TestSuiteController {
         private readonly executionProfileRepository: ExecutionProfileRepository,
         private readonly requirementRepository: RequirementRepository,
         private readonly executePlan: ExecutePlan,
+        private readonly environmentRepository?: EnvironmentRepository,
+        private readonly testDesignRepository?: TestDesignRepository,
+        private readonly executionSafetyService = new ExecutionSafetyService(),
     ) { }
+
+    private async safetyWarning(projectId: string, plans: any[], requirementId?: string): Promise<string | null> {
+        if (!this.environmentRepository || !this.testDesignRepository || plans.length === 0) return null;
+
+        const environments = await this.environmentRepository.findByProject(projectId);
+        const sharedDefault = environments.find((environment) => environment.isDefault);
+        const planEnvironmentId = plans.find((plan) => plan.environmentId)?.environmentId;
+        const environment = sharedDefault
+            || environments.find((candidate) => candidate.id === planEnvironmentId)
+            || environments[0];
+        if (!environment) return null;
+
+        const candidates = await Promise.all(plans.map(async (plan) => {
+            const design = plan.testDesignId ? await this.testDesignRepository!.findById(plan.testDesignId) : null;
+            const candidateRequirementId = plan.requirementId || requirementId;
+            const requirement = candidateRequirementId
+                ? await this.requirementRepository.findById(candidateRequirementId)
+                : null;
+            return {
+                plan,
+                design,
+                requirementApprovalStatus: requirement?.approvalStatus,
+            };
+        }));
+
+        const warnings = this.executionSafetyService.getWarnings(environment, candidates);
+        return warnings.length > 0 ? warnings.join(' ') : null;
+    }
+
     async execute(req: Request, res: Response): Promise<void> {
         const { suiteId } = req.params;
         const { failureMode, executionProfileId } = req.body || {};
@@ -36,13 +71,14 @@ export class TestSuiteController {
         const result = await Promise.all(suites.map(async (suite) => {
             const orderedPlans = [...suite.executionPlans].sort((a, b) => a.order - b.order);
             const plans = await Promise.all(orderedPlans.map((item) => this.executionPlanRepository.findById(item.executionPlanId)));
-            const blocker = suite.status !== 'Active'
+            const readinessBlocker = suite.status !== 'Active'
                 ? 'Suite must be approved before it can run.'
                 : orderedPlans.length === 0
                     ? 'Suite has no test cases.'
                     : plans.some((plan) => !plan || plan.status !== 'Ready')
                         ? 'Suite contains a test case that is not ready.'
                         : null;
+            const warning = readinessBlocker ? null : await this.safetyWarning(projectId, plans.filter(Boolean), undefined);
             return {
                 id: suite.id,
                 suiteType: 'suite' as const,
@@ -55,8 +91,9 @@ export class TestSuiteController {
                 version: suite.version || 1,
                 approvedAt: suite.approvedAt,
                 defaultProfileId: defaultProfile?.id || null,
-                isRunnable: blocker === null,
-                blocker,
+                isRunnable: readinessBlocker === null,
+                blocker: readinessBlocker,
+                warning,
             };
         }));
         const approvedRequirements = (await this.requirementRepository.findByProject(projectId))
@@ -65,11 +102,12 @@ export class TestSuiteController {
             const plans = (await this.executionPlanRepository.findByRequirement(requirement.id))
                 .filter((plan) => plan.status !== 'Disabled')
                 .sort((a, b) => a.executionOrder - b.executionOrder);
-            const blocker = plans.length === 0
+            const readinessBlocker = plans.length === 0
                 ? 'Approved suite has no execution steps.'
                 : plans.some((plan) => plan.status !== 'Ready')
                     ? 'Approved suite contains a test case that is not ready.'
                     : null;
+            const warning = readinessBlocker ? null : await this.safetyWarning(projectId, plans, requirement.id);
             return {
                 id: `requirement:${requirement.id}`,
                 requirementId: requirement.id,
@@ -83,8 +121,9 @@ export class TestSuiteController {
                 version: 1,
                 approvedAt: requirement.updatedAt,
                 defaultProfileId: defaultProfile?.id || null,
-                isRunnable: blocker === null,
-                blocker,
+                isRunnable: readinessBlocker === null,
+                blocker: readinessBlocker,
+                warning,
             };
         }));
         res.status(200).json(createSuccessResponse([...result, ...requirementSuites]));

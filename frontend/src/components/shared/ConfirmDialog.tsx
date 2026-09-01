@@ -89,7 +89,7 @@ export const ConfirmDialog = ({
 
   return (
     <div
-      className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'
+      className='app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50'
       role='dialog'
       aria-modal='true'
       aria-labelledby='confirm-dialog-title'
@@ -97,7 +97,7 @@ export const ConfirmDialog = ({
       onClick={onCancel}
     >
       <div ref={dialogRef} className='mx-4 w-full max-w-md' role='document' onClick={(event) => event.stopPropagation()}>
-        <Card>
+        <Card className='app-modal-panel'>
           <CardHeader>
             <div className='flex items-center gap-3'>
               <div className={cn(

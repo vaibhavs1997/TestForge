@@ -3722,7 +3722,7 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
         </div>
 
         <div className='grid items-start gap-4 lg:grid-cols-[minmax(340px,0.3fr)_minmax(0,0.7fr)]'>
-          <Card className='flex min-h-0 flex-col overflow-hidden border-border bg-background/40 text-text shadow-2xl backdrop-blur-xl' style={{ height: explorerHeight ? `${explorerHeight}px` : 'calc(100vh - 180px)' }}>
+          <Card className='flex min-h-0 flex-col overflow-hidden border-border bg-background/40 text-text shadow-2xl backdrop-blur-xl lg:min-h-[calc(100vh-202px)]' style={{ height: explorerHeight ? `${explorerHeight}px` : 'calc(100vh - 180px)' }}>
             <CardHeader className='pb-4'>
               <div className='flex items-center justify-between'>
                 <CardTitle className='text-base text-text'>API Explorer</CardTitle>

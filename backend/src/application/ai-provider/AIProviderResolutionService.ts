@@ -105,10 +105,20 @@ export class AIProviderResolutionService {
     // Health checks must remain responsive even when a live provider endpoint
     // is unreachable; this also prevents a failed external probe from holding
     // up the execution/control plane indefinitely.
-    try { const result = await adapter.health({ ...this.toConfig(entity), timeout: Math.min(entity.timeout || 10000, 3000) }); return { ...result, message: this.sanitize(result.message), details: { ...result.details, capability: adapter.capability, status: result.healthy ? 'OPERATIONAL' : 'UNREACHABLE' } }; }
-    catch (error) { return { healthy: false, message: `Provider health check failed: ${this.sanitize(error instanceof Error ? error.message : String(error))}`, details: { capability: adapter.capability, status: 'UNREACHABLE' } }; }
+    try { const result = await adapter.health({ ...this.toConfig(entity), timeout: Math.min(entity.timeout || 10000, 3000) }); return { ...result, message: this.sanitize(result.message, [entity.apiKey]), details: { ...result.details, capability: adapter.capability, status: result.healthy ? 'OPERATIONAL' : 'UNREACHABLE' } }; }
+    catch (error) { return { healthy: false, message: `Provider health check failed: ${this.sanitize(error instanceof Error ? error.message : String(error), [entity.apiKey])}`, details: { capability: adapter.capability, status: 'UNREACHABLE' } }; }
   }
-  private sanitize(value: string): string { return value.replace(/(api[_ -]?key|token|secret|password|authorization)\s*[:=]\s*[^\s,;]+/gi, '$1=[REDACTED]').slice(0, 300); }
+  private sanitize(value: string, sensitiveValues: Array<string | null | undefined> = []): string {
+    let sanitized = value;
+    for (const sensitiveValue of sensitiveValues) {
+      const candidate = sensitiveValue?.trim();
+      if (candidate) sanitized = sanitized.split(candidate).join('[REDACTED]');
+    }
+    return sanitized
+      .replace(/(api[_ -]?key)(?:\s+\w+){0,3}\s*[:=]\s*[^\s,;.)]+/gi, '$1=[REDACTED]')
+      .replace(/(token|secret|password|authorization)\s*[:=]\s*[^\s,;.)]+/gi, '$1=[REDACTED]')
+      .slice(0, 300);
+  }
 }
 
 export default AIProviderResolutionService;

@@ -61,7 +61,7 @@ export const EndpointActionMenu: React.FC<EndpointActionMenuProps> = ({ endpoint
       <button
         ref={triggerRef}
         type='button'
-        className='mr-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-primary/40 bg-primary/10 text-primary transition hover:border-primary/70 hover:bg-primary/20 focus:outline-none focus:ring-2 focus:ring-primary/30'
+        className='mr-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-primary/40 bg-primary/10 text-primary transition hover:border-primary/70 hover:bg-primary/20 focus:outline-none focus:ring-2 focus:ring-primary/30'
         aria-label={`Actions for ${endpointName}`}
         aria-haspopup='menu'
         aria-expanded={open}
@@ -71,7 +71,7 @@ export const EndpointActionMenu: React.FC<EndpointActionMenuProps> = ({ endpoint
           setOpen((current) => !current);
         }}
       >
-        <MoreVertical className='h-4 w-4' aria-hidden='true' />
+        <MoreVertical className='h-3.5 w-3.5' aria-hidden='true' />
       </button>
       {open && createPortal(
         <div

@@ -47,6 +47,11 @@ describe('AuditLogRepository contract', () => {
       action: 'DELETE',
     });
     expect(filtered.map((log) => log.id)).toEqual(['log-3']);
+
+    expect(await repository.delete('log-2')).toBe(true);
+    expect(await repository.findById('log-2')).toBeNull();
+    expect((await repository.findByProject('project-a')).map((log) => log.id)).toEqual(['log-1', 'log-3']);
+    expect(await repository.delete('missing-log')).toBe(false);
   }
 
   it('behaves consistently in memory', async () => {

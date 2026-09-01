@@ -9,6 +9,7 @@ export function createAuditLogRoutes(auditLogController: AuditLogController): Ro
 
   router.get('/projects/:projectId/audit', asyncHandler(auditLogController.getAuditLogs.bind(auditLogController)));
   router.get('/audit/:logId', authorizeResource('logId', auditLogController.findForAuthorization.bind(auditLogController)), asyncHandler(auditLogController.getAuditLog.bind(auditLogController)));
+  router.delete('/audit/:logId', authorizeResource('logId', auditLogController.findForAuthorization.bind(auditLogController)), asyncHandler(auditLogController.deleteAuditLog.bind(auditLogController)));
 
   return router;
 }

@@ -69,13 +69,13 @@ export const RenameProjectModal = ({
 
   return (
     <div
-      className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'
+      className='app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50'
       onClick={onClose}
       role='dialog'
       aria-modal='true'
       aria-labelledby='rename-project-title'
     >
-      <Card className='mx-4 w-full max-w-md' onClick={(e) => e.stopPropagation()}>
+      <Card className='app-modal-panel mx-4 w-full max-w-md' onClick={(e) => e.stopPropagation()}>
         <CardHeader>
           <div className='flex items-center justify-between'>
             <CardTitle id='rename-project-title'>Rename Project</CardTitle>

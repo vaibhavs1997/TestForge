@@ -57,11 +57,16 @@ describe('ExecutionSafetyService', () => {
     })])).toThrow(/Execution safety blocked:.*HTTP POST.*destructive HTTP POST.*generated or mutated/i);
   });
 
-  it('blocks mappings below the configured confidence threshold', () => {
+  it('reports low-confidence mappings as warnings without blocking execution', () => {
     const service = new ExecutionSafetyService();
-    expect(() => service.assertSafe(environment('TEST', { mappingConfidenceThreshold: 90 }), [candidate({
+    const executionEnvironment = environment('TEST', { mappingConfidenceThreshold: 90 });
+    const executionCandidate = candidate({
       design: { mappingConfidence: 89 },
-    })])).toThrow(/below the 90% confidence threshold/);
+    });
+    expect(() => service.assertSafe(executionEnvironment, [executionCandidate])).not.toThrow();
+    expect(service.getWarnings(executionEnvironment, [executionCandidate])).toEqual([
+      'Low-confidence endpoint mapping (below 90%). Execution may call the wrong endpoint or fail assertions.',
+    ]);
   });
 
   it('allows a manually confirmed mapping for an approved safe production GET', () => {
@@ -81,7 +86,8 @@ describe('ExecutionSafetyService', () => {
       throw new Error('expected safety block');
     } catch (error) {
       expect(error).toBeInstanceOf(ExecutionSafetyError);
-      expect((error as ExecutionSafetyError).reasons.join(' ')).toMatch(/security tests.*performance tests.*confidence.*approved requirement/i);
+      expect((error as ExecutionSafetyError).reasons.join(' ')).toMatch(/security tests.*performance tests.*approved requirement/i);
+      expect((error as ExecutionSafetyError).reasons.join(' ')).not.toMatch(/confidence/i);
     }
   });
 });

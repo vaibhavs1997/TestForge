@@ -5,6 +5,7 @@ import { usePipeline } from '../hooks/usePipeline';
 import { useAIProviders } from '../../ai-provider/hooks';
 import { PipelineStage, PipelineStatus } from '../types';
 import { Button } from '../../../components/ui/Button';
+import { SelectField } from '../../../components/ui/SelectField';
 
 interface PipelinePageProps {
   projectId: string;
@@ -55,6 +56,9 @@ const AI_STATUS_COLORS: Record<string, string> = {
   Skipped: 'text-text-secondary'
 };
 
+const getPipelineStages = (pipeline: { stages?: unknown } | null): any[] =>
+  Array.isArray(pipeline?.stages) ? pipeline.stages : [];
+
 export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
   const navigate = useNavigate();
   const { pipeline, loading, error, startPipeline, restartStage, cancelPipeline, runAIPipeline } = usePipeline(projectId);
@@ -67,13 +71,13 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
 
   const getStageStatus = (stage: PipelineStage): PipelineStatus => {
     if (!pipeline) return 'pending';
-    const stageResult = pipeline.stages.find((s: any) => s.stage === stage);
+    const stageResult = getPipelineStages(pipeline).find((s: any) => s.stage === stage);
     return stageResult?.status || 'pending';
   };
 
   const getStageDuration = (stage: PipelineStage): string | null => {
     if (!pipeline) return null;
-    const stageResult = pipeline.stages.find((s: any) => s.stage === stage);
+    const stageResult = getPipelineStages(pipeline).find((s: any) => s.stage === stage);
     if (!stageResult?.startedAt || !stageResult?.completedAt) return null;
     const duration = stageResult.completedAt - stageResult.startedAt;
     return `${(duration / 1000).toFixed(1)}s`;
@@ -145,18 +149,18 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex-1 min-w-[200px]">
               <label className="block text-sm font-medium text-primary mb-1">AI Provider</label>
-              <select
+              <SelectField
+                className='w-full'
                 value={aiProviderId}
-                onChange={(e) => setAiProviderId(e.target.value)}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text"
-              >
-                <option value="">Select a provider...</option>
-                {aiProviders.map((provider) => (
-                  <option key={provider.id} value={provider.id}>
-                    {provider.name} ({provider.provider} - {provider.model}){provider.isDefault ? ' [Default]' : ''}
-                  </option>
-                ))}
-              </select>
+                onChange={setAiProviderId}
+                options={[
+                  { value: '', label: 'Select a provider...' },
+                  ...aiProviders.map((provider) => ({
+                    value: provider.id,
+                    label: `${provider.name} (${provider.provider} - ${provider.model})${provider.isDefault ? ' [Default]' : ''}`,
+                  })),
+                ]}
+              />
             </div>
             <label className="flex items-center gap-2 text-sm text-primary pb-2">
               <input
@@ -322,7 +326,7 @@ export const PipelinePage: React.FC<PipelinePageProps> = ({ projectId }) => {
           const status = getStageStatus(stage);
           const duration = getStageDuration(stage);
           const running = isStageRunning(stage);
-          const stageResult = pipeline?.stages.find((s: any) => s.stage === stage);
+          const stageResult = getPipelineStages(pipeline).find((s: any) => s.stage === stage);
 
           return (
             <div

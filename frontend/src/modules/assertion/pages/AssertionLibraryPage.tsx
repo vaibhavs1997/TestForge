@@ -7,6 +7,7 @@ import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { EmptyState } from '../../../components/ui/EmptyState';
+import { SelectField } from '../../../components/ui/SelectField';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
 import { ProjectContextMissing } from '../../../components/shared/ProjectContextMissing';
 import { useAssertions } from '../hooks/useAssertions';
@@ -149,20 +150,30 @@ const AssertionLibraryPageContent: React.FC<{ projectId: string }> = ({ projectI
       <div className='mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
         <div className='flex items-center gap-2'>
           <SearchBar value={searchQuery} onChange={handleSearch} placeholder='Search assertions...' className='sm:w-80' />
-          <select className='rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text' value={filterCategory} onChange={(e) => setFilterCategory(e.target.value as AssertionCategory | 'all')}>
-            <option value='all'>All Categories</option>
-            <option value='Functional'>Functional</option>
-            <option value='Performance'>Performance</option>
-            <option value='Security'>Security</option>
-            <option value='Data'>Data</option>
-            <option value='Business'>Business</option>
-            <option value='Custom'>Custom</option>
-          </select>
-          <select className='rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text' value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as 'all' | 'enabled' | 'disabled')}>
-            <option value='all'>All Status</option>
-            <option value='enabled'>Enabled</option>
-            <option value='disabled'>Disabled</option>
-          </select>
+          <SelectField
+            className='w-44'
+            value={filterCategory}
+            onChange={(value) => setFilterCategory(value as AssertionCategory | 'all')}
+            options={[
+              { value: 'all', label: 'All Categories' },
+              { value: 'Functional', label: 'Functional' },
+              { value: 'Performance', label: 'Performance' },
+              { value: 'Security', label: 'Security' },
+              { value: 'Data', label: 'Data' },
+              { value: 'Business', label: 'Business' },
+              { value: 'Custom', label: 'Custom' },
+            ]}
+          />
+          <SelectField
+            className='w-36'
+            value={filterStatus}
+            onChange={(value) => setFilterStatus(value as 'all' | 'enabled' | 'disabled')}
+            options={[
+              { value: 'all', label: 'All Status' },
+              { value: 'enabled', label: 'Enabled' },
+              { value: 'disabled', label: 'Disabled' },
+            ]}
+          />
         </div>
       </div>
 
@@ -289,8 +300,8 @@ const AssertionLibraryPageContent: React.FC<{ projectId: string }> = ({ projectI
       </div>
 
       {createOpen && (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
-          <Card className='w-full max-w-lg'>
+        <div className='app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
+          <Card className='app-modal-panel w-full max-w-lg'>
             <CardHeader>
               <CardTitle>Create Assertion</CardTitle>
               <CardDescription>Create a reusable assertion for test validation.</CardDescription>
@@ -307,30 +318,40 @@ const AssertionLibraryPageContent: React.FC<{ projectId: string }> = ({ projectI
               <div className='grid grid-cols-2 gap-4'>
                 <div>
                   <label className='text-sm font-medium text-text'>Category</label>
-                  <select value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value as AssertionCategory })} className='mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text'>
-                    <option value='Functional'>Functional</option>
-                    <option value='Performance'>Performance</option>
-                    <option value='Security'>Security</option>
-                    <option value='Data'>Data</option>
-                    <option value='Business'>Business</option>
-                    <option value='Custom'>Custom</option>
-                  </select>
+                  <SelectField
+                    className='mt-1 w-full'
+                    value={formData.category ?? ''}
+                    onChange={(value) => setFormData({ ...formData, category: value as AssertionCategory })}
+                    options={[
+                      { value: 'Functional', label: 'Functional' },
+                      { value: 'Performance', label: 'Performance' },
+                      { value: 'Security', label: 'Security' },
+                      { value: 'Data', label: 'Data' },
+                      { value: 'Business', label: 'Business' },
+                      { value: 'Custom', label: 'Custom' },
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className='text-sm font-medium text-text'>Type</label>
-                  <select value={formData.type} onChange={(e) => setFormData({ ...formData, type: e.target.value as AssertionType })} className='mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text'>
-                    <option value='HTTP Status'>HTTP Status</option>
-                    <option value='Header Exists'>Header Exists</option>
-                    <option value='Header Equals'>Header Equals</option>
-                    <option value='JSON Path Exists'>JSON Path Exists</option>
-                    <option value='JSON Path Equals'>JSON Path Equals</option>
-                    <option value='Body Contains'>Body Contains</option>
-                    <option value='Body Regex'>Body Regex</option>
-                    <option value='Response Time'>Response Time</option>
-                    <option value='Response Schema'>Response Schema</option>
-                    <option value='Runtime Variable Exists'>Runtime Variable Exists</option>
-                    <option value='Custom Assertion'>Custom Assertion</option>
-                  </select>
+                  <SelectField
+                    className='mt-1 w-full'
+                    value={formData.type ?? ''}
+                    onChange={(value) => setFormData({ ...formData, type: value as AssertionType })}
+                    options={[
+                      { value: 'HTTP Status', label: 'HTTP Status' },
+                      { value: 'Header Exists', label: 'Header Exists' },
+                      { value: 'Header Equals', label: 'Header Equals' },
+                      { value: 'JSON Path Exists', label: 'JSON Path Exists' },
+                      { value: 'JSON Path Equals', label: 'JSON Path Equals' },
+                      { value: 'Body Contains', label: 'Body Contains' },
+                      { value: 'Body Regex', label: 'Body Regex' },
+                      { value: 'Response Time', label: 'Response Time' },
+                      { value: 'Response Schema', label: 'Response Schema' },
+                      { value: 'Runtime Variable Exists', label: 'Runtime Variable Exists' },
+                      { value: 'Custom Assertion', label: 'Custom Assertion' },
+                    ]}
+                  />
                 </div>
               </div>
               <div>

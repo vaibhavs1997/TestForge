@@ -892,9 +892,9 @@ export const TestDataLibraryPage: React.FC<TestDataLibraryPageProps> = ({ projec
 
               {/* Dataset Details Panel */}
               {detailsOpen && selectedDataset && (
-                <div className='fixed inset-0 z-50 flex'>
+                 <div className='app-modal-backdrop fixed inset-0 z-50 flex'>
                   <div className='flex-1 bg-black/50' onClick={() => setDetailsOpen(false)} />
-                  <div className='w-2/3 max-w-3xl border-l border-border bg-background p-8 overflow-auto'>
+                  <div className='app-modal-panel w-2/3 max-w-3xl border-l border-border p-8 overflow-auto'>
                     <div className='mb-6 flex items-center justify-between'>
                       <h2 className='text-2xl font-bold text-text'>{selectedDataset.name}</h2>
                       <Button variant='ghost' size='sm' onClick={() => setDetailsOpen(false)}>
@@ -1050,8 +1050,8 @@ export const TestDataLibraryPage: React.FC<TestDataLibraryPageProps> = ({ projec
 
               {/* Import Wizard Modal */}
               {importWizardOpen && (
-                <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
-                  <Card className='w-full max-w-3xl max-h-[90vh] overflow-hidden'>
+                 <div className='app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
+                   <Card className='app-modal-panel w-full max-w-3xl max-h-[90vh] overflow-hidden'>
                     <CardHeader>
                       <div className='flex items-center justify-between'>
                         <div>
@@ -1361,7 +1361,7 @@ export const TestDataLibraryPage: React.FC<TestDataLibraryPageProps> = ({ projec
               )}
 
               {editOpen && (
-                <Suspense fallback={<div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'><div className='text-sm text-text-secondary'>Loading...</div></div>}>
+                <Suspense fallback={<div className='app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50'><div className='app-modal-panel rounded-lg p-6 text-sm text-text-secondary'>Loading...</div></div>}>
                   <DatasetDialog
                     open={editOpen}
                     onClose={() => { setEditOpen(false); setSelectedDataset(null); }}
@@ -1905,7 +1905,7 @@ const StructureTabContent: React.FC<StructureTabContentProps> = ({
       )}
 
       {editorOpen && (
-        <Suspense fallback={<div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'><div className='text-sm text-text-secondary'>Loading editor...</div></div>}>
+        <Suspense fallback={<div className='app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50'><div className='app-modal-panel rounded-lg p-6 text-sm text-text-secondary'>Loading editor...</div></div>}>
           <ColumnProfileDialog
             open={editorOpen}
             onClose={() => setEditorOpen(false)}

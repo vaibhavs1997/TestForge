@@ -240,8 +240,8 @@ export function PluginManagementPage() {
 
       {/* Plugin Detail Modal */}
       {selectedPlugin && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="bg-surface border border-border rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="app-modal-backdrop fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="app-modal-panel border border-border rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold">{selectedPlugin.name}</h2>
               <button

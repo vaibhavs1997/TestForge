@@ -15,6 +15,7 @@ import {
   Bell,
   Users,
   Search as SearchIcon,
+  ChevronDown,
 } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/Card';
@@ -321,15 +322,18 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = () => {
                       </span>
                     </Badge>
                   </div>
-                  <select
-                    value={card.status}
-                    onChange={(e) => handleStatusChange(card.id, e.target.value as AnalysisStatus)}
-                    className='rounded-lg border border-border bg-background px-2 py-1 text-xs text-text focus:outline-none focus:ring-2 focus:ring-primary'
-                  >
-                    {STATUS_OPTIONS.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
+                  <div className='relative min-w-[8.5rem]'>
+                    <select
+                      value={card.status}
+                      onChange={(e) => handleStatusChange(card.id, e.target.value as AnalysisStatus)}
+                      className='h-10 w-full appearance-none rounded-xl border border-primary/70 bg-background/90 px-3 pr-9 text-sm font-medium text-text shadow-sm outline-none transition-colors hover:border-primary focus:border-primary focus:ring-2 focus:ring-primary/30'
+                    >
+                      {STATUS_OPTIONS.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className='pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary' aria-hidden='true' />
+                  </div>
                 </div>
               </Card>
             );

@@ -6,6 +6,10 @@ import type { AuditLog, AuditModule, AuditAction, AuditLogFilters } from '../typ
 import { useParams } from 'react-router-dom';
 import { AdminPageIntro } from '../../../components/shared/AdminPageIntro';
 import { PageEmpty, PageError, PageLoading } from '../../../components/shared/PageState';
+import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
+import { Button } from '../../../components/ui/Button';
+import { SelectField } from '../../../components/ui/SelectField';
+import { Trash2 } from 'lucide-react';
 
 export function AuditLogPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -29,6 +33,8 @@ export function AuditLogPage() {
   });
 
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+  const [logToDelete, setLogToDelete] = useState<AuditLog | null>(null);
+  const [deletingLog, setDeletingLog] = useState(false);
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -47,6 +53,22 @@ export function AuditLogPage() {
 
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleString();
+  };
+
+  const handleDelete = async () => {
+    if (!logToDelete) return;
+    setDeletingLog(true);
+    try {
+      await auditService.deleteAuditLog(logToDelete.id);
+      if (selectedLog?.id === logToDelete.id) setSelectedLog(null);
+      setLogToDelete(null);
+      await refetch();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete audit log';
+      window.alert(message);
+    } finally {
+      setDeletingLog(false);
+    }
   };
 
   const getActionColor = (action: AuditAction) => {
@@ -121,49 +143,54 @@ export function AuditLogPage() {
         <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">Module</label>
-            <select
+            <SelectField
+              className="w-full"
               value={filters.module}
-              onChange={(e) => handleFilterChange('module', e.target.value)}
-              className="w-full px-3 py-2 border border-border bg-background text-text rounded"
-            >
-              <option value="">All Modules</option>
-              <option value="Project">Project</option>
-              <option value="API">API</option>
-              <option value="Environment">Environment</option>
-              <option value="Dataset">Dataset</option>
-              <option value="Knowledge">Knowledge</option>
-              <option value="Requirement">Requirement</option>
-              <option value="Assertion">Assertion</option>
-              <option value="ExecutionPlan">Execution Plan</option>
-              <option value="ExecutionProfile">Execution Profile</option>
-              <option value="TestSuite">Test Suite</option>
-              <option value="Scheduler">Scheduler</option>
-              <option value="Execution">Execution</option>
-              <option value="Report">Report</option>
-              <option value="Notification">Notification</option>
-              <option value="Provider">Provider</option>
-              <option value="Version">Version</option>
-            </select>
+              onChange={(value) => handleFilterChange('module', value)}
+              options={[
+                { value: '', label: 'All Modules' },
+                { value: 'Project', label: 'Project' },
+                { value: 'API', label: 'API' },
+                { value: 'Environment', label: 'Environment' },
+                { value: 'Dataset', label: 'Dataset' },
+                { value: 'Knowledge', label: 'Knowledge' },
+                { value: 'Requirement', label: 'Requirement' },
+                { value: 'Assertion', label: 'Assertion' },
+                { value: 'ExecutionPlan', label: 'Execution Plan' },
+                { value: 'ExecutionProfile', label: 'Execution Profile' },
+                { value: 'TestSuite', label: 'Test Suite' },
+                { value: 'Scheduler', label: 'Scheduler' },
+                { value: 'Execution', label: 'Execution' },
+                { value: 'Report', label: 'Report' },
+                { value: 'Notification', label: 'Notification' },
+                { value: 'Provider', label: 'Provider' },
+                { value: 'Version', label: 'Version' },
+                { value: 'Analysis', label: 'Analysis' },
+              ]}
+            />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Action</label>
-            <select
+            <SelectField
+              className="w-full"
               value={filters.action}
-              onChange={(e) => handleFilterChange('action', e.target.value)}
-              className="w-full px-3 py-2 border border-border bg-background text-text rounded"
-            >
-              <option value="">All Actions</option>
-              <option value="CREATE">CREATE</option>
-              <option value="UPDATE">UPDATE</option>
-              <option value="DELETE">DELETE</option>
-              <option value="EXECUTE">EXECUTE</option>
-              <option value="GENERATE">GENERATE</option>
-              <option value="APPROVE">APPROVE</option>
-              <option value="REJECT">REJECT</option>
-              <option value="RESTORE">RESTORE</option>
-              <option value="ENABLE">ENABLE</option>
-              <option value="DISABLE">DISABLE</option>
-            </select>
+              onChange={(value) => handleFilterChange('action', value)}
+              options={[
+                { value: '', label: 'All Actions' },
+                { value: 'CREATE', label: 'CREATE' },
+                { value: 'UPDATE', label: 'UPDATE' },
+                { value: 'DELETE', label: 'DELETE' },
+                { value: 'EXECUTE', label: 'EXECUTE' },
+                { value: 'GENERATE', label: 'GENERATE' },
+                { value: 'APPROVE', label: 'APPROVE' },
+                { value: 'REJECT', label: 'REJECT' },
+                { value: 'RESTORE', label: 'RESTORE' },
+                { value: 'ENABLE', label: 'ENABLE' },
+                { value: 'DISABLE', label: 'DISABLE' },
+                { value: 'ARCHIVE', label: 'ARCHIVE' },
+                { value: 'OPEN', label: 'OPEN' },
+              ]}
+            />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Entity Type</label>
@@ -279,12 +306,25 @@ export function AuditLogPage() {
                     {log.performedBy}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <button
-                      onClick={() => setSelectedLog(log)}
-                      className="text-primary hover:text-primary"
-                    >
-                      View Details
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setSelectedLog(log)}
+                        className="text-primary hover:text-primary"
+                      >
+                        View Details
+                      </button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-error hover:bg-error/10 hover:text-error"
+                        onClick={() => setLogToDelete(log)}
+                        aria-label={`Delete audit log for ${log.entityType}`}
+                        title="Delete audit log"
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -295,8 +335,8 @@ export function AuditLogPage() {
 
       {/* Log Detail Modal */}
       {selectedLog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="bg-surface border border-border rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="app-modal-backdrop fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="app-modal-panel border border-border rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold">Audit Log Details</h2>
               <button
@@ -371,6 +411,14 @@ export function AuditLogPage() {
             </div>
 
             <div className="mt-6 flex justify-end">
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => setLogToDelete(selectedLog)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                Delete log
+              </Button>
               <button
                 onClick={() => setSelectedLog(null)}
                 className="px-4 py-2 border border-border rounded hover:bg-background"
@@ -381,6 +429,17 @@ export function AuditLogPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!logToDelete}
+        title="Delete audit log"
+        message={`Delete the ${logToDelete?.action || ''} record for ${logToDelete?.entityType || 'this entity'}? This cannot be undone.`}
+        confirmLabel="Delete log"
+        variant="destructive"
+        isLoading={deletingLog}
+        onConfirm={handleDelete}
+        onCancel={() => { if (!deletingLog) setLogToDelete(null); }}
+      />
     </div>
   );
 }

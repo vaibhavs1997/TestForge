@@ -25,6 +25,11 @@ export class AuditLogController {
         await assertProjectAccess(log.projectId, req.auth);
         res.status(200).json(createSuccessResponse(log));
     }
+    async deleteAuditLog(req: Request, res: Response): Promise<void> {
+        const { logId } = req.params;
+        await this.auditLogService.deleteLog(logId);
+        res.status(204).send();
+    }
     async findForAuthorization(logId: string): Promise<{ projectId: string } | null> {
         try {
             const log = await this.auditLogService.getLogById(logId);

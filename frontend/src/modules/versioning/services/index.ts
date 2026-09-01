@@ -29,6 +29,10 @@ export const versioningService = {
     return data.data;
   },
 
+  deleteVersion: async (projectId: string, versionId: string): Promise<void> => {
+    await apiAxios.delete(`${API_BASE_URL}/versions/${versionId}`);
+  },
+
   compareVersions: async (projectId: string, versionId1: string, versionId2: string): Promise<VersionComparison> => {
     const { data } = await apiAxios.get(`${API_BASE_URL}/versions/compare/${versionId1}/${versionId2}`);
     return data.data;

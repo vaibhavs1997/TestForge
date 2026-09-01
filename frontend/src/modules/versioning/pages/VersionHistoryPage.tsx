@@ -6,6 +6,10 @@ import type { Version, EntityType } from '../types';
 import { useParams } from 'react-router-dom';
 import { AdminPageIntro } from '../../../components/shared/AdminPageIntro';
 import { PageEmpty, PageError, PageLoading } from '../../../components/shared/PageState';
+import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
+import { Button } from '../../../components/ui/Button';
+import { SelectField } from '../../../components/ui/SelectField';
+import { Trash2 } from 'lucide-react';
 
 export function VersionHistoryPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -18,6 +22,8 @@ export function VersionHistoryPage() {
   const [version1, setVersion1] = useState('');
   const [version2, setVersion2] = useState('');
   const [selectedVersion, setSelectedVersion] = useState<Version | null>(null);
+  const [versionToDelete, setVersionToDelete] = useState<Version | null>(null);
+  const [deletingVersion, setDeletingVersion] = useState(false);
 
   const filteredVersions = versions.filter(v => {
     if (!selectedEntityType && !selectedEntityId) return true;
@@ -36,6 +42,22 @@ export function VersionHistoryPage() {
     } catch (err) {
       console.error('Failed to restore version:', err);
       alert('Failed to restore version');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!projectId || !versionToDelete) return;
+    setDeletingVersion(true);
+    try {
+      await versioningService.deleteVersion(projectId, versionToDelete.id);
+      if (selectedVersion?.id === versionToDelete.id) setSelectedVersion(null);
+      setVersionToDelete(null);
+      await refetch();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete version';
+      window.alert(message);
+    } finally {
+      setDeletingVersion(false);
     }
   };
 
@@ -83,12 +105,12 @@ export function VersionHistoryPage() {
         title="Version history"
         description="Browse versions by entity type, compare two snapshots, or restore a prior state."
       >
-        <button
+        <Button
+          size="md"
           onClick={() => setCompareMode(!compareMode)}
-          className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 text-sm"
         >
           {compareMode ? 'Exit compare mode' : 'Compare versions'}
-        </button>
+        </Button>
       </AdminPageIntro>
 
       {/* Filters */}
@@ -96,21 +118,22 @@ export function VersionHistoryPage() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">Entity Type</label>
-            <select
+            <SelectField
+              className="w-full"
               value={selectedEntityType}
-              onChange={(e) => setSelectedEntityType(e.target.value as EntityType | '')}
-              className="w-full px-3 py-2 border border-border bg-background text-text rounded"
-            >
-              <option value="">All Types</option>
-              <option value="Requirement">Requirement</option>
-              <option value="Knowledge">Knowledge</option>
-              <option value="Dataset">Dataset</option>
-              <option value="Assertion">Assertion</option>
-              <option value="TestSuite">Test Suite</option>
-              <option value="ExecutionProfile">Execution Profile</option>
-              <option value="ExecutionPlan">Execution Plan</option>
-              <option value="Report">Report</option>
-            </select>
+              onChange={(value) => setSelectedEntityType(value as EntityType | '')}
+              options={[
+                { value: '', label: 'All Types' },
+                { value: 'Requirement', label: 'Requirement' },
+                { value: 'Knowledge', label: 'Knowledge' },
+                { value: 'Dataset', label: 'Dataset' },
+                { value: 'Assertion', label: 'Assertion' },
+                { value: 'TestSuite', label: 'Test Suite' },
+                { value: 'ExecutionProfile', label: 'Execution Profile' },
+                { value: 'ExecutionPlan', label: 'Execution Plan' },
+                { value: 'Report', label: 'Report' },
+              ]}
+            />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Entity ID</label>
@@ -132,41 +155,41 @@ export function VersionHistoryPage() {
           <div className="flex items-end gap-4">
             <div className="flex-1">
               <label className="block text-sm font-medium mb-1">Version 1 (Old)</label>
-              <select
+              <SelectField
+                className="w-full"
                 value={version1}
-                onChange={(e) => setVersion1(e.target.value)}
-                className="w-full px-3 py-2 border border-border bg-background text-text rounded"
-              >
-                <option value="">Select version</option>
-                {filteredVersions.map(v => (
-                  <option key={v.id} value={v.id}>
-                    v{v.versionNumber} - {v.entityType} ({v.entityId.slice(0, 8)}...)
-                  </option>
-                ))}
-              </select>
+                onChange={setVersion1}
+                options={[
+                  { value: '', label: 'Select version' },
+                  ...filteredVersions.map((version) => ({
+                    value: version.id,
+                    label: `v${version.versionNumber} - ${version.entityType} (${version.entityId.slice(0, 8)}...)`,
+                  })),
+                ]}
+              />
             </div>
             <div className="flex-1">
               <label className="block text-sm font-medium mb-1">Version 2 (New)</label>
-              <select
+              <SelectField
+                className="w-full"
                 value={version2}
-                onChange={(e) => setVersion2(e.target.value)}
-                className="w-full px-3 py-2 border border-border bg-background text-text rounded"
-              >
-                <option value="">Select version</option>
-                {filteredVersions.map(v => (
-                  <option key={v.id} value={v.id}>
-                    v{v.versionNumber} - {v.entityType} ({v.entityId.slice(0, 8)}...)
-                  </option>
-                ))}
-              </select>
+                onChange={setVersion2}
+                options={[
+                  { value: '', label: 'Select version' },
+                  ...filteredVersions.map((version) => ({
+                    value: version.id,
+                    label: `v${version.versionNumber} - ${version.entityType} (${version.entityId.slice(0, 8)}...)`,
+                  })),
+                ]}
+              />
             </div>
-            <button
+            <Button
+              size="md"
               onClick={handleCompare}
               disabled={comparing}
-              className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 disabled:bg-background disabled:text-text-secondary"
             >
               {comparing ? 'Comparing...' : 'Compare'}
-            </button>
+            </Button>
           </div>
 
           {/* Comparison Results */}
@@ -269,6 +292,17 @@ export function VersionHistoryPage() {
                       >
                         Restore
                       </button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-error hover:bg-error/10 hover:text-error"
+                        onClick={() => setVersionToDelete(version)}
+                        aria-label={`Delete version ${version.versionNumber}`}
+                        title="Delete version"
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -276,6 +310,17 @@ export function VersionHistoryPage() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!versionToDelete}
+        title="Delete version"
+        message={`Delete version ${versionToDelete ? `v${versionToDelete.versionNumber}` : ''} of ${versionToDelete?.entityType || 'this entity'}? This cannot be undone.`}
+        confirmLabel="Delete version"
+        variant="destructive"
+        isLoading={deletingVersion}
+        onConfirm={handleDelete}
+        onCancel={() => { if (!deletingVersion) setVersionToDelete(null); }}
+      />
     </div>
   );
 }

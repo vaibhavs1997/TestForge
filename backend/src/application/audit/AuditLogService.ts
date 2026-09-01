@@ -150,6 +150,11 @@ export class AuditLogService {
     }
     return log;
   }
+
+  async deleteLog(id: string): Promise<void> {
+    await this.getLogById(id);
+    await this.auditLogRepository.delete(id);
+  }
 }
 
 export default AuditLogService;

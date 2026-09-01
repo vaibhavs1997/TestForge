@@ -359,8 +359,8 @@ export const ReportPage: React.FC<ReportPageProps> = () => {
 
       {/* Generate Report Modal */}
       {generateOpen && (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
-          <Card className='w-full max-w-lg'>
+        <div className='app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
+          <Card className='app-modal-panel w-full max-w-lg'>
             <CardContent className='p-6 space-y-4'>
               <div>
                 <h3 className='text-lg font-semibold text-text'>Generate Report</h3>

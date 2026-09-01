@@ -1,17 +1,19 @@
 import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { CheckCircle2, ChevronRight, Clock3, KeyRound, Play, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronRight, Clock3, KeyRound, Play, XCircle } from 'lucide-react';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { ErrorAlert } from '../../../components/shared/ErrorAlert';
+import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
 import { ProjectContextMissing } from '../../../components/shared/ProjectContextMissing';
 import { SearchBar } from '../../../components/shared/SearchBar';
 import { SelectField } from '../../../components/ui/SelectField';
 import { EntityDialog } from '../../../components/dialogs/EntityDialog';
 import { apiAxios } from '../../../services/apiAxios';
+import { getApiErrorMessage } from '../../../services/apiHelpers';
 import { queryKeys } from '../../../constants';
 import { executionService } from '../services';
 import { useExecution } from '../hooks';
@@ -49,7 +51,7 @@ export const ExecutionPage: React.FC<ExecutionPageProps> = () => {
 };
 
 const ExecutionPageContent: React.FC<{ projectId: string; navigate: ReturnType<typeof useNavigate> }> = ({ projectId, navigate }) => {
-  const { runs, isLoading: runsLoading, isError: runsError, error: runsFailure, refetch } = useExecution(projectId);
+  const { runs, isLoading: runsLoading, isError: runsError, error: runsFailure, refetch, deleteAllExecutionsAsync, isDeleting } = useExecution(projectId);
   const { generateReportAsync } = useReports(projectId);
   const { environments = [], isLoading: environmentsLoading, refetch: refetchEnvironments, updateAsync: updateEnvironment } = useEnvironments(projectId);
   const [selectedSuiteId, setSelectedSuiteId] = React.useState('');
@@ -63,6 +65,8 @@ const ExecutionPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
   const [tokenPanelOpen, setTokenPanelOpen] = React.useState(false);
   const [readiness, setReadiness] = React.useState<any>(null);
   const [readinessOpen, setReadinessOpen] = React.useState(false);
+  const [clearRunsOpen, setClearRunsOpen] = React.useState(false);
+  const [clearRunsError, setClearRunsError] = React.useState<string | null>(null);
 
   const suitesQuery = useQuery({
     queryKey: [...queryKeys.suites(projectId), 'runnable'],
@@ -142,11 +146,14 @@ const ExecutionPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
       setLaunchError(selectedSuite.blocker ?? 'This approved suite is not ready to run.');
       return;
     }
+    setLaunchError(null);
   }, [selectedSuite]);
 
   React.useEffect(() => {
-    const latestRun = [...runs].sort((a, b) => b.createdAt - a.createdAt)[0];
-    if (!selectedRun && latestRun) setSelectedRun(latestRun);
+    const currentRun = selectedRun ? runs.find((run) => run.id === selectedRun.id) : undefined;
+    const latestRun = [...runs].sort((a, b) => b.createdAt - a.createdAt)[0] ?? null;
+    const nextSelectedRun = currentRun ?? latestRun;
+    if (nextSelectedRun !== selectedRun) setSelectedRun(nextSelectedRun);
   }, [runs, selectedRun]);
 
   const filteredRuns = React.useMemo(() => {
@@ -162,6 +169,10 @@ const ExecutionPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
 
   const handleRun = async () => {
     if (!selectedSuite) return;
+    if (!selectedSuite.isRunnable) {
+      setLaunchError(selectedSuite.blocker ?? 'This approved suite is not ready to run.');
+      return;
+    }
     setLaunchError(null);
     setIsExecuting(true);
     try {
@@ -169,18 +180,29 @@ const ExecutionPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
       setSelectedRun(run as ExecutionRun);
       void refetch();
     } catch (error) {
-      setLaunchError(error instanceof Error ? error.message : 'The suite could not be started.');
+      setLaunchError(getApiErrorMessage(error, 'The suite could not be started.'));
     } finally {
       setIsExecuting(false);
     }
   };
-  const openReadiness = async () => { if (!selectedSuite) return; try { const { data } = await apiAxios.get(`/api/projects/${projectId}/suites/${selectedSuite.id}/data-readiness`); setReadiness(data.data); setReadinessOpen(true); } catch (error) { setLaunchError(error instanceof Error ? error.message : 'Data readiness could not be loaded.'); } };
+  const openReadiness = async () => { if (!selectedSuite) return; try { const { data } = await apiAxios.get(`/api/projects/${projectId}/suites/${selectedSuite.id}/data-readiness`); setReadiness(data.data); setReadinessOpen(true); } catch (error) { setLaunchError(getApiErrorMessage(error, 'Data readiness could not be loaded.')); } };
   const handleViewReport = async (run: ExecutionRun) => {
     try {
       const report = await generateReportAsync({ projectId, executionRunId: run.id });
       navigate(`/projects/${projectId}/reports/${report.id}`);
     } catch (error) {
-      setLaunchError(error instanceof Error ? error.message : 'The report could not be generated.');
+      setLaunchError(getApiErrorMessage(error, 'The report could not be generated.'));
+    }
+  };
+  const handleClearRuns = async () => {
+    setClearRunsError(null);
+    try {
+      await deleteAllExecutionsAsync(projectId);
+      setSelectedRun(null);
+      setClearRunsOpen(false);
+      await refetch();
+    } catch (error) {
+      setClearRunsError(getApiErrorMessage(error, 'Runs could not be deleted.'));
     }
   };
 
@@ -206,10 +228,16 @@ const ExecutionPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
                 </Button>
               </div>
               {selectedSuite && (
-                <div className='flex flex-wrap gap-x-5 gap-y-1 border-t border-border pt-3 text-xs text-text-secondary'>
-                  <span><strong className='text-text'>Version {selectedSuite.version}</strong> approved {selectedSuite.approvedAt ? formatDate(selectedSuite.approvedAt) : 'previously'}</span>
-                  <span>{selectedSuite.testCount} test cases</span>
-                  <span>{selectedSuite.executionPolicy === 'FailFast' ? 'Stops on first failure' : 'Continues after failures'}</span>
+                <div className='flex flex-wrap gap-2 border-t border-border pt-3 text-xs text-text-secondary'>
+                  <span className='rounded-md border border-primary/25 bg-primary/10 px-2 py-1 text-text'>Approved {selectedSuite.approvedAt ? formatDate(selectedSuite.approvedAt) : 'previously'}</span>
+                  <span className='rounded-md border border-primary/25 bg-primary/10 px-2 py-1 text-text'>{selectedSuite.testCount} test cases</span>
+                  <span className='rounded-md border border-primary/25 bg-primary/10 px-2 py-1 text-text'>{selectedSuite.executionPolicy === 'FailFast' ? 'Stops on first failure' : 'Continues after failures'}</span>
+                </div>
+              )}
+              {selectedSuite?.warning && (
+                <div className='flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning' role='status'>
+                  <AlertTriangle className='mt-0.5 h-4 w-4 shrink-0' />
+                  <span>{selectedSuite.warning}</span>
                 </div>
               )}
               <div className='rounded-lg border border-border bg-background/30'>
@@ -259,8 +287,9 @@ const ExecutionPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
       <section className='space-y-4'>
         <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
           <div><h2 className='text-lg font-semibold text-text'>Recent runs</h2><p className='text-sm text-text-secondary'>Showing the 5 most recent runs. Select one to inspect its outcome.</p></div>
-          <div className='flex flex-wrap gap-2'><SearchBar value={search} onChange={setSearch} placeholder='Search runs…' className='sm:w-96' /></div>
+          <div className='flex flex-wrap gap-2'><SearchBar value={search} onChange={setSearch} placeholder='Search runs…' className='sm:w-96' /><Button type='button' variant='outline' size='sm' onClick={() => { setClearRunsError(null); setClearRunsOpen(true); }} disabled={runs.length === 0 || isDeleting}>Clear all runs</Button></div>
         </div>
+        {clearRunsError && <ErrorAlert title='Failed to clear runs' message={clearRunsError} />}
         {runsError ? <ErrorAlert title='Failed to load runs' message={runsFailure?.message ?? 'Try again.'} onRetry={() => void refetch()} /> : (
           <div className='grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]'>
             <Card>
@@ -282,6 +311,16 @@ const ExecutionPageContent: React.FC<{ projectId: string; navigate: ReturnType<t
           </div>
         )}
       </section>
+      <ConfirmDialog
+        open={clearRunsOpen}
+        title='Clear all execution runs?'
+        message='This permanently deletes every saved execution run for the current project, including its stored step results and responses.'
+        confirmLabel='Clear all runs'
+        variant='destructive'
+        isLoading={isDeleting}
+        onConfirm={() => void handleClearRuns()}
+        onCancel={() => { if (!isDeleting) setClearRunsOpen(false); }}
+      />
     </div>
   );
 };

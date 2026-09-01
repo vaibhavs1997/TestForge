@@ -159,4 +159,5 @@ export interface RunnableSuite {
   defaultProfileId: string | null;
   isRunnable: boolean;
   blocker: string | null;
+  warning?: string | null;
 }

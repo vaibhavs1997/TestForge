@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 import { AuditLogEntity, AuditLogRepository } from '../../domain/audit/index.js';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
+import { readJsonArray, updateJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
 import { filterAuditLogs, sortAuditLogsDescending } from './AuditLogRepositorySupport.js';
 
 function logsFilePath(): string {
@@ -43,6 +43,16 @@ export class FileAuditLogRepository implements AuditLogRepository {
   async findById(id: string): Promise<AuditLogEntity | null> {
     const logs = await this.readAll();
     return logs.find((l) => l.id === id) ?? null;
+  }
+
+  async delete(id: string): Promise<boolean> {
+    let deleted = false;
+    await updateJsonArray<Record<string, unknown>>(logsFilePath(), [], (logs) => {
+      const remaining = logs.filter((log) => String(log.id) !== id);
+      deleted = remaining.length !== logs.length;
+      return remaining;
+    });
+    return deleted;
   }
 
   async findByProject(projectId: string): Promise<AuditLogEntity[]> {

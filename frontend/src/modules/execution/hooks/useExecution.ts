@@ -19,6 +19,10 @@ export const useExecution = (projectId?: string) => {
     },
     enabled: !!projectId,
     listOptions: {
+      // Do not keep showing a run that was removed outside this page (for
+      // example by clearing the local backend data directory).
+      refetchOnMount: 'always',
+      refetchOnWindowFocus: true,
       refetchInterval: (query) => {
         const runs = query.state.data as ExecutionRun[];
         if (!runs || runs.length === 0) return false;

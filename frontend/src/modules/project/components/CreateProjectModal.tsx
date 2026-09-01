@@ -82,7 +82,7 @@ export const CreateProjectModal = ({ open, onClose, onSave, existingProjects = [
       aria-modal='true'
       aria-labelledby='create-project-title'
     >
-      <Card className='mx-4 w-full max-w-lg' onClick={(e) => e.stopPropagation()}>
+      <Card className='app-modal-panel mx-4 w-full max-w-lg' onClick={(e) => e.stopPropagation()}>
         <CardHeader>
           <div className='flex items-center justify-between'>
             <CardTitle id='create-project-title'>Create New Project</CardTitle>

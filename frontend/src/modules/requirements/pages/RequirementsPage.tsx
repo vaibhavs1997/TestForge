@@ -1704,8 +1704,8 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
 
       {/* Assertion Picker Modal */}
       {attachAssertionOpen && selectedDesignId && (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
-          <Card className='w-full max-w-2xl'>
+         <div className='app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
+           <Card className='app-modal-panel w-full max-w-2xl'>
             <CardHeader>
               <CardTitle>Attach Assertions</CardTitle>
               <CardDescription>Select assertions from the library to attach to this test design.</CardDescription>
@@ -1842,8 +1842,8 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
 
       {/* AI Generation Modal */}
       {aiModalOpen && (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
-          <div className='max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 dark:bg-gray-800'>
+        <div className='app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
+          <div className='app-modal-panel max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg p-6'>
             <div className='mb-4 flex items-start justify-between'>
               <div>
                 <h3 className='text-lg font-semibold text-text'>Generate Requirements with AI</h3>
@@ -1993,8 +1993,8 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
 
       {/* AI Strategy Generation Modal */}
       {aiStrategyModalOpen && (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
-          <div className='max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 dark:bg-gray-800'>
+        <div className='app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
+          <div className='app-modal-panel max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg p-6'>
             <div className='mb-4 flex items-start justify-between'>
               <div>
                 <h3 className='text-lg font-semibold text-text'>Generate Test Strategy with AI</h3>
@@ -2128,8 +2128,8 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
 
       {/* AI Design Generation Modal */}
       {aiDesignModalOpen && (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
-          <div className='max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 dark:bg-gray-800'>
+        <div className='app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
+          <div className='app-modal-panel max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg p-6'>
             <div className='mb-4 flex items-start justify-between'>
               <div>
                 <h3 className='text-lg font-semibold text-text'>Generate Test Designs with AI</h3>
@@ -2276,8 +2276,8 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
 
       {/* AI Execution Plan Generation Modal */}
       {aiExecutionPlanModalOpen && (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
-          <div className='max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 dark:bg-gray-800'>
+        <div className='app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
+          <div className='app-modal-panel max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg p-6'>
             <div className='mb-4 flex items-start justify-between'>
               <div>
                 <h3 className='text-lg font-semibold text-text'>Generate Execution Plan with AI</h3>
@@ -2432,8 +2432,8 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
 
       {/* AI Assertion Generation Modal */}
       {aiAssertionModalOpen && (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
-          <div className='max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 dark:bg-gray-800'>
+        <div className='app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
+          <div className='app-modal-panel max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg p-6'>
             <div className='mb-4 flex items-start justify-between'>
               <div>
                 <h3 className='text-lg font-semibold text-text'>Generate Assertions with AI</h3>

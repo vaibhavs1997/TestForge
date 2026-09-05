@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import bcrypt from 'bcrypt';
 import { getMongoDb, getUsersCollectionName } from './mongoClient.js';
 import type { PublicUser, UserAuthenticationDocument, UserRole } from '../../domain/auth/types.js';
@@ -74,7 +75,7 @@ export class AuthRepository {
     }
 
     const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
-    const tenantId = slugify(input.organizationName);
+    const tenantId = randomUUID();
 
     const user: UserAuthenticationDocument = {
       firstName,

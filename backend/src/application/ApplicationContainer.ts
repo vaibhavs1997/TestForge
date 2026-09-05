@@ -181,7 +181,7 @@ export class ApplicationContainer {
   readonly versionRepository = new VersionRepository();
   readonly auditLogRepository = createAuditLogRepository(this.persistenceDriver);
   readonly pluginRepository = new PluginRepository();
-  readonly aiProviderRepository = new FileAIProviderRepository();
+  readonly aiProviderRepository = new FileAIProviderRepository(this.secretStore);
   readonly notificationRepository = new InMemoryNotificationRepository();
   readonly inMemoryVersionRepository = new InMemoryVersionRepository();
   readonly inMemoryAuditLogRepository = new InMemoryAuditLogRepository();

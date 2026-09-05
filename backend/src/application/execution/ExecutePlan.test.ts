@@ -91,6 +91,54 @@ describe('ExecutePlan', () => {
     expect(executionRunRepository.update).toHaveBeenCalled();
   });
 
+  it('executes each mapped test case with its own complete body', async () => {
+    const plans = [
+      {
+        ...plan,
+        id: 'plan-a',
+        testDesignId: 'design-a',
+        executionOrder: 1,
+        requestTemplate: { method: 'POST', path: '/users', body: { email: 'invalid-a', role: 'admin' } },
+      },
+      {
+        ...plan,
+        id: 'plan-b',
+        testDesignId: 'design-b',
+        executionOrder: 2,
+        requestTemplate: { method: 'POST', path: '/users', body: { email: 'invalid-b', role: 'viewer' } },
+      },
+    ];
+    const designs = [
+      { id: 'design-a', assertionIds: [], requestOverrides: { body: { email: 'invalid-a', role: 'admin' } }, mutationProvenance: { strategy: 'format-violation', location: 'body', fieldPath: '$.email', mutatedValue: 'invalid-a' } },
+      { id: 'design-b', assertionIds: [], requestOverrides: { body: { email: 'invalid-b', role: 'viewer' } }, mutationProvenance: { strategy: 'format-violation', location: 'body', fieldPath: '$.email', mutatedValue: 'invalid-b' } },
+    ];
+    const executor = new ExecutePlan(
+      executionRunRepository as any,
+      {
+        findByProject: vi.fn().mockResolvedValue(plans),
+        findById: vi.fn(async (id: string) => plans.find((item) => item.id === id)),
+        findByRequirement: vi.fn().mockResolvedValue(plans),
+      } as any,
+      { findById: vi.fn().mockResolvedValue({ id: 'req-1' }) } as any,
+      { findByProject: vi.fn().mockResolvedValue([environment]) } as any,
+      { findById: vi.fn() } as any,
+      { findById: vi.fn().mockResolvedValue({ id: 'op-1', serviceId: 'svc-1', method: 'POST', path: '/users', sampleRequestBody: { email: 'imported@example.com', role: 'imported' } }) } as any,
+      { findByProjectAndOperation: vi.fn().mockResolvedValue([]) } as any,
+      {} as any,
+      { findByDataset: vi.fn().mockResolvedValue([]) } as any,
+      { findByProject: vi.fn().mockResolvedValue([]) } as any,
+      { findById: vi.fn(async (id: string) => designs.find((item) => item.id === id) || { assertionIds: [] }) } as any,
+      { findById: vi.fn() } as any,
+    );
+
+    await executor.executeCombined(['plan-a', 'plan-b']);
+
+    expect(mockedAxios.mock.calls.map(([config]) => (config as any).data)).toEqual([
+      { email: 'invalid-a', role: 'admin' },
+      { email: 'invalid-b', role: 'viewer' },
+    ]);
+  });
+
   it('passes a negative scenario when its test design expects the returned 401 status', async () => {
     mockedAxios.mockResolvedValue({
       status: 401,
@@ -166,7 +214,7 @@ describe('ExecutePlan', () => {
       {} as any, { findByDataset: vi.fn().mockResolvedValue([]) } as any, { findByProject: vi.fn().mockResolvedValue([]) } as any,
       { findById: vi.fn().mockResolvedValue({ assertionIds: [] }) } as any, { findById: vi.fn() } as any,
       undefined, undefined, undefined, undefined,
-      { get: vi.fn().mockResolvedValue('actual-token') } as any,
+      { get: vi.fn().mockResolvedValue('actual-token'), metadata: vi.fn().mockResolvedValue({projectId:'p1'}) } as any,
     );
     await executor.execute('plan-1');
     expect((mockedAxios.mock.calls[0][0] as any).headers.Authorization).toBe('Bearer actual-token');
@@ -379,5 +427,20 @@ describe('ExecutePlan', () => {
     const result = await executor.execute('plan-1');
     expect(result.stepResults).toHaveLength(1);
     expect(result.stepResults[0].status).toBe('Passed');
+  });
+
+  it('records an unresolved endpoint mapping in the run instead of throwing a server error', async () => {
+    const unresolvedPlan = { ...plan, operationId: '' };
+    const { executor, runs } = buildExecutor([unresolvedPlan], [{ id: 'design-1', assertionIds: [] }]);
+
+    const result = await executor.execute('plan-1');
+
+    expect(result.stepResults).toHaveLength(1);
+    expect(result.stepResults[0]).toMatchObject({
+      status: 'Blocked',
+      error: 'Endpoint mapping is unresolved. No request was sent; map this test case to an endpoint and run it again.',
+    });
+    expect(mockedAxios).not.toHaveBeenCalled();
+    expect(runs.update).toHaveBeenCalled();
   });
 });

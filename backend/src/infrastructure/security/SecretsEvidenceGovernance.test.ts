@@ -17,8 +17,9 @@ describe('Phase 4.9 secret and evidence governance', () => {
     const store = new LocalSecretStore();
     await store.set({ id: 'api-token', projectId: 'p', value: 'first-secret', classification: 'CREDENTIAL' });
     const environment = { variables: { token: { secretRef: 'api-token' } } };
-    const resolved = await new SecretResolutionService(store).resolve(environment);
+    const resolved = await new SecretResolutionService(store, 'p').resolve(environment);
     expect(resolved.variables.token).toBe('first-secret');
+    await expect(new SecretResolutionService(store, 'foreign').resolve(environment)).rejects.toThrow('not available in this project');
     expect(environment.variables.token).toEqual({ secretRef: 'api-token' });
     expect(readFileSync(join(dir, 'data/runtime/secrets.enc.json'), 'utf8')).not.toContain('first-secret');
     const metadata = await store.update('api-token', 'rotated-secret');

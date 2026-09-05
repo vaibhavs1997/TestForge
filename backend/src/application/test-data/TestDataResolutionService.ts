@@ -127,6 +127,7 @@ export class TestDataResolutionService {
       case 'SECRET': {
         const secretRef = String(source.secretRef || source.id || '');
         if (!this.secretStore || !secretRef) throw new Error(`Secret rule for ${rule.input.path} has no resolvable secret reference`);
+        if ((await this.secretStore.metadata(secretRef))?.projectId !== projectId) throw new Error('Secret is not available in this project');
         const value = await this.secretStore.get(secretRef); if (value === null) throw new Error(`Secret ${secretRef} could not be resolved`); return { sourceType: 'Secret', value };
       }
       case 'DATASET': return this.resolveDatasetRow({ fieldPath: rule.input.path, sourceType: 'Dataset Row', datasetId: String(source.datasetId || source.id || ''), datasetColumn: String(source.field || '') } as DataSourceMappingEntity, context);

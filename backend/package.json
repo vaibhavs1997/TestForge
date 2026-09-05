@@ -15,7 +15,9 @@
     "seed": "tsx scripts/seed-demo.ts",
     "issue-jwt": "tsx scripts/issue-jwt.ts",
     "integration:smoke": "tsx scripts/integration-smoke.ts",
-    "smoke:compiled": "node scripts/compiled-startup-smoke.mjs"
+    "smoke:compiled": "node scripts/compiled-startup-smoke.mjs",
+    "backup:create": "tsx scripts/backup.ts create",
+    "backup:restore": "tsx scripts/backup.ts restore"
   },
   "dependencies": {
     "axios": "^1.19.0",

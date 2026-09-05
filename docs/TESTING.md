@@ -16,7 +16,8 @@ npm run test:frontend
 npm run test:backend
 npm run lint
 npm run typecheck
-npm run build
+npm run build:backend
+npm run build:frontend
 npm run test:e2e
 npm run test:e2e:ui
 ```
@@ -37,3 +38,11 @@ Unit tests use in-memory/mocked collaborators where appropriate. E2E uses isolat
 ## Completion criteria
 
 Run relevant tests plus typecheck/lint. For cross-layer or production-affecting work run build and `npm run test:e2e`; for persistence/config changes also run the applicable Docker Compose config check. Investigate failures rather than weakening thresholds or disabling tests.
+
+## P0 regression coverage
+
+Regression tests cover organization-name isolation, project resource parameters and nested request references, project-bound secret resolution, provider credential migration, corrupt JSON preservation, concurrent updates, raw backup integrity and staged restore, execution profile isolation, overlapping worker ticks and shutdown draining, status regex/header/response-time assertions, large reports, and the actual script worker interpreter.
+
+Playwright starts the compiled backend with an isolated temporary working directory shared through TESTFORGE_E2E_DATA_ROOT. It clears MongoDB and shared API-key configuration and uses explicit test credentials. Durable-job evidence reads this isolated directory. The production-preview test captures a screenshot and checks browser runtime errors. Developer project data is never an E2E fixture.
+
+CI and container builders use Node 22, matching the locked better-sqlite3 minimum (Node >=22). The E2E launcher owns its server processes directly so Windows teardown does not depend on shell process-tree termination.

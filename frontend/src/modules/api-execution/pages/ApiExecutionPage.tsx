@@ -1736,8 +1736,6 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const binaryFileInputRef = React.useRef<HTMLInputElement>(null);
-  const requestWorkspaceRef = React.useRef<HTMLDivElement>(null);
-  const responsePanelRef = React.useRef<HTMLDivElement>(null);
   const saveConfirmationTimerRef = React.useRef<number | null>(null);
   const managedEnvironmentIdsRef = React.useRef<Set<string>>(new Set());
   const syncedApiArtifactIdsRef = React.useRef<Set<string>>(new Set());
@@ -1792,7 +1790,6 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
   // into the newly selected project.
   const [hydratedProjectId, setHydratedProjectId] = React.useState<string | null>(null);
   const lastHydrated = isHydratedForProject(hydratedProjectId, projectId);
-  const [explorerHeight, setExplorerHeight] = React.useState<number | null>(null);
   const [tokenNow, setTokenNow] = React.useState(() => Date.now());
   const [saveConfirmation, setSaveConfirmation] = React.useState('');
   const [environmentManagerOpen, setEnvironmentManagerOpen] = React.useState(false);
@@ -1863,22 +1860,6 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
     if (saveConfirmationTimerRef.current !== null) {
       window.clearTimeout(saveConfirmationTimerRef.current);
     }
-  }, []);
-
-  React.useEffect(() => {
-    const updateExplorerHeight = () => {
-      const requestHeight = requestWorkspaceRef.current?.getBoundingClientRect().height ?? 0;
-      const responseHeight = responsePanelRef.current?.getBoundingClientRect().height ?? 0;
-      if (requestHeight > 0 && responseHeight > 0) {
-        setExplorerHeight(requestHeight + responseHeight + 16);
-      }
-    };
-
-    const observer = new ResizeObserver(updateExplorerHeight);
-    if (requestWorkspaceRef.current) observer.observe(requestWorkspaceRef.current);
-    if (responsePanelRef.current) observer.observe(responsePanelRef.current);
-    updateExplorerHeight();
-    return () => observer.disconnect();
   }, []);
 
   React.useEffect(() => {
@@ -3721,8 +3702,8 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
 
         </div>
 
-        <div className='grid items-start gap-4 lg:grid-cols-[minmax(340px,0.3fr)_minmax(0,0.7fr)]'>
-          <Card className='flex min-h-0 flex-col overflow-hidden border-border bg-background/40 text-text shadow-2xl backdrop-blur-xl lg:min-h-[calc(100vh-202px)]' style={{ height: explorerHeight ? `${explorerHeight}px` : 'calc(100vh - 180px)' }}>
+        <div className='grid items-start gap-4 lg:h-[calc(100vh-180px)] lg:items-stretch lg:grid-cols-[minmax(340px,0.3fr)_minmax(0,0.7fr)]'>
+          <Card className='flex min-h-0 flex-col overflow-hidden border-border bg-background/40 text-text shadow-2xl backdrop-blur-xl lg:h-full'>
             <CardHeader className='pb-4'>
               <div className='flex items-center justify-between'>
                 <CardTitle className='text-base text-text'>API Explorer</CardTitle>
@@ -3944,8 +3925,8 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
             </CardContent>
           </Card>
 
-          <div className='space-y-4'>
-            <Card ref={requestWorkspaceRef} className='relative z-40 overflow-visible border-border bg-background/40 text-text shadow-2xl backdrop-blur-xl'>
+          <div className='flex min-h-0 flex-col gap-4 lg:h-full'>
+            <Card className='relative z-40 overflow-visible border-border bg-background/40 text-text shadow-2xl backdrop-blur-xl'>
               <CardHeader className='pb-3'>
                 <div className='flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between'>
                   <div className='min-w-0 flex-1'>
@@ -4427,8 +4408,8 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
               </CardContent>
             </Card>
 
-            <div className='space-y-4'>
-              <Card ref={responsePanelRef} className='relative z-10 border-border bg-background/40 text-text shadow-2xl backdrop-blur-xl'>
+            <div className='flex min-h-0 flex-1 flex-col gap-4'>
+              <Card className='relative z-10 flex min-h-0 flex-1 flex-col border-border bg-background/40 text-text shadow-2xl backdrop-blur-xl'>
                 <CardHeader className='pb-3'>
                   <div className='flex items-center justify-between gap-3'>
                     <div>
@@ -4449,7 +4430,7 @@ const ApiExecutionPageContent: React.FC<{ projectId: string }> = ({ projectId })
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className='space-y-4'>
+                <CardContent className='min-h-0 flex-1 space-y-4 overflow-y-auto scrollbar-none'>
                   {responseTab === 'response' && (
                     <>
                       <div className='flex flex-wrap items-center justify-between gap-3'>

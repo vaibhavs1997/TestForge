@@ -57,7 +57,7 @@ Production/staging currently support an explicitly single-node JSON deployment (
 
 ## Auth and authorization
 
-`authenticate` accepts a constant-time compared `x-api-key` or a verified JWT bearer token. JWTs must provide `sub` and either a `projects` scope (`string[]` or `*`) or `tenantId`. Project routes use `authorizeProject`, which checks token scope and then owner/tenant lookup. Global operations such as backups and metrics use `assertGlobalAccess`. Enterprise login is MongoDB-backed and issues JWT sessions. Local auth-disabled development is an intentional compatibility path; deployment config requires auth.
+`authenticate` accepts a constant-time compared `x-api-key` or a verified JWT bearer token. JWTs must provide `sub` and either a `projects` scope (`string[]` or `*`) or `tenantId`. Project routes use `authorizeProject`, which checks token scope and then owner lookup (tenant labels do not establish membership). Global operations such as backups and metrics use `assertGlobalAccess`. Enterprise login is MongoDB-backed and issues JWT sessions. Local auth-disabled development is an intentional compatibility path; deployment config requires auth.
 
 ## External integrations
 
@@ -68,3 +68,13 @@ The backend contains adapters for API execution, Jira, SMTP, AI providers, Ollam
 - JSON/file persistence is current and intentionally single-node, while SQLite and optional RAG are partial/selected subsystems rather than one uniform database architecture.
 - The legacy environment page redirects to the API workspace; environment management remains part of API execution.
 - Local development may run without authentication; staging/production must not.
+
+## P0 execution and persistence guarantees
+
+JSON writes hold an exclusive file lock and replace the destination using a flushed temporary file. Lock failures, invalid JSON, and updater exceptions propagate; there is no unlocked fallback or reset to empty data. Repository read-modify-write operations must use `updateJsonArray` to make the entire mutation atomic; separate reads and writes are not transactions.
+
+Execution profile settings live in an AsyncLocalStorage context per public execution call. Worker slots are reserved before asynchronous job claims, and shutdown drains active jobs. Failed, blocked, skipped, or empty runs finish as Failed; ContinueOnFailure controls whether later steps execute, not whether failures disappear. Report evidence preserves structural arrays while applying payload limits to bodies, and verdicts reflect failed validations and incomplete runs.
+
+AI provider configuration stores encrypted secret references. Startup migrates old credentials before starting workers and serving requests. Recoverable raw backups are distinct from redacted exports; restore is staged and offline-only. See SECURITY.md for key recovery and commands.
+
+Report generation version 1.1.0 recalculates cached legacy reports when Generate Report is requested, retaining their report ID. Regenerate historical reports to apply corrected verdict rules.

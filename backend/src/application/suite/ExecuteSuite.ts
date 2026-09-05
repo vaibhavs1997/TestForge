@@ -28,7 +28,7 @@ export class ExecuteSuite {
     const selectedPlanIds = [...new Set([...suite.executionPlans].sort((a, b) => a.order - b.order).map((item) => item.executionPlanId))];
     if (this.executionPlanRepository) {
       const plans = await Promise.all(selectedPlanIds.map((id) => this.executionPlanRepository!.findById(id)));
-      if (plans.some((plan) => !plan || plan.status !== 'Ready')) {
+      if (plans.some((plan) => !plan || plan.status !== 'Ready' || (plan.projectId && plan.projectId !== suite.projectId))) {
         throw new Error('All suite plans must be ready before the suite can be executed');
       }
       const snapshot = JSON.parse(JSON.stringify({

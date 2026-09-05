@@ -11,7 +11,7 @@ import { EventPublisher } from '../EventPublisher.js';
 import { sensitiveDataRedactor } from '../../infrastructure/security/SensitiveDataRedactionService.js';
 import { defaultEvidenceGovernance } from '../../infrastructure/security/EvidenceGovernanceService.js';
 
-const REPORT_VERSION = '1.0.0';
+const REPORT_VERSION = '1.1.0';
 
 export class GenerateReport {
   constructor(
@@ -36,7 +36,7 @@ export class GenerateReport {
 
     // 3. Check if a report already exists for this execution run
     const existingReport = await this.reportRepository.findByExecutionRun(executionRunId);
-    if (existingReport) {
+    if (existingReport?.reportVersion === REPORT_VERSION) {
       return existingReport;
     }
 
@@ -59,7 +59,12 @@ export class GenerateReport {
     }
 
     // 6. Build report sections from execution run data (reuse, do NOT recompute)
-    const stepResults = defaultEvidenceGovernance.protect(run.stepResults || [], 'report') as any[];
+    const stepResults = (run.stepResults || []).map((step: any) => {
+      const safe = sensitiveDataRedactor.redact(step) as any;
+      if (safe.request?.body !== undefined) safe.request.body = defaultEvidenceGovernance.protect(safe.request.body, 'report');
+      if (safe.response?.body !== undefined) safe.response.body = defaultEvidenceGovernance.protect(safe.response.body, 'report');
+      return safe;
+    });
     const validationResults = this.extractValidationResults(stepResults);
     const failures = stepResults.filter((s: any) => s.status === 'Failed');
     const executionTimeline = [...stepResults].sort((a, b) => a.startedAt - b.startedAt);
@@ -105,7 +110,7 @@ export class GenerateReport {
       dependencyGraph: run.dependencyGraph || [],
       stepResults,
       validationResults,
-      recommendations: defaultEvidenceGovernance.protect(recommendations, 'report') as any[],
+      recommendations: recommendations.map(item => sensitiveDataRedactor.redact(item)) as any[],
       environmentInfo: reportEnvironment,
       runtimeVariablesCaptured,
       failures,
@@ -115,7 +120,7 @@ export class GenerateReport {
     // 10. Create report entity
     const now = Date.now();
     const report = new ReportEntity(
-      randomUUID(),
+      existingReport?.id || randomUUID(),
       run.projectId,
       run.id,
       run.suiteId || suiteId || null,
@@ -159,13 +164,13 @@ export class GenerateReport {
   }
 
   private determineOverallStatus(run: any, validationSummary: ReportValidationSummary): ReportStatus {
-    if (run.status === 'Failed' && run.summary.failed > 0) {
+    if (run.status === 'Failed' || run.summary.failed > 0) {
       return 'Failed';
     }
     if (validationSummary.failed > 0) {
-      return 'Partial';
+      return 'Failed';
     }
-    if (run.summary.skipped > 0) {
+    if (run.summary.skipped > 0 || run.summary.blocked > 0 || run.summary.totalSteps === 0) {
       return 'Partial';
     }
     return 'Passed';

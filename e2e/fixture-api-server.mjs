@@ -38,7 +38,7 @@ const server = http.createServer((req, res) => {
     return;
   }
   completedRequests += 1;
-  const body = JSON.stringify(req.url === '/health' ? { ok: true } : { ok: true, id: 'fixture-42' });
+  const body = JSON.stringify(req.url === '/health' ? { ok: true } : { ok: true, id: 'fixture-42', data: { id: 'fixture-42' } });
   res.writeHead(200, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) });
   res.end(body);
 });

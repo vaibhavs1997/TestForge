@@ -71,14 +71,14 @@ export function createSandboxContext(input: SandboxedScriptInput): Record<string
   };
 }
 
-function workerSource(): string {
+export function workerSource(): string {
   // This is a deliberately small interpreter, not a JavaScript evaluator.
   // Its grammar permits API calls and simple comparisons only.
   return `
     const LIMIT=20, CHARS=512;
     const text=(v)=>String(v??'').replace(/[\\r\\n\\t]+/g,' ').slice(0,CHARS);
     const freeze=(value)=>{ if(value&&typeof value==='object'){ Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
-    const split=(value)=>{ const out=[], start=0; let quote='', depth=0; for(let i=0;i<value.length;i+=1){ const ch=value[i]; if(quote){ if(ch===quote&&value[i-1]!=='\\\\') quote=''; continue; } if(ch==='"'||ch==="'") { quote=ch; continue; } if(ch==='('||ch==='['||ch==='{') depth+=1; if(ch===')'||ch===']'||ch==='}') depth-=1; if(ch===','&&depth===0){out.push(value.slice(start,i).trim());start=i+1;} } out.push(value.slice(start).trim()); return out; };
+    const split=(value)=>{ const out=[]; let start=0; let quote='', depth=0; for(let i=0;i<value.length;i+=1){ const ch=value[i]; if(quote){ if(ch===quote&&value[i-1]!=='\\\\') quote=''; continue; } if(ch==='"'||ch==="'") { quote=ch; continue; } if(ch==='('||ch==='['||ch==='{') depth+=1; if(ch===')'||ch===']'||ch==='}') depth-=1; if(ch===','&&depth===0){out.push(value.slice(start,i).trim());start=i+1;} } out.push(value.slice(start).trim()); return out; };
     const value=(source, api)=>{ const input=source.trim(); if(/^['\"]/.test(input)) return input.slice(1,-1); if(/^-?\\d+(?:\\.\\d+)?$/.test(input)) return Number(input); if(input==='true'||input==='false') return input==='true'; if(input==='null') return null; const variable=input.match(/^variables\\.get\\((['\"])(.*?)\\1\\)$/); if(variable) return api.variables.get(variable[2]); const path=input.match(/^(request|response)\\.([A-Za-z0-9_.]+)$/); if(path) return path[2].split('.').reduce((current,key)=>current&&current[key],api[path[1]]); throw new Error('Unsupported value expression'); };
     const condition=(source, api)=>{ const match=source.match(/^(.*?)\\s*(===|!==|==|!=)\\s*(.*?)$/); if(!match) return Boolean(value(source,api)); const left=value(match[1],api), right=value(match[3],api); return match[2]==='==='||match[2]==='==' ? left===right : left!==right; };
     onmessage=({data})=>{

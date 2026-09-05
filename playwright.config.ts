@@ -1,4 +1,9 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { defineConfig } from '@playwright/test';
+
+process.env.TESTFORGE_E2E_DATA_ROOT ||= mkdtempSync(join(tmpdir(), 'testforge-e2e-'));
 
 export default defineConfig({
   testDir: './e2e',
@@ -12,15 +17,14 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'off',
   },
-  webServer: [
+  webServer: process.env.TESTFORGE_E2E_MANAGED === 'true' ? undefined : [
     {
       command: 'node e2e/fixture-api-server.mjs',
       url: 'http://127.0.0.1:3102/health',
       reuseExistingServer: false,
     },
     {
-      command: 'node dist/index.js',
-      cwd: 'backend',
+      command: 'node e2e/backend-server.mjs',
       url: 'http://127.0.0.1:3100/health',
       reuseExistingServer: false,
       env: {

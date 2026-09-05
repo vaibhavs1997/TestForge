@@ -1,3 +1,5 @@
+import { acquireRuntimeStorageLock } from './infrastructure/persistence/RuntimeStorageLock.js';
+import { createProjectResourceAuthorizer } from './interfaces/middleware/projectResourceAccess.js';
 // External libraries
 import express from 'express';
 import cors from 'cors';
@@ -40,7 +42,7 @@ import { BackupService } from './interfaces/backup/BackupService.js';
 import { createBackupRoutes } from './interfaces/backup/BackupRoutes.js';
 import { errorHandler, notFoundHandler } from './interfaces/middleware/ErrorHandler.js';
 import { authenticate, authorizeProject, setProjectAccessLookup, assertGlobalAccess } from './interfaces/middleware/auth.js';
-import { asyncHandler } from './interfaces/middleware/AsyncHandler.js';
+import { asyncHandler, setProjectResourceAuthorizer } from './interfaces/middleware/AsyncHandler.js';
 import { createSuccessResponse } from './shared/ApiResponse.js';
 import { ForbiddenError } from './shared/errors.js';
 import { projectRoutes } from './interfaces/project/ProjectRoutes.js';
@@ -62,6 +64,7 @@ import { createKnowledgeSearchRoutes } from './interfaces/knowledge/KnowledgeSea
 loadEnv();
 
 async function bootstrap(): Promise<void> {
+  const releaseStorage = await acquireRuntimeStorageLock();
   let config;
   try {
     config = validateConfig();
@@ -167,6 +170,7 @@ async function bootstrap(): Promise<void> {
     const p = await container.projectModule.repository.findById(projectId);
     return p ? { ownerId: p.ownerId, tenantId: p.tenantId } : null;
   });
+  setProjectResourceAuthorizer(createProjectResourceAuthorizer(container));
   app.use('/api/projects/:projectId', asyncHandler(authorizeProject));
 
   app.get(
@@ -215,8 +219,7 @@ async function bootstrap(): Promise<void> {
   );
 
   container.activityStreamHub.start();
-  container.schedulerService.start();
-  container.durableJobWorker.start();
+
   app.use('/api', createActivityStreamRoutes(container.activityStreamHub));
   app.use('/api', projectRoutes);
 
@@ -322,6 +325,9 @@ async function bootstrap(): Promise<void> {
   // Must be registered LAST, after all routes and middleware
   app.use(errorHandler);
 
+  await container.aiProviderRepository.migrateSecrets();
+  container.schedulerService.start();
+  container.durableJobWorker.start();
   const server = app.listen(port, () => {
     logger.info(`Server running on port ${port} (${config.nodeEnv})`, {
       version: config.version,
@@ -343,12 +349,14 @@ async function bootstrap(): Promise<void> {
   const shutdown = (signal: string) => {
     logger.warn(`Received ${signal}. Shutting down gracefully...`);
 
+    container.activityStreamHub.stop();
+    container.schedulerService.stop();
+    const drained = container.durableJobWorker.stop();
     server.close(async () => {
-      container.activityStreamHub.stop();
-      container.schedulerService.stop();
-      await container.durableJobWorker.stop();
+      await drained;
       await disconnectMongo();
       await ragConnection.close();
+      await releaseStorage();
       logger.info('HTTP server closed.');
       process.exit(0);
     });

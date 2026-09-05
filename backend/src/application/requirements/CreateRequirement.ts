@@ -20,12 +20,26 @@ export class CreateRequirement {
     relatedOperations?: string[];
     relatedFlows?: string[];
     relatedDatasets?: string[];
-    acceptanceCriteria?: AcceptanceCriterion[];
+    acceptanceCriteria?: Array<AcceptanceCriterion | string>;
     jiraIssueKey?: string | null;
     generationPending?: boolean;
     generationExpiresAt?: number | null;
   }): Promise<RequirementEntity> {
     const title = ValidationHelpers.validateRequired(params.title, 'Requirement title');
+
+    const acceptanceCriteria: AcceptanceCriterion[] = (params.acceptanceCriteria || [])
+      .map((criterion): AcceptanceCriterion | null => {
+        if (typeof criterion === 'string') {
+          const text = ValidationHelpers.trimString(criterion);
+          return text ? { id: randomUUID(), text } : null;
+        }
+        if (!criterion || typeof criterion !== 'object') return null;
+        const text = ValidationHelpers.trimString(criterion.text);
+        return text
+          ? { id: ValidationHelpers.trimString(criterion.id) || randomUUID(), text }
+          : null;
+      })
+      .filter((criterion): criterion is AcceptanceCriterion => criterion !== null);
 
     const now = Date.now();
     const requirement = new RequirementEntity(
@@ -42,7 +56,7 @@ export class CreateRequirement {
       ValidationHelpers.trimStringArray(params.relatedOperations),
       ValidationHelpers.trimStringArray(params.relatedFlows),
       ValidationHelpers.trimStringArray(params.relatedDatasets),
-      params.acceptanceCriteria || [],
+      acceptanceCriteria,
       now,
       now,
       Boolean(params.generationPending),

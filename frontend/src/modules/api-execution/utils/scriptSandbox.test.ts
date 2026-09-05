@@ -1,5 +1,6 @@
+import { runInNewContext } from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';
-import { createSandboxContext, runSandboxedScript, validateScriptSource } from './scriptSandbox';
+import { createSandboxContext, runSandboxedScript, validateScriptSource, workerSource } from './scriptSandbox';
 
 function workerThatReplies(reply: Record<string, unknown>) {
   let messageHandler: ((event: MessageEvent) => void) | null = null;
@@ -75,4 +76,12 @@ describe('script sandbox policy', () => {
     expect(result.error).toContain('Script failed:');
     expect(result.error).not.toContain('abcdefghijklmnopqrstuvwxyz');
   });
+});
+
+it('executes the real worker interpreter with multiple helper arguments', () => {
+  const postMessage = vi.fn();
+  const sandbox: any = { postMessage };
+  runInNewContext(workerSource(), sandbox);
+  sandbox.onmessage({ data: { script: 'helpers.setHeader("X-Test", "one,two"); variables.set("region", "west"); assert(response.status === 200, "status")', context: { request: {}, response: {status:200}, variables: {} } } });
+  expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ ok: true, variables: { region: 'west' }, mutations: [{type:'setHeader', name:'X-Test', value:'one,two'}], assertions: [{name:'status',passed:true,message:'Passed'}] }));
 });

@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 // ExecutePlan - Execution Engine
 // Executes an existing Execution Plan. Does NOT generate plans or reports.
 // For every execution step: Resolve Environment → Resolve Dataset Values →
@@ -36,7 +37,24 @@ import type { FieldDataRuleRepository } from '../../domain/test-data/FieldDataRu
 import { secureHttpExecutor, type SecureHttpExecutor } from '../../infrastructure/http/SecureHttpExecutor.js';
 
 export class ExecutePlan {
-  private loadedProfile: ExecutionProfileEntity | null = null;
+  private readonly executionContext = new AsyncLocalStorage<{ profile: ExecutionProfileEntity | null }>();
+  private get loadedProfile(): ExecutionProfileEntity | null { return this.executionContext.getStore()?.profile ?? null; }
+  private set loadedProfile(profile: ExecutionProfileEntity | null) {
+    const context = this.executionContext.getStore();
+    if (!context) throw new Error('Execution context is unavailable');
+    context.profile = profile;
+  }
+
+  execute(...args: Parameters<ExecutePlan['executeIsolated']>): Promise<ExecutionRunEntity> {
+    return this.executionContext.run({ profile: null }, () => this.executeIsolated(...args));
+  }
+
+  executeCombined(...args: Parameters<ExecutePlan['executeCombinedIsolated']>): Promise<ExecutionRunEntity> {
+    return this.executionContext.run({ profile: null }, () => this.executeCombinedIsolated(...args));
+  }
+  private assertSameProject(resource: any, projectId: string): void {
+    if (resource?.projectId && resource.projectId !== projectId) throw new Error('Execution resource belongs to another project');
+  }
   private readonly inFlightPlanIds = new Set<string>();
   private readonly activeRuns = new Map<string, AbortController>();
 
@@ -84,7 +102,7 @@ export class ExecutePlan {
     return this.executionRunRepository.update(runId, { status: 'Cancelled', completedAt: Date.now() });
   }
 
-  async execute(executionPlanId: string, failureMode: FailureMode = 'StopOnFailure', executionProfileId?: string, environmentOverrideId?: string, onRunCreated?: (run: ExecutionRunEntity) => Promise<void> | void, existingRunId?: string): Promise<ExecutionRunEntity> {
+  private async executeIsolated(executionPlanId: string, failureMode: FailureMode = 'StopOnFailure', executionProfileId?: string, environmentOverrideId?: string, onRunCreated?: (run: ExecutionRunEntity) => Promise<void> | void, existingRunId?: string): Promise<ExecutionRunEntity> {
     if (this.inFlightPlanIds.has(executionPlanId)) {
       throw new Error('An execution is already in progress for this step. Wait for it to finish.');
     }
@@ -131,7 +149,7 @@ export class ExecutePlan {
     };
   }
 
-  async executeCombined(planIds: string[], failureMode: FailureMode = 'StopOnFailure', executionProfileId?: string, suiteId?: string, suiteSnapshot?: Record<string, unknown>, environmentOverrideId?: string, onRunCreated?: (run: ExecutionRunEntity) => Promise<void> | void, existingRunId?: string): Promise<ExecutionRunEntity> {
+  private async executeCombinedIsolated(planIds: string[], failureMode: FailureMode = 'StopOnFailure', executionProfileId?: string, suiteId?: string, suiteSnapshot?: Record<string, unknown>, environmentOverrideId?: string, onRunCreated?: (run: ExecutionRunEntity) => Promise<void> | void, existingRunId?: string): Promise<ExecutionRunEntity> {
     if (planIds.length === 0) throw new Error('No execution plans supplied');
     const lockId = `suite:${suiteId || planIds.join(',')}`;
     if (this.inFlightPlanIds.has(lockId)) throw new Error('An execution is already in progress for this suite.');
@@ -145,6 +163,7 @@ export class ExecutePlan {
       }
       const firstPlan = plans.find(Boolean);
       if (!firstPlan) throw new Error('No execution plans found');
+      for (const candidate of plans) this.assertSameProject(candidate, firstPlan.projectId);
       if (executionProfileId && this.executionProfileRepository) {
         this.loadedProfile = await this.executionProfileRepository.findById(executionProfileId);
         if (!this.loadedProfile) throw new Error(`Execution Profile with id ${executionProfileId} not found`);
@@ -158,6 +177,7 @@ export class ExecutePlan {
   }
 
   private async executePlan(plan: any, failureMode: FailureMode, explicitPlanIds?: string[], suiteId?: string, suiteSnapshot?: Record<string, unknown>, environmentOverrideId?: string, onRunCreated?: (run: ExecutionRunEntity) => Promise<void> | void, existingRunId?: string): Promise<ExecutionRunEntity> {
+    this.assertSameProject(this.loadedProfile, plan.projectId);
     // Legacy execution plans may predate requirementId persistence. Recover it
     // from the referenced design so they remain executable without rewriting data.
     const referencedDesign = !plan.requirementId && plan.testDesignId
@@ -169,10 +189,13 @@ export class ExecutePlan {
       throw new Error(`Requirement with id ${requirementId ?? 'undefined'} not found`);
     }
 
+    this.assertSameProject(requirement, plan.projectId);
+    this.assertSameProject(referencedDesign, plan.projectId);
     const mappedOperation = plan.operationId
       ? await this.apiOperationRepository.findById(plan.operationId)
       : null;
 
+    this.assertSameProject(mappedOperation, plan.projectId);
     // Resolve environment - use profile's default environment if plan has none.
     // Imported projects may have a service base URL but no explicit environment
     // record yet; use that generic service metadata as a non-persisted fallback.
@@ -191,6 +214,7 @@ export class ExecutePlan {
     environment = environment || environments[0];
     if (!environment && mappedOperation?.serviceId && this.apiServiceRepository) {
       const service = await this.apiServiceRepository.findById(mappedOperation.serviceId);
+      this.assertSameProject(service, plan.projectId);
       if (service?.baseUrl) {
         environment = {
           id: `service:${service.id}`,
@@ -211,7 +235,7 @@ export class ExecutePlan {
     }
 
     const selectedEnvironment = environment;
-    const secretResolver = this.secretStore ? new SecretResolutionService(this.secretStore) : null;
+    const secretResolver = this.secretStore ? new SecretResolutionService(this.secretStore, plan.projectId) : null;
     const secretValues = secretResolver ? await secretResolver.values({ authentication: selectedEnvironment.authentication, variables: selectedEnvironment.variables }) : [];
     const executionEnvironment = secretResolver
       ? { ...selectedEnvironment, authentication: await secretResolver.resolve(selectedEnvironment.authentication), variables: await secretResolver.resolve(selectedEnvironment.variables) } as any
@@ -233,6 +257,7 @@ export class ExecutePlan {
     let datasetValues: Record<string, any> = {};
     if (plan.datasetId) {
       const dataset = await this.datasetRepository.findById(plan.datasetId);
+      this.assertSameProject(dataset, plan.projectId);
       if (dataset) {
         // Use dataset properties as test data values
         datasetValues = {
@@ -351,6 +376,11 @@ export class ExecutePlan {
         ? await this.testDesignRepository.findById(candidate.testDesignId)
         : null;
       const candidateRequirement = await this.requirementRepository.findById(candidate.requirementId || requirementId);
+      this.assertSameProject(candidate, plan.projectId);
+      this.assertSameProject(design, plan.projectId);
+      this.assertSameProject(candidateRequirement, plan.projectId);
+      if (candidate.datasetId) this.assertSameProject(await this.datasetRepository.findById(candidate.datasetId), plan.projectId);
+      if (candidate.operationId) this.assertSameProject(await this.apiOperationRepository.findById(candidate.operationId), plan.projectId);
       return {
         plan: candidate,
         design,
@@ -368,6 +398,8 @@ export class ExecutePlan {
     );
     const existingRun = existingRunId ? await this.executionRunRepository.findById(existingRunId) : null;
     if (existingRunId && !existingRun) throw new Error(`Execution run ${existingRunId} was not found for durable reclaim`);
+    this.assertSameProject(existingRun, plan.projectId);
+    if (existingRun && (existingRun.executionPlanId !== plan.id || existingRun.suiteId !== (suiteId || null))) throw new Error('Reclaimed execution does not match the requested plan and suite');
     if (existingRun && existingRun.status !== 'Running' && existingRun.status !== 'Pending') return existingRun;
     const persistedRun = existingRun || await this.executionRunRepository.create(sensitiveDataRedactor.redactKnownValues(sensitiveDataRedactor.redact(run), secretValues));
     const cancellation = new AbortController();
@@ -443,10 +475,27 @@ export class ExecutePlan {
       }
 
       // An executable plan is protocol-neutral, but it must always carry a
-      // resolvable contract operation identity. Do not let malformed legacy
-      // rows reach Test Data resolution as an undefined JavaScript value.
+      // resolvable contract operation identity. Keep an unresolved mapping in
+      // the run so the user can inspect the consequence without turning the
+      // entire execution request into an opaque server error.
       if (typeof currentPlan.operationId !== 'string' || !currentPlan.operationId.trim()) {
-        throw new Error(`EXECUTION_PLAN_OPERATION_REFERENCE_INVALID: plan ${currentPlan.id} has no operationId`);
+        const completedAt = Date.now();
+        const blockedResult: ExecutionStepResult = {
+          stepId: currentPlan.id,
+          executionOrder: currentPlan.executionOrder,
+          status: 'Blocked',
+          request: { method: currentPlan.requestTemplate?.method || '', url: currentPlan.requestTemplate?.path || '', headers: {} },
+          response: null,
+          assertions: [],
+          capturedVariables: {},
+          error: 'Endpoint mapping is unresolved. No request was sent; map this test case to an endpoint and run it again.',
+          startedAt: completedAt,
+          completedAt,
+          validations: [],
+        };
+        stepResults.push(blockedResult);
+        failedStepIds.add(currentPlan.id);
+        continue;
       }
       const stepOperation = await this.apiOperationRepository.findById(currentPlan.operationId);
       // Legacy plan fixtures may execute against a direct request URL without a
@@ -481,6 +530,7 @@ export class ExecutePlan {
         for (const ref of assertionRefs) {
           if (ref.enabled) {
             const assertion = await this.assertionRepository.findById(ref.assertionId);
+            this.assertSameProject(assertion, plan.projectId);
             if (assertion && assertion.enabled) {
               reusableAssertions.push(assertion);
             }
@@ -507,11 +557,9 @@ export class ExecutePlan {
         failedStepIds.add(currentPlan.id);
         continue;
       }
-      // Execution plans are durable scheduling records, but the request body
-      // itself is authoritative in the API workspace. Always start from the
-      // operation's latest saved request sample so editing an endpoint does
-      // not require recreating every plan. Deterministic test mutations are
-      // then reapplied to that current body below.
+      // Each test design owns its complete scenario payload. Keep that
+      // payload isolated per step; otherwise rebuilding from the operation's
+      // imported sample makes different mutations share one body.
       const liveRequestPlan = this.withLiveOperationRequestBody(
         dependencyResolution.plan,
         stepOperation,
@@ -572,6 +620,8 @@ export class ExecutePlan {
       }
     }
 
+    const validationResults: StepValidationResult[] = stepResults.map(step => ({ stepId: step.stepId, executionOrder: step.executionOrder, validations: (step.validations || []).map(result => ({ ...result, rule: { ...result.rule, executionPlanId: step.stepId, type: result.rule.type as ValidationRule['type'] } })), stepStatus: step.status === 'Passed' ? 'Passed' : 'Failed' }));
+    const validations = validationResults.flatMap(step => step.validations);
     // Calculate summary
     const summary: ExecutionSummary = {
       totalSteps: stepResults.length,
@@ -580,9 +630,9 @@ export class ExecutePlan {
       skipped: stepResults.filter(r => r.status === 'Skipped').length,
       blocked: stepResults.filter(r => r.status === 'Blocked').length,
       duration: Date.now() - now,
-      validationPassed: 0,
-      validationFailed: 0,
-      validationWarnings: 0,
+      validationPassed: validations.filter(result => result.status === 'Passed').length,
+      validationFailed: validations.filter(result => result.status === 'Failed').length,
+      validationWarnings: validations.filter(result => result.status === 'Warning').length,
     };
 
     // Determine final status
@@ -592,8 +642,8 @@ export class ExecutePlan {
     const storedRun = typeof (this.executionRunRepository as any).findById === 'function'
       ? await this.executionRunRepository.findById(persistedRun.id)
       : null;
-    const finalStatus: RunStatus = cancellation.signal.aborted || storedRun?.status === 'Cancelled' ? 'Cancelled' : summary.failed > 0
-      ? (failureMode === 'StopOnFailure' ? 'Failed' : 'Completed')
+    const finalStatus: RunStatus = cancellation.signal.aborted || storedRun?.status === 'Cancelled' ? 'Cancelled' : (summary.failed > 0 || summary.blocked > 0 || summary.skipped > 0 || summary.totalSteps === 0)
+      ? 'Failed'
       : 'Completed';
 
     // Update run with results
@@ -606,7 +656,7 @@ export class ExecutePlan {
       finalStatus,
       context,
       stepResults,
-      [],
+      validationResults,
       summary,
       persistedRun.createdAt,
       Date.now(),
@@ -633,9 +683,9 @@ export class ExecutePlan {
 
   private withLiveOperationRequestBody(plan: any, operation: any, design: any): any {
     const liveBody = operation?.sampleRequestBody;
-    // The operation is the saved API-workspace source of truth. Keep its URL
-    // alongside its body so an execution never falls back to the import-time
-    // path saved in a test plan.
+    // The operation's current URL may be needed when the API workspace edits
+    // an endpoint, but its imported sample body is not a substitute for a
+    // test case's mapped/mutated payload.
     const liveRequestUrl = typeof operation?.requestUrl === 'string' && operation.requestUrl.trim()
       ? operation.requestUrl
       : plan.requestTemplate?.path;
@@ -643,20 +693,36 @@ export class ExecutePlan {
       ...(plan.requestTemplate || {}),
       ...(liveRequestUrl ? { path: liveRequestUrl } : {}),
     };
-    const mutation = design?.mutationProvenance;
-    // Older approved suites may already contain their mutated payload in the
-    // plan but have no mutation provenance metadata. Preserve that durable
-    // approved body instead of replacing it with the unmutated live sample.
-    if (!mutation && plan.requestTemplate?.body && typeof plan.requestTemplate.body === 'object') {
-      return { ...plan, requestTemplate };
+
+    const designOverrides = design?.requestOverrides;
+    const hasDesignBody = Boolean(
+      designOverrides && Object.prototype.hasOwnProperty.call(designOverrides, 'body')
+      && designOverrides.body !== undefined,
+    );
+    const planTemplate = plan.requestTemplate || {};
+    const hasPlanBody = Object.prototype.hasOwnProperty.call(planTemplate, 'body')
+      && planTemplate.body !== undefined;
+
+    // Generated/mapped test cases persist their complete body on the design;
+    // use it first so every scenario retains all of its own mutations. The
+    // plan body supports older approved plans that predate this source.
+    if (hasDesignBody || hasPlanBody) {
+      return {
+        ...plan,
+        requestTemplate: {
+          ...requestTemplate,
+          body: this.cloneValue(hasDesignBody ? designOverrides.body : planTemplate.body),
+        },
+      };
     }
+
+    // Legacy plans without a durable body can still use the operation sample,
+    // with the old single-field mutation fallback when provenance exists.
     if (!liveBody || typeof liveBody !== 'object' || Array.isArray(liveBody)) {
       return { ...plan, requestTemplate };
     }
     const body = this.cloneValue(liveBody);
-    // Baseline/positive cases intentionally use the complete current editor
-    // body. For deterministic negative cases, replace only the one field
-    // selected by the test mutation and preserve all other live values.
+    const mutation = design?.mutationProvenance;
     if (mutation && mutation.location === 'body' && mutation.strategy !== 'baseline-valid') {
       this.applyBodyMutation(body, String(mutation.fieldPath || ''), mutation.mutatedValue);
     }
@@ -845,10 +911,23 @@ export class ExecutePlan {
         const actual = this.extractValue(response, assertion.path, assertion.type);
         return { type: assertion.type, operator: assertion.operator, path: assertion.path, expected: assertion.expected, actual, passed: this.validateAssertion(assertion, actual) };
       });
-      const rules: ValidationRule[] = (plan.assertions || []).map((assertion: any, index: number) => ({ id: `validation-${index}`, executionPlanId: plan.id, name: `Validation ${index + 1}`, type: this.mapAssertionType(assertion.type, assertion.operator), config: { path: assertion.path, expected: assertion.type === 'status' ? Number(assertion.expected) : assertion.expected, operator: assertion.operator } }));
-      const validations = ValidationEngine.validateStep(rules, { response, runtimeVariables: context.runtimeVariables }).validations;
+      const rules: ValidationRule[] = (plan.assertions || []).map((assertion: any, index: number) => {
+        const targets: Record<string, string> = { status: 'status', header: 'header', jsonPath: 'body', body: 'body', 'HTTP Status': 'status', 'Header Equals': 'header', 'Header Exists': 'header', 'JSON Path Exists': 'body', 'JSON Path Equals': 'body', 'Body Contains': 'body', 'Body Regex': 'body', 'Runtime Variable Exists': 'runtime' };
+        let config: ValidationRule['config'] = { path: assertion.path, expected: assertion.expected, operator: assertion.operator };
+        let type: ValidationRule['type'] = 'Custom Assertion';
+        if (assertion.type === 'Response Time') { type = 'Response Time'; config = { maxDuration: Number(assertion.expected?.maxDuration ?? assertion.expected) }; }
+        else if (assertion.type === 'Response Schema') { type = 'Response Schema'; config = { schema: assertion.expected }; }
+        else if (targets[assertion.type]) {
+          const operator = assertion.type.endsWith('Exists') ? 'exists' : assertion.type === 'Body Regex' ? 'matches' : assertion.type === 'Body Contains' ? 'contains' : assertion.operator;
+          const expected = targets[assertion.type] === 'status' && operator === 'equals' ? Number(assertion.expected) : assertion.expected;
+          config = { expected: { target: targets[assertion.type], path: assertion.path, expected, operator } };
+        }
+        return { id: 'validation-' + index, executionPlanId: plan.id, name: 'Validation ' + (index + 1), type, config };
+      });
+      const validations = ValidationEngine.validateStep(rules, { response: { ...response, duration: responseResult.duration }, runtimeVariables: context.runtimeVariables }).validations;
       assertions.forEach((item: any, index: number) => {
-        if (this.mapAssertionType(item.type, item.operator) === 'Custom Assertion') item.passed = validations[index]?.status === 'Passed';
+        item.passed = validations[index]?.status === 'Passed';
+        item.actual = validations[index]?.actual;
       });
       // A test case may intentionally expect a non-2xx response (for example
       // a negative or security scenario expecting 400/401). The status

@@ -58,3 +58,22 @@ describe('GenerateReport suite identity', () => {
     expect(JSON.stringify(report.sections.stepResults)).not.toContain('hidden');
   });
 });
+
+it('retains step arrays for large evidence and never passes a failed continue-on-failure run', async () => {
+  const run = makeRun({ summary: { totalSteps: 1, passed: 0, failed: 1, skipped: 0, blocked: 0, duration: 1 }, stepResults: [{ status:'Failed', response:{body:'x'.repeat(200000)}, validations:[{status:'Failed'}], startedAt:1 }] });
+  const { useCase } = createUseCase(run);
+  const report = await useCase.generate(run.id);
+  expect(report.overallStatus).toBe('Failed');
+  expect(report.sections.stepResults).toHaveLength(1);
+  expect(report.sections.validationResults).toHaveLength(1);
+});
+
+it('regenerates cached legacy verdicts under the corrected report version', async () => {
+  const run = makeRun({ summary: {totalSteps:1,failed:1,passed:0,skipped:0,blocked:0,duration:1} });
+  const {useCase, repository} = createUseCase(run);
+  repository.findByExecutionRun.mockResolvedValue({id:'legacy-report',reportVersion:'1.0.0',overallStatus:'Passed'} as any);
+  const report = await useCase.generate(run.id);
+  expect(report.id).toBe('legacy-report');
+  expect(report.reportVersion).toBe('1.1.0');
+  expect(report.overallStatus).toBe('Failed');
+});

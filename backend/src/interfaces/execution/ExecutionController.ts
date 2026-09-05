@@ -28,13 +28,8 @@ export class ExecutionController {
     }
     async listExecutions(req: Request, res: Response): Promise<void> {
         const projectId = req.params.projectId;
-        try {
-            const runs = await this.executionRunRepository.findByProject(projectId);
-            res.status(200).json(createSuccessResponse(runs));
-        } catch (err: unknown) {
-            console.error('[ExecutionController.listExecutions]', err);
-            res.status(200).json(createSuccessResponse([]));
-        }
+        const runs = await this.executionRunRepository.findByProject(projectId);
+        res.status(200).json(createSuccessResponse(runs));
     }
     async deleteExecution(req: Request, res: Response): Promise<void> {
         const { projectId, runId } = req.params;

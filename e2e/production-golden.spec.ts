@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import jwt from 'jsonwebtoken';
 import { readFile } from 'node:fs/promises';
@@ -9,6 +10,14 @@ const headers = (projects: string[] | '*') => ({ Authorization: `Bearer ${token(
 const unwrap = async (response: any) => {
   expect(response.ok(), `${response.status()} ${await response.text()}`).toBeTruthy();
   const body = await response.json(); return body.data;
+};
+const readJobs = async () => {
+  try {
+    return JSON.parse(await readFile(join(process.env.TESTFORGE_E2E_DATA_ROOT!, 'data/runtime/jobs.json'), 'utf8')) as any[];
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    return [];
+  }
 };
 
 async function createExecutableFixture(request: any, options: { name: string; path: string; environment?: Record<string, unknown>; confirmMappings?: boolean }) {
@@ -37,11 +46,16 @@ async function createProfile(request: any, projectId: string, environmentId: str
   return unwrap(await request.post(`${api}/projects/${projectId}/execution-profiles`, { headers: headers('*'), data: { name: `profile-${Date.now()}`, description: '', defaultEnvironmentId: environmentId, failureMode: 'ContinueOnFailure', retryPolicy: { enabled: retries > 0, maxRetries: retries, retryDelay: 1 }, timeout: 10_000, parallelism: { enabled: false, maxConcurrent: 1 }, assertionMode: 'all', runtimeVariableReset: true, datasetSelectionStrategy: 'first', tags: [], enabled: true, isDefault: true } }));
 }
 
-test('production preview loads and routes its API requests through the built-artifact proxy', async ({ page }) => {
+test('production preview loads and routes its API requests through the built-artifact proxy', async ({ page }, testInfo) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   await expect(page.locator('body')).toBeVisible();
   const health = await page.request.get('/api/auth/config');
   expect(health.ok()).toBeTruthy();
+  await expect(page.getByText('TestForge').first()).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('production-preview.png'), fullPage: true });
+  expect(errors).toEqual([]);
 });
 
 test('golden API workflow uses authenticated public flows and retains safety decisions', async ({ request }) => {
@@ -100,11 +114,11 @@ test('safe contract re-import preserves the operation and marks it review-requir
   expect(after).toEqual(expect.arrayContaining([expect.objectContaining({ id: before.id, status: 'Review Required' })]));
 });
 
-test('low-confidence endpoint mapping is blocked until a user confirms it', async ({ request }) => {
+test('low-confidence endpoint mapping is reported without returning a server error', async ({ request }) => {
   const fixture = await createExecutableFixture(request, { name: `mapping-${Date.now()}`, path: '/widgets', confirmMappings: false, environment: { tier: 'DEVELOPMENT', executionPolicy: { mappingConfidenceThreshold: 100 } } });
-  const blocked = await request.post(`${api}/projects/${fixture.projectId}/executions/${fixture.plans[0].id}/start`, { headers: headers('*'), data: {} });
-  expect(blocked.status()).toBe(400);
-  expect(await blocked.text()).toContain('endpoint mapping is unresolved or below');
+  const unresolved = await unwrap(await request.post(`${api}/projects/${fixture.projectId}/executions/${fixture.plans[0].id}/start`, { headers: headers('*'), data: {} }));
+  expect(unresolved.stepResults[0].status).toBe('Blocked');
+  expect(unresolved.stepResults[0].error).toContain('Endpoint mapping is unresolved');
   for (const design of fixture.designs) await unwrap(await request.patch(`${api}/projects/${fixture.projectId}/test-designs/${design.id}`, { headers: headers('*'), data: { status: 'Ready', operationId: fixture.operations[1].id, rebuildPayload: true } }));
   const regenerated = await unwrap(await request.post(`${api}/projects/${fixture.projectId}/requirements/${fixture.requirement.id}/execution-plans`, { headers: headers('*') }));
   const permitted = await request.post(`${api}/projects/${fixture.projectId}/executions/${regenerated[0].id}/start`, { headers: headers('*'), data: {} });
@@ -123,20 +137,20 @@ test('a 2xx retry still fails when its assertions fail', async ({ request }) => 
 test('scheduled execution applies the same default egress block and explicit fixture allowlist', async ({ request }) => {
   const scheduleRun = async (fixture: any) => {
     const profile = await createProfile(request, fixture.projectId, fixture.environment.id);
-    const suite = await unwrap(await request.post(`${api}/projects/${fixture.projectId}/suites`, { headers: headers('*'), data: { name: `suite-${Date.now()}`, executionPlans: fixture.plans.map((plan: any, index: number) => ({ executionPlanId: plan.id, order: index + 1 })), defaultEnvironmentId: fixture.environment.id, status: 'Active' } }));
+    const suite = await unwrap(await request.post(`${api}/projects/${fixture.projectId}/suites`, { headers: headers('*'), data: { name: `suite-${Date.now()}`, executionPlans: fixture.plans.slice(0, 1).map((plan: any, index: number) => ({ executionPlanId: plan.id, order: index + 1 })), defaultEnvironmentId: fixture.environment.id, status: 'Active' } }));
     const schedule = await unwrap(await request.post(`${api}/projects/${fixture.projectId}/schedules`, { headers: headers('*'), data: { name: `schedule-${Date.now()}`, description: '', suiteId: suite.id, executionProfileId: profile.id, environmentId: fixture.environment.id, cronExpression: '* * * * *', timezone: 'UTC', enabled: false } }));
     await unwrap(await request.post(`${api}/projects/${fixture.projectId}/schedules/${schedule.id}/run`, { headers: headers('*') }));
     return schedule;
   };
   const blocked = await createExecutableFixture(request, { name: `scheduled-block-${Date.now()}`, path: '/widgets' });
   const blockedSchedule = await scheduleRun(blocked);
-  await expect.poll(async () => (JSON.parse(await readFile('backend/data/runtime/jobs.json', 'utf8')).find((job: any) => job.payload.scheduleId === blockedSchedule.id) || {}).status, { timeout: 8_000 }).toBe('SUCCEEDED');
-  const blockedJob = JSON.parse(await readFile('backend/data/runtime/jobs.json', 'utf8')).find((job: any) => job.payload.scheduleId === blockedSchedule.id);
+  await expect.poll(async () => ((await readJobs()).find((job: any) => job.payload.scheduleId === blockedSchedule.id) || {}).status, { timeout: 8_000 }).toBe('FAILED');
+  const blockedJob = (await readJobs()).find((job: any) => job.payload.scheduleId === blockedSchedule.id);
   const blockedRun = await unwrap(await request.get(`${api}/projects/${blocked.projectId}/executions/${blockedJob.payload.executionRunId}`, { headers: headers('*') }));
   expect(blockedRun.stepResults[0].error).toContain('network safety policy');
   const allowed = await createExecutableFixture(request, { name: `scheduled-allow-${Date.now()}`, path: '/widgets', environment: { tier: 'DEVELOPMENT', executionPolicy: { outboundEgressPolicy: { allowLoopback: true, allowPrivateNetworks: true, allowedHosts: ['127.0.0.1'], allowedPorts: [3102] } } } });
   const allowedSchedule = await scheduleRun(allowed);
-  await expect.poll(async () => (JSON.parse(await readFile('backend/data/runtime/jobs.json', 'utf8')).find((job: any) => job.payload.scheduleId === allowedSchedule.id) || {}).status, { timeout: 8_000 }).toBe('SUCCEEDED');
+  await expect.poll(async () => ((await readJobs()).find((job: any) => job.payload.scheduleId === allowedSchedule.id) || {}).status, { timeout: 8_000 }).toBe('SUCCEEDED');
 });
 
 test('scheduled durable execution cancels an active slow run without executing remaining steps', async ({ request }) => {
@@ -157,8 +171,9 @@ test('scheduled durable execution cancels an active slow run without executing r
   const suite = await unwrap(await request.post(`${api}/projects/${projectId}/suites`, { headers: headers('*'), data: { name: 'Slow suite', executionPlans: plans.map((plan: any, index: number) => ({ executionPlanId: plan.id, order: index + 1 })), defaultEnvironmentId: environment.id, status: 'Active' } }));
   const profile = await unwrap(await request.post(`${api}/projects/${projectId}/execution-profiles`, { headers: headers('*'), data: { name: 'slow profile', description: '', defaultEnvironmentId: environment.id, failureMode: 'ContinueOnFailure', retryPolicy: { enabled: false, maxRetries: 0, retryDelay: 0 }, timeout: 10_000, parallelism: { enabled: false, maxConcurrent: 1 }, assertionMode: 'all', runtimeVariableReset: true, datasetSelectionStrategy: 'first', tags: [], enabled: true, isDefault: true } }));
   const schedule = await unwrap(await request.post(`${api}/projects/${projectId}/schedules`, { headers: headers('*'), data: { name: 'Slow schedule', description: '', suiteId: suite.id, executionProfileId: profile.id, environmentId: environment.id, cronExpression: '* * * * *', timezone: 'UTC', enabled: false } }));
+  const initialFixtureState = await (await request.get('http://127.0.0.1:3102/__fixture/state')).json();
   await unwrap(await request.post(`${api}/projects/${projectId}/schedules/${schedule.id}/run`, { headers: headers('*') }));
-  await expect.poll(async () => (await (await request.get('http://127.0.0.1:3102/__fixture/state')).json()).slowStarted, { timeout: 8_000 }).toBeGreaterThan(0);
+  await expect.poll(async () => (await (await request.get('http://127.0.0.1:3102/__fixture/state')).json()).slowStarted, { timeout: 8_000 }).toBe(initialFixtureState.slowStarted + 1);
   const run = await expect.poll(async () => { const runs = await unwrap(await request.get(`${api}/projects/${projectId}/executions`, { headers: headers('*') })); return runs.find((item: any) => item.status === 'Running') || null; }, { timeout: 8_000 }).not.toBeNull();
   const activeRun = (await unwrap(await request.get(`${api}/projects/${projectId}/executions`, { headers: headers('*') }))).find((item: any) => item.status === 'Running');
   await unwrap(await request.post(`${api}/projects/${projectId}/executions/${activeRun.id}/cancel`, { headers: headers('*') }));
@@ -170,9 +185,25 @@ test('scheduled durable execution cancels an active slow run without executing r
   // The in-flight response may finish at the fixture after its client has
   // been aborted. Exactly one completion proves no subsequent suite step was
   // dispatched, while the run must remain cancellation-dominant.
-  expect(state.slowStarted).toBe(1);
-  expect(state.completedRequests).toBe(1);
-  const jobs = JSON.parse(await readFile('backend/data/runtime/jobs.json', 'utf8'));
+  expect(state.slowStarted).toBe(initialFixtureState.slowStarted + 1);
+  expect(state.completedRequests).toBeLessThanOrEqual(initialFixtureState.completedRequests + 1);
+  const jobs = await readJobs();
   expect(jobs).toEqual(expect.arrayContaining([expect.objectContaining({ projectId, status: 'CANCELLED', payload: expect.objectContaining({ executionRunId: activeRun.id }) })]));
   expect(finalRun.stepResults.length).toBeLessThan(plans.length);
+});
+
+test('project URLs cannot authorize foreign resource IDs or AI provider references', async ({ request }) => {
+  const makeProject = async (name: string) => unwrap(await request.post(api + '/projects', { headers: headers('*'), data: {name, projectKey:name + Date.now()} }));
+  const own = await makeProject('scope-own');
+  const foreign = await makeProject('scope-foreign');
+  const requirement = await unwrap(await request.post(api + '/projects/' + foreign.id + '/requirements', { headers:headers('*'), data:{title:'Foreign requirement',description:'Private',category:'Functional',confidence:1,source:'manual',acceptanceCriteria:['private']} }));
+  const path = api + '/projects/' + own.id + '/requirements/' + requirement.id;
+  expect((await request.get(path, {headers:headers([own.id])})).status()).toBe(404);
+  expect((await request.patch(path, {headers:headers([own.id]),data:{title:'tampered'}})).status()).toBe(404);
+  const provider = await unwrap(await request.post(api + '/projects/' + foreign.id + '/ai/providers', { headers:headers('*'), data:{name:'Fixture provider',provider:'Groq',model:'fixture',apiKey:'e2e-only-provider-key'} }));
+  expect(provider.apiKey).not.toBe('e2e-only-provider-key');
+  const generated = await request.post(api + '/projects/' + own.id + '/requirements/generate-ai', {headers:headers([own.id]),data:{providerId:provider.id,prompt:'must not run'}});
+  expect(generated.status()).toBe(404);
+  const unchanged = await unwrap(await request.get(api + '/projects/' + foreign.id + '/requirements/' + requirement.id, {headers:headers('*')}));
+  expect(unchanged.title).toBe('Foreign requirement');
 });

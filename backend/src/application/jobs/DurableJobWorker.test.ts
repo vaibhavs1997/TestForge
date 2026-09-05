@@ -5,11 +5,38 @@ import { newJob } from '../../infrastructure/jobs/JsonDurableJobRepository.js';
 function repo(job: any) { return { claim: vi.fn().mockResolvedValue(job), renewLease: vi.fn().mockResolvedValue(job), updatePayload: vi.fn(async (_id:string,_worker:string,payload:any) => { job.payload = payload; return job; }), findById: vi.fn().mockResolvedValue(job), acknowledge: vi.fn().mockResolvedValue(job), fail: vi.fn().mockResolvedValue(job) }; }
 const job = () => newJob({ projectId:'p', jobType:'SUITE_EXECUTION', payload:{suiteId:'suite',environmentId:'env',executionProfileId:'profile'}, createdBy:'scheduler',maxAttempts:2,idempotencyKey:'key' });
 describe('DurableJobWorker', () => {
-  it('persists the run link before suite execution completes', async () => { const j:any=job(); const r=repo(j); let linkedBeforeCompletion=false; const execute=vi.fn(async (_suite:any,_mode:any,_profile:any,_environment:any,onRunCreated:any) => { await onRunCreated({id:'run-1'}); linkedBeforeCompletion=j.payload.executionRunId==='run-1'; return {id:'run-1'}; }); const w=new DurableJobWorker(r as any,{execute} as any); await w.workOnce(); expect(execute.mock.calls[0].slice(0,5)).toEqual(['suite',undefined,'profile','env',expect.any(Function)]); expect(linkedBeforeCompletion).toBe(true); expect(r.updatePayload).toHaveBeenCalledWith(j.jobId,w.workerId,expect.objectContaining({executionRunId:'run-1'})); expect(r.acknowledge).toHaveBeenCalledWith(j.jobId,w.workerId); });
+  it('persists the run link before suite execution completes', async () => { const j:any=job(); const r=repo(j); let linkedBeforeCompletion=false; const execute=vi.fn(async (_suite:any,_mode:any,_profile:any,_environment:any,onRunCreated:any) => { await onRunCreated({id:'run-1'}); linkedBeforeCompletion=j.payload.executionRunId==='run-1'; return {id:'run-1',status:'Completed'}; }); const w=new DurableJobWorker(r as any,{execute} as any); await w.workOnce(); expect(execute.mock.calls[0].slice(0,5)).toEqual(['suite',undefined,'profile','env',expect.any(Function)]); expect(linkedBeforeCompletion).toBe(true); expect(r.updatePayload).toHaveBeenCalledWith(j.jobId,w.workerId,expect.objectContaining({executionRunId:'run-1'})); expect(r.acknowledge).toHaveBeenCalledWith(j.jobId,w.workerId); });
   it('reclaims a linked active run using the original run identity', async () => { const j:any=job(); j.payload.executionRunId='run-1'; const r=repo(j); const execute=vi.fn().mockResolvedValue({id:'run-1',status:'Completed'}); const w=new DurableJobWorker(r as any,{execute} as any); await w.workOnce(); expect(execute).toHaveBeenCalledWith('suite',undefined,'profile','env',expect.any(Function),'run-1'); expect(r.acknowledge).toHaveBeenCalled(); });
   it('reuses the persisted run ID after a crash reclaim without creating another run', async () => { const j:any=job(); const r=repo(j); const execute=vi.fn().mockResolvedValue({id:'run-1',status:'Completed'}); const w=new DurableJobWorker(r as any,{execute} as any); await w.workOnce(); await w.workOnce(); expect(execute).toHaveBeenCalledTimes(2); expect(execute.mock.calls[1][5]).toBe('run-1'); expect(r.updatePayload).toHaveBeenCalledTimes(1); });
   it('records safety failures through durable retry handling with sanitized metadata', async () => { const j:any=job(); const r=repo(j); const w=new DurableJobWorker(r as any,{execute:vi.fn().mockRejectedValue(new Error('Execution safety blocked: token=secret'))} as any); await w.workOnce(); expect(r.fail).toHaveBeenCalledWith(j.jobId,w.workerId,expect.objectContaining({message:expect.stringContaining('Execution safety blocked')})); });
   it('does not mark a running job successful after it is cancelled', async () => { const j:any=job(); const r=repo(j); r.findById.mockResolvedValue({ ...j, status:'CANCELLED' }); const w=new DurableJobWorker(r as any,{execute:vi.fn().mockResolvedValue({id:'run-1'})} as any); await w.workOnce(); expect(r.acknowledge).not.toHaveBeenCalled(); expect(r.fail).not.toHaveBeenCalled(); });
   it('cancels the durable job when its linked execution is cancelled', async () => { const j:any=job(); j.payload.executionRunId='run-1'; const r:any={...repo(j),cancel:vi.fn().mockResolvedValue({...j,status:'CANCELLED'})}; const w=new DurableJobWorker(r,{execute:vi.fn().mockResolvedValue({id:'run-1',status:'Cancelled'})} as any); await w.workOnce(); expect(r.cancel).toHaveBeenCalledWith(j.jobId); expect(r.acknowledge).not.toHaveBeenCalled(); });
   it('graceful shutdown prevents new claims', async () => { const r=repo(job()); const w=new DurableJobWorker(r as any,{execute:vi.fn()} as any); await w.stop(); await w.workOnce(); expect(r.claim).not.toHaveBeenCalled(); });
+});
+
+it('bounds overlapping polling ticks and drains in-flight work on shutdown', async () => {
+  const r = repo(job());
+  let finish!: () => void;
+  const blocked = new Promise<void>(resolve => { finish = resolve; });
+  const execute = vi.fn(async () => { await blocked; return {id:'run',status:'Completed'}; });
+  const worker = new DurableJobWorker(r as any, {execute} as any, 1);
+  const first = worker.tick();
+  await vi.waitFor(() => expect(execute).toHaveBeenCalledOnce());
+  await Promise.all([worker.tick(), worker.tick()]);
+  expect(r.claim).toHaveBeenCalledOnce();
+  let stopped = false;
+  const stop = worker.stop().then(() => {stopped = true;});
+  await Promise.resolve(); expect(stopped).toBe(false);
+  finish(); await Promise.all([first, stop]);
+  expect(stopped).toBe(true);
+});
+
+it('never acknowledges a nonterminal execution or a legacy completed run with failures', async () => {
+  for (const run of [{id:'run',status:'Running'}, {id:'run',status:'Completed',summary:{totalSteps:1,failed:1}}]) {
+    const r = repo(job());
+    const worker = new DurableJobWorker(r as any, {execute:vi.fn().mockResolvedValue(run)} as any);
+    await worker.workOnce();
+    expect(r.acknowledge).not.toHaveBeenCalled();
+    expect(r.fail).toHaveBeenCalled();
+  }
 });

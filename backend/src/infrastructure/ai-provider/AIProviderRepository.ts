@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto';
+import type { SecretStore } from '../../domain/security/SecretStore.js';
+import { LocalSecretStore } from '../security/LocalSecretStore.js';
 // AIProviderRepository - Infrastructure implementation for AI Provider Framework
 // Uses the same locked JSON persistence pattern as the other project repositories.
 
@@ -5,13 +8,36 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { AIProviderEntity } from '../../domain/ai-provider/index.js';
 import type { AIProviderType, AIProviderRepository } from '../../domain/ai-provider/index.js';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
+import { readJsonArray, updateJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'ai-providers');
 }
 
+type StoredProvider = AIProviderEntity & { apiKeyRef?: string };
 export class FileAIProviderRepository implements AIProviderRepository {
+  constructor(private readonly secrets: SecretStore = new LocalSecretStore()) {}
+
+  private async encode(provider: StoredProvider): Promise<StoredProvider> {
+    if (!provider.apiKey) return provider;
+    const apiKeyRef = 'ai-provider-' + randomUUID();
+    await this.secrets.set({ id: apiKeyRef, projectId: provider.projectId, value: provider.apiKey, classification: 'provider-credential' });
+    return { ...provider, apiKey: null, apiKeyRef };
+  }
+
+  private async decode(provider: StoredProvider): Promise<AIProviderEntity> {
+    const { apiKeyRef, ...publicFields } = provider;
+    if (!apiKeyRef) return publicFields;
+    const metadata = await this.secrets.metadata(apiKeyRef);
+    if (!metadata || metadata.projectId !== provider.projectId) throw new Error('Provider credential is unavailable');
+    const apiKey = await this.secrets.get(apiKeyRef);
+    if (apiKey === null) throw new Error('Provider credential is unavailable');
+    return { ...publicFields, apiKey };
+  }
+
+  async migrateSecrets(): Promise<void> {
+    for (const projectId of this.listProjectIds()) await this.readProject(projectId);
+  }
   private getProjectFilePath(projectId: string): string {
     return path.join(getDataRoot(), projectId, 'providers.json');
   }
@@ -24,17 +50,19 @@ export class FileAIProviderRepository implements AIProviderRepository {
   }
 
   private async readProject(projectId: string): Promise<AIProviderEntity[]> {
-    return readJsonArray<AIProviderEntity>(this.getProjectFilePath(projectId));
-  }
-
-  private async writeProject(projectId: string, providers: AIProviderEntity[]): Promise<void> {
-    await writeJsonArray(this.getProjectFilePath(projectId), providers);
+    const file = this.getProjectFilePath(projectId);
+    let stored = await readJsonArray<StoredProvider>(file);
+    if (stored.some(provider => provider.apiKey)) {
+      stored = await updateJsonArray<StoredProvider>(file, [], providers => Promise.all(providers.map(provider => this.encode(provider))));
+    }
+    return Promise.all(stored.map(provider => this.decode(provider)));
   }
 
   async create(provider: AIProviderEntity): Promise<AIProviderEntity> {
-    const providers = await this.readProject(provider.projectId);
-    providers.push(provider);
-    await this.writeProject(provider.projectId, providers);
+    await updateJsonArray<AIProviderEntity>(this.getProjectFilePath(provider.projectId), [], async (providers) => [
+      ...providers,
+      await this.encode(provider),
+    ]);
     return provider;
   }
 
@@ -82,35 +110,47 @@ export class FileAIProviderRepository implements AIProviderRepository {
     const existing = await this.findById(id);
     if (!existing) return null;
 
-    const updated = new AIProviderEntity(
-      existing.id,
-      existing.projectId,
-      updates.name !== undefined ? updates.name : existing.name,
-      updates.provider !== undefined ? updates.provider : existing.provider,
-      updates.model !== undefined ? updates.model : existing.model,
-      updates.endpoint !== undefined ? updates.endpoint : existing.endpoint,
-      updates.apiKey !== undefined ? updates.apiKey : existing.apiKey,
-      updates.organization !== undefined ? updates.organization : existing.organization,
-      updates.temperature !== undefined ? updates.temperature : existing.temperature,
-      updates.topP !== undefined ? updates.topP : existing.topP,
-      updates.maxTokens !== undefined ? updates.maxTokens : existing.maxTokens,
-      updates.timeout !== undefined ? updates.timeout : existing.timeout,
-      updates.enabled !== undefined ? updates.enabled : existing.enabled,
-      updates.isDefault !== undefined ? updates.isDefault : existing.isDefault,
-      existing.createdAt,
-      Date.now()
-    );
+    let updated: AIProviderEntity | null = null;
+    await updateJsonArray<StoredProvider>(this.getProjectFilePath(existing.projectId), [], async (providers) => {
+      const stored = providers.find((provider) => provider.id === id);
+      if (!stored) return providers;
+      const current = await this.decode(stored);
 
-    const providers = await this.readProject(existing.projectId);
-    await this.writeProject(existing.projectId, providers.map((provider) => provider.id === id ? updated : provider));
+      const nextProvider = new AIProviderEntity(
+        current.id,
+        current.projectId,
+        updates.name !== undefined ? updates.name : current.name,
+        updates.provider !== undefined ? updates.provider : current.provider,
+        updates.model !== undefined ? updates.model : current.model,
+        updates.endpoint !== undefined ? updates.endpoint : current.endpoint,
+        updates.apiKey !== undefined ? updates.apiKey : current.apiKey,
+        updates.organization !== undefined ? updates.organization : current.organization,
+        updates.temperature !== undefined ? updates.temperature : current.temperature,
+        updates.topP !== undefined ? updates.topP : current.topP,
+        updates.maxTokens !== undefined ? updates.maxTokens : current.maxTokens,
+        updates.timeout !== undefined ? updates.timeout : current.timeout,
+        updates.enabled !== undefined ? updates.enabled : current.enabled,
+        updates.isDefault !== undefined ? updates.isDefault : current.isDefault,
+        current.createdAt,
+        Date.now()
+      );
+      updated = nextProvider;
+
+      const encoded = updates.apiKey === undefined
+        ? { ...nextProvider, apiKey: null, apiKeyRef: stored.apiKeyRef }
+        : await this.encode(nextProvider);
+      return providers.map((provider) => provider.id === id ? encoded : provider);
+    });
     return updated;
   }
 
   async delete(id: string): Promise<void> {
     const existing = await this.findById(id);
     if (!existing) return;
-    const providers = await this.readProject(existing.projectId);
-    await this.writeProject(existing.projectId, providers.filter((provider) => provider.id !== id));
+
+    await updateJsonArray<AIProviderEntity>(this.getProjectFilePath(existing.projectId), [], (providers) =>
+      providers.filter((provider) => provider.id !== id)
+    );
   }
 }
 

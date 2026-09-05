@@ -58,6 +58,12 @@ describe('AuditLogRepository contract', () => {
     await expectRepositoryContract(new InMemoryAuditLogRepository());
   });
 
+  it('preserves every audit entry during a burst of concurrent events', async () => {
+    const repository = new FileAuditLogRepository();
+    await Promise.all(Array.from({length:50}, (_, id) => repository.create(new AuditLogEntity('burst-' + id, 'p', 'API', 'Service', 's', 'CREATE', 'u', id, null, null, {}))));
+    expect(await repository.list()).toHaveLength(50);
+  });
+
   it('behaves consistently on disk', async () => {
     await expectRepositoryContract(new FileAuditLogRepository());
   });

@@ -9,7 +9,9 @@ const plan = (overrides: Record<string, unknown> = {}) => ({
 
 function runner(execute: ReturnType<typeof vi.fn>, retries = 1) {
   const instance = new ExecutePlan({} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, undefined, undefined, undefined, undefined, undefined, undefined, { execute } as any);
-  (instance as any).loadedProfile = { timeout: 1000, retryPolicy: { enabled: true, maxRetries: retries, retryDelay: 0 } };
+  const profile = { timeout: 1000, retryPolicy: { enabled: true, maxRetries: retries, retryDelay: 0 } };
+  const executeStep = (instance as any).executeStep.bind(instance);
+  (instance as any).executeStep = (...args: any[]) => (instance as any).executionContext.run({ profile }, () => executeStep(...args));
   return instance;
 }
 
@@ -80,4 +82,33 @@ describe('ExecutePlan retry semantics', () => {
     expect(cancelled.executionSnapshot.baseSnapshotId).toBeTruthy();
     expect(cancelled.attempts).toEqual([]);
   });
+});
+
+it('evaluates status regexes, response-time assertions, and exact headers through the engine', async () => {
+  const execute = vi.fn().mockResolvedValue({status:201,statusText:'Created',headers:{'x-version':'2'},data:{}});
+  const result = await (runner(execute) as any).executeStep(plan({ assertions:[
+    {type:'status',operator:'matches',expected:'^20[01]$'},
+    {type:'header',path:'x-version',operator:'equals',expected:'2'},
+    {type:'Response Time',expected:10000},
+  ]}), context(), {});
+  expect(result.status).toBe('Passed');
+  expect(result.validations.every((item:any) => item.status === 'Passed')).toBe(true);
+});
+
+it('isolates profile settings across concurrent public executions', async () => {
+  const instance: any = runner(vi.fn());
+  instance.executionProfileRepository = {findById: async (id:string) => ({id, timeout:id === 'fast' ? 100 : 9000, failureMode:'ContinueOnFailure'})};
+  instance.executionPlanRepository = {findById: async (id:string) => ({id, projectId:'p'})};
+  let release!: () => void;
+  const barrier = new Promise<void>(resolve => {release = resolve;});
+  const seen: Record<string, number[]> = {};
+  instance.executePlan = async (item:any) => {
+    seen[item.id] = [instance.loadedProfile.timeout];
+    if(item.id === 'first') await barrier;
+    else release();
+    seen[item.id].push(instance.loadedProfile.timeout);
+    return {id:item.id};
+  };
+  await Promise.all([instance.execute('first','StopOnFailure','fast'), instance.execute('second','StopOnFailure','slow')]);
+  expect(seen).toEqual({first:[100,100],second:[9000,9000]});
 });

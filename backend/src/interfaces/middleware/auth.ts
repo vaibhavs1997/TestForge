@@ -143,7 +143,7 @@ export async function assertProjectAccess(projectId: string, auth: AuthContext |
   if (projectAccessLookup) {
     const record = await projectAccessLookup(projectId);
     if (record?.ownerId && record.ownerId === auth.subject) return;
-    if (auth.tenantId && record?.tenantId && record.tenantId === auth.tenantId) return;
+    // Tenant claims alone do not establish verified project membership.
   }
 
   throw new ForbiddenError('Forbidden for this project');

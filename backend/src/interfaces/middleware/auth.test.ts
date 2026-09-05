@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import jwt from 'jsonwebtoken';
-import { authenticate, authorizeProject, authorizeResource, assertGlobalAccess } from './auth.js';
+import { authenticate, authorizeProject, authorizeResource, assertGlobalAccess, assertProjectAccess, setProjectAccessLookup } from './auth.js';
 import { AppError } from '../../shared/errors.js';
 
 describe('auth middleware', () => {
@@ -67,4 +67,17 @@ describe('auth middleware', () => {
     process.env.TESTFORGE_API_KEY = 'test-secret-key';
     expect(() => assertGlobalAccess({ subject: 'member', role: 'member', projectIds: '*' })).toThrow(/Administrator role/);
   });
+});
+
+it('denies tenant-only access for legacy organization slugs while preserving ownership', async () => {
+  const previous = process.env.TESTFORGE_JWT_SECRET;
+  process.env.TESTFORGE_JWT_SECRET = 'test-only-secret';
+  setProjectAccessLookup(async () => ({ownerId:'owner',tenantId:'same-org'}));
+  try {
+    await expect(assertProjectAccess('p', {subject:'attacker',tenantId:'same-org',projectIds:[]})).rejects.toThrow('Forbidden');
+    await expect(assertProjectAccess('p', {subject:'owner',tenantId:'same-org',projectIds:[]})).resolves.toBeUndefined();
+  } finally {
+    setProjectAccessLookup(async () => null);
+    if (previous === undefined) delete process.env.TESTFORGE_JWT_SECRET; else process.env.TESTFORGE_JWT_SECRET = previous;
+  }
 });

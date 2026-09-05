@@ -1,11 +1,14 @@
 // Backup & Restore Service
 import fs from 'fs';
+import { createHash, randomUUID } from 'node:crypto';
 import path from 'path';
 import { execFileSync, execSync } from 'child_process';
 import { APP_VERSION, BUILD_TIMESTAMP, GIT_COMMIT } from '../../config.js';
 import { defaultEvidenceGovernance } from '../../infrastructure/security/EvidenceGovernanceService.js';
 
 export interface BackupMetadata {
+  format?: 'raw-v2';
+  files?: Record<string, string>;
   id: string;
   createdAt: string;
   version: string;
@@ -38,17 +41,45 @@ export interface ExportManifest {
 
 const SCHEMA_VERSION = 1;
 const MIGRATION_VERSION = 1;
-const BACKUP_DIR = process.env.BACKUP_DIR || './data/backups';
 const MAX_BACKUPS = Number(process.env.MAX_BACKUPS || 10);
 
 export class BackupService {
-  private backupDir: string;
+  private readonly backupDir: string;
+  private readonly dataDir: string;
 
-  constructor() {
-    this.backupDir = BACKUP_DIR;
-    if (!fs.existsSync(this.backupDir)) {
-      fs.mkdirSync(this.backupDir, { recursive: true });
+  constructor(private readonly options: { dataDir?: string; backupDir?: string; offline?: boolean } = {}) {
+    this.dataDir = path.resolve(options.dataDir || './data');
+    this.backupDir = path.resolve(options.backupDir || process.env.BACKUP_DIR || './data/backups');
+    if (this.dataDir === path.parse(this.dataDir).root || this.dataDir === path.resolve('.')) throw new Error('Unsafe data directory');
+    if (this.backupDir === this.dataDir || this.dataDir.startsWith(this.backupDir + path.sep)) throw new Error('Backup directory cannot contain the data directory');
+    fs.mkdirSync(this.backupDir, { recursive: true, mode: 0o700 });
+  }
+
+  private copySnapshot(source: string, destination: string, excludeBackupRoot = false): void {
+    fs.mkdirSync(destination, { recursive: true, mode: 0o700 });
+    for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
+      const from = path.join(source, entry.name);
+      if (excludeBackupRoot && path.resolve(from) === this.backupDir) continue;
+      if (entry.isSymbolicLink()) throw new Error('Backup data cannot contain symbolic links');
+      if (entry.name.endsWith('.lock')) throw new Error('Storage is busy; retry the backup after writes finish');
+      if (!this.options.offline && (entry.name.endsWith('-wal') || entry.name.endsWith('-journal'))) throw new Error('SQLite backup requires the offline backup command');
+      const to = path.join(destination, entry.name);
+      if (entry.isDirectory()) this.copySnapshot(from, to, excludeBackupRoot);
+      else if (entry.isFile()) { fs.copyFileSync(from, to); fs.chmodSync(to, 0o600); }
+      else throw new Error('Unsupported backup file type');
     }
+  }
+
+  private manifest(directory: string, root = directory): Record<string, string> {
+    const files: Record<string, string> = {};
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const file = path.join(directory, entry.name);
+      if (entry.isSymbolicLink()) throw new Error('Backup data cannot contain symbolic links');
+      if (entry.isDirectory()) Object.assign(files, this.manifest(file, root));
+      else if (entry.isFile()) files[path.relative(root, file).split(path.sep).join('/')] = createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+      else throw new Error('Unsupported backup file type');
+    }
+    return files;
   }
 
   /**
@@ -56,20 +87,21 @@ export class BackupService {
    */
   async createBackup(): Promise<BackupMetadata> {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const id = `backup-${timestamp}`;
+    const id = `backup-${timestamp}-${randomUUID()}`;
     const backupPath = path.join(this.backupDir, id);
 
     // Create backup directory
     fs.mkdirSync(backupPath, { recursive: true });
 
     // Copy data directory
-    const dataDir = process.env.DB_PATH ? path.dirname(process.env.DB_PATH) : './data';
-    if (fs.existsSync(dataDir)) {
-      this.copyDir(dataDir, path.join(backupPath, 'data'));
-    }
+    if (process.env.DB_PATH && !path.resolve(process.env.DB_PATH).startsWith(this.dataDir + path.sep)) throw new Error('DB_PATH is outside the backup data directory');
+    if (!fs.existsSync(this.dataDir)) throw new Error('Data directory does not exist');
+    this.copySnapshot(this.dataDir, path.join(backupPath, 'data'), true);
 
     // Write metadata
     const metadata: BackupMetadata = {
+      format: 'raw-v2',
+      files: this.manifest(path.join(backupPath, 'data')),
       id,
       createdAt: new Date().toISOString(),
       version: APP_VERSION,
@@ -144,19 +176,27 @@ export class BackupService {
       return { success: false, message: `Backup schema version ${metadata.schemaVersion} is newer than supported ${SCHEMA_VERSION}` };
     }
 
-    // Restore data
-    const dataDir = process.env.DB_PATH ? path.dirname(process.env.DB_PATH) : './data';
+    if (!this.options.offline) return { success: false, message: 'Stop TestForge and use the offline backup:restore command to restore safely.' };
+    if (metadata.format !== 'raw-v2' || !metadata.files) return { success: false, message: 'Legacy redacted exports are not recoverable backups.' };
     const backupData = path.join(backupPath, 'data');
-    if (fs.existsSync(backupData)) {
-      // Clear existing data
-      if (fs.existsSync(dataDir)) {
-        fs.rmSync(dataDir, { recursive: true, force: true });
-      }
-      fs.mkdirSync(dataDir, { recursive: true });
-      this.copyDir(backupData, dataDir);
+    if (!fs.existsSync(backupData)) return { success: false, message: 'Backup data is missing' };
+    const actual = this.manifest(backupData);
+    if (Object.keys(actual).length !== Object.keys(metadata.files).length || Object.entries(metadata.files).some(([file, hash]) => actual[file] !== hash)) return { success: false, message: 'Backup integrity verification failed' };
+    const stage = this.dataDir + '.restore-stage-' + randomUUID();
+    const previous = this.dataDir + '.restore-previous-' + randomUUID();
+    this.copySnapshot(backupData, stage);
+    if (this.backupDir.startsWith(this.dataDir + path.sep)) {
+      this.copySnapshot(this.backupDir, path.join(stage, path.relative(this.dataDir, this.backupDir)));
     }
-
-    return { success: true, message: `Backup ${id} restored successfully` };
+    let moved = false;
+    try {
+      if (fs.existsSync(this.dataDir)) { fs.renameSync(this.dataDir, previous); moved = true; }
+      fs.renameSync(stage, this.dataDir);
+    } catch (error) {
+      if (moved && !fs.existsSync(this.dataDir)) fs.renameSync(previous, this.dataDir);
+      throw error;
+    }
+    return { success: true, message: 'Backup restored. Restart TestForge. Previous data is retained at ' + previous };
   }
 
   /**

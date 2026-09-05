@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 import { AuditLogEntity, AuditLogRepository } from '../../domain/audit/index.js';
-import { readJsonArray, updateJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
+import { readJsonArray, updateJsonArray } from '../persistence/JsonFileStore.js';
 import { filterAuditLogs, sortAuditLogsDescending } from './AuditLogRepositorySupport.js';
 
 function logsFilePath(): string {
@@ -29,14 +29,8 @@ export class FileAuditLogRepository implements AuditLogRepository {
     return rows.map(reviveLog);
   }
 
-  private async writeAll(logs: AuditLogEntity[]): Promise<void> {
-    await writeJsonArray(logsFilePath(), logs);
-  }
-
   async create(log: AuditLogEntity): Promise<AuditLogEntity> {
-    const logs = await this.readAll();
-    logs.push(log);
-    await this.writeAll(logs);
+    await updateJsonArray<AuditLogEntity>(logsFilePath(), [], logs => [...logs, log]);
     return log;
   }
 

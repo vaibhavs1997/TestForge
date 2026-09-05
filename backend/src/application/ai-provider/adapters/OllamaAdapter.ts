@@ -11,7 +11,7 @@ import type {
 import { BaseAIProviderAdapter } from './BaseAIProviderAdapter.js';
 import { secureHttpExecutor } from '../../../infrastructure/http/SecureHttpExecutor.js';
 
-const DEFAULT_OLLAMA_BASE = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
+const DEFAULT_OLLAMA_BASE = 'http://127.0.0.1:11434';
 const localInfrastructurePolicy = process.env.TESTFORGE_ALLOW_LOCAL_INFRASTRUCTURE === 'true'
   ? { allowPrivateNetworks: true, allowLoopback: true }
   : undefined;

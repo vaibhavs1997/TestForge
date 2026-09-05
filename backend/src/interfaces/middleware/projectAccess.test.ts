@@ -31,14 +31,14 @@ describe('filterProjectsForAuth', () => {
     expect(filtered).toHaveLength(3);
   });
 
-  it('filters by tenant for enterprise login tokens', () => {
+  it('does not grant membership from a matching tenant claim', () => {
     process.env.TESTFORGE_JWT_SECRET = 'secret';
     const filtered = filterProjectsForAuth(projects, {
       subject: 'user-1',
       tenantId: 'tenant-a',
       projectIds: [],
     });
-    expect(filtered.map((p) => p.id).sort()).toEqual(['a', 'legacy']);
+    expect(filtered.map((p) => p.id).sort()).toEqual(['a']);
   });
 
   it('filters to JWT project list and owned projects', () => {

@@ -3,7 +3,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { ReportEntity } from '../../domain/report/ReportEntity.js';
-import { readJsonArray, writeJsonArray } from '../persistence/JsonFileStore.js';
+import { readJsonArray, writeJsonArray, updateJsonArray } from '../persistence/JsonFileStore.js';
 
 function getDataRoot(): string {
   return path.join(process.cwd(), 'data', 'reports');
@@ -28,10 +28,13 @@ export class ReportRepository {
   async create(report: ReportEntity): Promise<ReportEntity> {
     this.ensureProjectDir(report.projectId);
     const filePath = this.getReportsFilePath(report.projectId);
-    const items = await this.readReports(report.projectId);
-    items.push(report);
-    await writeJsonArray(filePath, items);
-    return report;
+    let persisted = report;
+    await updateJsonArray<ReportEntity>(filePath, [], items => {
+      const existing = items.find(item => item.executionRunId === report.executionRunId);
+      persisted = existing ? { ...report, id: existing.id } : report;
+      return [...items.filter(item => item.executionRunId !== report.executionRunId), persisted];
+    });
+    return persisted;
   }
 
   async findById(id: string): Promise<ReportEntity | null> {

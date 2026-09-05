@@ -1871,9 +1871,8 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
                   </select>
                   {aiProviders.length === 0 && (
                     <p className='mt-2 text-xs text-yellow-600'>
-                      No AI provider found. Set <code className='text-xs'>OLLAMA_BASE_URL</code> in backend{' '}
-                      <code className='text-xs'>.env</code> and restart the server, or add one under Administration → AI
-                      Providers.
+                      No AI providers configured. Add one under Administration → AI Providers. You can add multiple
+                      providers and choose the default there.
                     </p>
                   )}
                 </div>
@@ -2022,9 +2021,8 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
                   </select>
                   {aiProviders.length === 0 && (
                     <p className='mt-2 text-xs text-yellow-600'>
-                      No AI provider found. Set <code className='text-xs'>OLLAMA_BASE_URL</code> in backend{' '}
-                      <code className='text-xs'>.env</code> and restart the server, or add one under Administration → AI
-                      Providers.
+                      No AI providers configured. Add one under Administration → AI Providers. You can add multiple
+                      providers and choose the default there.
                     </p>
                   )}
                 </div>
@@ -2157,9 +2155,8 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
                   </select>
                   {aiProviders.length === 0 && (
                     <p className='mt-2 text-xs text-yellow-600'>
-                      No AI provider found. Set <code className='text-xs'>OLLAMA_BASE_URL</code> in backend{' '}
-                      <code className='text-xs'>.env</code> and restart the server, or add one under Administration → AI
-                      Providers.
+                      No AI providers configured. Add one under Administration → AI Providers. You can add multiple
+                      providers and choose the default there.
                     </p>
                   )}
                 </div>
@@ -2304,8 +2301,8 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
                   </select>
                   {aiProviders.length === 0 && (
                     <p className='mt-2 text-xs text-yellow-600'>
-                      No AI provider found. Set OLLAMA_BASE_URL in backend .env and restart, or add one under
-                      Administration → AI Providers.
+                      No AI providers configured. Add one under Administration → AI Providers. You can add multiple
+                      providers and choose the default there.
                     </p>
                   )}
                 </div>
@@ -2461,9 +2458,8 @@ const RequirementsPageContent: React.FC<RequirementsPageProps & { projectId: str
                   </select>
                   {aiProviders.length === 0 && (
                     <p className='mt-2 text-xs text-yellow-600'>
-                      No AI provider found. Set <code className='text-xs'>OLLAMA_BASE_URL</code> in backend{' '}
-                      <code className='text-xs'>.env</code> and restart the server, or add one under Administration → AI
-                      Providers.
+                      No AI providers configured. Add one under Administration → AI Providers. You can add multiple
+                      providers and choose the default there.
                     </p>
                   )}
                 </div>

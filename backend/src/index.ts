@@ -48,7 +48,7 @@ import { ForbiddenError } from './shared/errors.js';
 import { projectRoutes } from './interfaces/project/ProjectRoutes.js';
 import { createActivityStreamRoutes } from './interfaces/realtime/ActivityStreamRoutes.js';
 import { createAuthRoutes } from './interfaces/auth/AuthRoutes.js';
-import { connectMongo, disconnectMongo } from './infrastructure/auth/mongoClient.js';
+import { connectMongo, disconnectMongo, isMongoConnected } from './infrastructure/auth/mongoClient.js';
 import { loadEnv } from './config/loadEnv.js';
 import { logger } from './infrastructure/logging/Logger.js';
 import { createRateLimiter } from './infrastructure/security/rateLimiter.js';
@@ -114,21 +114,20 @@ async function bootstrap(): Promise<void> {
   const port = config.port;
   app.disable('x-powered-by');
 
-  const connectMongoPromise =
-    config.mongodbUri
-      ? connectMongo(config.mongodbUri)
-          .then(() => {
-            logger.info('Connected to MongoDB (enterprise user accounts enabled)');
-          })
-          .catch((err) => {
-            logger.error('MongoDB connection failed — login/register will not work until this is fixed', {
-              error: err instanceof Error ? err.message : err,
-              hint: 'Check Atlas Network Access (your IP), database user password (URL-encode @ as %40), and cluster hostname.',
-            });
-          })
-      : Promise.resolve();
-
-  void connectMongoPromise;
+  if (config.mongodbUri) {
+    try {
+      await connectMongo(config.mongodbUri);
+      logger.info('Connected to MongoDB (enterprise user accounts enabled)');
+    } catch (error) {
+      // Do not log the driver error: it may contain the MongoDB connection URI.
+      logger.error('MongoDB connection failed — backend will not start with enterprise login enabled', {
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+        errorCode: typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : undefined,
+        hint: 'Check Atlas Network Access (your IP), database credentials, URI encoding, and cluster hostname.',
+      });
+      throw new Error('MongoDB connection failed. Verify Atlas access, database credentials, and MONGODB_URI, then restart the backend.');
+    }
+  }
 
   const corsOrigins = config.corsOrigin.split(',').map((origin) => origin.trim());
   app.use(cors({ origin: corsOrigins }));
@@ -238,12 +237,14 @@ async function bootstrap(): Promise<void> {
 
   const readinessHandler = async (_req: express.Request, res: express.Response) => {
     const rag = await ragHealth.check();
-    const ready = !rag.enabled || (rag.connected && rag.pgvectorEnabled);
+    const mongodb = { enabled: Boolean(config.mongodbUri), connected: !config.mongodbUri || isMongoConnected() };
+    const ready = mongodb.connected && (!rag.enabled || (rag.connected && rag.pgvectorEnabled));
     res.status(ready ? 200 : 503).json({
       status: ready ? 'ready' : 'not_ready',
       uptime: Math.round((Date.now() - serverStartTime) / 1000),
       version: config.version,
       build: config.buildTimestamp,
+      mongodb,
       rag,
     });
   };

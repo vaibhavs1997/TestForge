@@ -2,23 +2,47 @@ import { MongoClient, type Db } from 'mongodb';
 
 let client: MongoClient | null = null;
 let db: Db | null = null;
+let connectionPromise: Promise<Db> | null = null;
 
-const USERS_COLLECTION = process.env.MONGODB_USERS_COLLECTION?.trim() || 'userAuthentication';
+function configuredUsersCollection(): string {
+  return process.env.MONGODB_USERS_COLLECTION?.trim() || 'userAuthentication';
+}
 
 export async function connectMongo(uri: string): Promise<Db> {
   if (db) return db;
-  client = new MongoClient(uri, {
+  if (connectionPromise) return connectionPromise;
+
+  const nextClient = new MongoClient(uri, {
     serverSelectionTimeoutMS: 20_000,
     autoSelectFamily: false,
   });
-  await client.connect();
-  db = client.db();
-  await db.collection(USERS_COLLECTION).createIndex({ id: 1 }, { unique: true });
-  return db;
+  client = nextClient;
+  connectionPromise = (async () => {
+    try {
+      await nextClient.connect();
+      const nextDb = nextClient.db();
+      await nextDb.collection(configuredUsersCollection()).createIndex({ id: 1 }, { unique: true });
+      db = nextDb;
+      return nextDb;
+    } catch (error) {
+      await nextClient.close().catch(() => undefined);
+      client = null;
+      db = null;
+      throw error;
+    } finally {
+      connectionPromise = null;
+    }
+  })();
+
+  return connectionPromise;
 }
 
 export function getUsersCollectionName(): string {
-  return USERS_COLLECTION;
+  return configuredUsersCollection();
+}
+
+export function isMongoConnected(): boolean {
+  return db !== null;
 }
 
 export function getMongoDb(): Db {
@@ -32,6 +56,9 @@ export function getMongoDb(): Db {
 }
 
 export async function disconnectMongo(): Promise<void> {
+  if (connectionPromise) {
+    await connectionPromise.catch(() => undefined);
+  }
   if (client) {
     await client.close();
     client = null;
